@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a focused usability or workflow improvement.
+title: "feature: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the research workflow problem, not only a preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: integrity
+    attributes:
+      label: Data-integrity considerations
+      description: Note any sorting, mapping, aggregation, truncation, or unit implications.

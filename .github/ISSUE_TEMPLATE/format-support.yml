@@ -1,0 +1,78 @@
+name: Format support request
+description: Request investigation of a scientific instrument format.
+title: "format: "
+labels: ["format-request", "needs-evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Warning: do not attach raw instrument files to this public issue unless you own the data and have confirmed redistribution permission. Remove personal, sample, patient, organization, and instrument identifiers. A format is not supported until fixtures and tests verify its exact capabilities.
+  - type: input
+    id: vendor
+    attributes:
+      label: Instrument manufacturer
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Instrument model
+    validations:
+      required: true
+  - type: input
+    id: software
+    attributes:
+      label: Acquisition or export software version
+    validations:
+      required: true
+  - type: input
+    id: extension
+    attributes:
+      label: File extension or folder suffix
+    validations:
+      required: true
+  - type: dropdown
+    id: layout
+    attributes:
+      label: File layout
+      options: [Single file, Folder, Multiple related files, Unknown]
+    validations:
+      required: true
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Required data types
+      options:
+        - label: Metadata
+        - label: Peak table
+        - label: Raw or exported signal
+        - label: Spectrum
+        - label: Other processed results
+  - type: dropdown
+    id: fixture
+    attributes:
+      label: Can you share an anonymized fixture privately?
+      options: [Yes, No, Unsure]
+    validations:
+      required: true
+  - type: dropdown
+    id: permission
+    attributes:
+      label: Do you have permission to redistribute the fixture publicly under clear terms?
+      options: [Yes, No, Unsure]
+    validations:
+      required: true
+  - type: dropdown
+    id: generation
+    attributes:
+      label: Can the file be generated without licensed vendor software?
+      options: [Yes, No, Unsure]
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected workbook output
+      description: Describe the fields, units, channels, and relationships that must be preserved.
+    validations:
+      required: true

@@ -1,0 +1,41 @@
+name: New parser proposal
+description: Propose an evidence-backed adapter contribution.
+title: "adapter: "
+labels: ["adapter", "proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read docs/formats/adding-an-adapter.md first. Do not attach proprietary data or vendor software.
+  - type: input
+    id: format
+    attributes:
+      label: Format and versions
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Technical evidence
+      description: Link official specifications or other authoritative format documentation.
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Exact capabilities
+      description: Separate metadata, peaks, signals, spectra, and write support.
+    validations:
+      required: true
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Fixture provenance and license
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and actual licenses
+    validations:
+      required: true
