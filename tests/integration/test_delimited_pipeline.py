@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
-from labconvert.api import convert, inspect_file
+from ordifile.api import convert, inspect_file
 
 
 def _write_whitespace_table(path: Path, delimiter: str | None, row: list[str]) -> None:

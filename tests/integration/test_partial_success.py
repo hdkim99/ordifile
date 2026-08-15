@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from labconvert.adapters.registry import create_registry
-from labconvert.api import convert, inspect_file
-from labconvert.core import discovery, pipeline
-from labconvert.core.errors import LabConvertError
-from labconvert.core.models import FileStatus, ProgressEvent
-from labconvert.core.pipeline import run_pipeline
-from labconvert.core.workbook_text import workbook_audit_display
+from ordifile.adapters.registry import create_registry
+from ordifile.api import convert, inspect_file
+from ordifile.core import discovery, pipeline
+from ordifile.core.errors import OrdifileError
+from ordifile.core.models import FileStatus, ProgressEvent
+from ordifile.core.pipeline import run_pipeline
+from ordifile.core.workbook_text import workbook_audit_display
 
 
 def test_one_corrupt_file_does_not_discard_one_hundred_valid_files(tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ def test_on_error_stop_skips_parsing_after_first_failure(tmp_path: Path) -> None
     continued = run_pipeline((bad, good), registry, on_error="continue")
     assert continued.success_count == 1
     output = tmp_path / "stopped.xlsx"
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         convert((bad, good), output, on_error="stop", registry=registry)
     assert caught.value.code == "BATCH_FILE_FAILURE"
     assert not output.exists()
@@ -200,7 +200,7 @@ def test_inspect_hashes_before_and_after_parse_without_adapter_duplicate_hash(
 
 def test_inspect_rejects_directory_even_when_it_contains_one_file(tmp_path: Path) -> None:
     (tmp_path / "only.csv").write_text("sample_id,area\na,1\n", encoding="utf-8")
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         inspect_file(tmp_path)
     assert caught.value.code == "INSPECT_REQUIRES_FILE"
 
@@ -209,13 +209,13 @@ def test_invalid_sort_and_forced_adapter_typo_are_configuration_errors(tmp_path:
     source = tmp_path / "sample.csv"
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
     bad_sort_output = tmp_path / "sort.xlsx"
-    with pytest.raises(LabConvertError) as bad_sort:
+    with pytest.raises(OrdifileError) as bad_sort:
         convert(source, bad_sort_output, sort="not-a-sort")
     assert bad_sort.value.code == "SORT_MODE_INVALID"
     assert not bad_sort_output.exists()
 
     bad_adapter_output = tmp_path / "adapter.xlsx"
-    with pytest.raises(LabConvertError) as bad_adapter:
+    with pytest.raises(OrdifileError) as bad_adapter:
         convert(source, bad_adapter_output, adapter="typo_adapter")
     assert bad_adapter.value.code == "ADAPTER_NOT_FOUND"
     assert not bad_adapter_output.exists()
@@ -302,7 +302,7 @@ def test_folder_discovery_excludes_own_workbook_sidecar_and_temp_with_audit_log(
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
     convert(source, output)
     sidecar = tmp_path / "result_Peaks_001.csv"
-    temporary = tmp_path / ".labconvert_workbook_orphan.xlsx.tmp"
+    temporary = tmp_path / ".ordifile_workbook_orphan.xlsx.tmp"
     sidecar.write_text("sample_id,area\nartifact,999\n", encoding="utf-8")
     temporary.write_bytes(b"temporary")
 
@@ -312,12 +312,12 @@ def test_folder_discovery_excludes_own_workbook_sidecar_and_temp_with_audit_log(
     excluded = [
         item
         for item in result.files
-        if any(issue.code == "LABCONVERT_ARTIFACT_EXCLUDED" for issue in item.issues)
+        if any(issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in item.issues)
     ]
     assert {item.source.name for item in excluded} == {
         "result.xlsx",
         "result_Peaks_001.csv",
-        ".labconvert_workbook_orphan.xlsx.tmp",
+        ".ordifile_workbook_orphan.xlsx.tmp",
     }
     assert all(item.status is FileStatus.SKIPPED for item in excluded)
     workbook = load_workbook(result.output_path, read_only=True, data_only=False)
@@ -325,7 +325,7 @@ def test_folder_discovery_excludes_own_workbook_sidecar_and_temp_with_audit_log(
         log_rows = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
         audited = [row for row in log_rows if row[4] == "skipped"]
         assert len(audited) == 3
-        assert all("LABCONVERT_ARTIFACT_EXCLUDED" in row[5] for row in audited)
+        assert all("ORDIFILE_ARTIFACT_EXCLUDED" in row[5] for row in audited)
         peak_rows = list(workbook["Peaks"].iter_rows(min_row=2, values_only=True))
         assert len(peak_rows) == 1
         assert peak_rows[0][0] == "a"

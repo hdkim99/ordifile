@@ -3,7 +3,7 @@
 > Development preview: the public adapter API is stabilized by tests before v0.1. Check
 > the current protocol and API version in the source tree when implementing a plugin.
 
-LabConvert adapters detect and parse one source format into the canonical data model.
+Ordifile adapters detect and parse one source format into the canonical data model.
 They do not discover files, sort batches, write workbooks, or implement user interfaces.
 
 ## Evidence and license gate
@@ -37,7 +37,7 @@ class FormatAdapter(Protocol):
 ```
 
 `adapter_id` is a stable, globally unique lowercase identifier. `adapter_version`
-describes the implementation. `api_version` declares compatibility with LabConvert's
+describes the implementation. `api_version` declares compatibility with Ordifile's
 plugin contract.
 
 ## Detection
@@ -47,7 +47,7 @@ plugin contract.
   delimiter/header structure, archive members, or other documented internal evidence.
 - Return confidence and human-readable evidence.
 - Do not claim a match for an unsupported format variant.
-- If multiple adapters make equally strong claims, LabConvert returns a structured
+- If multiple adapters make equally strong claims, Ordifile returns a structured
   ambiguity error rather than choosing one silently.
 
 ## Parsing
@@ -67,11 +67,11 @@ plugin contract.
 - Treat exact empty values, whitespace-only values, and non-empty text as distinct cases.
   Preserve leading/trailing whitespace and original numeric or timestamp lexemes when a
   parser uses a normalized copy.
-- Keep canonical integers within LabConvert's documented bounds. Check lexeme length and
+- Keep canonical integers within Ordifile's documented bounds. Check lexeme length and
   exponent before constructing an integer; do not allow a tiny source value to allocate an
   unbounded Python integer.
 - Use exact built-in canonical types and immutable tuples. Do not return subclasses with custom
-  conversion hooks; LabConvert runtime-validates and isolates malformed plugin bundles, but
+  conversion hooks; Ordifile runtime-validates and isolates malformed plugin bundles, but
   adapter tests should catch contract violations at their source.
 - Put only `Severity.WARNING` issues in `DatasetBundle.warnings` and only `Severity.ERROR` issues
   in `DatasetBundle.errors`. Codes use bounded uppercase ASCII identifiers. Issue messages,
@@ -95,7 +95,7 @@ Populate only the capabilities supported by evidence:
 
 ## External registration
 
-External packages register an adapter factory in the `labconvert.adapters` entry-point
+External packages register an adapter factory in the `ordifile.adapters` entry-point
 group. The registry rejects duplicate adapter IDs and incompatible API versions. Because
 Python entry points execute installed code, third-party adapters must be treated as
 trusted software.
@@ -108,8 +108,8 @@ the CLI support table omit descriptors without that declaration.
 Example registration in an adapter package's `pyproject.toml`:
 
 ```toml
-[project.entry-points."labconvert.adapters"]
-my_format = "my_labconvert_adapter:MyFormatAdapter"
+[project.entry-points."ordifile.adapters"]
+my_format = "my_ordifile_adapter:MyFormatAdapter"
 ```
 
 ## Fixtures and tests

@@ -8,9 +8,9 @@
 
 ## Evidence summary
 
-| Project | Owner / source | Verified scope | License and maintenance | LabConvert decision |
+| Project | Owner / source | Verified scope | License and maintenance | Ordifile decision |
 |---|---|---|---|---|
-| [OpenChrom](https://github.com/OpenChrom/openchrom) and [converter site](https://converter.openchrom.net/) | OpenChrom | Chromatography/MS analysis platform with format-converter plugins | Repository LICENSE is EPL-2.0; repository active in August 2026 | Do not copy code. LabConvert remains a smaller batch-to-Excel tool. |
+| [OpenChrom](https://github.com/OpenChrom/openchrom) and [converter site](https://converter.openchrom.net/) | OpenChrom | Chromatography/MS analysis platform with format-converter plugins | Repository LICENSE is EPL-2.0; repository active in August 2026 | Do not copy code. Ordifile remains a smaller batch-to-Excel tool. |
 | [chromConverter](https://github.com/ethanbass/chromConverter) | ethanbass | R conversion workflows for HPLC/GC/MS through internal and external parsers | GPL-3.0; release 0.9.0 in 2026 | Comparison reference only; no code reuse in the Apache-only core. |
 | [Entab](https://github.com/bovee/entab) and [PyPI](https://pypi.org/project/entab/) | bovee | Record parser for several instrument formats, including ChemStation CH/FID | MIT; active source, but PyPI 0.3.3 wheel/platform coverage is limited | Do not make it a v0.1 dependency. Re-evaluate with lawful fixtures. |
 | [rainbow](https://github.com/evanyeyeye/rainbow) and [format list](https://rainbow-api.readthedocs.io/en/latest/formats.html) | evanyeyeye | Signal/spectrum arrays for listed chromatography formats | LGPL-3.0; active | The broad format list does not imply peak-table or complete metadata support. |
@@ -22,7 +22,7 @@
 
 - Verified: projects that name a vendor often expose only signals, spectra, or MS
   conversion—not metadata, integrated peaks, and write support together.
-- Inference: LabConvert can differentiate through a narrow deterministic workflow,
+- Inference: Ordifile can differentiate through a narrow deterministic workflow,
   transparent partial failures, and a simple adapter API rather than format count.
 - Unresolved: no competitor fixture was shown to have clear redistribution provenance
   sufficient for reuse here.

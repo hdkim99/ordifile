@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from labconvert.core.models import (
+from ordifile.core.models import (
     DatasetBundle,
     MetadataEntry,
     PeakRecord,
@@ -11,8 +11,8 @@ from labconvert.core.models import (
     SignalSeries,
     SourceFile,
 )
-from labconvert.core.privacy import contains_machine_local_path
-from labconvert.core.validation import validate_bundle
+from ordifile.core.privacy import contains_machine_local_path
+from ordifile.core.validation import validate_bundle
 
 
 def _source() -> SourceFile:

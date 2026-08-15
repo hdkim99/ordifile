@@ -14,12 +14,12 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-from labconvert.adapters.base import ParseOptions
-from labconvert.adapters.registry import AdapterRegistry
-from labconvert.core.detection import detect_adapter
-from labconvert.core.discovery import discover_files, sha256_file
-from labconvert.core.errors import LabConvertError
-from labconvert.core.models import (
+from ordifile.adapters.base import ParseOptions
+from ordifile.adapters.registry import AdapterRegistry
+from ordifile.core.detection import detect_adapter
+from ordifile.core.discovery import discover_files, sha256_file
+from ordifile.core.errors import OrdifileError
+from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
     DatasetBundle,
@@ -33,10 +33,10 @@ from labconvert.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
-from labconvert.core.privacy import contains_machine_local_path, scrub_machine_local_paths
-from labconvert.core.sorting import sort_file_results
-from labconvert.core.validation import validate_bundle, validate_bundle_structure
-from labconvert.core.workbook_text import (
+from ordifile.core.privacy import contains_machine_local_path, scrub_machine_local_paths
+from ordifile.core.sorting import sort_file_results
+from ordifile.core.validation import validate_bundle, validate_bundle_structure
+from ordifile.core.workbook_text import (
     MAX_WORKBOOK_CELL_CHARACTERS,
     workbook_audit_display,
     workbook_cell_text_is_exact,
@@ -113,7 +113,7 @@ def _safe_error_context(details: object) -> tuple[tuple[str, str], ...]:
 
 def _issue_from_error(error: Exception, source: SourceFile) -> Issue:
     safe_source = workbook_audit_display(source.relative_path)
-    if isinstance(error, LabConvertError):
+    if isinstance(error, OrdifileError):
         if (
             type(error.code) is not str
             or _ADAPTER_ERROR_CODE.fullmatch(error.code) is None
@@ -310,12 +310,12 @@ def run_pipeline(
 ) -> BatchResult:
     """Process each discovered file independently and preserve every outcome."""
     if on_error not in {"continue", "stop"}:
-        raise LabConvertError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
+        raise OrdifileError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
     try:
         requested_sort = sort if isinstance(sort, SortMode) else SortMode(sort)
     except ValueError as error:
         choices = ", ".join(mode.value for mode in SortMode)
-        raise LabConvertError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
+        raise OrdifileError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
     if forced_adapter is not None:
         registry.get(forced_adapter)
     options = ParseOptions() if parse_options is None else parse_options
@@ -361,7 +361,7 @@ def run_pipeline(
                     display_source,
                 ),
             )
-        if any(issue.code == "LABCONVERT_ARTIFACT_EXCLUDED" for issue in discovery_issues):
+        if any(issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in discovery_issues):
             result = FileResult(source, FileStatus.SKIPPED, issues=discovery_issues)
             processed.append(result)
             report_processed(result, completed)
@@ -424,7 +424,7 @@ def run_pipeline(
             try:
                 post_parse_sha256 = sha256_file(source.path)
             except (OSError, UnicodeError) as error:
-                raise LabConvertError(
+                raise OrdifileError(
                     "INPUT_INTEGRITY_CHECK_FAILED",
                     "Input integrity could not be verified after parsing "
                     f"({type(error).__name__}).",

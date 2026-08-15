@@ -1,6 +1,6 @@
 # Third-party notices
 
-LabConvert is licensed under the Apache License 2.0. It does not bundle proprietary
+Ordifile is licensed under the Apache License 2.0. It does not bundle proprietary
 vendor software, SDKs, DLLs, executables, or instrument files.
 
 The following packages are declared dependencies. They are installed separately by the
@@ -33,7 +33,7 @@ These tools are used to develop and verify the project; they are not runtime imp
 
 Python itself is distributed under the Python Software Foundation License. GitHub
 Actions used by this repository retain their own licenses and are not included in the
-LabConvert distribution.
+Ordifile distribution.
 
 No code from the researched EPL-2.0, GPL-3.0, or LGPL-3.0 chromatography projects has
-been copied into LabConvert.
+been copied into Ordifile.

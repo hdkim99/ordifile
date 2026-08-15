@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Structured errors raised at LabConvert's public boundaries."""
+"""Structured errors raised at Ordifile's public boundaries."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-class LabConvertError(Exception):
+class OrdifileError(Exception):
     """Base class for an actionable, machine-readable failure."""
 
     def __init__(
@@ -21,11 +21,11 @@ class LabConvertError(Exception):
         self.details = dict(details or {})
 
 
-class DiscoveryError(LabConvertError):
+class DiscoveryError(OrdifileError):
     """An input could not be safely discovered."""
 
 
-class DetectionError(LabConvertError):
+class DetectionError(OrdifileError):
     """No unambiguous adapter could be selected."""
 
 
@@ -33,15 +33,15 @@ class AdapterAmbiguityError(DetectionError):
     """More than one adapter or input sheet is equally plausible."""
 
 
-class ParseError(LabConvertError):
+class ParseError(OrdifileError):
     """An adapter could not parse its claimed input."""
 
 
-class ValidationError(LabConvertError):
+class ValidationError(OrdifileError):
     """Parsed canonical data violates a required invariant."""
 
 
-class ExportError(LabConvertError):
+class ExportError(OrdifileError):
     """A workbook could not be safely exported."""
 
 

@@ -1,4 +1,4 @@
-# Contributing to LabConvert
+# Contributing to Ordifile
 
 Thank you for helping make scientific instrument conversion clearer and safer.
 
@@ -28,7 +28,7 @@ ruff check .
 mypy
 pytest
 python -m build
-labconvert --help
+ordifile --help
 pip-audit
 ```
 

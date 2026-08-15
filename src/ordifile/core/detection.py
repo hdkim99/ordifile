@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from labconvert.adapters.base import DetectionResult, FormatAdapter
-from labconvert.adapters.registry import AdapterRegistry
-from labconvert.core.errors import AdapterAmbiguityError, DetectionError
+from ordifile.adapters.base import DetectionResult, FormatAdapter
+from ordifile.adapters.registry import AdapterRegistry
+from ordifile.core.errors import AdapterAmbiguityError, DetectionError
 
 AMBIGUITY_MARGIN = 0.05
 

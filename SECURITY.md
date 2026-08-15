@@ -16,7 +16,7 @@ include exploit details or affected data in that issue.
 
 ## Security boundaries
 
-- LabConvert's normal conversion path operates offline and does not upload source data.
+- Ordifile's normal conversion path operates offline and does not upload source data.
 - Inputs are opened read-only. Output and sidecar paths are checked against inputs,
   aliases, hard links, and symbolic links before writing.
 - Source files are hashed before parsing and checked again afterward. A changed input is

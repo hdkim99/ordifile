@@ -13,8 +13,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, cast
 
-from labconvert.core.errors import ParseError
-from labconvert.core.models import (
+from ordifile.core.errors import ParseError
+from ordifile.core.models import (
     MAX_CANONICAL_INTEGER_DECIMAL_DIGITS,
     MAX_CANONICAL_INTEGER_LEXEME_CHARACTERS,
     DatasetBundle,
@@ -28,7 +28,7 @@ from labconvert.core.models import (
     SignalSeries,
     SourceFile,
 )
-from labconvert.core.workbook_text import workbook_audit_display
+from ordifile.core.workbook_text import workbook_audit_display
 
 _HEADER_SPACE = re.compile(r"[\s\-]+")
 HEADER_ALIASES: dict[str, str] = {
@@ -356,7 +356,7 @@ def parse_rows(
     if not any(item is not None for item in mapped):
         raise ParseError(
             "UNRECOGNIZED_SCHEMA",
-            "No documented LabConvert column was found in the header.",
+            "No documented Ordifile column was found in the header.",
         )
 
     source = _source(path)

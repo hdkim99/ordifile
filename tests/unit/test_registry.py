@@ -5,11 +5,16 @@ from typing import Any, ClassVar
 
 import pytest
 
-from labconvert.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
-from labconvert.adapters.registry import AdapterRegistry, create_registry, load_external_adapters
-from labconvert.api import get_format_report, list_formats
-from labconvert.core.errors import LabConvertError
-from labconvert.core.models import DatasetBundle
+from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.registry import (
+    ENTRY_POINT_GROUP,
+    AdapterRegistry,
+    create_registry,
+    load_external_adapters,
+)
+from ordifile.api import get_format_report, list_formats
+from ordifile.core.errors import OrdifileError
+from ordifile.core.models import DatasetBundle
 
 
 class ExternalAdapter:
@@ -39,6 +44,7 @@ class FakeEntryPoint:
 
 
 def test_builtin_descriptors_are_verified_and_stable() -> None:
+    assert ENTRY_POINT_GROUP == "ordifile.adapters"
     descriptors = create_registry(include_external=False).descriptors()
     assert {item.adapter_id for item in descriptors} == {
         "generic_csv",
@@ -52,11 +58,11 @@ def test_builtin_descriptors_are_verified_and_stable() -> None:
 def test_collision_and_api_incompatibility_are_rejected() -> None:
     registry = AdapterRegistry()
     registry.register(ExternalAdapter())
-    with pytest.raises(LabConvertError, match="already registered"):
+    with pytest.raises(OrdifileError, match="already registered"):
         registry.register(ExternalAdapter())
     ExternalAdapter.api_version = "wrong"
     try:
-        with pytest.raises(LabConvertError, match="API version"):
+        with pytest.raises(OrdifileError, match="API version"):
             AdapterRegistry().register(ExternalAdapter())
     finally:
         ExternalAdapter.api_version = "1"
@@ -115,7 +121,7 @@ def test_registry_rejects_unsafe_adapter_descriptor_fields(
         True,
     )
 
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         AdapterRegistry().register(InvalidAdapter())
     assert caught.value.code == expected_code
 
@@ -132,7 +138,7 @@ def test_invalid_external_descriptor_load_is_isolated_from_builtins() -> None:
     )
 
     assert registry.get("generic_csv").adapter_id == "generic_csv"
-    assert registry.load_errors == ("unsafe~u00005F;x000D_name: LabConvertError",)
+    assert registry.load_errors == ("unsafe~u00005F;x000D_name: OrdifileError",)
 
 
 def test_public_format_list_excludes_unverified_installed_descriptor() -> None:

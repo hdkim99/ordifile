@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from labconvert.core.models import BatchResult
+from ordifile.core.models import BatchResult
 
 
 class Exporter(Protocol):

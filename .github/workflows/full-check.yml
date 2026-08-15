@@ -30,4 +30,4 @@ jobs:
       - name: Build package
         run: python -m build
       - name: CLI smoke test
-        run: labconvert --help
+        run: ordifile --help

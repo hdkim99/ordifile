@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from labconvert.api import convert
-from labconvert.core.errors import ExportLimitError
-from labconvert.exporters import excel
+from ordifile.api import convert
+from ordifile.core.errors import ExportLimitError
+from ordifile.exporters import excel
 
 
 def _peak_file(path: Path, rows: int) -> None:

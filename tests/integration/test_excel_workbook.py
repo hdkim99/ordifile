@@ -4,7 +4,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from labconvert.api import convert
+from ordifile.api import convert
 
 
 def test_required_workbook_structure_hashes_and_natural_order(tmp_path: Path) -> None:
@@ -30,6 +30,8 @@ def test_required_workbook_structure_hashes_and_natural_order(tmp_path: Path) ->
         manifest = dict(
             (row[0], row[1]) for row in workbook["Manifest"].iter_rows(values_only=True)
         )
+        assert manifest["ordifile_version"] == "0.1.0"
+        assert "labconvert_version" not in manifest
         assert manifest["original_modified"] == "No"
         assert manifest["sort_effective"] == "filename"
     finally:

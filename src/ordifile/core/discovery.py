@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
-from labconvert.core.models import Issue, Severity, SourceFile
+from ordifile.core.models import Issue, Severity, SourceFile
 
 _NATURAL_PART = re.compile(r"(\d+)")
 _HASH_CHUNK = 1024 * 1024
@@ -69,12 +69,12 @@ def _reliable_file_id(path: Path) -> tuple[int, int] | None:
     return (stat.st_dev, stat.st_ino)
 
 
-def _is_labconvert_artifact(path: Path, output: Path) -> bool:
+def _is_ordifile_artifact(path: Path, output: Path) -> bool:
     if portable_path_identity(path.parent) != portable_path_identity(output.parent):
         return False
     if paths_alias(path, output):
         return True
-    if path.name.casefold().startswith(".labconvert_"):
+    if path.name.casefold().startswith(".ordifile_"):
         return True
     sidecar_pattern = re.compile(
         rf"^{re.escape(output.stem)}_.+_[0-9]{{3}}\.csv$",
@@ -207,14 +207,14 @@ def discover_files(
                 continue
             for member in members:
                 relative = member.relative_to(path).as_posix()
-                if artifact_output is not None and _is_labconvert_artifact(member, artifact_output):
+                if artifact_output is not None and _is_ordifile_artifact(member, artifact_output):
                     candidates.append(
                         (
                             member,
                             relative,
                             Issue(
-                                "LABCONVERT_ARTIFACT_EXCLUDED",
-                                "A LabConvert workbook, sidecar, or temporary artifact was "
+                                "ORDIFILE_ARTIFACT_EXCLUDED",
+                                "An Ordifile workbook, sidecar, or temporary artifact was "
                                 "excluded from folder discovery and retained in the audit log.",
                                 Severity.WARNING,
                                 relative,

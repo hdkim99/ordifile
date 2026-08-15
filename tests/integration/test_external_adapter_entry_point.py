@@ -8,11 +8,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from labconvert.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
-from labconvert.adapters.registry import AdapterRegistry, create_registry, load_external_adapters
-from labconvert.api import convert
-from labconvert.core.errors import LabConvertError
-from labconvert.core.models import (
+from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.registry import AdapterRegistry, create_registry, load_external_adapters
+from ordifile.api import convert
+from ordifile.core.errors import OrdifileError
+from ordifile.core.models import (
     DatasetBundle,
     FileStatus,
     InstrumentMetadata,
@@ -131,19 +131,19 @@ class BundleAdapter:
                 "nonfinite": float("inf"),
             }
             details.update({f"extra_{index}": index for index in range(40)})
-            raise LabConvertError(
+            raise OrdifileError(
                 "PLUGIN_STRUCTURED_FAILURE",
                 "The plugin reported a structured failure.",
                 details=cast(Any, details),
             )
         if self.malformed == "unsafe_structured_error":
-            raise LabConvertError(
+            raise OrdifileError(
                 "PLUGIN\x01ERROR",
                 "unsafe_x000D_message",
                 details={"unsafe": "secret\x01value"},
             )
         if self.malformed == "private_path_error":
-            raise LabConvertError(
+            raise OrdifileError(
                 "PLUGIN_PRIVATE_PATH",
                 "Failed '/Users/example/My Project/private input.dat' and "
                 "C:\\Users\\example\\Secret Project\\secret.dat; see "

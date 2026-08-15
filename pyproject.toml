@@ -3,7 +3,7 @@ requires = ["hatchling>=1.31,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "labconvert"
+name = "ordifile"
 version = "0.1.0"
 description = "Batch-convert scientific instrument files into one clean, ordered Excel workbook."
 readme = "README.md"
@@ -42,15 +42,15 @@ dev = [
 ]
 
 [project.scripts]
-labconvert = "labconvert.cli.main:main"
+ordifile = "ordifile.cli.main:main"
 
 [project.urls]
-Documentation = "https://github.com/hdkim99/labconvert#readme"
-Issues = "https://github.com/hdkim99/labconvert/issues"
-Repository = "https://github.com/hdkim99/labconvert"
+Documentation = "https://github.com/hdkim99/ordifile#readme"
+Issues = "https://github.com/hdkim99/ordifile/issues"
+Repository = "https://github.com/hdkim99/ordifile"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/labconvert"]
+packages = ["src/ordifile"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -90,7 +90,7 @@ warn_unreachable = true
 addopts = [
   "--strict-config",
   "--strict-markers",
-  "--cov=labconvert",
+  "--cov=ordifile",
   "--cov-branch",
   "--cov-report=term-missing",
   "--cov-fail-under=85",
@@ -99,7 +99,7 @@ testpaths = ["tests/unit", "tests/integration"]
 
 [tool.coverage.run]
 branch = true
-source = ["labconvert"]
+source = ["ordifile"]
 
 [tool.coverage.report]
 exclude_also = [

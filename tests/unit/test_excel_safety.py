@@ -10,10 +10,10 @@ from typing import Any
 import pytest
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
-import labconvert.api as api_module
-from labconvert.api import convert, inspect_file
-from labconvert.core.errors import ExportError, ExportLimitError, LabConvertError
-from labconvert.core.models import (
+import ordifile.api as api_module
+from ordifile.api import convert, inspect_file
+from ordifile.core.errors import ExportError, ExportLimitError, OrdifileError
+from ordifile.core.models import (
     BatchResult,
     DatasetBundle,
     FileResult,
@@ -26,8 +26,8 @@ from labconvert.core.models import (
     SortMode,
     SourceFile,
 )
-from labconvert.exporters import excel
-from labconvert.exporters.excel import ExcelExporter
+from ordifile.exporters import excel
+from ordifile.exporters.excel import ExcelExporter
 
 
 def test_formula_looking_strings_are_literal_and_unmodified(tmp_path: Path) -> None:
@@ -77,7 +77,7 @@ def test_invalid_overwrite_type_never_changes_existing_output(
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
     output.write_bytes(b"existing-workbook-sentinel")
 
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         convert(source, output, overwrite=invalid)  # type: ignore[arg-type]
 
     assert caught.value.code == "OPTION_TYPE_INVALID"
@@ -109,7 +109,7 @@ def test_convert_rejects_non_boolean_public_options_before_output(
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
     kwargs: dict[str, Any] = {option: invalid}
 
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         convert(source, output, **kwargs)
 
     assert caught.value.code == "OPTION_TYPE_INVALID"
@@ -121,7 +121,7 @@ def test_inspect_rejects_non_boolean_include_hidden_before_path_access(
     tmp_path: Path, invalid: object
 ) -> None:
     missing = tmp_path / "missing.csv"
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         inspect_file(missing, include_hidden_sheets=invalid)  # type: ignore[arg-type]
     assert caught.value.code == "OPTION_TYPE_INVALID"
 
@@ -147,7 +147,7 @@ def test_invalid_public_configuration_is_rejected_before_output(
     output = tmp_path / "result.xlsx"
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
 
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         convert(source, output, **kwargs)
 
     assert caught.value.code == expected
@@ -181,7 +181,7 @@ def test_invalid_extension_filters_are_rejected_before_discovery_or_output_mutat
         raise AssertionError("invalid extensions must fail before discovery and hashing")
 
     monkeypatch.setattr(api_module, "run_pipeline", unexpected_pipeline)
-    with pytest.raises(LabConvertError) as caught:
+    with pytest.raises(OrdifileError) as caught:
         convert(source, output, extensions=extensions, overwrite=True)
 
     assert caught.value.code == "EXTENSIONS_INVALID"
@@ -302,7 +302,7 @@ def test_transaction_restores_workbook_and_sidecars_on_finalize_failure(
     with pytest.raises(expected):
         convert(source, output, sidecar_mode="csv", overwrite=True)
     assert {path: path.read_bytes() for path in artifact_paths} == original
-    assert not list(tmp_path.glob(".labconvert_*"))
+    assert not list(tmp_path.glob(".ordifile_*"))
 
 
 def test_sidecar_input_collision_is_rejected_even_with_overwrite(tmp_path: Path) -> None:

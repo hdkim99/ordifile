@@ -11,15 +11,15 @@ from collections.abc import Iterable
 from importlib import metadata
 from typing import Any, cast
 
-from labconvert.adapters.base import ADAPTER_API_VERSION, AdapterDescriptor, FormatAdapter
-from labconvert.adapters.generic_csv import GenericCsvAdapter
-from labconvert.adapters.generic_tsv import GenericTsvAdapter
-from labconvert.adapters.generic_txt import GenericSemicolonAdapter
-from labconvert.adapters.generic_xlsx import GenericXlsxAdapter
-from labconvert.core.errors import LabConvertError
-from labconvert.core.workbook_text import workbook_audit_display, workbook_text_is_exact
+from ordifile.adapters.base import ADAPTER_API_VERSION, AdapterDescriptor, FormatAdapter
+from ordifile.adapters.generic_csv import GenericCsvAdapter
+from ordifile.adapters.generic_tsv import GenericTsvAdapter
+from ordifile.adapters.generic_txt import GenericSemicolonAdapter
+from ordifile.adapters.generic_xlsx import GenericXlsxAdapter
+from ordifile.core.errors import OrdifileError
+from ordifile.core.workbook_text import workbook_audit_display, workbook_text_is_exact
 
-ENTRY_POINT_GROUP = "labconvert.adapters"
+ENTRY_POINT_GROUP = "ordifile.adapters"
 _ADAPTER_ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _ADAPTER_VERSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z._+-]{0,63}\Z")
 _ADAPTER_EXTENSION = re.compile(r"\.[0-9A-Za-z][0-9A-Za-z._+-]{0,31}\Z")
@@ -53,19 +53,19 @@ class AdapterRegistry:
         """Register a compatible adapter, rejecting IDs that are already owned."""
         adapter_id = getattr(adapter, "adapter_id", None)
         if type(adapter_id) is not str or _ADAPTER_ID.fullmatch(adapter_id) is None:
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_INVALID",
                 "Adapter ID must use 1-64 lowercase ASCII letters, digits, and underscores.",
             )
         api_version = getattr(adapter, "api_version", None)
         if type(api_version) is not str or api_version != ADAPTER_API_VERSION:
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_API_INCOMPATIBLE",
                 f"Adapter {adapter_id!r} does not implement API version {ADAPTER_API_VERSION}.",
             )
         adapter_version = getattr(adapter, "adapter_version", None)
         if type(adapter_version) is not str or _ADAPTER_VERSION.fullmatch(adapter_version) is None:
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_VERSION_INVALID",
                 "Adapter version must be a bounded ASCII version identifier.",
             )
@@ -97,12 +97,12 @@ class AdapterRegistry:
                 )
             )
         ):
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_DESCRIPTOR_INVALID",
                 "Adapter descriptor fields have invalid types, bounds, or workbook text.",
             )
         if adapter_id in self._adapters:
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_ID_COLLISION", f"Adapter ID {adapter_id!r} is already registered."
             )
         self._adapters[adapter_id] = adapter
@@ -112,7 +112,7 @@ class AdapterRegistry:
         try:
             return self._adapters[adapter_id]
         except KeyError as error:
-            raise LabConvertError(
+            raise OrdifileError(
                 "ADAPTER_NOT_FOUND", f"Adapter {adapter_id!r} is not registered."
             ) from error
 

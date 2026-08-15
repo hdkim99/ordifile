@@ -17,8 +17,8 @@ htmlcov/
 !tests/fixtures/synthetic/**/*.xlsx
 !tests/fixtures/redistributable/**/*.xlsx
 *.parquet
-LabConvert_Result*.csv
-LabConvert_Result*.xlsx
+Ordifile_Result*.csv
+Ordifile_Result*.xlsx
 
 # Editors and operating systems
 .DS_Store

@@ -18,8 +18,8 @@ from xml.etree.ElementTree import ParseError as XmlParseError
 from defusedxml import ElementTree as DefusedElementTree  # type: ignore[import-untyped]
 from defusedxml.common import DefusedXmlException  # type: ignore[import-untyped]
 
-from labconvert.core.errors import ParseError
-from labconvert.core.workbook_text import workbook_cell_text_is_exact
+from ordifile.core.errors import ParseError
+from ordifile.core.workbook_text import workbook_cell_text_is_exact
 
 XLSX_MAX_ROWS = 1_048_576
 XLSX_MAX_COLUMNS = 16_384

@@ -5,8 +5,8 @@
 
 from typing import ClassVar
 
-from labconvert.adapters._delimited import DelimitedAdapter
-from labconvert.adapters.base import AdapterDescriptor
+from ordifile.adapters._delimited import DelimitedAdapter
+from ordifile.adapters.base import AdapterDescriptor
 
 
 class GenericCsvAdapter(DelimitedAdapter):

@@ -81,8 +81,8 @@ def generate_fixture(output: Path) -> None:
     workbook = Workbook()
     workbook.properties.created = datetime(2026, 1, 1)
     workbook.properties.modified = datetime(2026, 1, 1)
-    workbook.properties.creator = "LabConvert"
-    workbook.properties.lastModifiedBy = "LabConvert"
+    workbook.properties.creator = "Ordifile"
+    workbook.properties.lastModifiedBy = "Ordifile"
     worksheet = workbook.active
     worksheet.title = "Peak Table"
     worksheet.append(

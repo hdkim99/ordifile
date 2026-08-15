@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from labconvert.core.models import (
+from ordifile.core.models import (
     DatasetBundle,
     FileResult,
     FileStatus,
@@ -11,7 +11,7 @@ from labconvert.core.models import (
     SortMode,
     SourceFile,
 )
-from labconvert.core.sorting import sort_file_results
+from ordifile.core.sorting import sort_file_results
 
 
 def _result(

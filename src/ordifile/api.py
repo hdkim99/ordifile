@@ -10,17 +10,17 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from labconvert.adapters.base import AdapterDescriptor, ParseOptions
-from labconvert.adapters.registry import (
+from ordifile.adapters.base import AdapterDescriptor, ParseOptions
+from ordifile.adapters.registry import (
     MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS,
     MAX_EXTENSION_FILTERS,
     AdapterRegistry,
     create_registry,
     normalize_extension_token,
 )
-from labconvert.core.discovery import paths_alias
-from labconvert.core.errors import ExportError, LabConvertError
-from labconvert.core.models import (
+from ordifile.core.discovery import paths_alias
+from ordifile.core.errors import ExportError, OrdifileError
+from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
     InspectionResult,
@@ -28,8 +28,8 @@ from labconvert.core.models import (
     Severity,
     SortMode,
 )
-from labconvert.core.pipeline import run_pipeline
-from labconvert.exporters.excel import ExcelExporter
+from ordifile.core.pipeline import run_pipeline
+from ordifile.exporters.excel import ExcelExporter
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,17 +42,17 @@ class FormatReport:
 
 def _require_bool(name: str, value: object) -> None:
     if type(value) is not bool:
-        raise LabConvertError("OPTION_TYPE_INVALID", f"{name} must be an exact boolean value.")
+        raise OrdifileError("OPTION_TYPE_INVALID", f"{name} must be an exact boolean value.")
 
 
 def _require_optional_text(name: str, value: object) -> None:
     if value is not None and type(value) is not str:
-        raise LabConvertError("OPTION_TYPE_INVALID", f"{name} must be text or None.")
+        raise OrdifileError("OPTION_TYPE_INVALID", f"{name} must be text or None.")
 
 
 def _require_registry(registry: object) -> None:
     if registry is not None and type(registry) is not AdapterRegistry:
-        raise LabConvertError("OPTION_TYPE_INVALID", "registry must be an AdapterRegistry or None.")
+        raise OrdifileError("OPTION_TYPE_INVALID", "registry must be an AdapterRegistry or None.")
 
 
 def _inputs(
@@ -94,14 +94,14 @@ def inspect_file(
     _require_registry(registry)
     candidate = Path(path)
     if candidate.is_symlink():
-        raise LabConvertError(
+        raise OrdifileError(
             "SYMLINK_REJECTED",
             "inspect_file does not follow symbolic links; provide the target explicitly.",
         )
     if not candidate.exists():
-        raise LabConvertError("INPUT_NOT_FOUND", "The input path does not exist.")
+        raise OrdifileError("INPUT_NOT_FOUND", "The input path does not exist.")
     if not candidate.is_file():
-        raise LabConvertError(
+        raise OrdifileError(
             "INSPECT_REQUIRES_FILE", "inspect_file requires exactly one regular file."
         )
     active = create_registry() if registry is None else registry
@@ -112,7 +112,7 @@ def inspect_file(
         parse_options=ParseOptions(sheet, include_hidden_sheets),
     )
     if len(result.files) != 1:
-        raise LabConvertError("INSPECT_REQUIRES_FILE", "inspect_file requires one regular file.")
+        raise OrdifileError("INSPECT_REQUIRES_FILE", "inspect_file requires one regular file.")
     file_result = result.files[0]
     discovery_error_codes = {
         "INPUT_NOT_FOUND",
@@ -130,13 +130,13 @@ def inspect_file(
     ]
     if discovery_errors:
         issue = discovery_errors[0]
-        raise LabConvertError(issue.code, issue.message)
+        raise OrdifileError(issue.code, issue.message)
     return InspectionResult(file_result, file_result.probes)
 
 
 def convert(
     inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
-    output: str | os.PathLike[str] = "LabConvert_Result.xlsx",
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
     *,
     recursive: bool = False,
     extensions: Iterable[str] | None = None,
@@ -160,23 +160,23 @@ def convert(
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
     if type(on_error) is not str or on_error not in {"continue", "stop"}:
-        raise LabConvertError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
+        raise OrdifileError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
     if type(sidecar_mode) is not str or sidecar_mode not in {"error", "csv"}:
-        raise LabConvertError("SIDECAR_MODE_INVALID", "sidecar_mode must be 'error' or 'csv'.")
+        raise OrdifileError("SIDECAR_MODE_INVALID", "sidecar_mode must be 'error' or 'csv'.")
     if type(sort) not in {str, SortMode}:
-        raise LabConvertError("SORT_MODE_INVALID", "sort must be a supported text sort mode.")
+        raise OrdifileError("SORT_MODE_INVALID", "sort must be a supported text sort mode.")
     try:
         SortMode(sort)
     except ValueError as error:
         choices = ", ".join(mode.value for mode in SortMode)
-        raise LabConvertError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
+        raise OrdifileError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
     if progress is not None and not callable(progress):
-        raise LabConvertError("OPTION_TYPE_INVALID", "progress must be callable or None.")
+        raise OrdifileError("OPTION_TYPE_INVALID", "progress must be callable or None.")
     if not isinstance(output, (str, os.PathLike)):
-        raise LabConvertError("OPTION_TYPE_INVALID", "output must be a filesystem path.")
+        raise OrdifileError("OPTION_TYPE_INVALID", "output must be a filesystem path.")
     if extensions is not None:
         if type(extensions) is str:
-            raise LabConvertError(
+            raise OrdifileError(
                 "OPTION_TYPE_INVALID", "extensions must be an iterable of text values, not text."
             )
         try:
@@ -184,15 +184,15 @@ def convert(
         except (KeyboardInterrupt, SystemExit, MemoryError):
             raise
         except Exception as error:
-            raise LabConvertError(
+            raise OrdifileError(
                 "OPTION_TYPE_INVALID", "extensions must be an iterable of text values."
             ) from error
         if any(type(item) is not str for item in normalized_extensions):
-            raise LabConvertError(
+            raise OrdifileError(
                 "OPTION_TYPE_INVALID", "extensions must contain only exact text values."
             )
         if len(normalized_extensions) > MAX_EXTENSION_FILTERS:
-            raise LabConvertError(
+            raise OrdifileError(
                 "EXTENSIONS_INVALID",
                 f"extensions supports at most {MAX_EXTENSION_FILTERS} stable filters.",
             )
@@ -200,7 +200,7 @@ def convert(
         for item in normalized_extensions:
             stable = normalize_extension_token(item)
             if stable is None:
-                raise LabConvertError(
+                raise OrdifileError(
                     "EXTENSIONS_INVALID",
                     "Each extension must be a nonempty dotted or undotted ASCII token with at "
                     "most 32 characters after the optional leading dot, without controls or "
@@ -208,12 +208,12 @@ def convert(
                 )
             stable_extensions.append(stable)
         if len(set(stable_extensions)) != len(stable_extensions):
-            raise LabConvertError(
+            raise OrdifileError(
                 "EXTENSIONS_INVALID",
                 "extensions must not contain duplicate case-insensitive filters.",
             )
         if len("; ".join(stable_extensions)) > MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS:
-            raise LabConvertError(
+            raise OrdifileError(
                 "EXTENSIONS_INVALID",
                 "The normalized extension filter list exceeds the bounded Manifest option.",
             )
@@ -222,7 +222,7 @@ def convert(
         normalized_extensions = None
     normalized = _inputs(inputs)
     if not normalized:
-        raise LabConvertError("NO_INPUTS", "At least one input path is required.")
+        raise OrdifileError("NO_INPUTS", "At least one input path is required.")
     output_path = Path(output)
     for raw_input in normalized:
         candidate = Path(raw_input)
@@ -245,7 +245,7 @@ def convert(
         artifact_output=output_path,
     )
     if not result.files:
-        raise LabConvertError(
+        raise OrdifileError(
             "NO_DISCOVERED_FILES", "No files remained after discovery and extension filtering."
         )
     if on_error == "stop" and result.failure_count:
@@ -265,7 +265,7 @@ def convert(
         }
         if failed.adapter_id is not None:
             details["adapter"] = failed.adapter_id
-        raise LabConvertError(
+        raise OrdifileError(
             "BATCH_FILE_FAILURE",
             "Conversion stopped after the first file failure; no workbook was written.",
             details=details,

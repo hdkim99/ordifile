@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""LabConvert command-line entry point."""
+"""Ordifile command-line entry point."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Never
 
-from labconvert import __version__
-from labconvert.api import convert, get_format_report, inspect_file
+from ordifile import __version__
+from ordifile.api import convert, get_format_report, inspect_file
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -118,7 +118,7 @@ def _add_parse_options(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser."""
     parser = _SafeArgumentParser(
-        prog="labconvert",
+        prog="ordifile",
         description=(
             "Batch-convert scientific instrument exports into one ordered Excel workbook."
         ),
@@ -154,8 +154,8 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--output",
         type=Path,
-        default=Path("LabConvert_Result.xlsx"),
-        help="Output workbook path (default: LabConvert_Result.xlsx).",
+        default=Path("Ordifile_Result.xlsx"),
+        help="Output workbook path (default: Ordifile_Result.xlsx).",
     )
     convert_parser.add_argument(
         "--sort",
@@ -254,7 +254,7 @@ def _run_formats() -> int:
         "Built-in support is limited to documented generic tabular schemas; installed "
         "external adapters are listed only when they declare a tested fixture."
     )
-    print("No vendor raw format is supported by LabConvert's built-in adapters.")
+    print("No vendor raw format is supported by Ordifile's built-in adapters.")
     return EXIT_SUCCESS
 
 

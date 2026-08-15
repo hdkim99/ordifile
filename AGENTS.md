@@ -2,7 +2,7 @@
 
 ## Product goal
 
-LabConvert batch-converts scientific instrument files and merges verified data into
+Ordifile batch-converts scientific instrument files and merges verified data into
 one ordered Excel workbook. The priority is usability, correctness, transparent
 behavior, and GitHub adoption. This is not a paper-oriented research project.
 

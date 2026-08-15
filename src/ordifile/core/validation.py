@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from labconvert.core.models import (
+from ordifile.core.models import (
     MAX_CANONICAL_INTEGER_DECIMAL_DIGITS,
     DatasetBundle,
     FileStatus,
@@ -24,8 +24,8 @@ from labconvert.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
-from labconvert.core.privacy import contains_machine_local_path, contains_uri_reference
-from labconvert.core.workbook_text import (
+from ordifile.core.privacy import contains_machine_local_path, contains_uri_reference
+from ordifile.core.workbook_text import (
     MAX_WORKBOOK_CELL_CHARACTERS,
     workbook_text_is_exact,
 )

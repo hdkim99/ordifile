@@ -5,11 +5,11 @@ from typing import ClassVar
 
 import pytest
 
-from labconvert.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
-from labconvert.adapters.registry import AdapterRegistry, create_registry
-from labconvert.core.detection import detect_adapter
-from labconvert.core.errors import AdapterAmbiguityError, DetectionError
-from labconvert.core.models import DatasetBundle
+from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.registry import AdapterRegistry, create_registry
+from ordifile.core.detection import detect_adapter
+from ordifile.core.errors import AdapterAmbiguityError, DetectionError
+from ordifile.core.models import DatasetBundle
 
 
 class ClaimingAdapter:

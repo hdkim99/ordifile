@@ -19,7 +19,7 @@ These exports do not have equivalent semantics:
   the source signal.
 - AIA CDF can contain raw or processed data depending on the export procedure.
 
-Therefore adapters declare `metadata`, `peaks`, and `signals` separately. LabConvert
+Therefore adapters declare `metadata`, `peaks`, and `signals` separately. Ordifile
 does not identify compounds from retention time alone.
 
 ## v0.1 feasibility
@@ -40,7 +40,7 @@ but the candidate fails the project inclusion gate:
 1. no complete official versioned structure was obtained;
 2. public fixture redistribution provenance is unresolved;
 3. detector/channel/unit semantics were not verified against an authoritative export;
-4. no LabConvert fixture or passing test exists;
+4. no Ordifile fixture or passing test exists;
 5. Entab's published wheels do not cover the intended Python/OS matrix.
 
 Decision: record `.ch` only as a research candidate. Do not add an adapter skeleton that

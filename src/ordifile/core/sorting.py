@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC
 
-from labconvert.core.discovery import natural_key
-from labconvert.core.models import FileResult, FileStatus, SortDecision, SortMode
+from ordifile.core.discovery import natural_key
+from ordifile.core.models import FileResult, FileStatus, SortDecision, SortMode
 
 
 def _success(item: FileResult) -> bool:

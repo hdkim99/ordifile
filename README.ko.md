@@ -1,23 +1,25 @@
-# LabConvert
+# Ordifile
 
 [English](README.md)
 
-[![CI](https://github.com/hdkim99/labconvert/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/labconvert/actions/workflows/ci.yml)
+[![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
+[![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
+[![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
 여러 과학 장비 파일을 하나의 깔끔하고 순서가 정리된 Excel workbook으로 일괄
 변환합니다.
 
-LabConvert는 여러 파일이나 폴더를 하나의 감사 가능한 workbook으로 만듭니다.
+Ordifile은 여러 파일이나 폴더를 하나의 감사 가능한 workbook으로 만듭니다.
 내장 v0.1 범위는 합성 fixture로 검증한 일반 CSV, TSV, 세미콜론 TXT, non-macro
 XLSX 표로 의도적으로 제한합니다. 제조사 proprietary raw 형식은 지원하지 않습니다.
 
 ```text
 sample_1.csv   sample_2.tsv   exported_peaks.xlsx
           \          |          /
-           labconvert convert ...
+           ordifile convert ...
                     |
                     v
-          LabConvert_Result.xlsx
+          Ordifile_Result.xlsx
           ├── Manifest
           ├── Samples
           ├── Peak_Matrix
@@ -31,13 +33,13 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 아직 PyPI에 공개하지 않았으므로 검증된 source tree에서 설치합니다.
 
 ```bash
-git clone https://github.com/hdkim99/labconvert.git
-cd labconvert
+git clone https://github.com/hdkim99/ordifile.git
+cd ordifile
 python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install .
-labconvert convert examples/basic --sort filename --output LabConvert_Result.xlsx
+ordifile convert examples/basic --sort filename --output Ordifile_Result.xlsx
 ```
 
 커밋된 예제의 실제 결과 요약은 다음과 같습니다.
@@ -48,10 +50,10 @@ Discovered files: 3
 Processed 1/3: success sample_1.csv
 Processed 2/3: success sample_2.csv
 Processed 3/3: success sample_10.csv
-Export started: LabConvert_Result.xlsx
-Output ready: LabConvert_Result.xlsx
+Export started: Ordifile_Result.xlsx
+Output ready: Ordifile_Result.xlsx
 Status: success
-Output: LabConvert_Result.xlsx
+Output: Ordifile_Result.xlsx
 Successful files: 3
 Files with warnings: 0
 Failed files: 0
@@ -77,25 +79,25 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 여기서 “일반”은 첫 행이 [문서화된 열 schema](docs/formats/generic-tabular.md)를
 사용한다는 뜻이며 임의의 제조사 export를 의미하지 않습니다. 확장자는 보조 근거일
 뿐이며 내용과 schema도 함께 확인합니다. 현재 환경의 adapter는
-`labconvert formats`로 확인할 수 있습니다.
+`ordifile formats`로 확인할 수 있습니다.
 
 ## CLI
 
 출력 없이 파일 하나를 검사합니다.
 
 ```bash
-labconvert inspect sample.csv
-labconvert inspect exported.xlsx --sheet PeakTable --verbose
+ordifile inspect sample.csv
+ordifile inspect exported.xlsx --sheet PeakTable --verbose
 ```
 
 파일이나 폴더를 변환합니다.
 
 ```bash
-labconvert convert sample_1.csv sample_2.tsv --output LabConvert_Result.xlsx
-labconvert convert ./exports --recursive --sort acquired_at --include-signals \
-  --output LabConvert_Result.xlsx
-labconvert convert ./exports --extension .csv --extension .xlsx \
-  --sheet-mode sidecar-csv --output LabConvert_Result.xlsx
+ordifile convert sample_1.csv sample_2.tsv --output Ordifile_Result.xlsx
+ordifile convert ./exports --recursive --sort acquired_at --include-signals \
+  --output Ordifile_Result.xlsx
+ordifile convert ./exports --extension .csv --extension .xlsx \
+  --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
 ```
 
 주요 동작은 다음과 같습니다.
@@ -150,12 +152,12 @@ Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로
 CLI와 향후 인터페이스는 같은 공개 API를 사용합니다.
 
 ```python
-from labconvert.api import convert, inspect_file, list_formats
+from ordifile.api import convert, inspect_file, list_formats
 
 inspection = inspect_file("sample.csv")
 result = convert(
     ["sample_1.csv", "sample_2.tsv"],
-    "LabConvert_Result.xlsx",
+    "Ordifile_Result.xlsx",
     sort="auto",
     include_signals=False,
 )
@@ -168,7 +170,7 @@ print(result.success_count, result.failure_count, result.sort.effective)
 
 ## Adapter 추가
 
-외부 패키지는 `labconvert.adapters` Python entry-point group으로 typed adapter를
+외부 패키지는 `ordifile.adapters` Python entry-point group으로 typed adapter를
 등록할 수 있습니다. Adapter는 검출과 parsing만 담당하며 worksheet나 CLI 로직을
 구현하지 않습니다. 새 형식에는 bounded detection, 기술 근거, 구조화 오류,
 재배포 가능한 또는 합성 fixture, 기능별 테스트, 라이선스 검토가 필요합니다.
@@ -236,7 +238,7 @@ print(result.success_count, result.failure_count, result.sort.effective)
   code point입니다.
 - v0.1에는 proprietary GC raw parser와 GUI가 없습니다.
 
-이 실용 한도는 LabConvert 안전 정책이며 모든 유효 Excel 파일을 지원한다는 의미가
+이 실용 한도는 Ordifile 안전 정책이며 모든 유효 Excel 파일을 지원한다는 의미가
 아닙니다. [정확한 generic 형식 계약](docs/formats/generic-tabular.md)과
 [아키텍처 결정](docs/architecture/decision-record.md)을 참고해 주세요.
 
@@ -252,7 +254,7 @@ ruff check .
 mypy
 pytest
 python -m build
-labconvert --help
+ordifile --help
 pip-audit
 ```
 
@@ -262,12 +264,13 @@ pip-audit
 
 ## 프로젝트명과 상표
 
-현재 source distribution 이름은 `labconvert`이지만 LabConvert 또는 유사 이름을 쓰는
-관련 없는 프로젝트와 서비스가 존재합니다. 2026-08-15의 PyPI 가용성 확인은 상표권
-검토가 아닙니다. 향후 호환성 문서에 제조사 이름이 표시되더라도 해당 상표는 각
+Ordifile은 2026-08-16 기술적 충돌 조사 후 선정했습니다. 당시 확인한 GitHub와 package
+registry exact-name 검색에서는 기록을 찾지 못했지만, 검색 부재는 이름 예약이나 법적
+상표 clearance를 의미하지 않습니다. [이름 변경 조사](docs/research/project-renaming.md)를
+참고해 주세요. 향후 호환성 문서에 제조사 이름이 표시되더라도 해당 상표는 각
 소유자에게 있으며 제휴나 보증을 의미하지 않습니다.
 
 ## 라이선스
 
-LabConvert는 Apache License 2.0으로 배포합니다. [LICENSE](LICENSE),
+Ordifile은 Apache License 2.0으로 배포합니다. [LICENSE](LICENSE),
 [NOTICE](NOTICE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 확인해 주세요.

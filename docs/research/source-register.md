@@ -15,7 +15,6 @@ topic reviews beside this register.
 | Title | Publisher / owner | Type | Date available | Claim supported |
 |---|---|---|---|---|
 | [Names and normalization](https://packaging.python.org/en/latest/specifications/name-normalization/) | PyPA | Specification | Updated 2026-08-11 | Python project-name normalization. |
-| [PyPI: labconvert](https://pypi.org/project/labconvert/) | Python Software Foundation | Registry | Accessed 2026-08-15 | The PyPI JSON project endpoint returned 404. |
 | [OpenChrom](https://github.com/OpenChrom/openchrom) | OpenChrom | Repository and LICENSE | Active 2026-08 | Actual license and project scope. |
 | [OpenChrom paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC2920884/) | BMC Bioinformatics | Peer-reviewed paper | 2010 | Historical platform scope; current license comes from the repository. |
 | [chromConverter](https://github.com/ethanbass/chromConverter) | ethanbass | Repository and LICENSE | Release 2026-05-31 | Parser/converter scope and GPL-3.0. |
@@ -71,6 +70,6 @@ topic reviews beside this register.
 ## Gaps
 
 No authoritative complete Agilent `.ch` structure, redistributable proprietary fixture,
-or formal `LabConvert` trademark clearance was established. ASTM E1947's paid text was
+or formal `Ordifile` trademark clearance was established. ASTM E1947's paid text was
 not accessed or used as implementation evidence. These gaps block proprietary support
 claims but do not block the generic export vertical slice.

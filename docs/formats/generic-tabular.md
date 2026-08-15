@@ -1,6 +1,6 @@
 # Generic tabular export format
 
-LabConvert v0.1 reads explicitly labeled peak tables and signal rows from four verified
+Ordifile v0.1 reads explicitly labeled peak tables and signal rows from four verified
 containers:
 
 - comma-delimited UTF-8 or UTF-8-BOM text (`.csv` convention);
@@ -64,7 +64,7 @@ visible worksheet. `--include-hidden-sheets` adds hidden sheets to automatic det
 Only the transitional, non-macro `.xlsx` workbook content type and namespaces are verified.
 Macro-enabled workbooks, templates, Strict OOXML, and namespace-mismatched elements are rejected
 rather than silently stripped or interpreted as generic workbooks.
-Before openpyxl reads a sheet, LabConvert audits the OOXML package relationships and the actual
+Before openpyxl reads a sheet, Ordifile audits the OOXML package relationships and the actual
 worksheet row/cell coordinates. The declared worksheet dimension is recorded but is not trusted
 as an allocation or end-of-data boundary. Duplicate, unordered, missing, invalid, or out-of-grid
 coordinates are rejected instead of selecting one conflicting value.
@@ -81,12 +81,12 @@ The XLSX archive preflight policy is:
 - XML nesting depth at most 128 and an individual captured raw cell lexeme at most 32,767
   characters.
 
-The worksheet limits after the archive limits are conservative LabConvert v0.1 resource-safety
+The worksheet limits after the archive limits are conservative Ordifile v0.1 resource-safety
 policies, not Excel format maxima. A limit breach fails that input file; rows and cells are never
 silently truncated.
 
 Numeric `<v>` text is inspected before openpyxl can round it. A decimal that cannot be represented
-exactly by LabConvert's canonical float remains raw Metadata with a warning instead of becoming a
+exactly by Ordifile's canonical float remains raw Metadata with a warning instead of becoming a
 different number. Numeric and index lexemes must use bounded ASCII grammar; Python-specific
 underscores, Unicode digits, internal whitespace, and non-finite spellings are rejected. Date-styled
 numeric values retain their raw serial, style, and workbook epoch; Excel numeric dates have no
@@ -103,12 +103,12 @@ display string.
 Formula character data is limited to 32,766 characters because the literal value written to
 Metadata includes a leading `=` and must remain within Excel's 32,767-character cell boundary.
 Inline and shared strings accept one direct text node or a valid sequence of rich-text runs;
-LabConvert reconstructs the audited text for mapping and rejects duplicate text payloads,
+Ordifile reconstructs the audited text for mapping and rejects duplicate text payloads,
 unexpected wrappers, or namespace mismatches instead of trusting a lossy decoded value.
 
 Workbook output rejects cell text that cannot be represented and independently reopened without
 ambiguity by the verified XlsxWriter/openpyxl combination. This includes unsupported control or
-Unicode noncharacter values and reserved OOXML escape-token patterns. LabConvert reports a
+Unicode noncharacter values and reserved OOXML escape-token patterns. Ordifile reports a
 structured error rather than silently stripping or substituting that text.
 
 Source filenames that need those characters for filesystem identity are not renamed. Workbook

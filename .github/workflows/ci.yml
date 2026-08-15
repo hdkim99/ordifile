@@ -41,7 +41,7 @@ jobs:
           assert 'License-File: NOTICE' in metadata;
           assert 'License-File: THIRD_PARTY_NOTICES.md' in metadata"
       - name: CLI smoke test
-        run: labconvert --help
+        run: ordifile --help
       - name: Audit dependencies
         run: pip-audit
 
@@ -64,4 +64,4 @@ jobs:
       - name: Run tests
         run: pytest
       - name: CLI smoke test
-        run: labconvert --help
+        run: ordifile --help

@@ -1,13 +1,15 @@
-# LabConvert
+# Ordifile
 
 [한국어](README.ko.md)
 
-[![CI](https://github.com/hdkim99/labconvert/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/labconvert/actions/workflows/ci.yml)
+[![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
+[![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
+[![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
 Batch-convert and merge scientific instrument files into one clean, ordered Excel
 workbook.
 
-LabConvert turns a file list or folder into one auditable workbook. Its built-in v0.1
+Ordifile turns a file list or folder into one auditable workbook. Its built-in v0.1
 scope is deliberately narrow: documented generic CSV, TSV, semicolon-delimited TXT,
 and non-macro XLSX tables verified with synthetic fixtures. Proprietary vendor raw
 formats are not supported.
@@ -15,10 +17,10 @@ formats are not supported.
 ```text
 sample_1.csv   sample_2.tsv   exported_peaks.xlsx
           \          |          /
-           labconvert convert ...
+           ordifile convert ...
                     |
                     v
-          LabConvert_Result.xlsx
+          Ordifile_Result.xlsx
           ├── Manifest
           ├── Samples
           ├── Peak_Matrix
@@ -29,16 +31,16 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## 30-second quick start
 
-LabConvert has not been published to PyPI. Install the verified source tree:
+Ordifile has not been published to PyPI. Install the verified source tree:
 
 ```bash
-git clone https://github.com/hdkim99/labconvert.git
-cd labconvert
+git clone https://github.com/hdkim99/ordifile.git
+cd ordifile
 python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install .
-labconvert convert examples/basic --sort filename --output LabConvert_Result.xlsx
+ordifile convert examples/basic --sort filename --output Ordifile_Result.xlsx
 ```
 
 The committed example produces:
@@ -49,10 +51,10 @@ Discovered files: 3
 Processed 1/3: success sample_1.csv
 Processed 2/3: success sample_2.csv
 Processed 3/3: success sample_10.csv
-Export started: LabConvert_Result.xlsx
-Output ready: LabConvert_Result.xlsx
+Export started: Ordifile_Result.xlsx
+Output ready: Ordifile_Result.xlsx
 Status: success
-Output: LabConvert_Result.xlsx
+Output: Ordifile_Result.xlsx
 Successful files: 3
 Files with warnings: 0
 Failed files: 0
@@ -77,26 +79,26 @@ The source files remain unchanged. Natural filename ordering keeps `sample_2` be
 
 “Generic” means the first row uses the [documented column
 schema](docs/formats/generic-tabular.md). It does not mean arbitrary vendor exports.
-An extension is supporting evidence only; LabConvert also checks content and schema.
-Run `labconvert formats` to see the adapters installed in the current environment.
+An extension is supporting evidence only; Ordifile also checks content and schema.
+Run `ordifile formats` to see the adapters installed in the current environment.
 
 ## CLI
 
 Inspect one file without writing output:
 
 ```bash
-labconvert inspect sample.csv
-labconvert inspect exported.xlsx --sheet PeakTable --verbose
+ordifile inspect sample.csv
+ordifile inspect exported.xlsx --sheet PeakTable --verbose
 ```
 
 Convert files or folders:
 
 ```bash
-labconvert convert sample_1.csv sample_2.tsv --output LabConvert_Result.xlsx
-labconvert convert ./exports --recursive --sort acquired_at --include-signals \
-  --output LabConvert_Result.xlsx
-labconvert convert ./exports --extension .csv --extension .xlsx \
-  --sheet-mode sidecar-csv --output LabConvert_Result.xlsx
+ordifile convert sample_1.csv sample_2.tsv --output Ordifile_Result.xlsx
+ordifile convert ./exports --recursive --sort acquired_at --include-signals \
+  --output Ordifile_Result.xlsx
+ordifile convert ./exports --extension .csv --extension .xlsx \
+  --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
 ```
 
 Important behavior:
@@ -151,12 +153,12 @@ relative path, row count, formula-escape count, and SHA-256.
 The CLI calls the same public API intended for future interfaces:
 
 ```python
-from labconvert.api import convert, inspect_file, list_formats
+from ordifile.api import convert, inspect_file, list_formats
 
 inspection = inspect_file("sample.csv")
 result = convert(
     ["sample_1.csv", "sample_2.tsv"],
-    "LabConvert_Result.xlsx",
+    "Ordifile_Result.xlsx",
     sort="auto",
     include_signals=False,
 )
@@ -171,7 +173,7 @@ progress callback.
 ## Add an adapter
 
 External packages can register a typed adapter through the
-`labconvert.adapters` Python entry-point group. Adapters detect and parse; they do not
+`ordifile.adapters` Python entry-point group. Adapters detect and parse; they do not
 write worksheets or duplicate CLI logic. A new format needs bounded detection, format
 evidence, structured errors, a redistributable or synthetic fixture, capability-specific
 tests, and license review.
@@ -242,13 +244,13 @@ an openly redistributable fixture.
   cap is 218 Unicode code points.
 - No proprietary GC raw parser and no GUI are included in v0.1.
 
-These practical bounds are LabConvert safety policies, not claims about every valid
+These practical bounds are Ordifile safety policies, not claims about every valid
 Excel file. See [the exact generic format contract](docs/formats/generic-tabular.md) and
 [the architecture decision](docs/architecture/decision-record.md).
 
 ## Development
 
-LabConvert targets Python 3.11–3.14. CI is configured for Linux, Windows, and macOS;
+Ordifile targets Python 3.11–3.14. CI is configured for Linux, Windows, and macOS;
 use the workflow result as the current compatibility record.
 
 ```bash
@@ -258,7 +260,7 @@ ruff check .
 mypy
 pytest
 python -m build
-labconvert --help
+ordifile --help
 pip-audit
 ```
 
@@ -268,12 +270,14 @@ files or fixtures without confirmed redistribution permission to a public issue.
 
 ## Project name and trademarks
 
-The source-distribution name is currently `labconvert`, but unrelated projects and
-services use LabConvert or similar names. PyPI availability checked on 2026-08-15 is not
-a trademark clearance. Vendor names, if mentioned in future compatibility notes, remain
-the property of their owners and do not imply affiliation or endorsement.
+Ordifile was selected after a technical collision screen on 2026-08-16. No exact-name
+record was found in the checked GitHub and package-registry searches at that time, but
+search absence is not a reservation or legal trademark clearance. See the
+[renaming research](docs/research/project-renaming.md). Vendor names, if mentioned in
+future compatibility notes, remain the property of their owners and do not imply
+affiliation or endorsement.
 
 ## License
 
-LabConvert is licensed under Apache License 2.0. See [LICENSE](LICENSE),
+Ordifile is licensed under Apache License 2.0. See [LICENSE](LICENSE),
 [NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

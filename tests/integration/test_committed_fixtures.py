@@ -8,11 +8,11 @@ from pathlib import Path
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from labconvert.api import convert, inspect_file
+from ordifile.api import convert, inspect_file
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "synthetic"
 EXAMPLES = Path(__file__).parents[2] / "examples" / "basic"
-EXPECTED_XLSX_SHA256 = "fb3a739e28efab6d2ff8abee31362f1b757e447738d7ca636d2a157fa6984591"
+EXPECTED_XLSX_SHA256 = "df36be466410ed5c02d75723ec59ed6c896fad2be51ec4bb8f6edcab937fce96"
 
 
 def test_committed_xlsx_checksum_matches_fixture_documentation() -> None:

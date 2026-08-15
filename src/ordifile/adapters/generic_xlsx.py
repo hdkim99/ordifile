@@ -14,13 +14,13 @@ from typing import Any, ClassVar
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 from openpyxl.utils.exceptions import InvalidFileException  # type: ignore[import-untyped]
 
-from labconvert.adapters._tabular import (
+from ordifile.adapters._tabular import (
     MAPPED_TEXT_FIELDS,
     is_compatible_header,
     parse_rows,
     semantic_headers,
 )
-from labconvert.adapters._xlsx_audit import (
+from ordifile.adapters._xlsx_audit import (
     RawCell,
     SheetPart,
     XlsxAuditLimits,
@@ -28,9 +28,9 @@ from labconvert.adapters._xlsx_audit import (
     audit_xlsx_package,
     capture_worksheet_cells,
 )
-from labconvert.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
-from labconvert.core.errors import AdapterAmbiguityError, ParseError
-from labconvert.core.models import DatasetBundle, Issue, MetadataEntry, Severity
+from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.core.errors import AdapterAmbiguityError, ParseError
+from ordifile.core.models import DatasetBundle, Issue, MetadataEntry, Severity
 
 MAX_XLSX_MEMBERS = 10_000
 MAX_XLSX_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
@@ -202,11 +202,11 @@ class GenericXlsxAdapter:
                 if options.sheet is not None:
                     raise ParseError(
                         "XLSX_SHEET_SCHEMA_UNRECOGNIZED",
-                        f"Sheet {options.sheet!r} has no documented LabConvert schema.",
+                        f"Sheet {options.sheet!r} has no documented Ordifile schema.",
                     )
                 raise ParseError(
                     "XLSX_NO_COMPATIBLE_SHEET",
-                    "No compatible visible sheet with a documented LabConvert schema was found.",
+                    "No compatible visible sheet with a documented Ordifile schema was found.",
                 )
             if len(compatible) > 1:
                 names = ", ".join(repr(item[1].title) for item in compatible)

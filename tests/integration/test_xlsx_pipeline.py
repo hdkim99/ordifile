@@ -11,11 +11,11 @@ import pytest
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.utils.datetime import CALENDAR_MAC_1904  # type: ignore[import-untyped]
 
-from labconvert.adapters import _xlsx_audit, generic_xlsx
-from labconvert.adapters.generic_xlsx import preflight_xlsx
-from labconvert.api import convert, inspect_file
-from labconvert.core.errors import ParseError
-from labconvert.core.models import MetadataEntry
+from ordifile.adapters import _xlsx_audit, generic_xlsx
+from ordifile.adapters.generic_xlsx import preflight_xlsx
+from ordifile.api import convert, inspect_file
+from ordifile.core.errors import ParseError
+from ordifile.core.models import MetadataEntry
 
 
 def _sheet(workbook: Workbook, name: str, *, hidden: bool = False) -> None:

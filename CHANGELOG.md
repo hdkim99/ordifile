@@ -7,6 +7,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the project, repository metadata, Python package, CLI, and workbook branding
+  to Ordifile before the first package or GitHub release.
+
 ### Added
 
 - Evidence-backed architecture, naming, format-feasibility, dependency, and license

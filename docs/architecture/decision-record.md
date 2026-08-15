@@ -6,7 +6,7 @@
 
 ## Context
 
-LabConvert must batch-convert verified scientific instrument exports to one ordered
+Ordifile must batch-convert verified scientific instrument exports to one ordered
 Excel workbook without modifying inputs, losing data silently, or implying unsupported
 vendor compatibility. External adapters must remain possible without coupling a parser
 to the workbook layout.
@@ -18,7 +18,7 @@ to the workbook layout.
 2. Core data uses frozen standard-library dataclasses and enums. Adapters implement a
    typed protocol and return canonical bundles; exporters never parse source formats.
 3. Built-in adapters are explicit. External adapters use the
-   `labconvert.adapters` entry-point group, an API version, and collision rejection.
+   `ordifile.adapters` entry-point group, an API version, and collision rejection.
    Installed third-party adapters are trusted executable Python code.
 4. The batch pipeline is discovery → bounded detection → parse → validate → sort →
    size planning → atomic export. Every file produces a structured result; ordinary
@@ -78,7 +78,7 @@ to the workbook layout.
     original text.
 19. Every behavior-affecting conversion option is captured in an immutable, privacy-safe batch
     snapshot and written to the Manifest. Discovery records intentionally excluded prior
-    LabConvert outputs and sidecars rather than reparsing them on a same-folder rerun. Extension
+    Ordifile outputs and sidecars rather than reparsing them on a same-folder rerun. Extension
     filters are normalized and bounded before discovery or hashing.
 20. Canonical bundles returned by external adapters are runtime-validated field by field before
     export. An accidental plugin contract violation fails only that file. Workbook planning has a
@@ -108,12 +108,12 @@ to the workbook layout.
 
 ## Public boundaries
 
-- `labconvert.api`: `inspect_file`, `list_formats`, `get_format_report`, `convert`
-- `labconvert.core.models`: canonical immutable values, structured issues,
+- `ordifile.api`: `inspect_file`, `list_formats`, `get_format_report`, `convert`
+- `ordifile.core.models`: canonical immutable values, structured issues,
   `ProgressEvent`, and immutable `ConversionOptions`
-- `labconvert.adapters.base`: `FormatAdapter` protocol and descriptors
-- `labconvert.exporters.base`: exporter protocol
-- `labconvert.cli`: presentation and exit-code mapping only
+- `ordifile.adapters.base`: `FormatAdapter` protocol and descriptors
+- `ordifile.exporters.base`: exporter protocol
+- `ordifile.cli`: presentation and exit-code mapping only
 
 ## Data flow
 

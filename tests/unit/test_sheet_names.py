@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from labconvert.exporters.excel import sanitize_sheet_name
+from ordifile.exporters.excel import sanitize_sheet_name
 
 
 def test_sheet_names_remove_forbidden_characters_and_limit_length() -> None:

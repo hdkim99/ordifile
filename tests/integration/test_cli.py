@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import pytest
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
-from labconvert.adapters.base import AdapterDescriptor
-from labconvert.api import FormatReport
-from labconvert.cli.main import _terminal_safe, main
-from labconvert.core.errors import LabConvertError
+from ordifile.adapters.base import AdapterDescriptor
+from ordifile.api import FormatReport
+from ordifile.cli.main import _terminal_safe, main
+from ordifile.core.errors import OrdifileError
 
 
 def _write_peak_table(path: Path, sample_id: str = "sample") -> None:
@@ -35,6 +35,22 @@ def test_help_exits_successfully(capsys: pytest.CaptureFixture[str]) -> None:
     assert "convert" in output
 
 
+def test_convert_uses_ordifile_default_output_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "sample.csv"
+    _write_peak_table(source)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["convert", str(source)]) == 0
+
+    output = tmp_path / "Ordifile_Result.xlsx"
+    assert output.is_file()
+    assert "Ordifile_Result.xlsx" in capsys.readouterr().out
+
+
 def test_formats_lists_only_verified_generic_adapters(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -49,7 +65,7 @@ def test_formats_lists_only_verified_generic_adapters(
         assert adapter_id in output
     assert "Built-in verified adapters: 4" in output
     assert "External fixture declarations: 0" in output
-    assert "No vendor raw format is supported by LabConvert's built-in adapters." in output
+    assert "No vendor raw format is supported by Ordifile's built-in adapters." in output
 
 
 def test_formats_includes_verified_external_descriptor_and_hides_unverified_one(
@@ -79,7 +95,7 @@ def test_formats_includes_verified_external_descriptor_and_hides_unverified_one(
         ),
     )
     monkeypatch.setattr(
-        "labconvert.cli.main.get_format_report",
+        "ordifile.cli.main.get_format_report",
         lambda: FormatReport(descriptors, ("broken_plugin: RuntimeError",)),
     )
 
@@ -107,7 +123,7 @@ def test_formats_terminal_escapes_untrusted_descriptor_and_load_error_text(
         True,
     )
     monkeypatch.setattr(
-        "labconvert.cli.main.get_format_report",
+        "ordifile.cli.main.get_format_report",
         lambda: FormatReport((descriptor,), ("broken\tplugin\x1b[31m",)),
     )
 
@@ -221,7 +237,7 @@ def test_inspect_terminal_escapes_issue_context_and_probe_evidence(
         ),
         probes=(("probe\n", 0.5, "reason\x1b[2J"),),
     )
-    monkeypatch.setattr("labconvert.cli.main.inspect_file", lambda *args, **kwargs: inspected)
+    monkeypatch.setattr("ordifile.cli.main.inspect_file", lambda *args, **kwargs: inspected)
 
     assert main(["inspect", "sample.csv", "--verbose"]) == 0
 
@@ -545,14 +561,14 @@ def test_interrupt_and_unexpected_error_traceback_policy(
     def interrupt(_args: object) -> int:
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("labconvert.cli.main._run", interrupt)
+    monkeypatch.setattr("ordifile.cli.main._run", interrupt)
     assert main(["formats"]) == 130
     assert "Interrupted." in capsys.readouterr().err
 
     def unexpected(_args: object) -> int:
         raise RuntimeError("synthetic failure")
 
-    monkeypatch.setattr("labconvert.cli.main._run", unexpected)
+    monkeypatch.setattr("ordifile.cli.main._run", unexpected)
     assert main(["formats"]) == 1
     ordinary = capsys.readouterr().err
     assert "Error [UNEXPECTED_ERROR]" in ordinary
@@ -570,13 +586,13 @@ def test_structured_error_terminal_escapes_code_message_and_details(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     def unsafe_error(_args: object) -> int:
-        raise LabConvertError(
+        raise OrdifileError(
             "BAD\nCODE",
             "unsafe\rmessage\x1b[2J\u202e",
             details={"key\t": "literal\\n\x85"},
         )
 
-    monkeypatch.setattr("labconvert.cli.main._run", unsafe_error)
+    monkeypatch.setattr("ordifile.cli.main._run", unsafe_error)
 
     assert main(["formats"]) == 1
 

@@ -9,10 +9,10 @@ import csv
 from pathlib import Path
 from typing import ClassVar
 
-from labconvert.adapters._tabular import is_compatible_header, parse_rows, semantic_headers
-from labconvert.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
-from labconvert.core.errors import ParseError
-from labconvert.core.models import DatasetBundle
+from ordifile.adapters._tabular import is_compatible_header, parse_rows, semantic_headers
+from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.core.errors import ParseError
+from ordifile.core.models import DatasetBundle
 
 PROBE_BYTES = 64 * 1024
 MAX_DELIMITED_BYTES = 512 * 1024 * 1024

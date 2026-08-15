@@ -20,10 +20,10 @@ from typing import Any
 
 import xlsxwriter  # type: ignore[import-untyped]
 
-from labconvert import __version__
-from labconvert.core.discovery import paths_alias, sha256_file
-from labconvert.core.errors import ExportError, ExportLimitError
-from labconvert.core.models import (
+from ordifile import __version__
+from ordifile.core.discovery import paths_alias, sha256_file
+from ordifile.core.errors import ExportError, ExportLimitError
+from ordifile.core.models import (
     MAX_CANONICAL_INTEGER_DECIMAL_DIGITS,
     BatchResult,
     FileResult,
@@ -34,7 +34,7 @@ from labconvert.core.models import (
     SignalSeries,
     integer_is_within_canonical_bound,
 )
-from labconvert.core.workbook_text import (
+from ordifile.core.workbook_text import (
     XLSX_ESCAPE_TOKEN,
     text_codepoint_unrepresentable,
     workbook_audit_display,
@@ -585,7 +585,7 @@ def _sidecar_final_path(dataset: _SheetData, output: Path, index: int) -> Path:
 def _write_sidecar_temp(dataset: _SheetData, final: Path) -> tuple[Path, Path, SidecarRecord]:
     safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", dataset.logical_name).strip("_") or "data"
     descriptor, raw_temp = tempfile.mkstemp(
-        prefix=f".labconvert_{safe_name}_", suffix=".csv.tmp", dir=final.parent
+        prefix=f".ordifile_{safe_name}_", suffix=".csv.tmp", dir=final.parent
     )
     os.close(descriptor)
     temporary = Path(raw_temp)
@@ -645,7 +645,7 @@ def _manifest_data(
     warning_summary, warning_summary_omitted = bounded_summary("warning")
     error_summary, error_summary_omitted = bounded_summary("error")
     rows: list[tuple[Any, ...]] = [
-        ("labconvert_version", __version__, None, None, None),
+        ("ordifile_version", __version__, None, None, None),
         ("generated_at_utc", datetime.now(UTC).isoformat(), None, None, None),
         ("input_file_count", len(result.files), None, None, None),
         ("success_count", result.success_count, None, None, None),
@@ -788,7 +788,7 @@ def _datasets_for_workbook(
 
 
 def _backup_path(final: Path) -> Path:
-    descriptor, raw_path = tempfile.mkstemp(prefix=".labconvert_backup_", dir=final.parent)
+    descriptor, raw_path = tempfile.mkstemp(prefix=".ordifile_backup_", dir=final.parent)
     os.close(descriptor)
     backup = Path(raw_path)
     backup.unlink()
@@ -897,7 +897,7 @@ class ExcelExporter:
         protected_inputs = tuple(
             item.source.path
             for item in result.files
-            if not any(issue.code == "LABCONVERT_ARTIFACT_EXCLUDED" for issue in item.issues)
+            if not any(issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in item.issues)
         )
         _assert_artifact_is_not_input(output, protected_inputs, code="OUTPUT_IS_INPUT")
         _validate_output_path(output)
@@ -994,7 +994,7 @@ class ExcelExporter:
             _check_cells(physical)
 
             descriptor, raw_temp = tempfile.mkstemp(
-                prefix=".labconvert_workbook_", suffix=".xlsx.tmp", dir=output.parent
+                prefix=".ordifile_workbook_", suffix=".xlsx.tmp", dir=output.parent
             )
             os.close(descriptor)
             temporary = Path(raw_temp)

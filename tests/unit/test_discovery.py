@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from labconvert.core import discovery
-from labconvert.core.discovery import discover_files, natural_key
+from ordifile.core import discovery
+from ordifile.core.discovery import discover_files, natural_key
 
 
 def test_natural_key_orders_numeric_runs() -> None:

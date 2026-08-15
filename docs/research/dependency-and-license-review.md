@@ -30,7 +30,7 @@ Hatchling (MIT), build 1.5.0 (MIT; 1.5.1 was yanked at the research date), pytes
 The [Python version status page](https://devguide.python.org/versions/) showed 3.11–3.14
 as CPython-supported releases, Python 3.10 approaching October 2026 end-of-life, and
 3.15 as a prerelease. The project therefore sets a validation target and package gate of
-`requires-python = ">=3.11,<3.15"`. This does not become a LabConvert support claim until
+`requires-python = ">=3.11,<3.15"`. This does not become a Ordifile support claim until
 the runtime dependency install and repository checks pass in CI for each version.
 
 Linux, Windows, and macOS are support targets, not claims until package installation,
@@ -66,7 +66,7 @@ Implementation impact:
 - preserve timezone values as ISO 8601 text and reject/record NaN and infinity safely.
 
 For input XLSX, ECMA-376, Microsoft OOXML implementation notes, and openpyxl behavior
-also require a narrower verified boundary than the Excel grid maxima alone. LabConvert
+also require a narrower verified boundary than the Excel grid maxima alone. Ordifile
 accepts only the transitional non-macro workbook content type and applies a bounded
 package/worksheet audit before openpyxl. The practical row, cell, XML-depth, and raw
 lexeme caps are project resource-safety policies documented in
