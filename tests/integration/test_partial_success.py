@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,7 @@ def test_one_corrupt_file_does_not_discard_one_hundred_valid_files(tmp_path: Pat
         workbook.close()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows forbids control characters in filenames.")
 def test_unsafe_and_literal_escape_source_names_use_distinct_reversible_audit_display(
     tmp_path: Path,
 ) -> None:
@@ -90,6 +92,7 @@ def test_unsafe_and_literal_escape_source_names_use_distinct_reversible_audit_di
         workbook.close()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows forbids control characters in filenames.")
 def test_unsafe_source_name_on_corrupt_file_keeps_good_workbook_and_audit_row(
     tmp_path: Path,
 ) -> None:

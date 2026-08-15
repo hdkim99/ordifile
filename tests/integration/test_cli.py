@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -143,8 +144,22 @@ def test_inspect_reports_detection_hash_and_counts(
 @pytest.mark.parametrize(
     ("unsafe_name", "escaped_name"),
     (
-        ("evil\nStatus: success.csv", "evil\\x0aStatus: success.csv"),
-        ("evil\x1b[2J.csv", "evil\\x1b[2J.csv"),
+        pytest.param(
+            "evil\nStatus: success.csv",
+            "evil\\x0aStatus: success.csv",
+            marks=pytest.mark.skipif(
+                os.name == "nt", reason="Windows forbids control characters in filenames."
+            ),
+            id="newline-filename",
+        ),
+        pytest.param(
+            "evil\x1b[2J.csv",
+            "evil\\x1b[2J.csv",
+            marks=pytest.mark.skipif(
+                os.name == "nt", reason="Windows forbids control characters in filenames."
+            ),
+            id="escape-filename",
+        ),
         ("evil\u202ereversed.csv", "evil\\u202ereversed.csv"),
     ),
 )
@@ -165,6 +180,20 @@ def test_inspect_terminal_escapes_unsafe_filename_in_default_and_verbose_output(
         assert "\x1b" not in rendered
         assert "\u202e" not in rendered
         assert "Traceback" not in rendered
+
+
+@pytest.mark.parametrize(
+    ("unsafe_name", "escaped_name"),
+    (
+        ("evil\nStatus: success.csv", "evil\\x0aStatus: success.csv"),
+        ("evil\x1b[2J.csv", "evil\\x1b[2J.csv"),
+        ("evil\u202ereversed.csv", "evil\\u202ereversed.csv"),
+    ),
+)
+def test_terminal_renderer_escapes_unsafe_filename_text_without_filesystem(
+    unsafe_name: str, escaped_name: str
+) -> None:
+    assert _terminal_safe(unsafe_name) == escaped_name
 
 
 def test_inspect_terminal_escapes_issue_context_and_probe_evidence(
@@ -272,7 +301,7 @@ def test_convert_success_writes_workbook_and_summary(
 def test_convert_terminal_escapes_progress_and_output_names(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    source = tmp_path / "source\nStatus: success\u202e.csv"
+    source = tmp_path / "source\u202e.csv"
     output_path = tmp_path / "result\u202e.xlsx"
     _write_peak_table(source)
 
@@ -280,7 +309,7 @@ def test_convert_terminal_escapes_progress_and_output_names(
 
     captured = capsys.readouterr()
     rendered = captured.out + captured.err
-    assert "Processed 1/1: success source\\x0aStatus: success\\u202e.csv" in rendered
+    assert "Processed 1/1: success source\\u202e.csv" in rendered
     assert "Export started: result\\u202e.xlsx" in rendered
     assert "Output ready: result\\u202e.xlsx" in rendered
     assert "\x1b" not in rendered

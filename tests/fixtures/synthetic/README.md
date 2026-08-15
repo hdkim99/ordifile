@@ -13,9 +13,10 @@ python tests/fixtures/synthetic/generate_xlsx.py
 The committed workbook is intentional: integration tests exercise the same redistributable
 fixture that the support table describes.
 
-The generator fixes workbook properties, archive member order, timestamps, and compression so
-the fixture is reproducible. Its expected SHA-256 is recorded below:
+The generator fixes workbook properties, archive member order, timestamps, ZipInfo metadata,
+and uses `ZIP_STORED` so output bytes do not depend on the host zlib implementation. Its
+expected SHA-256 is recorded below:
 
 ```text
-generic_peaks.xlsx  a3660c5824fbc8c260d99f1ca292a8edd8fbec104d0bb1ad111653b8215f276f
+generic_peaks.xlsx  fb3a739e28efab6d2ff8abee31362f1b757e447738d7ca636d2a157fa6984591
 ```

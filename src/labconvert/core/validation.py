@@ -8,7 +8,6 @@ from __future__ import annotations
 import math
 import re
 from datetime import datetime
-from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from labconvert.core.models import (
@@ -25,13 +24,13 @@ from labconvert.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
+from labconvert.core.privacy import contains_machine_local_path, contains_uri_reference
 from labconvert.core.workbook_text import (
     MAX_WORKBOOK_CELL_CHARACTERS,
     workbook_text_is_exact,
 )
 
 _CANONICAL_ISSUE_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,63}\Z")
-_URI_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _ROW_LOCATOR = re.compile(r"[^:/\\?#\r\n]+:row:[0-9]+(?::column:[0-9]+)?\Z")
 _CELL_LOCATOR = re.compile(r"sheet:[0-9]+:cell:[A-Z]{1,3}[1-9][0-9]*\Z")
 _CANONICAL_LOCATOR = re.compile(r"canonical:[A-Za-z0-9_.-]+\Z")
@@ -39,13 +38,8 @@ _CANONICAL_LOCATOR = re.compile(r"canonical:[A-Za-z0-9_.-]+\Z")
 
 def _is_unsafe_metadata_source(value: str) -> bool:
     """Allow relative logical provenance locators, never paths or URI authorities."""
-    windows_path = PureWindowsPath(value)
-    if (
-        Path(value).is_absolute()
-        or windows_path.is_absolute()
-        or bool(windows_path.drive)
-        or value.startswith(("//", "\\\\"))
-        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    if contains_machine_local_path(value) or any(
+        ord(character) < 32 or ord(character) == 127 for character in value
     ):
         return True
     if any(
@@ -53,7 +47,7 @@ def _is_unsafe_metadata_source(value: str) -> bool:
         for pattern in (_ROW_LOCATOR, _CELL_LOCATOR, _CANONICAL_LOCATOR)
     ):
         return False
-    return _URI_SCHEME.match(value) is not None
+    return contains_uri_reference(value)
 
 
 def validate_bundle_structure(bundle: object) -> tuple[Issue, ...]:

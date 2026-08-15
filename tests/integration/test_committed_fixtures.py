@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
@@ -11,7 +12,7 @@ from labconvert.api import convert, inspect_file
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "synthetic"
 EXAMPLES = Path(__file__).parents[2] / "examples" / "basic"
-EXPECTED_XLSX_SHA256 = "a3660c5824fbc8c260d99f1ca292a8edd8fbec104d0bb1ad111653b8215f276f"
+EXPECTED_XLSX_SHA256 = "fb3a739e28efab6d2ff8abee31362f1b757e447738d7ca636d2a157fa6984591"
 
 
 def test_committed_xlsx_checksum_matches_fixture_documentation() -> None:
@@ -40,6 +41,15 @@ def test_xlsx_generator_reproduces_committed_fixture_bytes(tmp_path: Path) -> No
     generated_bytes = generated.read_bytes()
     assert generated_bytes == fixture.read_bytes()
     assert hashlib.sha256(generated_bytes).hexdigest() == EXPECTED_XLSX_SHA256
+    with zipfile.ZipFile(generated) as archive:
+        members = archive.infolist()
+        assert [member.filename for member in members] == sorted(
+            member.filename for member in members
+        )
+        assert all(member.compress_type == zipfile.ZIP_STORED for member in members)
+        assert all(member.date_time == (2026, 1, 1, 0, 0, 0) for member in members)
+        assert all(member.create_system == 3 for member in members)
+        assert all(member.external_attr == 0o600 << 16 for member in members)
 
 
 def test_committed_synthetic_fixtures_match_verified_support() -> None:

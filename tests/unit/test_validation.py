@@ -11,6 +11,7 @@ from labconvert.core.models import (
     SignalSeries,
     SourceFile,
 )
+from labconvert.core.privacy import contains_machine_local_path
 from labconvert.core.validation import validate_bundle
 
 
@@ -59,10 +60,19 @@ def test_metadata_source_rejects_machine_paths_and_control_characters() -> None:
     for unsafe_source in (
         "/private/adapter/secret.dat",
         "C:\\Users\\person\\secret.dat",
+        " C:\\Users\\person\\secret.dat",
+        "note=C:\\Users\\person\\secret.dat",
+        "\\Users\\person\\secret.dat",
         "\\\\server\\private share\\secret.dat",
+        "note=/private/secret.dat",
         "file:///Users/example/My%20Project/secret.dat",
         "file://C:/Users/example/Secret%20Project/secret.dat",
         "https://example.test/instrument/source",
+        "note=https://example.test/instrument/source",
+        "https://example.test/?path=C:\\Users\\person\\secret.dat",
+        "http://example.test/C:/Users/person/secret.dat",
+        "https://example.test/?next=file:///Users/person/secret.dat",
+        "urn:example:instrument-source",
         "table:row:2\nsecret",
     ):
         metadata = MetadataEntry(
@@ -103,6 +113,34 @@ def test_metadata_source_accepts_sheet_cell_logical_locator() -> None:
         source="sheet:1:cell:D2",
     )
     assert validate_bundle(DatasetBundle((source,), (sample,), metadata=(metadata,))) == ()
+
+
+def test_metadata_source_accepts_relative_non_uri_locator() -> None:
+    source = _source()
+    sample = SampleRecord("sample", source)
+    metadata = MetadataEntry(
+        "sample",
+        source.name,
+        "test",
+        "key",
+        "value",
+        source="note=fixtures/example.dat",
+    )
+    assert validate_bundle(DatasetBundle((source,), (sample,), metadata=(metadata,))) == ()
+
+
+def test_http_url_path_overlap_does_not_hide_nested_local_locators() -> None:
+    assert not contains_machine_local_path(
+        "https://example.test/remote/path?next=/another/remote/path"
+    )
+    for unsafe in (
+        "https://example.test/?path=C:\\Users\\person\\secret.dat",
+        "http://example.test/C:/Users/person/secret.dat",
+        "https://example.test/?next=file:///Users/person/secret.dat",
+        "https://example.test/?next=ftp://private.example.test/secret.dat",
+        "https://example.test/?path=\\\\server\\share\\secret.dat",
+    ):
+        assert contains_machine_local_path(unsafe)
 
 
 def test_external_oversized_integers_are_errors_across_canonical_records() -> None:

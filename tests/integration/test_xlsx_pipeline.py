@@ -1342,6 +1342,7 @@ def test_xlsx_formula_and_cache_are_preserved_by_coordinate_but_not_parsed(tmp_p
         ('xmlns:evil="urn:evil" evil:ref="A1"', "XLSX_NAMESPACE_INVALID"),
         ('unknown="value"', "XLSX_FORMULA_ATTRIBUTE_INVALID"),
     ),
+    ids=("overlong-ref", "invalid-ref", "evil-namespace", "unknown-attribute"),
 )
 def test_xlsx_formula_attributes_are_strictly_bounded_before_openpyxl(
     tmp_path: Path, attributes: str, expected_code: str
@@ -1404,6 +1405,7 @@ def test_xlsx_shared_string_direct_rich_and_index_boundaries(tmp_path: Path) -> 
         f"<si><t>{'a' * 32_768}</t></si>",
         f"<si><r><t>{'a' * 20_000}</t></r><r><t>{'b' * 20_000}</t></r></si>",
     ),
+    ids=("direct-overlong", "rich-aggregate-overlong"),
 )
 def test_xlsx_shared_string_logical_text_cannot_exceed_cell_boundary(
     tmp_path: Path, item: str

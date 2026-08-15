@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, ClassVar, cast
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
@@ -152,9 +152,19 @@ class BundleAdapter:
                     "/Users/example/Private Key": "private key marker",
                     "posix": "/opt/private/My Instrument/instrument.dat",
                     "windows": "C:\\Users\\example\\Secret Project\\secret.dat",
+                    "prefixed_windows": "note=C:\\Users\\example\\secret.dat",
                     "unc": "\\\\server\\Private Share\\secret.dat",
+                    "prefixed_posix": "note=/opt/private/secret.dat",
                     "file_url_posix": "file:///Users/example/My%20Project/secret.dat",
                     "file_url_windows": "file://C:/Users/example/Secret%20Project/secret.dat",
+                    "http_windows_query": (
+                        "https://example.test/?path=C:\\Users\\example\\secret.dat"
+                    ),
+                    "http_windows_path": "http://example.test/C:/Users/example/secret.dat",
+                    "http_nested_file": (
+                        "https://example.test/?next=file:///Users/example/secret.dat"
+                    ),
+                    "http_remote": ("https://example.test/remote/path?next=/another/remote/path"),
                     "locator": "sheet:1:cell:A1",
                     "url": "https://example.test/reference/path",
                     "relative": "fixtures/example.dat",
@@ -261,6 +271,22 @@ class BundleAdapter:
                 ),
             )
             if self.malformed == "issue_private_path"
+            else (
+                Issue(
+                    "PLUGIN_PRIVATE_PATH",
+                    "https://example.test/?path=C:\\Users\\example\\private.dat",
+                    Severity.WARNING,
+                ),
+            )
+            if self.malformed == "issue_http_overlap"
+            else (
+                Issue(
+                    "PLUGIN_REMOTE_REFERENCE",
+                    "https://example.test/remote/path?next=/another/remote/path",
+                    Severity.WARNING,
+                ),
+            )
+            if self.malformed == "issue_http_remote"
             else ()
         )
         return DatasetBundle(
@@ -658,9 +684,15 @@ def test_plugin_structured_error_scrubs_machine_absolute_paths_per_file(
     assert context["[absolute-path-omitted]"] == "private key marker"
     assert context["posix"] == "[absolute-path-omitted]"
     assert context["windows"] == "[absolute-path-omitted]"
+    assert context["prefixed_windows"] == "[absolute-path-omitted]"
     assert context["unc"] == "[absolute-path-omitted]"
+    assert context["prefixed_posix"] == "[absolute-path-omitted]"
     assert context["file_url_posix"] == "[absolute-path-omitted]"
     assert context["file_url_windows"] == "[absolute-path-omitted]"
+    assert context["http_windows_query"] == "[absolute-path-omitted]"
+    assert context["http_windows_path"] == "[absolute-path-omitted]"
+    assert context["http_nested_file"] == "[absolute-path-omitted]"
+    assert context["http_remote"] == ("https://example.test/remote/path?next=/another/remote/path")
     assert context["locator"] == "sheet:1:cell:A1"
     assert context["url"] == "https://example.test/reference/path"
     assert context["relative"] == "fixtures/example.dat"
@@ -708,6 +740,36 @@ def test_plugin_bundle_issue_with_private_paths_is_failed_without_exposure(
         assert {row[4] for row in log} == {"success", "failed"}
     finally:
         workbook.close()
+
+
+def test_plugin_bundle_issue_http_url_cannot_hide_windows_path(tmp_path: Path) -> None:
+    good = tmp_path / "good.csv"
+    good.write_text("sample_id,area,compound\ngood,2,A\n", encoding="utf-8")
+    bad = tmp_path / "bad.dat"
+    bad.write_bytes(b"fixture")
+    registry = create_registry(include_external=False)
+    registry.register(BundleAdapter(malformed="issue_http_overlap"))
+
+    result = convert((good, bad), tmp_path / "http-overlap-issue.xlsx", registry=registry)
+
+    assert result.success_count == 1
+    assert result.failure_count == 1
+    failed = next(item for item in result.files if item.status is FileStatus.FAILED)
+    assert any(issue.code == "CANONICAL_ISSUE_PRIVATE_PATH" for issue in failed.issues)
+    assert "Users" not in repr(failed.issues)
+
+
+def test_plugin_bundle_issue_allows_normal_remote_http_paths(tmp_path: Path) -> None:
+    source = tmp_path / "remote.dat"
+    source.write_bytes(b"fixture")
+    registry = create_registry(include_external=False)
+    registry.register(BundleAdapter(malformed="issue_http_remote"))
+
+    result = convert(source, tmp_path / "remote.xlsx", registry=registry)
+
+    assert result.success_count == 1
+    assert result.failure_count == 0
+    assert any(issue.code == "PLUGIN_REMOTE_REFERENCE" for issue in result.files[0].issues)
 
 
 @pytest.mark.parametrize(
@@ -767,6 +829,10 @@ def test_broken_timezone_hook_is_failed_per_plugin_file(tmp_path: Path, malforme
 
 
 def test_zoneinfo_datetime_is_normalized_to_hook_free_exact_offset(tmp_path: Path) -> None:
+    try:
+        ZoneInfo("Asia/Seoul")
+    except ZoneInfoNotFoundError:
+        pytest.skip("The host Python installation has no IANA timezone database.")
     source = tmp_path / "zoneinfo.dat"
     source.write_bytes(b"fixture")
 

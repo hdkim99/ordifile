@@ -12,7 +12,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from itertools import islice
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 from labconvert.adapters.base import ParseOptions
 from labconvert.adapters.registry import AdapterRegistry
@@ -33,6 +33,7 @@ from labconvert.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
+from labconvert.core.privacy import contains_machine_local_path, scrub_machine_local_paths
 from labconvert.core.sorting import sort_file_results
 from labconvert.core.validation import validate_bundle, validate_bundle_structure
 from labconvert.core.workbook_text import (
@@ -51,41 +52,6 @@ MAX_ERROR_DETAIL_ITEMS = 32
 MAX_ERROR_DETAIL_KEY_CHARACTERS = 64
 MAX_ERROR_DETAIL_VALUE_CHARACTERS = 512
 _ADAPTER_ERROR_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,63}\Z")
-_EXTERNAL_LOCATOR = re.compile(
-    r"(?P<url>[A-Za-z][A-Za-z0-9+.-]*://[^\s<>\"']+)"
-    r"|(?P<windows>(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s<>\"']+)"
-    r"|(?P<unc>(?<![\\])\\\\[^\\\s<>\"']+\\[^\s<>\"']+)"
-    r"|(?P<posix>(?<![:/A-Za-z0-9_])/(?:[^\s<>\"']+))"
-)
-_ABSOLUTE_PATH_PLACEHOLDER = "[absolute-path-omitted]"
-
-
-def _contains_absolute_path(value: str) -> bool:
-    """Detect a machine-local path without treating URLs as local paths."""
-    for match in _EXTERNAL_LOCATOR.finditer(value):
-        url = match.group("url")
-        if url is not None:
-            if url.lower().startswith(("http://", "https://")):
-                continue
-            return True
-        candidate = match.group(0)
-        if match.group("windows") is not None or match.group("unc") is not None:
-            if PureWindowsPath(candidate).is_absolute():
-                return True
-        elif PurePosixPath(candidate).is_absolute():
-            return True
-    return False
-
-
-def _scrub_absolute_paths(value: str) -> str:
-    """Omit an entire external value when any machine-local path is present.
-
-    Whole-value omission is deliberately conservative: an unquoted path containing
-    spaces has no reliable textual end delimiter, so token replacement could expose its
-    tail. URLs and relative logical locators remain unchanged when no absolute path is
-    present.
-    """
-    return _ABSOLUTE_PATH_PLACEHOLDER if _contains_absolute_path(value) else value
 
 
 def _bundle_issue_has_private_path(bundle: DatasetBundle) -> bool:
@@ -94,7 +60,7 @@ def _bundle_issue_has_private_path(bundle: DatasetBundle) -> bool:
         text_parts = (issue.message, *(part for pair in issue.context for part in pair))
         if issue.source is not None:
             text_parts = (*text_parts, issue.source)
-        if any(_contains_absolute_path(part) for part in text_parts):
+        if any(contains_machine_local_path(part) for part in text_parts):
             return True
     return False
 
@@ -106,7 +72,7 @@ def _safe_detail_text(value: object) -> str:
             return "[text-omitted-too-long]"
         if not workbook_text_is_exact(value):
             return "[text-omitted-unrepresentable]"
-        return _scrub_absolute_paths(value)
+        return scrub_machine_local_paths(value)
     if value is None:
         return "null"
     if type(value) is bool:
@@ -138,7 +104,7 @@ def _safe_error_context(details: object) -> tuple[tuple[str, str], ...]:
             and 0 < len(key) <= MAX_ERROR_DETAIL_KEY_CHARACTERS
             and workbook_text_is_exact(key)
         ):
-            safe_key = _scrub_absolute_paths(key)
+            safe_key = scrub_machine_local_paths(key)
         else:
             safe_key = f"detail_{index:03d}"
         context.append((safe_key, _safe_detail_text(value)))
@@ -164,7 +130,7 @@ def _issue_from_error(error: Exception, source: SourceFile) -> Issue:
             )
         return Issue(
             error.code,
-            _scrub_absolute_paths(error.message),
+            scrub_machine_local_paths(error.message),
             Severity.ERROR,
             safe_source,
             _safe_error_context(error.details),

@@ -15,6 +15,9 @@ from pathlib import Path
 from openpyxl import Workbook  # type: ignore[import-untyped]
 
 _ARCHIVE_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
+_ARCHIVE_CREATE_SYSTEM = 3
+_ARCHIVE_VERSION = 20
+_ARCHIVE_EXTERNAL_ATTR = 0o600 << 16
 _CORE_MODIFIED_TIMESTAMP = b"2026-08-15T11:15:08Z"
 _CORE_MODIFIED = re.compile(rb"(<dcterms:modified\b[^>]*>)[^<]*(</dcterms:modified>)")
 
@@ -35,7 +38,7 @@ def _normalize_archive(path: Path) -> None:
     with zipfile.ZipFile(path, "r") as source:
         members = tuple(
             (
-                info,
+                info.filename,
                 _normalize_core_properties(source.read(info.filename))
                 if info.filename == "docProps/core.xml"
                 else source.read(info.filename),
@@ -53,15 +56,19 @@ def _normalize_archive(path: Path) -> None:
         with zipfile.ZipFile(
             temporary,
             "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
+            compression=zipfile.ZIP_STORED,
         ) as target:
-            for original, content in members:
-                stable = zipfile.ZipInfo(original.filename, _ARCHIVE_TIMESTAMP)
-                stable.compress_type = zipfile.ZIP_DEFLATED
-                stable.create_system = original.create_system
-                stable.external_attr = original.external_attr
-                stable.internal_attr = original.internal_attr
+            for name, content in members:
+                stable = zipfile.ZipInfo(name, _ARCHIVE_TIMESTAMP)
+                stable.compress_type = zipfile.ZIP_STORED
+                stable.create_system = _ARCHIVE_CREATE_SYSTEM
+                stable.create_version = _ARCHIVE_VERSION
+                stable.extract_version = _ARCHIVE_VERSION
+                stable.external_attr = _ARCHIVE_EXTERNAL_ATTR
+                stable.internal_attr = 0
+                stable.flag_bits = 0
+                stable.extra = b""
+                stable.comment = b""
                 target.writestr(stable, content)
         temporary.replace(path)
     finally:
