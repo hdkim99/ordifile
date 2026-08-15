@@ -1,8 +1,8 @@
 # Dependency and license review
 
-- Research date: 2026-08-15
+- Research dates: 2026-08-15 through 2026-08-16
 - Scope: minimal runtime/build/test dependencies, Python/OS policy, GUI candidates,
-  and redistribution implications.
+  release actions, GC reader candidates, and redistribution implications.
 - Source details: exact titles, owners, source types, dates when available, URLs, and
   access date are consolidated in [`source-register.md`](source-register.md).
 
@@ -81,6 +81,34 @@ offloading or truncation occurs.
 
 No OpenChrom (EPL-2.0), chromConverter (GPL-3.0), rainbow (LGPL-3.0), proprietary SDK,
 DLL, executable, or fixture of unresolved provenance is copied or bundled.
+
+GC fixture research used external readers only as independent oracles. Entab 0.3.3 is
+MIT but has limited published wheels and a current CLI compatibility defect; rainbow
+1.4.0 is LGPL-3.0 and produced a v181 time/signal length mismatch; ChromStream 0.2.0
+read the selected v181 file but its adapted-code notice chain needs clarification.
+None is a production or development dependency, and no reader code was copied. The
+exact results and future clean-room recommendation are in
+[`gc-fixture-search.md`](gc-fixture-search.md).
+
+## Release workflow tooling
+
+The release workflow uses official GitHub and PyPA actions pinned to immutable commits:
+
+| Action | Reviewed release / commit | Purpose |
+|---|---|---|
+| `actions/checkout` | v7.0.1 / `3d3c42e5aac5ba805825da76410c181273ba90b1` | Read-only source checkout for validation and the single build. |
+| `actions/setup-python` | v7.0.0 / `5fda3b95a4ea91299a34e894583c3862153e4b97` | Supported Python setup. |
+| `actions/upload-artifact` | v7.0.1 / `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | Store the one immutable workflow artifact. |
+| `actions/download-artifact` | v8.0.1 / `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` | Reuse the same wheel, sdist, notes, and checksums. |
+| `actions/attest` | v4.2.2 / `1e69f48acb82d1966a394da916b4c1698aa569d6` | GitHub artifact provenance for the reviewed distributions; this pinned release requires `id-token: write`, `attestations: write`, and `artifact-metadata: write`. |
+| `pypa/gh-action-pypi-publish` | v1.14.2 / `dc37677b2e1c63e2034f94d8a5b11f265b73ba33` | Short-lived OIDC publication to TestPyPI and PyPI. |
+
+Actions are workflow tooling and are not included in Ordifile distributions. The
+publish action receives `id-token: write` only in the two tag-only publication jobs;
+no package-index token or secret is configured. Release archives are built once,
+hashed, tested outside the checkout, and byte-compared after both index publications.
+The separate attestation job has only the read permission needed for the artifact subject
+plus the three write permissions documented by the pinned `actions/attest` release.
 
 ## Verified facts, inference, and remaining risk
 
