@@ -1,0 +1,886 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Manual runs validate only and never publish"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Validate and build once
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.gate.outputs.version }}
+    steps:
+      - name: Check out the release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Enforce release source, version, and tag policy
+        id: gate
+        shell: bash
+        env:
+          DISPATCH_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          version="$(python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Package version is not a strict X.Y.Z release version: $version" >&2
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              echo "Release tags must match vX.Y.Z exactly." >&2
+              exit 1
+            fi
+            if [[ "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+              echo "Tag $GITHUB_REF_NAME does not match package version $version." >&2
+              exit 1
+            fi
+            if [[ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != "tag" ]]; then
+              echo "Release tags must be annotated tags." >&2
+              exit 1
+            fi
+            target_type="$(git cat-file -p "refs/tags/$GITHUB_REF_NAME" | sed -n 's/^type //p')"
+            if [[ "$target_type" != "commit" ]]; then
+              echo "Release tags must point directly to a commit, not another tag." >&2
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "refs/tags/$GITHUB_REF_NAME^{commit}" refs/remotes/origin/main; then
+              echo "The tagged commit is not contained in origin/main." >&2
+              exit 1
+            fi
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$DISPATCH_MODE" != "dry-run" ]]; then
+              echo "Manual release runs are validation-only dry runs." >&2
+              exit 1
+            fi
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "Manual release validation must be dispatched from the main branch." >&2
+              exit 1
+            fi
+            if [[ "$(git rev-parse HEAD)" != "$(git rev-parse refs/remotes/origin/main)" ]]; then
+              echo "Manual release validation must use the current origin/main commit." >&2
+              exit 1
+            fi
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$GITHUB_BASE_REF" != "main" ]]; then
+              echo "Release workflow pull requests must target main." >&2
+              exit 1
+            fi
+            if [[ -z "$GITHUB_HEAD_REF" ]]; then
+              echo "Release workflow pull-request context is incomplete." >&2
+              exit 1
+            fi
+          else
+            echo "Unsupported release event: $GITHUB_EVENT_NAME" >&2
+            exit 1
+          fi
+
+          notes="docs/releases/v${version}.md"
+          if [[ ! -f "$notes" ]]; then
+            echo "Missing release notes: $notes" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install release tooling and project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy
+      - name: Run unit and integration tests with branch coverage
+        run: pytest
+      - name: Audit dependencies
+        run: pip-audit
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Verify release distributions
+        run: >-
+          python scripts/verify_release.py
+          --dist-dir dist
+          --expected-version "${{ steps.gate.outputs.version }}"
+          --checksums dist/SHA256SUMS.txt
+      - name: Assemble the immutable artifact payload
+        shell: bash
+        env:
+          VERSION: ${{ steps.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ -e release-artifact ]]; then
+            echo "Release artifact staging already exists; refusing stale payload files." >&2
+            exit 1
+          fi
+          mkdir -p release-artifact/packages
+          cp dist/*.whl dist/*.tar.gz release-artifact/packages/
+          cp dist/SHA256SUMS.txt release-artifact/SHA256SUMS.txt
+          cp "docs/releases/v${VERSION}.md" release-artifact/release-notes.md
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          overwrite: false
+
+  smoke:
+    name: Wheel smoke / ${{ matrix.os }} / Python ${{ matrix.python }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions: {}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.14"]
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify downloaded checksums and distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if filename in manifest:
+                  raise SystemExit(f"Duplicate checksum entry for {filename}")
+              manifest[filename] = expected
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          entries = tuple(packages.iterdir())
+          actual_files = {path.name for path in entries if path.is_file()}
+          if any(not path.is_file() for path in entries) or len(manifest) != 2 or actual_files != set(manifest):
+              raise SystemExit("Publish package set must be exactly the checksummed wheel and sdist")
+          PY
+      - name: Install and exercise the wheel outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c 'import pathlib, subprocess, sys; wheel=next(pathlib.Path("release-artifact/packages").glob("*.whl")); subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)])'
+          python - <<'PY'
+          import shutil
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          from openpyxl import load_workbook
+
+          executable = shutil.which("ordifile")
+          if executable is None:
+              raise SystemExit("Installed wheel did not provide the ordifile entry point")
+          with tempfile.TemporaryDirectory(prefix="ordifile-release-smoke-") as raw_temp:
+              work = Path(raw_temp)
+              source = work / "release_smoke.csv"
+              source.write_text(
+                  "sample_id,peak_number,retention_time,area,compound\n"
+                  "release_smoke,1,1.25,42.0,test_compound\n",
+                  encoding="utf-8",
+              )
+              subprocess.check_call([executable, "--version"], cwd=work)
+              subprocess.check_call([executable, "--help"], cwd=work, stdout=subprocess.DEVNULL)
+              subprocess.check_call([executable, "formats"], cwd=work)
+              subprocess.check_call([executable, "inspect", source.name], cwd=work)
+              subprocess.check_call(
+                  [
+                      executable,
+                      "convert",
+                      source.name,
+                      "--sort",
+                      "filename",
+                      "--output",
+                      "Ordifile_Result.xlsx",
+                  ],
+                  cwd=work,
+              )
+              output = work / "Ordifile_Result.xlsx"
+              required = {
+                  "Manifest",
+                  "Samples",
+                  "Peak_Matrix",
+                  "Peaks",
+                  "Metadata",
+                  "Import_Log",
+              }
+              workbook = load_workbook(output, read_only=True, data_only=False)
+              try:
+                  missing = required.difference(workbook.sheetnames)
+                  if missing:
+                      raise SystemExit(f"Missing workbook sheets: {sorted(missing)}")
+              finally:
+                  workbook.close()
+          PY
+
+  publish-testpypi:
+    name: Publish the same distributions to TestPyPI
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/ordifile
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python for checksum verification
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Verify downloaded checksums and distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if filename in manifest:
+                  raise SystemExit(f"Duplicate checksum entry for {filename}")
+              manifest[filename] = expected
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          entries = tuple(packages.iterdir())
+          actual_files = {path.name for path in entries if path.is_file()}
+          if any(not path.is_file() for path in entries) or len(manifest) != 2 or actual_files != set(manifest):
+              raise SystemExit("Publish package set must be exactly the checksummed wheel and sdist")
+          PY
+      - name: Verify the live annotated tag still targets this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected_commit = os.environ["GITHUB_SHA"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Cache-Control": "no-cache",
+              "User-Agent": "Ordifile-release-tag-verifier",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def read_json(path: str) -> dict[str, object]:
+              request = Request(f"https://api.github.com/repos/{repository}/{path}", headers=headers)
+              with urlopen(request, timeout=20) as response:
+                  value = json.load(response)
+              if not isinstance(value, dict):
+                  raise SystemExit("GitHub returned an invalid tag response")
+              return value
+
+          reference = read_json(f"git/ref/tags/{quote(tag, safe='')}")
+          target = reference.get("object")
+          if not isinstance(target, dict) or target.get("type") != "tag":
+              raise SystemExit("The live release ref is no longer an annotated tag")
+          annotation = read_json(f"git/tags/{target.get('sha', '')}")
+          commit = annotation.get("object")
+          if (
+              not isinstance(commit, dict)
+              or commit.get("type") != "commit"
+              or commit.get("sha") != expected_commit
+          ):
+              raise SystemExit("The live annotated tag no longer targets this workflow commit")
+          PY
+      - name: Publish to TestPyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: release-artifact/packages/
+          repository-url: https://test.pypi.org/legacy/
+          verbose: true
+
+  verify-testpypi:
+    name: Verify exact TestPyPI distributions
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Download both files directly from TestPyPI and compare bytes
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import tempfile
+          import time
+          from pathlib import Path
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlparse
+          from urllib.request import urlopen
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if Path(filename).name != filename or filename in manifest:
+                  raise SystemExit(f"Unsafe or duplicate checksum filename: {filename!r}")
+              path = packages / filename
+              content = path.read_bytes()
+              if hashlib.sha256(content).hexdigest() != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+              manifest[filename] = expected
+
+          built_files = sorted((*packages.glob("*.whl"), *packages.glob("*.tar.gz")))
+          built = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in built_files
+          }
+          if len(built_files) != 2 or built != manifest:
+              raise SystemExit("Local package files do not exactly match SHA256SUMS.txt")
+
+          version = os.environ["VERSION"]
+          endpoint = f"https://test.pypi.org/pypi/ordifile/{version}/json"
+          destination = Path(os.environ["RUNNER_TEMP"]) / "testpypi-download"
+          destination.mkdir(parents=True, exist_ok=True)
+          for attempt in range(1, 7):
+              try:
+                  with urlopen(endpoint, timeout=30) as response:
+                      payload = json.load(response)
+                  published = {
+                      item["filename"]: item["digests"]["sha256"]
+                      for item in payload["urls"]
+                  }
+                  if len(payload["urls"]) != len(manifest) or published != manifest:
+                      raise ValueError("file set or SHA-256 values differ from the build")
+                  for item in payload["urls"]:
+                      filename = item["filename"]
+                      url = item["url"]
+                      parsed = urlparse(url)
+                      if parsed.scheme != "https" or parsed.hostname != "test-files.pythonhosted.org":
+                          raise ValueError(f"unexpected TestPyPI file URL: {url!r}")
+                      with urlopen(url, timeout=60) as response:
+                          final = urlparse(response.geturl())
+                          if final.scheme != "https" or final.hostname != parsed.hostname:
+                              raise ValueError("TestPyPI file download redirected off the expected host")
+                          content = response.read(64 * 1024 * 1024 + 1)
+                      if len(content) > 64 * 1024 * 1024:
+                          raise ValueError(f"published file exceeds verification bound: {filename}")
+                      if content != (packages / filename).read_bytes():
+                          raise ValueError(f"downloaded bytes differ from build: {filename}")
+                      (destination / filename).write_bytes(content)
+                  break
+              except (HTTPError, URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as error:
+                  for path in destination.iterdir():
+                      if path.is_file():
+                          path.unlink()
+                  if attempt == 6:
+                      raise SystemExit(f"TestPyPI verification failed: {error}") from error
+                  time.sleep(10)
+
+          downloaded = sorted((*destination.glob("*.whl"), *destination.glob("*.tar.gz")))
+          if {path.name for path in downloaded} != set(manifest):
+              raise SystemExit("Downloaded TestPyPI file set is incomplete")
+          wheel = next(destination.glob("*.whl"))
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)]
+          )
+          executable = shutil.which("ordifile")
+          if executable is None:
+              raise SystemExit("Verified TestPyPI wheel did not install the ordifile entry point")
+          with tempfile.TemporaryDirectory(prefix="ordifile-testpypi-smoke-") as work:
+              subprocess.check_call([executable, "--version"], cwd=work)
+              subprocess.check_call([executable, "formats"], cwd=work)
+          PY
+
+  attest:
+    name: Attest tag release distributions
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke, verify-testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python for checksum verification
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Verify downloaded checksums and distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          PY
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            release-artifact/packages/*
+            release-artifact/SHA256SUMS.txt
+
+  create-github-release:
+    name: Create draft GitHub Release
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python for checksum verification
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Verify downloaded checksums and distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          PY
+      - name: Create draft release from the same distributions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            release-artifact/packages/*.whl \
+            release-artifact/packages/*.tar.gz \
+            release-artifact/SHA256SUMS.txt \
+            --verify-tag \
+            --draft \
+            --title "Ordifile $GITHUB_REF_NAME" \
+            --notes-file release-artifact/release-notes.md
+
+  publish-pypi:
+    name: Publish the same distributions to PyPI
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke, create-github-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ordifile
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python for checksum verification
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Verify downloaded checksums and distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if filename in manifest:
+                  raise SystemExit(f"Duplicate checksum entry for {filename}")
+              manifest[filename] = expected
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          entries = tuple(packages.iterdir())
+          actual_files = {path.name for path in entries if path.is_file()}
+          if any(not path.is_file() for path in entries) or len(manifest) != 2 or actual_files != set(manifest):
+              raise SystemExit("Publish package set must be exactly the checksummed wheel and sdist")
+          PY
+      - name: Verify the live annotated tag still targets this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected_commit = os.environ["GITHUB_SHA"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Cache-Control": "no-cache",
+              "User-Agent": "Ordifile-release-tag-verifier",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def read_json(path: str) -> dict[str, object]:
+              request = Request(f"https://api.github.com/repos/{repository}/{path}", headers=headers)
+              with urlopen(request, timeout=20) as response:
+                  value = json.load(response)
+              if not isinstance(value, dict):
+                  raise SystemExit("GitHub returned an invalid tag response")
+              return value
+
+          reference = read_json(f"git/ref/tags/{quote(tag, safe='')}")
+          target = reference.get("object")
+          if not isinstance(target, dict) or target.get("type") != "tag":
+              raise SystemExit("The live release ref is no longer an annotated tag")
+          annotation = read_json(f"git/tags/{target.get('sha', '')}")
+          commit = annotation.get("object")
+          if (
+              not isinstance(commit, dict)
+              or commit.get("type") != "commit"
+              or commit.get("sha") != expected_commit
+          ):
+              raise SystemExit("The live annotated tag no longer targets this workflow commit")
+          PY
+      - name: Publish to PyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: release-artifact/packages/
+          verbose: true
+
+  verify-pypi:
+    name: Verify exact PyPI distributions
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Download both files directly from PyPI and compare bytes
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import tempfile
+          import time
+          from pathlib import Path
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlparse
+          from urllib.request import urlopen
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if Path(filename).name != filename or filename in manifest:
+                  raise SystemExit(f"Unsafe or duplicate checksum filename: {filename!r}")
+              path = packages / filename
+              content = path.read_bytes()
+              if hashlib.sha256(content).hexdigest() != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+              manifest[filename] = expected
+
+          built_files = sorted((*packages.glob("*.whl"), *packages.glob("*.tar.gz")))
+          built = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in built_files
+          }
+          if len(built_files) != 2 or built != manifest:
+              raise SystemExit("Local package files do not exactly match SHA256SUMS.txt")
+
+          version = os.environ["VERSION"]
+          endpoint = f"https://pypi.org/pypi/ordifile/{version}/json"
+          destination = Path(os.environ["RUNNER_TEMP"]) / "pypi-download"
+          destination.mkdir(parents=True, exist_ok=True)
+          for attempt in range(1, 7):
+              try:
+                  with urlopen(endpoint, timeout=30) as response:
+                      payload = json.load(response)
+                  published = {
+                      item["filename"]: item["digests"]["sha256"]
+                      for item in payload["urls"]
+                  }
+                  if len(payload["urls"]) != len(manifest) or published != manifest:
+                      raise ValueError("file set or SHA-256 values differ from the build")
+                  for item in payload["urls"]:
+                      filename = item["filename"]
+                      url = item["url"]
+                      parsed = urlparse(url)
+                      if parsed.scheme != "https" or parsed.hostname != "files.pythonhosted.org":
+                          raise ValueError(f"unexpected PyPI file URL: {url!r}")
+                      with urlopen(url, timeout=60) as response:
+                          final = urlparse(response.geturl())
+                          if final.scheme != "https" or final.hostname != parsed.hostname:
+                              raise ValueError("PyPI file download redirected off the expected host")
+                          content = response.read(64 * 1024 * 1024 + 1)
+                      if len(content) > 64 * 1024 * 1024:
+                          raise ValueError(f"published file exceeds verification bound: {filename}")
+                      if content != (packages / filename).read_bytes():
+                          raise ValueError(f"downloaded bytes differ from build: {filename}")
+                      (destination / filename).write_bytes(content)
+                  break
+              except (HTTPError, URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as error:
+                  for path in destination.iterdir():
+                      if path.is_file():
+                          path.unlink()
+                  if attempt == 6:
+                      raise SystemExit(f"PyPI verification failed: {error}") from error
+                  time.sleep(10)
+
+          downloaded = sorted((*destination.glob("*.whl"), *destination.glob("*.tar.gz")))
+          if {path.name for path in downloaded} != set(manifest):
+              raise SystemExit("Downloaded PyPI file set is incomplete")
+          wheel = next(destination.glob("*.whl"))
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)]
+          )
+          executable = shutil.which("ordifile")
+          if executable is None:
+              raise SystemExit("Verified PyPI wheel did not install the ordifile entry point")
+          with tempfile.TemporaryDirectory(prefix="ordifile-pypi-smoke-") as work:
+              subprocess.check_call([executable, "--version"], cwd=work)
+              subprocess.check_call([executable, "formats"], cwd=work)
+          PY
+
+  publish-github-release:
+    name: Publish the draft GitHub Release after PyPI succeeds
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [build, verify-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-release-${{ github.run_id }}
+          path: release-artifact
+      - name: Set up Python for final release verification
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Verify draft assets, tag target, and immutable bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected_commit = os.environ["GITHUB_SHA"]
+          root = Path("release-artifact")
+          packages = root / "packages"
+          expected = {
+              path.name: path
+              for path in (*packages.glob("*.whl"), *packages.glob("*.tar.gz"))
+          }
+          expected[root.joinpath("SHA256SUMS.txt").name] = root / "SHA256SUMS.txt"
+          if len(expected) != 3:
+              raise SystemExit("The immutable artifact must contain wheel, sdist, and checksums")
+
+          release = json.loads(
+              subprocess.check_output(
+                  ["gh", "release", "view", tag, "--json", "isDraft,tagName,assets"],
+                  text=True,
+              )
+          )
+          if release.get("isDraft") is not True or release.get("tagName") != tag:
+              raise SystemExit("The expected draft release is missing or no longer a draft")
+          asset_names = {asset.get("name") for asset in release.get("assets", [])}
+          if asset_names != set(expected):
+              raise SystemExit(f"Draft release asset set changed: {sorted(asset_names)}")
+
+          reference = json.loads(
+              subprocess.check_output(
+                  ["gh", "api", f"repos/{repository}/git/ref/tags/{tag}"], text=True
+              )
+          )
+          target = reference.get("object", {})
+          if target.get("type") != "tag":
+              raise SystemExit("The release ref is no longer an annotated tag")
+          annotation = json.loads(
+              subprocess.check_output(
+                  ["gh", "api", f"repos/{repository}/git/tags/{target.get('sha', '')}"],
+                  text=True,
+              )
+          )
+          annotated_target = annotation.get("object", {})
+          if (
+              annotated_target.get("type") != "commit"
+              or annotated_target.get("sha") != expected_commit
+          ):
+              raise SystemExit("The annotated release tag no longer targets this workflow commit")
+
+          destination = Path("release-download")
+          destination.mkdir()
+          subprocess.check_call(
+              ["gh", "release", "download", tag, "--dir", str(destination)]
+          )
+          downloaded = {path.name: path for path in destination.iterdir() if path.is_file()}
+          if set(downloaded) != set(expected):
+              raise SystemExit("Downloaded draft asset set differs from the immutable artifact")
+          for name, source in expected.items():
+              if hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(
+                  downloaded[name].read_bytes()
+              ).digest():
+                  raise SystemExit(f"Draft release bytes changed for {name}")
+          PY
+      - name: Publish the existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
