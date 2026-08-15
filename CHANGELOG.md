@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-08-16
 
 ### Changed
 
@@ -34,6 +34,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   vulnerability auditing, and branch-coverage gates.
 - English and Korean user documentation, security and contribution policies, issue
   templates, and an adapter contribution guide.
+- A build-once, Trusted Publishing release workflow with clean-wheel smoke tests on
+  Ubuntu, Windows, and macOS, exact TestPyPI/PyPI artifact verification, checksums,
+  and build provenance.
+- Reproducible CLI demo, workbook, and social-preview assets generated only from
+  synthetic example data.
+- Evidence-backed GC raw-fixture research, an external-fixture policy, and bounded
+  maintainer tooling for checksum-verified acquisition without enabling network access
+  in the product or default CI.
 
 ### Security
 

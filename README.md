@@ -1,18 +1,19 @@
 # Ordifile
 
-[한국어](README.ko.md)
+[한국어](https://github.com/hdkim99/ordifile/blob/main/README.ko.md)
 
 [![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
-[![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
-[![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
+[![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](https://github.com/hdkim99/ordifile/blob/main/pyproject.toml)
+[![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](https://github.com/hdkim99/ordifile/blob/main/LICENSE)
 
-Batch-convert and merge scientific instrument files into one clean, ordered Excel
-workbook.
+Batch-convert scientific instrument exports into one clean, ordered and auditable
+Excel workbook.
 
-Ordifile turns a file list or folder into one auditable workbook. Its built-in v0.1
-scope is deliberately narrow: documented generic CSV, TSV, semicolon-delimited TXT,
-and non-macro XLSX tables verified with synthetic fixtures. Proprietary vendor raw
-formats are not supported.
+**Verified today:** CSV, TSV, semicolon-delimited TXT, and audited non-macro XLSX using
+Ordifile's documented schema. Proprietary vendor raw formats are not supported in
+v0.1.0.
+
+![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
 
 ```text
 sample_1.csv   sample_2.tsv   exported_peaks.xlsx
@@ -29,21 +30,26 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
           └── Import_Log
 ```
 
-## 30-second quick start
+## Install
 
-Ordifile has not been published to PyPI. Install the verified source tree:
+After the v0.1.0 release appears on PyPI, install the verified package with:
 
 ```bash
-git clone https://github.com/hdkim99/ordifile.git
-cd ordifile
-python -m venv .venv
-# macOS/Linux: source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install .
-ordifile convert examples/basic --sort filename --output Ordifile_Result.xlsx
+python -m pip install --no-cache-dir ordifile==0.1.0
 ```
 
-The committed example produces:
+Before that publication is complete, clone this repository and run
+`python -m pip install .` in a new virtual environment. Do not install an unrelated
+package from another index.
+
+## Quick start
+
+```bash
+python -c "from pathlib import Path; p=Path('ordifile_demo'); p.mkdir(exist_ok=True); [(p / f'sample_{n}.csv').write_text(f'sample_id,retention_time,area,compound\nsample_{n},{n / 10:.1f},{n * 10},demo\n', encoding='utf-8') for n in (1, 2, 10)]"
+ordifile convert ordifile_demo --sort filename --output Ordifile_Result.xlsx
+```
+
+This package-independent synthetic example produces:
 
 ```text
 Input paths: 1
@@ -68,6 +74,8 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 The source files remain unchanged. Natural filename ordering keeps `sample_2` before
 `sample_10`.
 
+![The Samples sheet read back from the generated Ordifile workbook](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-workbook.png)
+
 ## Verified formats
 
 | Built-in format | Metadata | Peaks | Signals | Status | Synthetic fixture |
@@ -78,7 +86,7 @@ The source files remain unchanged. Natural filename ordering keeps `sample_2` be
 | Generic non-macro XLSX table | Yes | Explicit columns | Explicit `time` + `signal` rows | Verified | Yes |
 
 “Generic” means the first row uses the [documented column
-schema](docs/formats/generic-tabular.md). It does not mean arbitrary vendor exports.
+schema](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabular.md). It does not mean arbitrary vendor exports.
 An extension is supporting evidence only; Ordifile also checks content and schema.
 Run `ordifile formats` to see the adapters installed in the current environment.
 
@@ -178,12 +186,17 @@ write worksheets or duplicate CLI logic. A new format needs bounded detection, f
 evidence, structured errors, a redistributable or synthetic fixture, capability-specific
 tests, and license review.
 
-Start with [Adding a format adapter](docs/formats/adding-an-adapter.md). Installed
+Start with [Adding a format adapter](https://github.com/hdkim99/ordifile/blob/main/docs/formats/adding-an-adapter.md). Installed
 third-party adapters execute Python code and must be treated as trusted software.
 
 Good first contributions include an additional synthetic delimiter fixture, a clearer
 error-message test, a documentation translation, or a small adapter proposal backed by
 an openly redistributable fixture.
+
+**Under investigation:** YOUNG IN Chromass GC data formats are a required priority
+candidate for a future proprietary adapter. No compatibility is claimed yet; the work
+is blocked until completed-file semantics and reproducible FID/TCD fixtures are
+verified.
 
 ## Integrity and security boundaries
 
@@ -245,8 +258,8 @@ an openly redistributable fixture.
 - No proprietary GC raw parser and no GUI are included in v0.1.
 
 These practical bounds are Ordifile safety policies, not claims about every valid
-Excel file. See [the exact generic format contract](docs/formats/generic-tabular.md) and
-[the architecture decision](docs/architecture/decision-record.md).
+Excel file. See [the exact generic format contract](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabular.md) and
+[the architecture decision](https://github.com/hdkim99/ordifile/blob/main/docs/architecture/decision-record.md).
 
 ## Development
 
@@ -264,8 +277,12 @@ ordifile --help
 pip-audit
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
-[evidence register](docs/research/source-register.md). Do not attach proprietary raw
+See [CONTRIBUTING.md](https://github.com/hdkim99/ordifile/blob/main/CONTRIBUTING.md),
+[SECURITY.md](https://github.com/hdkim99/ordifile/blob/main/SECURITY.md), the
+[release runbook](https://github.com/hdkim99/ordifile/blob/main/docs/releasing.md),
+[GC fixture research](https://github.com/hdkim99/ordifile/blob/main/docs/research/gc-fixture-search.md),
+[external-fixture policy](https://github.com/hdkim99/ordifile/blob/main/docs/research/external-fixture-policy.md), and the
+[evidence register](https://github.com/hdkim99/ordifile/blob/main/docs/research/source-register.md). Do not attach proprietary raw
 files or fixtures without confirmed redistribution permission to a public issue.
 
 ## Project name and trademarks
@@ -273,11 +290,17 @@ files or fixtures without confirmed redistribution permission to a public issue.
 Ordifile was selected after a technical collision screen on 2026-08-16. No exact-name
 record was found in the checked GitHub and package-registry searches at that time, but
 search absence is not a reservation or legal trademark clearance. See the
-[renaming research](docs/research/project-renaming.md). Vendor names, if mentioned in
+[renaming research](https://github.com/hdkim99/ordifile/blob/main/docs/research/project-renaming.md). Vendor names, if mentioned in
 future compatibility notes, remain the property of their owners and do not imply
 affiliation or endorsement.
 
+YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO, and related product names are
+trademarks or product names of their respective owners. Ordifile is not affiliated with
+or endorsed by YOUNG IN Chromass.
+
 ## License
 
-Ordifile is licensed under Apache License 2.0. See [LICENSE](LICENSE),
-[NOTICE](NOTICE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Ordifile is licensed under Apache License 2.0. See
+[LICENSE](https://github.com/hdkim99/ordifile/blob/main/LICENSE),
+[NOTICE](https://github.com/hdkim99/ordifile/blob/main/NOTICE), and
+[THIRD_PARTY_NOTICES.md](https://github.com/hdkim99/ordifile/blob/main/THIRD_PARTY_NOTICES.md).

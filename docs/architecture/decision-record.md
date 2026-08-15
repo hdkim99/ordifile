@@ -105,6 +105,16 @@ to the workbook layout.
     instead of being converted through decoded Python display values. Formula literals account
     for their exported `=` prefix, and audited inline/shared rich text is reconstructed for
     mapping rather than trusting a potentially lossy decoded value.
+27. Release publishing builds wheel and sdist once, verifies identical bytes through every
+    downstream job, and uses GitHub OIDC Trusted Publishing without long-lived package tokens.
+    External scientific fixtures remain outside the repository and default CI; the maintainer
+    fetch tool requires a pinned manifest, explicit license acknowledgement, streaming bounds,
+    digest verification, and safe extraction.
+28. Proprietary GC research follows the format/version boundaries in
+    [`gc-adapter-boundaries.md`](gc-adapter-boundaries.md). YOUNG IN Chromass umbrella names are
+    research categories rather than runtime adapters, completed Clarity `.prm` and recovery
+    `.raw` are distinct lifecycles, and no proprietary format appears in the support list before
+    a lawful fixture and passing adapter tests exist.
 
 ## Public boundaries
 
@@ -141,8 +151,11 @@ CLI / future GUI
   and cached formula results may be stale.
 - Accepting duplicate or unordered OOXML cell coordinates with first/last-write-wins behavior:
   conflict resolution would silently discard one source value.
-- Proprietary `.ch` parser in v0.1: blocked by structure, semantics, fixture, and platform
-  evidence gaps.
+- Proprietary `.ch` parser in v0.1: excluded from this release. A BSEE v181 fixture now provides
+  a narrow research candidate, but format semantics, implementation provenance, exact adapter
+  tests, and release review remain incomplete.
+- Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
+  are not verified byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.
 
 ## Known risks
@@ -150,4 +163,5 @@ CLI / future GUI
 - XLSX is a ZIP/XML container; archive bombs and corrupt XML need bounded preflight.
 - External adapters execute code at import time and must be treated as trusted plugins.
 - Naive and timezone-aware timestamps cannot be mixed into a trustworthy acquired sort.
-- The product name has search/brand collisions and no formal trademark clearance.
+- No formal trademark clearance has been performed for the product or vendor compatibility
+  wording; registry and web searches are evidence, not legal clearance.
