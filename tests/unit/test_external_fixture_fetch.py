@@ -25,6 +25,15 @@ import fetch_external_fixture as fetch  # noqa: E402
 Route = tuple[int, dict[str, str], bytes]
 
 
+@pytest.fixture(autouse=True)
+def _synthetic_fetch_tests_do_not_inherit_runner_ci(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep synthetic local-server tests separate from the explicit CI-policy test."""
+
+    monkeypatch.delenv("CI", raising=False)
+
+
 class _RouteServer(ThreadingHTTPServer):
     routes: dict[str, Route]
     request_count: int
@@ -582,9 +591,19 @@ def test_zip_inventory_rejects_unsafe_and_duplicate_names(
     tmp_path: Path, names: tuple[str, ...]
 ) -> None:
     archive = tmp_path / "unsafe.zip"
+    raw_name_replacements: list[tuple[bytes, bytes]] = []
     with zipfile.ZipFile(archive, "w") as output:
         for name in names:
-            output.writestr(name, b"x")
+            stored_name = name.replace("\\", "/")
+            output.writestr(stored_name, b"x")
+            if stored_name != name:
+                raw_name_replacements.append((stored_name.encode(), name.encode()))
+    if raw_name_replacements:
+        encoded = archive.read_bytes()
+        for canonical, unsafe in raw_name_replacements:
+            assert encoded.count(canonical) == 2
+            encoded = encoded.replace(canonical, unsafe)
+        archive.write_bytes(encoded)
 
     with pytest.raises(fetch.FixtureFetchError):
         fetch.inspect_zip_archive(archive)
