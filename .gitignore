@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Builds and generated output
+build/
+dist/
+htmlcov/
+*.xlsx
+!tests/fixtures/synthetic/**/*.xlsx
+!tests/fixtures/redistributable/**/*.xlsx
+*.parquet
+LabConvert_Result*.csv
+LabConvert_Result*.xlsx
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Instrument data is never committed by default
+*.raw
+*.RAW
+*.ch
+*.CH
+*.cdf
+*.CDF
+*.d/
+*.D/
