@@ -6,12 +6,13 @@
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
-여러 과학 장비 파일을 하나의 깔끔하고 순서가 정리된 Excel workbook으로 일괄
+과학 장비 export를 하나의 깔끔하고 정돈되며 감사 가능한 Excel workbook으로 일괄
 변환합니다.
 
-Ordifile은 여러 파일이나 폴더를 하나의 감사 가능한 workbook으로 만듭니다.
-내장 v0.1 범위는 합성 fixture로 검증한 일반 CSV, TSV, 세미콜론 TXT, non-macro
-XLSX 표로 의도적으로 제한합니다. 제조사 proprietary raw 형식은 지원하지 않습니다.
+**현재 검증됨:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분 TXT,
+감사된 non-macro XLSX. 제조사 proprietary raw 형식은 v0.1.0에서 지원하지 않습니다.
+
+![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
 
 ```text
 sample_1.csv   sample_2.tsv   exported_peaks.xlsx
@@ -28,21 +29,25 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
           └── Import_Log
 ```
 
-## 30초 Quick Start
+## 설치
 
-아직 PyPI에 공개하지 않았으므로 검증된 source tree에서 설치합니다.
+PyPI에 v0.1.0 릴리스가 표시된 후 다음 명령으로 검증된 패키지를 설치합니다.
 
 ```bash
-git clone https://github.com/hdkim99/ordifile.git
-cd ordifile
-python -m venv .venv
-# macOS/Linux: source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install .
-ordifile convert examples/basic --sort filename --output Ordifile_Result.xlsx
+python -m pip install --no-cache-dir ordifile==0.1.0
 ```
 
-커밋된 예제의 실제 결과 요약은 다음과 같습니다.
+배포가 완료되기 전에는 새 가상환경에서 이 저장소를 clone한 뒤
+`python -m pip install .`로 설치합니다. 다른 index의 동명 패키지를 설치하지 마세요.
+
+## 빠른 시작
+
+```bash
+python -c "from pathlib import Path; p=Path('ordifile_demo'); p.mkdir(exist_ok=True); [(p / f'sample_{n}.csv').write_text(f'sample_id,retention_time,area,compound\nsample_{n},{n / 10:.1f},{n * 10},demo\n', encoding='utf-8') for n in (1, 2, 10)]"
+ordifile convert ordifile_demo --sort filename --output Ordifile_Result.xlsx
+```
+
+이 패키지 독립적인 합성 예제의 실제 결과 요약은 다음과 같습니다.
 
 ```text
 Input paths: 1
@@ -66,6 +71,8 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 
 입력 파일은 수정하지 않습니다. 자연 파일명 정렬은 `sample_10`보다 `sample_2`를
 먼저 배치합니다.
+
+![생성된 Ordifile workbook에서 다시 읽은 Samples sheet](docs/assets/ordifile-workbook.png)
 
 ## 검증된 형식
 
@@ -181,6 +188,10 @@ print(result.success_count, result.failure_count, result.sort.effective)
 처음 기여하기 좋은 작업으로는 합성 delimiter fixture 추가, 오류 메시지 테스트,
 문서 번역 개선, 공개 재배포 fixture를 사용한 소규모 adapter 제안이 있습니다.
 
+**조사 중:** YOUNG IN Chromass GC 데이터 형식은 향후 proprietary adapter의 필수
+우선 후보입니다. 완료 파일의 의미와 재현 가능한 FID/TCD fixture를 검증하기 전까지
+호환성을 주장하지 않습니다.
+
 ## 무결성과 보안 경계
 
 - 입력은 read-only로 열고 SHA-256을 기록하며 parsing 후 내용이 바뀌지 않았는지 다시
@@ -259,6 +270,8 @@ pip-audit
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
+[릴리스 절차](docs/releasing.md), [GC fixture 조사](docs/research/gc-fixture-search.md),
+[외부 fixture 정책](docs/research/external-fixture-policy.md),
 [근거 목록](docs/research/source-register.md)을 참고해 주세요. 재배포 권한이 확인되지
 않은 proprietary raw 파일이나 fixture를 공개 issue에 첨부하지 마세요.
 
@@ -269,6 +282,10 @@ registry exact-name 검색에서는 기록을 찾지 못했지만, 검색 부재
 상표 clearance를 의미하지 않습니다. [이름 변경 조사](docs/research/project-renaming.md)를
 참고해 주세요. 향후 호환성 문서에 제조사 이름이 표시되더라도 해당 상표는 각
 소유자에게 있으며 제휴나 보증을 의미하지 않습니다.
+
+YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO 및 관련 제품명은 각 소유자의
+상표 또는 제품명입니다. Ordifile은 YOUNG IN Chromass와 제휴하지 않으며 그 보증을
+받지 않습니다.
 
 ## 라이선스
 
