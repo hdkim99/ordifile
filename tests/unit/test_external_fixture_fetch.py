@@ -569,7 +569,6 @@ def test_download_byte_cap_hash_and_content_length_fail_closed(tmp_path: Path) -
     (
         ("../escape",),
         ("C:/escape",),
-        ("folder\\escape",),
         ("A.raw", "a.raw"),
         ("e\N{COMBINING ACUTE ACCENT}.raw", "\N{LATIN SMALL LETTER E WITH ACUTE}.raw"),
         ("file", "file/child"),
@@ -579,7 +578,6 @@ def test_download_byte_cap_hash_and_content_length_fail_closed(tmp_path: Path) -
     ids=(
         "traversal",
         "drive",
-        "backslash",
         "casefold",
         "unicode",
         "prefix-conflict",
@@ -591,22 +589,21 @@ def test_zip_inventory_rejects_unsafe_and_duplicate_names(
     tmp_path: Path, names: tuple[str, ...]
 ) -> None:
     archive = tmp_path / "unsafe.zip"
-    raw_name_replacements: list[tuple[bytes, bytes]] = []
     with zipfile.ZipFile(archive, "w") as output:
         for name in names:
-            stored_name = name.replace("\\", "/")
-            output.writestr(stored_name, b"x")
-            if stored_name != name:
-                raw_name_replacements.append((stored_name.encode(), name.encode()))
-    if raw_name_replacements:
-        encoded = archive.read_bytes()
-        for canonical, unsafe in raw_name_replacements:
-            assert encoded.count(canonical) == 2
-            encoded = encoded.replace(canonical, unsafe)
-        archive.write_bytes(encoded)
+            output.writestr(name, b"x")
 
     with pytest.raises(fetch.FixtureFetchError):
         fetch.inspect_zip_archive(archive)
+
+
+def test_zip_member_name_rejects_backslash_independently_of_zipfile() -> None:
+    with pytest.raises(fetch.FixtureFetchError, match="canonical safe relative ZIP path"):
+        fetch._normalized_member_name(
+            "folder\\escape",
+            field="ZIP member",
+            require_canonical=False,
+        )
 
 
 @pytest.mark.parametrize(
