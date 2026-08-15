@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality and package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install project
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy
+      - name: Unit and integration tests
+        run: pytest
+      - name: Build distributions
+        run: python -m build
+      - name: Validate package metadata
+        run: >-
+          python -c "import pathlib, zipfile;
+          wheel=next(pathlib.Path('dist').glob('*.whl'));
+          z=zipfile.ZipFile(wheel);
+          metadata=z.read(next(n for n in z.namelist() if n.endswith('METADATA'))).decode();
+          assert 'License-Expression: Apache-2.0' in metadata;
+          assert 'License-File: LICENSE' in metadata;
+          assert 'License-File: NOTICE' in metadata;
+          assert 'License-File: THIRD_PARTY_NOTICES.md' in metadata"
+      - name: CLI smoke test
+        run: labconvert --help
+      - name: Audit dependencies
+        run: pip-audit
+
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install project
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Run tests
+        run: pytest
+      - name: CLI smoke test
+        run: labconvert --help
