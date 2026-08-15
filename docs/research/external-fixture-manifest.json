@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "fixture_id": "bsee-g6151510-fid1a-v181",
+  "url": "https://www.bsee.gov/sites/bsee.gov/files/Alaska%20Region/Burger%20J%20Well%20Data/41_GC_EXTGC_Data_Files_FPC6188_Shell%20MC_HH-77445%209.30.15/G6151510.D/fid1a.ch",
+  "allowed_hosts": [
+    "www.bsee.gov"
+  ],
+  "artifact_filename": "BSEE-G6151510-FID1A.CH",
+  "sha256": "9abeb86b09d54c10e81f46648804acc0319b6e1d014cee54034eae91331f97ef",
+  "size_bytes": 298146,
+  "archive_type": "file",
+  "selected_files": [],
+  "tree_sha256": null,
+  "source_page_url": "https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data",
+  "license_name": "BSEE public-information copying guidance",
+  "license_id": "BSEE-Public-Information-2026-08-16",
+  "license_url": "https://www.bsee.gov/bsee.gov/privacy-disclaimer",
+  "license_acknowledged": true,
+  "redistribution": "permitted",
+  "attribution": "Source: Bureau of Safety and Environmental Enforcement, Side Wall Core Trim Extract GC Data Files. Redistributed unchanged from the BSEE server. Accessed 2026-08-16.",
+  "privacy_review": "no_personal_data_observed",
+  "validated_with": [
+    {
+      "reader": "chromstream",
+      "version": "0.2.0",
+      "result": "accepted"
+    },
+    {
+      "reader": "rainbow",
+      "version": "1.4.0",
+      "result": "rejected"
+    }
+  ],
+  "grade": "ACCEPT_REDISTRIBUTABLE",
+  "ci_eligible": false
+}
