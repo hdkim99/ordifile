@@ -577,11 +577,10 @@ def inspect_zip_archive(
     kinds: dict[str, bool] = {}
     total_uncompressed = 0
     for info in infos:
-        if "\x00" in info.orig_filename:
+        raw_name = info.orig_filename
+        if "\x00" in raw_name:
             raise FixtureFetchError("ZIP member names may not contain NUL")
-        name = (
-            info.filename[:-1] if info.is_dir() and info.filename.endswith("/") else info.filename
-        )
+        name = raw_name[:-1] if info.is_dir() and raw_name.endswith("/") else raw_name
         normalized = _normalized_member_name(
             name,
             field="ZIP member",

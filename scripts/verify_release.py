@@ -229,7 +229,7 @@ def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
             member_keys: set[str] = set()
             for info in infos:
                 canonical = _safe_archive_name(
-                    info.filename,
+                    info.orig_filename,
                     is_directory=info.is_dir(),
                 )
                 key = canonical.casefold()
@@ -407,7 +407,10 @@ def _extract_wheel_for_smoke(wheel: Path, destination: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         member_keys: set[str] = set()
         for info in archive.infolist():
-            canonical = _safe_archive_name(info.filename, is_directory=info.is_dir())
+            canonical = _safe_archive_name(
+                info.orig_filename,
+                is_directory=info.is_dir(),
+            )
             key = canonical.casefold()
             if key in member_keys:
                 raise ReleaseVerificationError(

@@ -80,6 +80,17 @@ def _zip_bytes(tmp_path: Path, entries: dict[str, bytes], *, compressed: bool = 
     return archive_path.read_bytes()
 
 
+def _write_raw_zip_member(
+    archive: zipfile.ZipFile,
+    name: str,
+    content: bytes,
+) -> None:
+    info = zipfile.ZipInfo(name)
+    info.orig_filename = name
+    info.filename = name
+    archive.writestr(info, content)
+
+
 def _tree_sha(tmp_path: Path, entries: dict[str, bytes]) -> str:
     root = tmp_path / f"tree-{len(tuple(tmp_path.glob('tree-*')))}"
     for name, content in entries.items():
@@ -597,13 +608,16 @@ def test_zip_inventory_rejects_unsafe_and_duplicate_names(
         fetch.inspect_zip_archive(archive)
 
 
-def test_zip_member_name_rejects_backslash_independently_of_zipfile() -> None:
+def test_zip_inventory_rejects_raw_backslash_member_on_every_platform(tmp_path: Path) -> None:
+    archive = tmp_path / "raw-backslash.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        _write_raw_zip_member(output, "folder\\escape.raw", b"raw backslash bytes")
+
+    with zipfile.ZipFile(archive) as opened:
+        info = opened.infolist()[0]
+        assert info.orig_filename == "folder\\escape.raw"
     with pytest.raises(fetch.FixtureFetchError, match="canonical safe relative ZIP path"):
-        fetch._normalized_member_name(
-            "folder\\escape",
-            field="ZIP member",
-            require_canonical=False,
-        )
+        fetch.inspect_zip_archive(archive)
 
 
 @pytest.mark.parametrize(

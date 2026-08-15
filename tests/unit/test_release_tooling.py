@@ -74,7 +74,10 @@ def _write_wheel(path: Path, source: Path, *, extra: dict[str, bytes] | None = N
     contents[record_name] = output.getvalue().encode()
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
         for name, content in contents.items():
-            archive.writestr(name, content)
+            info = zipfile.ZipInfo(name)
+            info.orig_filename = name
+            info.filename = name
+            archive.writestr(info, content)
 
 
 def _write_sdist(path: Path, source: Path, *, legacy: bool = False) -> None:
@@ -249,6 +252,22 @@ def test_wheel_rejects_lexical_and_normalized_aliases_with_exact_record(
         release.verify_wheel(wheel, "0.1.0", source)
 
 
+def test_wheel_rejects_raw_backslash_member_with_exact_record_on_every_platform(
+    tmp_path: Path,
+) -> None:
+    source = _source_tree(tmp_path / "source")
+    wheel = tmp_path / "raw-backslash.whl"
+    raw_name = "ordifile\\raw_backslash.py"
+    _write_wheel(wheel, source, extra={raw_name: b"raw backslash wheel bytes"})
+
+    with zipfile.ZipFile(wheel) as archive:
+        assert raw_name in {info.orig_filename for info in archive.infolist()}
+        record = archive.read("ordifile-0.1.0.dist-info/RECORD").decode("utf-8")
+        assert raw_name in record
+    with pytest.raises(release.ReleaseVerificationError, match="unsafe archive member"):
+        release.verify_wheel(wheel, "0.1.0", source)
+
+
 @pytest.mark.parametrize(
     ("first_name", "second_name"),
     (
@@ -288,11 +307,22 @@ def test_sdist_rejects_lexical_and_casefold_aliases(
         "trailing.",
         "trailing ",
         "question?.py",
+        "folder\\backslash.py",
         "control\x01.py",
         "delete\x7f.py",
         "e\N{COMBINING ACUTE ACCENT}.py",
     ),
-    ids=("ads", "reserved", "dot", "space", "question", "control", "delete", "non-nfc"),
+    ids=(
+        "ads",
+        "reserved",
+        "dot",
+        "space",
+        "question",
+        "backslash",
+        "control",
+        "delete",
+        "non-nfc",
+    ),
 )
 def test_release_archives_reject_nonportable_single_member_names(
     tmp_path: Path,
