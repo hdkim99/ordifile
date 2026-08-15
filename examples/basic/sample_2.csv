@@ -1,0 +1,3 @@
+sample_id,channel,detector,peak_number,retention_time,retention_time_unit,area,height,compound,compound_source
+sample_2,FID-A,FID,1,1.25,min,1100,78,methanol,synthetic
+sample_2,FID-A,FID,2,2.5,min,2200,115,ethanol,synthetic

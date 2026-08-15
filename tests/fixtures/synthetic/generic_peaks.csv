@@ -1,0 +1,3 @@
+sample_id,acquired_at,sequence,instrument_type,vendor,channel,detector,runtime,peak_number,retention_time,retention_time_unit,area,height,compound,compound_source,time,signal,x_unit,y_unit,batch_note
+synthetic_csv,2026-01-01T01:00:00Z,1,GC,Synthetic Instrument,FID-A,FID,5,1,1.25,min,1250.5,80.25,methanol,synthetic,0,0.1,min,mV,fixture
+synthetic_csv,2026-01-01T01:00:00Z,1,GC,Synthetic Instrument,FID-A,FID,5,2,2.5,min,2500,120,ethanol,synthetic,1,1.5,min,mV,fixture
