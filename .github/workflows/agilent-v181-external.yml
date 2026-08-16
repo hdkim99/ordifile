@@ -2,8 +2,6 @@ name: Agilent v181 external fixture
 
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/agilent-chemstation-ch-v181]
 
 permissions:
   contents: read

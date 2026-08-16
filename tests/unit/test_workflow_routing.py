@@ -94,7 +94,8 @@ def test_release_uses_the_same_runner_without_pr_or_matrix() -> None:
 def test_agilent_external_fixture_is_maintainer_controlled_and_non_persistent() -> None:
     workflow = _workflow("agilent-v181-external.yml")
     assert "workflow_dispatch:" in workflow
-    assert "branches: [feat/agilent-chemstation-ch-v181]" in workflow
+    assert "  push:" not in workflow
+    assert "  pull_request:" not in workflow
     assert "github.repository == 'hdkim99/ordifile'" in workflow
     assert "permissions:\n  contents: read" in workflow
     assert "id-token: write" not in workflow
