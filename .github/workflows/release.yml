@@ -249,12 +249,12 @@ jobs:
           import tempfile
           from pathlib import Path
 
-          from openpyxl import load_workbook
-
           wheel = next(Path("release-artifact/packages").glob("*.whl"))
           subprocess.check_call(
               [sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)]
           )
+          from openpyxl import load_workbook
+
           executable = shutil.which("ordifile")
           if executable is None:
               raise SystemExit("Installed wheel did not provide the ordifile entry point")
