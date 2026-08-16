@@ -8,9 +8,9 @@ example screenshot in ``docs/assets`` can be reproduced from the *actual* workbo
 that the current CLI produces, rather than from a hand-drawn mock-up.
 
 It reads one sheet with openpyxl (the same reader the integration tests use) and
-draws the real cell values with matplotlib. Requires an extra dependency:
+draws the real cell values with the reviewed documentation dependency:
 
-    python -m pip install matplotlib
+    python -m pip install matplotlib==3.11.1
 
 Usage:
 

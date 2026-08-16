@@ -34,11 +34,11 @@ python examples/unicode/render_screenshot.py /tmp/unicode_result.xlsx \
     docs/assets/unicode-example-samples.png --sheet Samples
 ```
 
-`render_screenshot.py` is a documentation tool only. It needs an extra,
-non-runtime dependency:
+`render_screenshot.py` is a documentation tool only. The committed image was
+generated and reviewed with this pinned, non-runtime dependency:
 
 ```console
-python -m pip install matplotlib
+python -m pip install matplotlib==3.11.1
 ```
 
 Keep the README claim limited to the verified generic schema: this example shows
