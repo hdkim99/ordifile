@@ -119,9 +119,12 @@ UNICODE_EXAMPLE = Path(__file__).parents[2] / "examples" / "unicode"
 
 
 def test_unicode_filename_example_preserves_name_and_peak_order(tmp_path: Path) -> None:
-    inputs = tuple(UNICODE_EXAMPLE.glob("*.csv"))
-    assert len(inputs) == 1
-    result = convert(inputs, tmp_path / "unicode.xlsx", sort="filename")
+    result = convert(
+        (UNICODE_EXAMPLE,),
+        tmp_path / "unicode.xlsx",
+        extensions=(".csv",),
+        sort="filename",
+    )
     assert result.success_count == 1
     assert result.failure_count == 0
     assert result.sort.effective.value == "filename"

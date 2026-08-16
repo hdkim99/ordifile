@@ -11,7 +11,7 @@ them, so the name appears verbatim in the workbook's `Samples` sheet
 From the repository root after installation:
 
 ```console
-ordifile convert examples/unicode --sort filename --output Ordifile_Result.xlsx
+ordifile convert examples/unicode --extension .csv --sort filename --output Ordifile_Result.xlsx
 ```
 
 The command creates one workbook and does not modify the example input. The
@@ -28,7 +28,8 @@ mock — with `render_screenshot.py`, which reads the workbook with the same
 openpyxl reader the integration tests use and draws the real cell values:
 
 ```console
-ordifile convert examples/unicode --sort filename --output /tmp/unicode_result.xlsx
+ordifile convert examples/unicode --extension .csv --sort filename \
+    --output /tmp/unicode_result.xlsx
 python examples/unicode/render_screenshot.py /tmp/unicode_result.xlsx \
     docs/assets/unicode-example-samples.png --sheet Samples
 ```

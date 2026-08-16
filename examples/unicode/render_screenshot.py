@@ -14,7 +14,8 @@ draws the real cell values with matplotlib. Requires an extra dependency:
 
 Usage:
 
-    ordifile convert examples/unicode --sort filename --output /tmp/unicode_result.xlsx
+    ordifile convert examples/unicode --extension .csv --sort filename \
+        --output /tmp/unicode_result.xlsx
     python examples/unicode/render_screenshot.py /tmp/unicode_result.xlsx \
         docs/assets/unicode-example-samples.png --sheet Samples
 """
