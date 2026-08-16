@@ -243,9 +243,10 @@ jobs:
         shell: >-
           python scripts/ci/run_in_venv.py run --github-runner -- {0}
         run: |
-          import shutil
+          import os
           import subprocess
           import sys
+          import sysconfig
           import tempfile
           from pathlib import Path
 
@@ -255,8 +256,9 @@ jobs:
           )
           from openpyxl import load_workbook
 
-          executable = shutil.which("ordifile")
-          if executable is None:
+          scripts = Path(sysconfig.get_path("scripts"))
+          executable = scripts / ("ordifile.exe" if os.name == "nt" else "ordifile")
+          if not executable.is_file():
               raise SystemExit("Installed wheel did not provide the ordifile entry point")
           with tempfile.TemporaryDirectory(prefix="ordifile-wheel-smoke-") as raw_temp:
               work = Path(raw_temp)
