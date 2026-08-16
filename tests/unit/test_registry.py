@@ -19,7 +19,7 @@ from ordifile.adapters.registry import (
 )
 from ordifile.api import get_format_report, list_formats
 from ordifile.core.errors import OrdifileError
-from ordifile.core.models import DatasetBundle
+from ordifile.core.models import DatasetBundle, SeriesKind
 
 
 class ExternalAdapter:
@@ -57,13 +57,23 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "generic_semicolon",
         "generic_tsv",
         "generic_xlsx",
+        "shimadzu_gcsolution_gcd",
     }
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
     assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
+    assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert all(
         status is SupportStatus.VERIFIED
         for adapter_id, status in statuses.items()
+        if adapter_id.startswith("generic_")
+    )
+    series_kinds = {item.adapter_id: item.series_kinds for item in descriptors}
+    assert series_kinds["agilent_chemstation_ch_v181"] == (SeriesKind.DECODED_RECORDS,)
+    assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
+    assert all(
+        kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)
+        for adapter_id, kinds in series_kinds.items()
         if adapter_id.startswith("generic_")
     )
 
@@ -164,6 +174,27 @@ def test_registry_rejects_invalid_support_status() -> None:
     with pytest.raises(OrdifileError) as caught:
         AdapterRegistry().register(InvalidStatusAdapter())
     assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
+
+
+def test_registry_rejects_invalid_or_duplicate_series_kind_declarations() -> None:
+    for value in (
+        "scientific_signal",
+        (),
+        ("scientific_signal",),
+        (SeriesKind.SCIENTIFIC_SIGNAL, SeriesKind.SCIENTIFIC_SIGNAL),
+    ):
+        descriptor = AdapterDescriptor(
+            "external_test", "1", "External", (".ext",), False, False, True, True
+        )
+        object.__setattr__(descriptor, "series_kinds", value)
+
+        class InvalidSeriesAdapter(ExternalAdapter):
+            pass
+
+        InvalidSeriesAdapter.descriptor = descriptor
+        with pytest.raises(OrdifileError) as caught:
+            AdapterRegistry().register(InvalidSeriesAdapter())
+        assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
 
 
 def test_public_format_list_excludes_unverified_installed_descriptor() -> None:

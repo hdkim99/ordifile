@@ -51,3 +51,18 @@ units, or peaks. The selected BSEE fixture has a documented digest, privacy revi
 redistribution basis, and maintainer-only integration test. Verified promotion still
 requires paired vendor exports and additional independent runs. See
 [`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).
+
+## Proprietary candidate: Shimadzu LabSolutions `.GCD`
+
+One CC0-declared `FS19_214.gcd` fixture and a non-redistributed, same-run LabSolutions
+ASCII reference support a narrower but more scientific Experimental boundary than the
+Agilent structural decoder. Independent byte inspection establishes a CFB v4 container,
+an exact LabSolutions 5.82 / GC-2014 / `Ch1` / `SFID1` profile, 66,255 finite binary64
+values in `uV`, and a DLT-based 40 ms retention-time axis. The paired ASCII matches
+every signal after its integer rounding and every time after its five-decimal rounding.
+
+Decision: add one Experimental scientific-signal adapter for that exact profile. Reject
+other LabSolutions/GCsolution versions, detectors, units, factors, channels, GCD
+generations, `.QGD`, and `.LCD`. The native file remains external because it contains
+personal and machine-local text. See
+[`shimadzu-gcsolution-gcd-investigation.md`](shimadzu-gcsolution-gcd-investigation.md).

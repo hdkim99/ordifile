@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "fixture_id": "chromconverter-extra-fs19-214-gcd",
+  "url": "https://raw.githubusercontent.com/ethanbass/chromConverterExtraTests/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/inst/FS19_214.gcd",
+  "allowed_hosts": [
+    "raw.githubusercontent.com"
+  ],
+  "artifact_filename": "FS19_214.gcd",
+  "sha256": "d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180",
+  "size_bytes": 1433600,
+  "archive_type": "file",
+  "selected_files": [],
+  "tree_sha256": null,
+  "source_page_url": "https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md",
+  "license_name": "CC0 1.0 Universal (file-specific fixture declaration)",
+  "license_id": "CC0-1.0-FS19-214-GCD",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "license_acknowledged": true,
+  "redistribution": "permitted",
+  "attribution": "Source: chromConverterExtraTests, FS19_214.gcd, commit f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b. Used unchanged for transient integration validation.",
+  "privacy_review": "contains_personal_data",
+  "validated_with": [
+    {
+      "reader": "independent_decoder",
+      "version": "1.0.0",
+      "result": "accepted"
+    },
+    {
+      "reader": "paired_ascii",
+      "version": "5.82",
+      "result": "accepted"
+    }
+  ],
+  "grade": "ACCEPT_CONTROLLED_CI",
+  "ci_eligible": true
+}

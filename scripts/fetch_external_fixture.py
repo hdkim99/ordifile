@@ -69,7 +69,14 @@ SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 READER_ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 READER_VERSION_PATTERN = re.compile(r"[0-9A-Za-z][0-9A-Za-z._+-]{0,63}\Z")
 LICENSE_ID_PATTERN = re.compile(r"[0-9A-Za-z][0-9A-Za-z.-]{0,127}\Z")
-GRADES = frozenset({"ACCEPT_REDISTRIBUTABLE", "ACCEPT_EXTERNAL_ONLY", "REJECT"})
+GRADES = frozenset(
+    {
+        "ACCEPT_REDISTRIBUTABLE",
+        "ACCEPT_CONTROLLED_CI",
+        "ACCEPT_EXTERNAL_ONLY",
+        "REJECT",
+    }
+)
 REDISTRIBUTION_VALUES = frozenset({"permitted", "prohibited", "unknown"})
 PRIVACY_VALUES = frozenset({"no_personal_data_observed", "contains_personal_data", "not_reviewed"})
 WINDOWS_RESERVED_NAMES = frozenset(
@@ -367,8 +374,20 @@ def load_manifest(
             "ACCEPT_EXTERNAL_ONLY requires acknowledged terms, privacy review, "
             "non-redistributable policy, and an accepted reader result"
         )
-    if ci_eligible and grade != "ACCEPT_REDISTRIBUTABLE":
-        raise FixtureFetchError("ci_eligible requires ACCEPT_REDISTRIBUTABLE grade")
+    if grade == "ACCEPT_CONTROLLED_CI" and (
+        not license_acknowledged
+        or redistribution != "permitted"
+        or privacy_review != "contains_personal_data"
+        or not any(result == "accepted" for _, _, result in validated_with)
+    ):
+        raise FixtureFetchError(
+            "ACCEPT_CONTROLLED_CI requires acknowledged redistribution permission, "
+            "an explicit personal-data finding, and an accepted reader result"
+        )
+    if ci_eligible and grade not in {"ACCEPT_REDISTRIBUTABLE", "ACCEPT_CONTROLLED_CI"}:
+        raise FixtureFetchError(
+            "ci_eligible requires ACCEPT_REDISTRIBUTABLE or ACCEPT_CONTROLLED_CI grade"
+        )
     return FixtureManifest(
         fixture_id,
         url,
@@ -824,6 +843,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"license: {manifest.license_name} ({manifest.license_id})")
         print(f"license URL: {manifest.license_url}")
         print(f"attribution: {manifest.attribution}")
+        print(f"privacy review: {manifest.privacy_review}")
+        print(f"handling grade: {manifest.grade}")
         if arguments.accept_license is None:
             raise FixtureFetchError(
                 "review the displayed terms and pass --accept-license with the exact license "

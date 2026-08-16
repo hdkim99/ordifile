@@ -1,6 +1,7 @@
 # GC adapter boundaries
 
-- Status: Accepted; Agilent v181 structural decoded-record adapter is Experimental
+- Status: Accepted; Agilent v181 decoded records and one Shimadzu LabSolutions 5.82
+  scientific-signal profile are Experimental
 - Date: 2026-08-16
 - Evidence:
   - [`gc-fixture-search.md`](../research/gc-fixture-search.md)
@@ -58,6 +59,13 @@ from becoming a broad support claim.
     lawful fixture, exact CDS version, completed-versus-recovery classification,
     FID/TCD channel semantics, paired unbunched official export, reproducible test
     permission, and lawful implementation route are all available.
+11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
+    single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
+    A paired same-run ASCII chromatogram and an independent byte decoder validate the
+    66,255-point signal and DLT-based time axis. This does not authorize legacy
+    GCsolution, other LabSolutions versions, other detectors, multichannel files,
+    `.QGD`, `.LCD`, or generic `.GCD` support. See
+    [`shimadzu-gcsolution-gcd-investigation.md`](../research/shimadzu-gcsolution-gcd-investigation.md).
 
 ## Deferred
 
@@ -69,6 +77,8 @@ from becoming a broad support claim.
 - A directory or compound-acquisition input API.
 - Any proprietary **Verified** entry in `ordifile formats` or the README support table
   before its scientific semantics and same-run official export are validated.
+- Shimadzu GCD profiles outside the exact LabSolutions 5.82 FID boundary, including
+  the corroborating BID corpus, until each profile has its own fixture-backed gate.
 
 If evidence later proves that a logical acquisition is a directory or exact sibling
 set, add an adapter API v2 with an immutable source-artifact kind, member inventory,
@@ -100,3 +110,8 @@ The YoungIn track must stay documentation-only until the fixture request is fulf
 A future support matrix must separate ChroZen from YL6500, YL-Clarity from each
 Autochro generation, completed data from recovery data, and FID from TCD and
 multi-channel claims.
+
+The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because
+its paired same-run LabSolutions ASCII reference validates the sampled time and signal
+values. Verified promotion remains blocked by the single in-scope real FID fixture and
+the absence of broader independent in-profile validation.

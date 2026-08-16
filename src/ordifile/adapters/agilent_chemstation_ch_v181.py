@@ -73,6 +73,7 @@ class AgilentChemStationChV181Adapter:
         True,
         True,
         SupportStatus.EXPERIMENTAL,
+        (SeriesKind.DECODED_RECORDS,),
     )
 
     def probe(self, path: Path) -> DetectionResult:

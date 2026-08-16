@@ -14,6 +14,7 @@
 | [defusedxml 0.7.1](https://pypi.org/project/defusedxml/) | Recommended by current openpyxl security docs | [PSF](https://github.com/tiran/defusedxml/blob/main/LICENSE) | Harden XML parsing; ZIP preflight remains separately required. |
 | [et-xmlfile 2.0.0](https://pypi.org/project/et-xmlfile/) | openpyxl direct dependency; released 2024-10-25 | [MIT](https://foss.heptapod.net/openpyxl/et_xmlfile/-/blob/branch/default/LICENCE.rst) | Transitive runtime dependency. |
 | [XlsxWriter 3.2.9](https://pypi.org/project/xlsxwriter/) | Active pure-Python writer with constant-memory mode | [BSD-2-Clause](https://github.com/jmcnamara/XlsxWriter/blob/main/LICENSE.txt) | Deterministic, streaming-style XLSX output. |
+| [olefile 0.47](https://pypi.org/project/olefile/) | Pure-Python universal wheel; imported under CPython 3.14 during review | [BSD/PIL-style](https://github.com/decalage2/olefile/blob/v0.47/LICENSE.txt) | Strict read-only CFB access for the exact Experimental Shimadzu profile; adapter-owned size, inventory, and stream limits still apply. |
 
 The licenses above are compatible with distribution alongside Apache-2.0. Direct and
 transitive runtime dependencies are recorded in `THIRD_PARTY_NOTICES.md`; none is copied
@@ -24,6 +25,8 @@ NumPy, Pydantic, and Typer dependencies.
 Development tools selected after inspecting their current package metadata are
 Hatchling (MIT), build 1.5.0 (MIT; 1.5.1 was yanked at the research date), pytest
 (MIT), pytest-cov (MIT), Ruff (MIT), mypy (MIT), and pip-audit (Apache-2.0).
+The exact `types-olefile 0.47.0.20260508` Apache-2.0 stub is development-only and
+must not appear in wheel runtime metadata.
 
 ## Python and operating systems
 
@@ -94,6 +97,15 @@ independent-implementation decision are in
 No reader is a runtime or development dependency. The Ordifile implementation was
 written from independently recorded byte facts and normalized output summaries, not
 by copying or translating reader source.
+
+For Shimadzu GCD research, the GPL >= 3 `chromConverter` reader is likewise a
+comparison-only source. Its code is not copied, translated, imported, or bundled.
+OpenChrom's separately licensed GCD converter is also excluded. The only new runtime
+dependency is permissive `olefile`, which supplies general CFB container access rather
+than Shimadzu interpretation. Ordifile independently validates the exact LabSolutions
+5.82 stream inventory, metadata relationships, point-count equations, time axis, and
+signal semantics described in
+[`shimadzu-gcsolution-gcd-investigation.md`](shimadzu-gcsolution-gcd-investigation.md).
 
 ## Release workflow tooling
 

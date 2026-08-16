@@ -51,7 +51,7 @@ def test_convert_uses_ordifile_default_output_name(
     assert "Ordifile_Result.xlsx" in capsys.readouterr().out
 
 
-def test_formats_distinguishes_verified_generic_and_experimental_adapters(
+def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main(["formats"]) == 0
@@ -63,12 +63,14 @@ def test_formats_distinguishes_verified_generic_and_experimental_adapters(
         "generic_xlsx",
     ):
         assert adapter_id in output
-    assert "Built-in verified adapters: 4" in output
+    assert "Verified adapters: 4" in output
     assert "agilent_chemstation_ch_v181" in output
-    assert "Built-in experimental" in output
+    assert "shimadzu_gcsolution_gcd" in output
+    assert "Experimental" in output
     assert "Decoded records" in output
-    assert "Built-in experimental adapters: 1" in output
-    assert "External fixture declarations: 0" in output
+    assert "Scientific signals" in output
+    assert "Experimental adapters: 2" in output
+    assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 
 
@@ -106,7 +108,7 @@ def test_formats_includes_verified_external_descriptor_and_hides_unverified_one(
     assert main(["formats"]) == 0
     output = capsys.readouterr().out
     assert "external_verified" in output
-    assert "External (fixture declared)" in output
+    assert "Fixture declared" in output
     assert "external_unverified" not in output
     assert "External adapter load failures: 1" in output
     assert "broken_plugin: RuntimeError" in output

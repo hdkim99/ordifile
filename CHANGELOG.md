@@ -18,6 +18,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   retains every decoded structural record by ordinal and raw integer, without claiming
   retention time, physical scaling, signal units, peaks, other versions, or `.D`
   directory support. The proprietary fixture remains external.
+- An Experimental Shimadzu LabSolutions 5.82 `.GCD` reader for one exact GC-2014,
+  single-channel `SFID1` profile, with paired-reference validation of its 66,255-point
+  retention-time and `uV` signal series. The privacy-bearing native fixture remains
+  external and is never uploaded as a CI artifact.
 
 ## [0.1.0] - 2026-08-16
 
