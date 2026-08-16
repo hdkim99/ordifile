@@ -18,7 +18,7 @@ wheel and sdist on TestPyPI, creates attestations and a draft GitHub Release, pu
 the same wheel and sdist to PyPI, and only then makes the GitHub Release public. A pull request,
 branch push, manual dispatch, or fork cannot publish.
 
-All release jobs require a self-hosted runner with the `dgx` label. The pinned PyPI
+All release jobs require a self-hosted runner with the `dgx-spark` label. The pinned PyPI
 publishing action requires GNU/Linux and Docker, and the pinned Node 24 Actions require
 runner version 2.327.1 or newer. Confirm those properties on the DGX before a dry run or
 release. Do not use a hosted runner or package-index token as a fallback.

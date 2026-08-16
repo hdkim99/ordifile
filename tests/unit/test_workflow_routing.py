@@ -38,7 +38,7 @@ def test_every_execution_job_uses_only_the_shared_dgx_runner() -> None:
 
     for name in WORKFLOW_NAMES:
         workflow = _workflow(name)
-        assert workflow.count("runs-on: [self-hosted, dgx]") == _job_count(workflow)
+        assert workflow.count("runs-on: [self-hosted, dgx-spark]") == _job_count(workflow)
 
 
 def test_ci_is_one_read_only_python_314_job_for_main_and_pull_requests() -> None:
