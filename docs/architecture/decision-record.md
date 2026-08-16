@@ -158,9 +158,10 @@ CLI / future GUI
   and cached formula results may be stale.
 - Accepting duplicate or unordered OOXML cell coordinates with first/last-write-wins behavior:
   conflict resolution would silently discard one source value.
-- Proprietary `.ch` parser in v0.1: excluded from this release. A BSEE v181 fixture now provides
-  a narrow research candidate, but format semantics, implementation provenance, exact adapter
-  tests, and release review remain incomplete.
+- Proprietary `.ch` parser: excluded. The exact BSEE v181 fixture has a stable digest,
+  privacy review, and redistribution basis, but its retention-time construction,
+  physical signal scaling, and signal unit remain unresolved. The 2026-08-16 evidence
+  gate is NO-GO, so no detection skeleton or support claim is added.
 - Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
   are not verified byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.

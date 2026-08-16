@@ -82,13 +82,14 @@ offloading or truncation occurs.
 No OpenChrom (EPL-2.0), chromConverter (GPL-3.0), rainbow (LGPL-3.0), proprietary SDK,
 DLL, executable, or fixture of unresolved provenance is copied or bundled.
 
-GC fixture research used external readers only as independent oracles. Entab 0.3.3 is
-MIT but has limited published wheels and a current CLI compatibility defect; rainbow
-1.4.0 is LGPL-3.0 and produced a v181 time/signal length mismatch; ChromStream 0.2.0
-read the selected v181 file but its adapted-code notice chain needs clarification.
-None is a production or development dependency, and no reader code was copied. The
-exact results and future clean-room recommendation are in
-[`gc-fixture-search.md`](gc-fixture-search.md).
+GC fixture research used external readers only as research oracles. Entab 0.3.3 is MIT
+but does not accept v181; rainbow 1.4.0 is LGPL-3.0 and produced a v181 time/signal
+length mismatch; ChromStream 0.2.0 and GPL-licensed chromConverter use
+chemplexity-derived axis/scaling assumptions that are not a vendor export
+cross-check. None is a production or development dependency, and no reader code was
+copied. The pinned commits, observed behavior, license boundary, and current clean-room
+NO-GO decision are in
+[`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).
 
 ## Release workflow tooling
 

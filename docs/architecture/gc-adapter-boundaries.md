@@ -1,6 +1,6 @@
 # GC adapter boundaries
 
-- Status: Accepted research boundary; no proprietary adapter implemented
+- Status: Accepted research boundary; Agilent v181 implementation gate is NO-GO
 - Date: 2026-08-16
 - Evidence:
   - [`gc-fixture-search.md`](../research/gc-fixture-search.md)
@@ -45,10 +45,12 @@ from becoming a broad support claim.
    different stable layout requires a separately tested format/profile adapter, such
    as `clarity_export_<profile-version>` or `autochro_export_<profile-version>`.
 9. The first proprietary implementation candidate remains the BSEE Agilent ChemStation
-   GC-FID `.ch` internal v181 slice. Implementation still requires bounded detection,
-   independently justified field semantics, resolved or explicitly unknown units,
-   provenance and license review, exact real-fixture tests, corrupt-input tests, and
-   cross-platform verification.
+   GC-FID `.ch` internal v181 slice. Exact bytes and current reader outputs are
+   reproducible, but some field roles, the nonzero ordinary-record recurrence, the
+   exact retention-time construction, physical signal scaling, and signal unit remain
+   unresolved. The implementation gate is therefore NO-GO until paired official
+   exports or equivalent authoritative evidence resolve those semantics. See
+   [`agilent-chemstation-ch-v181-investigation.md`](../research/agilent-chemstation-ch-v181-investigation.md).
 10. YOUNG IN Chromass is reconsidered for first-adapter priority as soon as a complete
     lawful fixture, exact CDS version, completed-versus-recovery classification,
     FID/TCD channel semantics, paired unbunched official export, reproducible test
@@ -83,9 +85,10 @@ container relationships or run identifiers, never basename or timestamp heuristi
 
 ## Implementation gate summary
 
-The BSEE v181 candidate must stay signal-only and version-specific unless further
-fixtures prove more. It must not claim peaks, TCD, all `.ch` generations, whole `.D`
-directories, GC-MS, or write support.
+The BSEE v181 candidate must stay unimplemented until the semantic gate closes. A
+future adapter must remain signal-only, single-channel, and version-specific unless
+further fixtures prove more. It must not claim peaks, TCD, all `.ch` generations,
+whole `.D` directories, GC-MS, or write support.
 
 The YoungIn track must stay documentation-only until the fixture request is fulfilled.
 A future support matrix must separate ChroZen from YL6500, YL-Clarity from each

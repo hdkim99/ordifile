@@ -12,6 +12,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - A Unicode-filename synthetic example under `examples/unicode/` with a rendered
   screenshot of its generated workbook, showing that normal Unicode input
   filenames are preserved in the `Samples` sheet. (Issue #7)
+- A reproducible Agilent ChemStation `.CH` internal-v181 evidence review that records
+  exact byte observations, separates reader-derived interpretations, and explicitly
+  blocks adapter implementation until record recurrence, retention-time, physical
+  signal scaling, and unit semantics are resolved.
 
 ## [0.1.0] - 2026-08-16
 

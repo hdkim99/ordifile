@@ -34,16 +34,20 @@ does not identify compounds from retention time alone.
 
 ## Proprietary candidate: Agilent ChemStation `.ch`
 
-Entab (MIT) and rainbow (LGPL-3.0) both provide partial public implementation evidence,
-but the candidate fails the project inclusion gate:
+Public readers provide partial implementation evidence, but the candidate fails the
+project inclusion gate:
 
 1. no complete official versioned structure was obtained;
-2. public fixture redistribution provenance is unresolved;
-3. detector/channel/unit semantics were not verified against an authoritative export;
-4. no Ordifile fixture or passing test exists;
-5. Entab's published wheels do not cover the intended Python/OS matrix.
+2. retention-time construction and physical signal scaling were not verified against
+   an authoritative export;
+3. the raw unit lexeme cannot be trusted or expanded into a scientific unit;
+4. no committed parser fixture or passing adapter test exists;
+5. public readers disagree on the time-axis length or share unverified upstream
+   assumptions.
 
 Decision: record `.ch` only as a research candidate. Do not add an adapter skeleton that
-could be mistaken for support. A future implementation requires redistributable fixtures,
-vendor-export cross-checks, corrupt/truncated cases, documented checksums, and all-platform
-tests without vendor SDKs or binaries.
+could be mistaken for support. The selected BSEE fixture now has a documented digest,
+privacy review, and redistribution basis, but the 2026-08-16 semantic evidence gate is
+NO-GO. A future implementation requires paired vendor exports, corrupt/truncated cases,
+documented checksums, and tests without vendor SDKs or binaries. See
+[`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).

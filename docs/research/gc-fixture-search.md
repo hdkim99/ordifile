@@ -33,7 +33,7 @@ archive sizes unless otherwise stated.
 | Candidate | Publisher / persistent ID | Instrument, vendor, detector | Claimed / inspected format | Native raw | Size / smallest useful run | Integrity and independent reader |
 |---|---|---|---|---|---|---|
 | [YOUNG IN Chromass Track C](youngin-chromass-format-investigation.md) | YOUNG IN Chromass and DataApex official material | ChroZen GC and legacy YL-series; FID/TCD priority | YL-Clarity completed `.prm` candidate, temporary/recovery `.raw`, Autochro native formats, and documented exports | Unresolved for YL-Clarity/Autochro | No public native fixture found | YL-Clarity OEM relationship and general Clarity file lifecycle verified; no YoungIn-produced complete file, paired export, or independent reader |
-| [BSEE Side Wall Core Trim Extract GC Data](https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data) | BSEE; official data page | Agilent ChemStation; FID | `.CH` / internal version 181 single-channel file | Yes | 298,146 B / same | SHA-256 fixed below; ChromStream 0.2.0 read 36,501 paired points; rainbow 1.4.0 exposed a time/signal length defect |
+| [BSEE Side Wall Core Trim Extract GC Data](https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data) | BSEE; official data page | Agilent ChemStation; FID | `.CH` / internal version 181 single-channel file | Yes | 298,146 B / same | SHA-256 fixed below; ChromStream 0.2.0 produced 36,501 candidate x/y values; rainbow 1.4.0 exposed a time/signal length defect |
 | [IODP Expedition 384 gas safety report](https://doi.org/10.5281/zenodo.15122350) | IODP / Zenodo 15122350 | Agilent ChemStation; FID and TCD | Raw and method ZIPs / v179 `.ch` plus complete method files | Yes | 827,059 B / 104,074 B paired run+method archives | Zenodo MD5 and local SHA-256 verified; Entab main read 4,680 points per channel; rainbow agreed on signals but not time origin or TCD classification |
 | [Rapid GC-MS methods](https://doi.org/10.18434/mds2-2862) | NIST, ARK mds2-2862 | Agilent 5977 GC-MS | Native `.D` / `data.ms`, scan files, XML and exported TIC | Yes | 24,934,205 B / 4,188,635 B run | Provider SHA-256 matched; rainbow 1.4.0 read all 26 runs; selected run 286 scans |
 | [NIST/NIJ CADS](https://doi.org/10.18434/mds2-3628) | NIST, ARK mds2-3628 | GC-FID and GC-MS, multiple instruments | “Raw & processed” / FID TXT and MS mzXML | No for proprietary FID/MS | about 21 GB / member-level only | Official ZIP64 inventories inspected; FID members are exported `Time (min)` / `Value (pA)` tables |
@@ -78,12 +78,18 @@ archive sizes unless otherwise stated.
 - Acquisition: coded ordinary research sample, 2015-09-29 13:35:45; timezone absent
 - Embedded method: `G02.M`
 
-ChromStream 0.2.0 produced 36,501 time values and 36,501 signal values. The
-time range was -0.0015375 through 121.6618 minutes and the signal range was
-435.9739583333333 through 30,809.119791666664. rainbow 1.4.0 produced the same
-36,501 signal values but only 36,500 time values. That mismatch disqualifies rainbow
-as the production v181 reader. The encoded unit was not interpreted consistently, so
-the future adapter must report it as unresolved rather than guess.
+ChromStream 0.2.0 produced 36,501 candidate time values and 36,501 candidate signal
+values. The
+candidate time range was -0.0015375 through 121.6618 minutes and the candidate signal
+range was 435.9739583333333 through 30,809.119791666664. rainbow 1.4.0 produced the
+same 36,501 candidate signal values but only 36,500 candidate time values. That
+mismatch disqualifies rainbow
+as the production v181 reader. A deeper evidence gate also found that the inclusive
+time-axis formula differs slightly from the stored sampling-ratio candidate, and that
+the slope/intercept transformation lacks a paired official export. The encoded unit is
+not trustworthy. These gaps now block adapter implementation rather than merely
+requiring an unknown unit. Exact findings are in
+[`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).
 
 The direct file is a native signal channel, not proof that Ordifile can read a whole
 ChemStation `.D` directory, integration results, or other `.ch` versions. It is not
@@ -121,10 +127,12 @@ not yet a support oracle.
 | [chemplexity/chromatography](https://github.com/chemplexity/chromatography) | MIT MATLAB reference implementation for several `.ch` generations | Byte-structure reference only; any use requires preserved MIT notice and independent review |
 | [ProteoWizard](https://github.com/ProteoWizard/pwiz) / OpenChrom | Open cores have separate vendor-runtime or converter boundaries | Do not bundle or invoke proprietary components |
 
-## Recommendation for the first proprietary adapter
+## First proprietary adapter decision
 
-Recommend a future, read-only **Agilent ChemStation GC-FID `.ch` internal version
-181** adapter using the BSEE file as the first real fixture.
+The BSEE **Agilent ChemStation GC-FID `.ch` internal version 181** file remains the
+highest-priority proprietary candidate, but the 2026-08-16 implementation gate is
+**NO-GO**. No runtime adapter, registry entry, CLI format claim, or README support row
+is added.
 
 YOUNG IN Chromass was included as a mandatory priority candidate. It does not rank
 first today because no normal completed YL-Clarity or Autochro fixture, paired official
@@ -143,13 +151,17 @@ Why:
 - its exact version marker lets detection be bounded rather than extension-only;
 - it keeps the first vertical slice to one detector and one byte-level generation.
 
-The adapter should be implemented independently, not by copying an existing reader.
-It must verify version 181, offsets, sample count, payload length, finite scales, and
-equal x/y lengths; preserve raw metadata; treat the signal unit as unresolved; and
-return structured errors for all other versions. It must not claim TCD, v179, peak
-tables, full `.D` directories, write support, or all Agilent data. Required tests
-include the exact BSEE digest, golden signal statistics, truncation, corrupt offsets,
-nonfinite scale, wrong version, and one-file failure isolation.
+The candidate decoder reproduces the current fixture and public-reader output, but the
+only ordinary short record has value zero, so its status as a scientific sample or
+terminal record and the nonzero second-delta recurrence are not independently
+exercised. The exact scientific point count, retention-time construction, physical
+meaning of the slope/intercept transformation, and signal unit are also not verified
+against an official export or specification. The adapter must be implemented
+independently only after those gates close. It must then verify version 181, offsets,
+bounded record decoding, exact EOF consumption, finite values, and equal x/y lengths;
+preserve raw metadata; and return structured errors for all other versions. It must
+not claim TCD, v179, peak tables, full `.D` directories, write support, or all Agilent
+data.
 
 ## Confirmed facts, inferences, and unresolved questions
 
@@ -160,12 +172,16 @@ v181 is the smallest practical first slice is an engineering inference.
 Unresolved items:
 
 - no official public byte-level Agilent `.ch` specification was found;
+- the v181 retention-time construction, physical signal scaling, and unit are
+  unresolved;
+- no paired full-resolution ChemStation CSV or AIA/ANDI export exists for the selected
+  run;
 - jurisdiction-specific interoperability and reverse-engineering questions are not a
   legal clearance;
-- the v181 unit field is unresolved;
 - v179 readers disagree on time origin and TCD identification;
 - CC BY uploaders' rights over every embedded vendor file were not independently
   established;
 - no complete, small, privacy-clean TCD fixture is approved for bundling.
 
-These gaps block support claims, not the generic-format v0.1.0 release.
+These gaps block both implementation and support claims for the v181 adapter, not the
+generic-format v0.1.0 release.
