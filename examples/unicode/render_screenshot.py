@@ -45,9 +45,7 @@ _CANDIDATE_FONTS = (
 for _candidate in _CANDIDATE_FONTS:
     if Path(_candidate).exists():
         fm.fontManager.addfont(_candidate)
-        plt.rcParams["font.family"] = fm.FontProperties(
-            fname=_candidate
-        ).get_name()
+        plt.rcParams["font.family"] = fm.FontProperties(fname=_candidate).get_name()
         break
 
 
@@ -58,8 +56,7 @@ def render_sheet(workbook_path: Path, sheet_name: str, output_path: Path) -> Non
     try:
         if sheet_name not in workbook.sheetnames:
             raise SystemExit(
-                f"{sheet_name!r} not in workbook {workbook_path}; "
-                f"have {workbook.sheetnames}"
+                f"{sheet_name!r} not in workbook {workbook_path}; have {workbook.sheetnames}"
             )
         rows = [list(row) for row in workbook[sheet_name].values]
     finally:

@@ -20,7 +20,7 @@ generated `Samples` sheet lists `source_file` as `시료_신호.csv` and `status
 
 ## Screenshot
 
-![The Samples sheet of the workbook generated from the Unicode-named example file; the source_file column reads 시료_신호.csv](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/unicode-example-samples.png)
+![The Samples sheet of the workbook generated from the Unicode-named example file; the source_file column reads 시료_신호.csv](../../docs/assets/unicode-example-samples.png)
 
 The PNG is rendered from the **actual** workbook the command above produces
 (`docs/assets/unicode-example-samples.png`). It is generated — not a hand-drawn
