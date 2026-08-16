@@ -12,7 +12,8 @@ Excel workbook.
 
 **Verified today:** CSV, TSV, semicolon-delimited TXT, and audited non-macro XLSX using
 Ordifile's documented schema. Proprietary vendor raw formats are not supported in
-v0.1.0.
+v0.1.0. The unreleased source tree also contains one narrowly bounded Experimental
+Agilent ChemStation `.CH` v181 structural decoder described below.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
 
@@ -87,6 +88,19 @@ schema](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabul
 An extension is supporting evidence only; Ordifile also checks content and schema.
 Run `ordifile formats` to see the adapters installed in the current environment.
 
+## Experimental proprietary decoders
+
+| Format boundary | Metadata | Peaks | Record output | Status | Real fixture |
+|---|---:|---:|---|---|---:|
+| Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
+
+This Experimental adapter is not part of the PyPI v0.1.0 release. It retains every
+decoded record in source order. Its x values are `decoded_record_index`, not retention
+time; its y values are `decoded_raw_integer`, not physically scaled intensity. Units,
+scientific point count, and the final record's role remain unresolved. It does not
+claim other `.CH` versions, `.D` directories, TCD, MS, peaks, calibrated values, or
+write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-ch-v181.md).
+
 ## CLI
 
 Inspect one file without writing output:
@@ -147,6 +161,7 @@ workbook.
 | `Metadata` | Unknown fields, invalid raw lexemes, and provenance without invented semantics |
 | `Import_Log` | Every success, warning, failure, duplicate, skipped artifact, sort key, and hash |
 | `Signals_<channel>` | Original uninterpolated x/y values, only when requested and actually parsed |
+| `Signals_Records_<channel>` | Experimental structural decoded records, explicitly not a retention-time signal |
 
 Rows and columns are split into deterministic numbered sheets before Excel limits are
 reached. Data is never silently truncated. If workbook storage is impractical,
@@ -296,9 +311,9 @@ search absence is not a reservation or legal trademark clearance. See the
 future compatibility notes, remain the property of their owners and do not imply
 affiliation or endorsement.
 
-YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO, and related product names are
+Agilent, ChemStation, YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO, and related product names are
 trademarks or product names of their respective owners. Ordifile is not affiliated with
-or endorsed by YOUNG IN Chromass.
+or endorsed by Agilent or YOUNG IN Chromass.
 
 ## License
 

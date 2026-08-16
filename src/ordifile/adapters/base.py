@@ -6,12 +6,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Protocol, runtime_checkable
 
 from ordifile.core.models import DatasetBundle
 
 ADAPTER_API_VERSION = "1"
+
+
+class SupportStatus(StrEnum):
+    """Public evidence level for one adapter descriptor."""
+
+    VERIFIED = "verified"
+    EXPERIMENTAL = "experimental"
+    FIXTURE_DECLARED = "fixture_declared"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +52,7 @@ class AdapterDescriptor:
     peaks: bool
     signals: bool
     tested_fixture: bool
+    support_status: SupportStatus = SupportStatus.FIXTURE_DECLARED
 
 
 @runtime_checkable

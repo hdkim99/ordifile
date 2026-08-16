@@ -51,7 +51,7 @@ def test_convert_uses_ordifile_default_output_name(
     assert "Ordifile_Result.xlsx" in capsys.readouterr().out
 
 
-def test_formats_lists_only_verified_generic_adapters(
+def test_formats_distinguishes_verified_generic_and_experimental_adapters(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main(["formats"]) == 0
@@ -64,8 +64,12 @@ def test_formats_lists_only_verified_generic_adapters(
     ):
         assert adapter_id in output
     assert "Built-in verified adapters: 4" in output
+    assert "agilent_chemstation_ch_v181" in output
+    assert "Built-in experimental" in output
+    assert "Decoded records" in output
+    assert "Built-in experimental adapters: 1" in output
     assert "External fixture declarations: 0" in output
-    assert "No vendor raw format is supported by Ordifile's built-in adapters." in output
+    assert "Experimental adapters expose only their explicitly documented capabilities" in output
 
 
 def test_formats_includes_verified_external_descriptor_and_hides_unverified_one(
@@ -153,7 +157,8 @@ def test_inspect_reports_detection_hash_and_counts(
     assert "SHA-256:" in output
     assert "Samples: 1" in output
     assert "Peaks: 1" in output
-    assert "Signals: 1" in output
+    assert "Scientific signals: 1" in output
+    assert "Decoded record series: 0" in output
     assert "Detection evidence:" in output
 
 

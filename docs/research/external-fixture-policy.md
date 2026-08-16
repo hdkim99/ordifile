@@ -93,12 +93,13 @@ Default pull-request, push, and scheduled CI performs no external fixture downlo
 Tests use local synthetic HTTP responses and malicious synthetic archives to exercise
 checksum, redirect, traversal, alias, link, bomb, and cleanup controls.
 
-An external integration workflow may be added only after its adapter exists and the
-manifest says the fixture is eligible. Initially it must be manual-dispatch only,
-restricted to the owner repository and `main`, use a protected environment and
-`RUNNER_TEMP`, and upload neither cache nor Raw data as a GitHub artifact. It must
-delete the cache in a final cleanup step. Scheduled use requires a separate decision
-covering stable access, automated-use permission, cost, and size.
+The Agilent v181 adapter has one owner-repository external integration workflow. It is
+manual-dispatch capable; its feature-branch push trigger is limited to the exact
+maintainer branch used to validate the first implementation before merge. It uses the
+shared self-hosted DGX runner, read-only repository permission, `RUNNER_TEMP`, and no
+Actions cache or artifact upload. It deletes the fixture cache in a final cleanup
+step. Pull requests and default CI never download the fixture. Scheduled use requires
+a separate decision covering stable access, automated-use permission, cost, and size.
 
 ## Removal and replacement
 

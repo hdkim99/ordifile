@@ -121,10 +121,11 @@ topic reviews beside this register.
 ## Gaps
 
 No authoritative complete Agilent `.ch` structure or formal `Ordifile` trademark
-clearance was established. A BSEE v181 `.CH` file has a redistribution basis and was
-independently read, but its retention-time construction, physical signal scaling,
-signal unit, and complete byte-level specification remain unresolved. ASTM E1947's
-paid text was not accessed or used as implementation evidence.
+clearance was established. A BSEE v181 `.CH` file has a redistribution basis and its
+decoded structural record stream was cross-checked, enabling a narrow Experimental
+adapter. Retention-time construction, physical signal scaling, signal unit, scientific
+point count, and the complete byte-level specification remain unresolved. ASTM
+E1947's paid text was not accessed or used as implementation evidence.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
 paired official export, public native reader, or reader SDK was found. These gaps block
 proprietary support claims but do not block the generic export vertical slice or its

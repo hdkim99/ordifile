@@ -122,6 +122,12 @@ to the workbook layout.
     workflows require maintainer approval and receive read-only repository permission,
     no publishing secrets, no OIDC permission, and no release environment. Release
     publishing remains restricted to tag-only jobs with scoped OIDC Trusted Publishing.
+30. Adapter descriptors distinguish Verified, Experimental, and external
+    fixture-declared evidence levels. Signal series distinguish scientific signals from
+    structural decoded records. The built-in Agilent ChemStation `.CH` internal-v181
+    adapter is Experimental: it exposes every decoded record by ordinal and raw integer,
+    but no retention time, physical scaling, physical unit, peak table, `.D` grouping,
+    or other `.CH` version.
 
 ## Public boundaries
 
@@ -158,10 +164,10 @@ CLI / future GUI
   and cached formula results may be stale.
 - Accepting duplicate or unordered OOXML cell coordinates with first/last-write-wins behavior:
   conflict resolution would silently discard one source value.
-- Proprietary `.ch` parser: excluded. The exact BSEE v181 fixture has a stable digest,
-  privacy review, and redistribution basis, but its retention-time construction,
-  physical signal scaling, and signal unit remain unresolved. The 2026-08-16 evidence
-  gate is NO-GO, so no detection skeleton or support claim is added.
+- Treating the Agilent v181 candidate transform as a verified chromatogram: rejected.
+  The exact BSEE fixture supports a bounded Experimental decoded-record stream, while
+  retention time, physical scaling, signal unit, and the last record's scientific role
+  remain unresolved.
 - Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
   are not verified byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.

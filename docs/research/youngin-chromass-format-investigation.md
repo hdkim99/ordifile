@@ -245,16 +245,16 @@ a future source-kind API without changing v1 single-file semantics.
 | Redistribution basis | BSEE public-information guidance | No | No |
 | Privacy review | Passed | Impossible without bytes | Impossible without bytes |
 | Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | Unresolved | Unresolved |
-| Signal extraction | 36,501 candidate x/y values; scientific point count and time axis unresolved | Not possible | Not possible |
+| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Not possible | Not possible |
 | Detector meaning | FID-scoped evidence | Product literature only | Unresolved |
 | Paired official export | No | No | No |
-| Lawful implementation route | Independent implementation possible after semantic evidence closes | No public specification/reader | No public specification/reader |
-| Current decision | Highest-priority candidate; semantic gate NO-GO | `BLOCKED_BY_FIXTURE` | `BLOCKED_BY_FIXTURE` |
+| Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | No public specification/reader | No public specification/reader |
+| Current decision | Experimental decoded-record adapter; Verified gate remains open | `BLOCKED_BY_FIXTURE` | `BLOCKED_BY_FIXTURE` |
 
 YOUNG IN Chromass takes priority as soon as a normal completed fixture, exact CDS and
 format version, FID/TCD channel semantics, same-run unbunched official export, reproducible
 test permission, and lawful implementation basis are all established. Until then, BSEE
-v181 remains the highest-priority candidate but is not implementable.
+v181 remains the highest-priority implemented Experimental candidate.
 
 ## Minimum verification before “Verified”
 

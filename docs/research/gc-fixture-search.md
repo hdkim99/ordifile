@@ -57,7 +57,7 @@ archive sizes unless otherwise stated.
 | Candidate | License / redistribution | Attribution | Personal or machine data | Parser candidate and maintenance | Apache-2.0 reuse | Decision and reason |
 |---|---|---|---|---|---|---|
 | YOUNG IN Chromass / YL-Clarity / Autochro | Proprietary CDS terms; no native fixture redistribution permission or public reader specification found | Product names only for factual compatibility research; no affiliation claim | Impossible to review without bytes | No public `.prm` or Autochro reader found; DataApex control SDK is not a public chromatogram-reader SDK | No implementation basis established | `BLOCKED_BY_FIXTURE`; required priority candidate, but not an Ordifile-supported format |
-| BSEE v181 `.CH` | BSEE public-information terms permit copying and distribution with source acknowledgement | Institution, exact page, unchanged-file statement, access date | No email, user-profile path, hostname or absolute path found | ChromStream 0.2.0 is recent; rainbow 1.4.0 is recent but fails point alignment; Entab does not read v181 | Do not copy reader code; ChromStream's upstream notice chain needs resolution | `ACCEPT_REDISTRIBUTABLE`; keep external for v0.1.0 and pin exact bytes |
+| BSEE v181 `.CH` | BSEE public-information terms permit copying and distribution with source acknowledgement | Institution, exact page, unchanged-file statement, access date | No email, user-profile path, hostname or absolute path found | ChromStream 0.2.0 is recent; rainbow 1.4.0 is recent but fails point alignment; Entab does not read v181 | Independently written implementation; no reader code or dependency | `ACCEPT_REDISTRIBUTABLE`; external fixture backs a narrow Experimental decoded-record adapter |
 | IODP v179 FID/TCD | CC BY 4.0; lawful external research use, but attribution and embedded third-party rights remain separate | Full record attribution required | Method history contains names, machine identifiers and Windows paths | Entab 0.3.3/main is MIT but has packaging and CLI defects; rainbow is LGPL-3.0 and misclassifies TCD | Entab code license compatible, packaging/semantic scope not ready | `ACCEPT_EXTERNAL_ONLY`; strong signal evidence, unresolved time/detector semantics |
 | NIST mds2-2862 | NIST Open License; redistribution with attribution and change notice | NIST record and derived-file notice | Whole `.D` includes paths and instrument identifiers | rainbow LGPL-3.0 and Entab MIT both read `data.ms` | Direct dependency deferred | Whole run `ACCEPT_EXTERNAL_ONLY`; isolated `data.ms` only conditionally redistributable after privacy review |
 | NIST CADS | NIST Open License | NIST record and extraction/change notice | Member-specific review still required | Open-format readers available | Compatible for derived test data | `ACCEPT_EXTERNAL_ONLY` as a generic TXT/mzXML corpus; `REJECT` as proprietary evidence |
@@ -87,8 +87,10 @@ mismatch disqualifies rainbow
 as the production v181 reader. A deeper evidence gate also found that the inclusive
 time-axis formula differs slightly from the stored sampling-ratio candidate, and that
 the slope/intercept transformation lacks a paired official export. The encoded unit is
-not trustworthy. These gaps now block adapter implementation rather than merely
-requiring an unknown unit. Exact findings are in
+not trustworthy. These gaps block a retention-time or physically scaled scientific
+signal claim, but do not block a structural decoded-record adapter. Ordifile therefore
+retains all 36,501 records by ordinal and raw integer without applying time, scaling,
+or unit semantics. Exact findings are in
 [`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).
 
 The direct file is a native signal channel, not proof that Ordifile can read a whole
@@ -130,9 +132,9 @@ not yet a support oracle.
 ## First proprietary adapter decision
 
 The BSEE **Agilent ChemStation GC-FID `.ch` internal version 181** file remains the
-highest-priority proprietary candidate, but the 2026-08-16 implementation gate is
-**NO-GO**. No runtime adapter, registry entry, CLI format claim, or README support row
-is added.
+highest-priority proprietary candidate. The 2026-08-16 revised gate is **Experimental
+GO** for structural decoded records and **NO-GO** for Verified scientific signal
+support. The runtime adapter and README row use those exact limitations.
 
 YOUNG IN Chromass was included as a mandatory priority candidate. It does not rank
 first today because no normal completed YL-Clarity or Autochro fixture, paired official
@@ -151,17 +153,17 @@ Why:
 - its exact version marker lets detection be bounded rather than extension-only;
 - it keeps the first vertical slice to one detector and one byte-level generation.
 
-The candidate decoder reproduces the current fixture and public-reader output, but the
+The independently written decoder reproduces the current fixture and public-reader signal output, but the
 only ordinary short record has value zero, so its status as a scientific sample or
 terminal record and the nonzero second-delta recurrence are not independently
 exercised. The exact scientific point count, retention-time construction, physical
 meaning of the slope/intercept transformation, and signal unit are also not verified
-against an official export or specification. The adapter must be implemented
-independently only after those gates close. It must then verify version 181, offsets,
-bounded record decoding, exact EOF consumption, finite values, and equal x/y lengths;
-preserve raw metadata; and return structured errors for all other versions. It must
-not claim TCD, v179, peak tables, full `.D` directories, write support, or all Agilent
-data.
+against an official export or specification. The Experimental adapter therefore uses
+ordinal x and raw integer y, retains the ambiguous final record, and records these
+unknowns. It verifies version 181, bounded offsets, exact EOF, arithmetic limits, and
+equal x/y lengths while returning structured errors for malformed or unsupported
+inputs. It does not claim TCD, v179, peak tables, full `.D` directories, write support,
+or all Agilent data.
 
 ## Confirmed facts, inferences, and unresolved questions
 

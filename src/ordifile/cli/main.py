@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Never
 
 from ordifile import __version__
+from ordifile.adapters.base import SupportStatus
 from ordifile.api import convert, get_format_report, inspect_file
+from ordifile.core.models import SeriesKind
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -40,6 +42,7 @@ _CONFIGURATION_ERROR_CODES = frozenset(
 _VERIFIED_BUILTIN_ADAPTERS = frozenset(
     {"generic_csv", "generic_semicolon", "generic_tsv", "generic_xlsx"}
 )
+_EXPERIMENTAL_BUILTIN_ADAPTERS = frozenset({"agilent_chemstation_ch_v181"})
 
 
 def _terminal_safe(value: object) -> str:
@@ -213,7 +216,7 @@ def _run_formats() -> int:
         "Extensions",
         "Metadata",
         "Peaks",
-        "Signals",
+        "Signal output",
         "Verification",
     )
     rows = [
@@ -223,11 +226,21 @@ def _run_formats() -> int:
             ", ".join(_terminal_safe(extension) for extension in item.extensions),
             _yes_no(item.metadata),
             _yes_no(item.peaks),
-            _yes_no(item.signals),
+            (
+                "Decoded records"
+                if item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS
+                and item.support_status is SupportStatus.EXPERIMENTAL
+                else _yes_no(item.signals)
+            ),
             (
                 "Built-in verified"
                 if item.adapter_id in _VERIFIED_BUILTIN_ADAPTERS
-                else "External (fixture declared)"
+                else (
+                    "Built-in experimental"
+                    if item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS
+                    and item.support_status is SupportStatus.EXPERIMENTAL
+                    else "External (fixture declared)"
+                )
             ),
         )
         for item in descriptors
@@ -242,8 +255,12 @@ def _run_formats() -> int:
         print("  ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
     print()
     built_in_count = sum(item.adapter_id in _VERIFIED_BUILTIN_ADAPTERS for item in descriptors)
-    external_count = len(descriptors) - built_in_count
+    experimental_count = sum(
+        item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS for item in descriptors
+    )
+    external_count = len(descriptors) - built_in_count - experimental_count
     print(f"Built-in verified adapters: {built_in_count}")
+    print(f"Built-in experimental adapters: {experimental_count}")
     print(f"External fixture declarations: {external_count}")
     if report.load_errors:
         print(f"External adapter load failures: {len(report.load_errors)}")
@@ -251,10 +268,10 @@ def _run_formats() -> int:
             print(f"- {_terminal_safe(error)}")
         print("  Reinstall, update, or remove the affected external adapter package.")
     print(
-        "Built-in support is limited to documented generic tabular schemas; installed "
-        "external adapters are listed only when they declare a tested fixture."
+        "Verified built-in support is limited to documented generic tabular schemas. "
+        "Experimental adapters expose only their explicitly documented capabilities; "
+        "installed external adapters are listed only when they declare a tested fixture."
     )
-    print("No vendor raw format is supported by Ordifile's built-in adapters.")
     return EXIT_SUCCESS
 
 
@@ -290,7 +307,18 @@ def _run_inspect(args: argparse.Namespace) -> int:
     print(f"SHA-256: {_terminal_safe(result.source.sha256 or 'unavailable')}")
     print(f"Samples: {len(bundle.samples) if bundle is not None else 0}")
     print(f"Peaks: {len(bundle.peaks) if bundle is not None else 0}")
-    print(f"Signals: {len(bundle.signals) if bundle is not None else 0}")
+    scientific_signals = (
+        sum(signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL for signal in bundle.signals)
+        if bundle is not None
+        else 0
+    )
+    decoded_record_series = (
+        sum(signal.series_kind is SeriesKind.DECODED_RECORDS for signal in bundle.signals)
+        if bundle is not None
+        else 0
+    )
+    print(f"Scientific signals: {scientific_signals}")
+    print(f"Decoded record series: {decoded_record_series}")
     print(f"Metadata entries: {len(bundle.metadata) if bundle is not None else 0}")
     _print_issues(result, verbose=args.verbose)
     if args.verbose:

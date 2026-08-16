@@ -30,6 +30,7 @@ from ordifile.core.models import (
     FileStatus,
     MetadataEntry,
     PeakRecord,
+    SeriesKind,
     SidecarRecord,
     SignalSeries,
     integer_is_within_canonical_bound,
@@ -385,31 +386,35 @@ def _import_log_data(result: BatchResult) -> _SheetData:
 
 
 def _signal_data(result: BatchResult) -> tuple[_SheetData, ...]:
-    groups: dict[tuple[str | None, str | None], list[tuple[Any, ...]]] = {}
+    groups: dict[tuple[SeriesKind, str | None, str | None], list[tuple[Any, ...]]] = {}
     for item in result.files:
         if not _successful(item) or item.bundle is None:
             continue
         for signal in item.bundle.signals:
-            rows = groups.setdefault((signal.channel, signal.detector), [])
+            rows = groups.setdefault((signal.series_kind, signal.channel, signal.detector), [])
             rows.extend(_signal_rows(signal))
     datasets = []
-    for (channel, detector), rows in groups.items():
+    for (series_kind, channel, detector), rows in groups.items():
         label = detector or channel or "Unknown"
+        is_records = series_kind is SeriesKind.DECODED_RECORDS
+        headers: tuple[str, ...] = (
+            "sample_id",
+            "source_file",
+            "channel",
+            "detector",
+            "x",
+            "x_label",
+            "x_unit",
+            "y",
+            "y_label",
+            "y_unit",
+        )
+        if is_records:
+            headers = (*headers, "series_kind")
         datasets.append(
             _SheetData(
-                f"Signals_{label}",
-                (
-                    "sample_id",
-                    "source_file",
-                    "channel",
-                    "detector",
-                    "x",
-                    "x_label",
-                    "x_unit",
-                    "y",
-                    "y_label",
-                    "y_unit",
-                ),
+                f"Signals_Records_{label}" if is_records else f"Signals_{label}",
+                headers,
                 tuple(rows),
             )
         )
@@ -417,8 +422,9 @@ def _signal_data(result: BatchResult) -> tuple[_SheetData, ...]:
 
 
 def _signal_rows(signal: SignalSeries) -> list[tuple[Any, ...]]:
-    return [
-        (
+    rows: list[tuple[Any, ...]] = []
+    for x_value, y_value in zip(signal.x_values, signal.y_values, strict=True):
+        row: tuple[Any, ...] = (
             signal.sample_id,
             signal.source_file,
             signal.channel,
@@ -430,8 +436,10 @@ def _signal_rows(signal: SignalSeries) -> list[tuple[Any, ...]]:
             signal.y_label,
             signal.y_unit,
         )
-        for x_value, y_value in zip(signal.x_values, signal.y_values, strict=True)
-    ]
+        if signal.series_kind is SeriesKind.DECODED_RECORDS:
+            row = (*row, signal.series_kind.value)
+        rows.append(row)
+    return rows
 
 
 def _column_segments(sheet: _SheetData) -> tuple[_SheetData, ...]:

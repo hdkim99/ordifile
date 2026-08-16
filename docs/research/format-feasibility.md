@@ -34,20 +34,20 @@ does not identify compounds from retention time alone.
 
 ## Proprietary candidate: Agilent ChemStation `.ch`
 
-Public readers provide partial implementation evidence, but the candidate fails the
-project inclusion gate:
+Public readers provide enough evidence for a structural Experimental boundary, but
+not for Verified scientific signal support:
 
 1. no complete official versioned structure was obtained;
 2. retention-time construction and physical signal scaling were not verified against
    an authoritative export;
 3. the raw unit lexeme cannot be trusted or expanded into a scientific unit;
-4. no committed parser fixture or passing adapter test exists;
+4. one exact external fixture and synthetic structural tests now exist;
 5. public readers disagree on the time-axis length or share unverified upstream
    assumptions.
 
-Decision: record `.ch` only as a research candidate. Do not add an adapter skeleton that
-could be mistaken for support. The selected BSEE fixture now has a documented digest,
-privacy review, and redistribution basis, but the 2026-08-16 semantic evidence gate is
-NO-GO. A future implementation requires paired vendor exports, corrupt/truncated cases,
-documented checksums, and tests without vendor SDKs or binaries. See
+Decision: add one explicit Experimental v181 decoded-record adapter. It retains every
+record by ordinal and raw integer and does not expose retention time, physical scaling,
+units, or peaks. The selected BSEE fixture has a documented digest, privacy review,
+redistribution basis, and maintainer-only integration test. Verified promotion still
+requires paired vendor exports and additional independent runs. See
 [`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).

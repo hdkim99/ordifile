@@ -28,7 +28,12 @@ from ordifile.adapters._xlsx_audit import (
     audit_xlsx_package,
     capture_worksheet_cells,
 )
-from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.base import (
+    AdapterDescriptor,
+    DetectionResult,
+    ParseOptions,
+    SupportStatus,
+)
 from ordifile.core.errors import AdapterAmbiguityError, ParseError
 from ordifile.core.models import DatasetBundle, Issue, MetadataEntry, Severity
 
@@ -100,6 +105,7 @@ class GenericXlsxAdapter:
         True,
         True,
         True,
+        SupportStatus.VERIFIED,
     )
 
     def probe(self, path: Path) -> DetectionResult:
