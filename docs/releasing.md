@@ -11,21 +11,17 @@ The release workflow has two entry paths:
   publication path.
 
 The manual path has read-only repository permission and cannot run TestPyPI,
-attestation, package publication, or GitHub Release jobs. Pull requests never execute
-on the release runner. The tag path builds once, stores one immutable Actions artifact,
-tests its wheel on the verified release runner and Python versions recorded in the
-runner inventory, publishes and verifies the same
+attestation, package publication, or GitHub Release jobs. Pull requests never trigger
+the release workflow. The tag path builds once, stores one immutable Actions artifact,
+tests its wheel on the shared Linux DGX runner with Python 3.14, publishes and verifies the same
 wheel and sdist on TestPyPI, creates attestations and a draft GitHub Release, publishes
 the same wheel and sdist to PyPI, and only then makes the GitHub Release public. A pull request,
 branch push, manual dispatch, or fork cannot publish.
 
-All release jobs require a self-hosted runner with the `ordifile-release` trust label.
-The pinned PyPI publishing action requires GNU/Linux and Docker, and the pinned Node 24
-Actions require runner version 2.327.1 or newer. If the
-[runner inventory](security/self-hosted-runner-inventory.md) does not record such an
-online, isolated runner, dry runs and future releases are
-`BLOCKED_BY_RELEASE_RUNNER`. Do not use a hosted runner or package-index token as a
-fallback.
+All release jobs require a self-hosted runner with the `dgx` label. The pinned PyPI
+publishing action requires GNU/Linux and Docker, and the pinned Node 24 Actions require
+runner version 2.327.1 or newer. Confirm those properties on the DGX before a dry run or
+release. Do not use a hosted runner or package-index token as a fallback.
 
 ## One-time account configuration
 
@@ -113,10 +109,10 @@ Codex or require a maintainer to disclose a PyPI password, recovery code, or API
 6. Open a pull request, require the normal CI and independent review, and merge without
    bypassing branch protection.
 
-Normal pull-request quality, package, and wheel checks belong to `ci.yml`. Internal
-changes use `ordifile-trusted`; public-fork changes require
-`ordifile-pr-ephemeral`. Neither route can publish. A green pull-request check does not
-replace the post-merge release dry run from the exact current `origin/main` commit.
+Normal pull-request quality, package, and wheel checks belong to `ci.yml`. Internal and
+approved public-fork changes use the shared DGX runner with read-only repository
+permission. Pull-request jobs cannot publish. A green pull-request check does not replace
+the post-merge release dry run from the exact current `origin/main` commit.
 
 Adapter protocol versions are not automatically the package version. Do not change
 adapter versions merely to make a package release unless their public adapter behavior

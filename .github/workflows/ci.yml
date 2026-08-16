@@ -11,26 +11,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    ordifile-ci-${{ github.event_name == 'pull_request' &&
-    format('pr-{0}-{1}', github.event.pull_request.number, github.head_ref) || github.ref }}
+  group: ordifile-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   required:
     name: CI / required
-    runs-on: >-
-      ${{ github.event_name == 'pull_request' &&
-      (github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.user.login == 'dependabot[bot]' ||
-      github.actor == 'dependabot[bot]') &&
-      fromJSON('["self-hosted","ordifile-pr-ephemeral"]') ||
-      fromJSON('["self-hosted","ordifile-trusted"]') }}
-    timeout-minutes: 45
+    runs-on: [self-hosted, dgx]
+    timeout-minutes: 60
     env:
       PIP_NO_CACHE_DIR: "1"
     steps:
-      - name: Check out routed source
+      - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           clean: true
@@ -55,20 +47,87 @@ jobs:
         run: python scripts/ci/run_in_venv.py run --github-runner -- -m mypy
       - name: Unit and integration tests
         run: python scripts/ci/run_in_venv.py run --github-runner -- -m pytest
-      - name: Build distributions
+      - name: Build wheel and source distribution
         run: python scripts/ci/run_in_venv.py run --github-runner -- -m build
-      - name: Validate package metadata
-        run: >-
-          python scripts/ci/run_in_venv.py run --github-runner -- -c "import pathlib, zipfile;
-          wheel=next(pathlib.Path('dist').glob('*.whl'));
-          z=zipfile.ZipFile(wheel);
-          metadata=z.read(next(n for n in z.namelist() if n.endswith('METADATA'))).decode();
-          assert 'License-Expression: Apache-2.0' in metadata;
-          assert 'License-File: LICENSE' in metadata;
-          assert 'License-File: NOTICE' in metadata;
-          assert 'License-File: THIRD_PARTY_NOTICES.md' in metadata"
-      - name: CLI smoke test
-        run: python scripts/ci/run_in_venv.py run --github-runner --executable ordifile -- --help
+      - name: Verify distributions and clean-wheel behavior
+        shell: python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import pathlib
+          import subprocess
+          import sys
+          import tomllib
+
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          version = project["project"]["version"]
+          subprocess.run(
+              [
+                  sys.executable,
+                  "scripts/verify_release.py",
+                  "--dist-dir",
+                  "dist",
+                  "--expected-version",
+                  version,
+                  "--checksums",
+                  "dist/SHA256SUMS.txt",
+              ],
+              check=True,
+          )
+      - name: Exercise installed CLI and workbook output
+        shell: python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import importlib.util
+          import os
+          import pathlib
+          import subprocess
+          import sys
+          import tempfile
+
+          from openpyxl import load_workbook
+
+          executable = pathlib.Path(sys.executable).with_name("ordifile")
+          for arguments in (
+              ("--help",),
+              ("--version",),
+              ("formats",),
+              ("inspect", "examples/basic/sample_1.csv"),
+          ):
+              subprocess.run([str(executable), *arguments], check=True)
+          with tempfile.TemporaryDirectory(
+              prefix="ordifile-ci-smoke-", dir=os.environ["RUNNER_TEMP"]
+          ) as temporary:
+              output = pathlib.Path(temporary) / "Ordifile_Result.xlsx"
+              subprocess.run(
+                  [
+                      str(executable),
+                      "convert",
+                      "examples/basic",
+                      "--sort",
+                      "filename",
+                      "--output",
+                      str(output),
+                  ],
+                  check=True,
+              )
+              workbook = load_workbook(output, read_only=True, data_only=True)
+              try:
+                  assert {
+                      "Manifest",
+                      "Samples",
+                      "Peak_Matrix",
+                      "Peaks",
+                      "Metadata",
+                      "Import_Log",
+                  }.issubset(workbook.sheetnames)
+                  samples = list(workbook["Samples"].iter_rows(values_only=True))
+                  assert [row[1] for row in samples[1:]] == [
+                      "sample_1",
+                      "sample_2",
+                      "sample_10",
+                  ]
+              finally:
+                  workbook.close()
+          assert importlib.util.find_spec("labconvert") is None
+          assert not executable.with_name("labconvert").exists()
       - name: Audit dependencies
         run: python scripts/ci/run_in_venv.py run --github-runner -- -m pip_audit
       - name: Remove isolated job environment

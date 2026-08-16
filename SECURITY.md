@@ -41,10 +41,10 @@ include exploit details or affected data in that issue.
   a workbook and multiple sidecars one filesystem-wide transaction, so users should
   treat the Manifest as the authoritative artifact list.
 - A passing dependency audit does not replace source review or data-integrity testing.
-- GitHub Actions uses dedicated self-hosted trust classes. External fork code may run
-  only on a disposable `ordifile-pr-ephemeral` runner with no secrets, OIDC, cache,
-  fixture access, internal network, or persistent storage. See the
-  [CI trust boundaries](docs/security/ci-trust-boundaries.md).
+- GitHub Actions runs on a shared Linux DGX self-hosted runner. Public-fork workflows
+  require maintainer approval, run with read-only repository permission, and receive no
+  publishing secrets, OIDC permission, or release environment. Maintainers review
+  workflow and executable changes before approving outside-contributor runs.
 
 The exact v0.1 input and resource contract is documented in
 [`docs/formats/generic-tabular.md`](docs/formats/generic-tabular.md).

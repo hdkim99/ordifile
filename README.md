@@ -261,11 +261,12 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 ## Development
 
 Ordifile targets Python 3.11–3.14. The v0.1.0 release was validated on Ubuntu,
-Windows, and macOS with Python 3.11 and 3.14. Current continuous CI is being moved to
-dedicated self-hosted runners; no self-hosted OS is continuously verified until the
-[runner inventory](https://github.com/hdkim99/ordifile/blob/main/docs/security/self-hosted-runner-inventory.md)
-records an online runner. External fork CI additionally requires a disposable ephemeral
-runner and does not fall back to a persistent or GitHub-hosted machine.
+Windows, and macOS with Python 3.11 and 3.14. Current continuous CI targets Python 3.14
+on a shared Linux DGX self-hosted runner, with no current Windows or macOS CI matrix.
+Public-fork workflows require maintainer approval before they run on that machine and
+receive read-only repository permission without publishing secrets or OIDC permission.
+Runner availability is an operational setting visible in GitHub Actions; this describes
+the configured target, not a guarantee that the runner is currently online.
 
 ```bash
 python -m pip install -e ".[dev]"

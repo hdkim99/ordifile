@@ -13,22 +13,17 @@ from typing import Never
 
 TOP_LEVEL_DIRECTORIES = frozenset(
     {
-        ".ci-venv",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
         "build",
         "dist",
-        "fixture-cache",
         "htmlcov",
         "release-artifact",
         "release-download",
     }
 )
-RELATIVE_DIRECTORIES = (
-    Path(".github/.tmp"),
-    Path(".research-downloads/external"),
-)
+RELATIVE_DIRECTORIES = (Path(".github/.tmp"),)
 RECURSIVE_DIRECTORY_SUFFIXES = (".egg-info",)
 RECURSIVE_DIRECTORY_NAMES = frozenset({"__pycache__"})
 TOP_LEVEL_FILES = frozenset(

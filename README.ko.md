@@ -254,10 +254,12 @@ print(result.success_count, result.failure_count, result.sort.effective)
 ## 개발
 
 Python 3.11–3.14를 대상으로 합니다. v0.1.0 출시는 Ubuntu, Windows, macOS의 Python
-3.11과 3.14에서 검증되었습니다. 현재 지속 CI는 전용 self-hosted runner로 전환 중이며,
-[runner inventory](docs/security/self-hosted-runner-inventory.md)에 online runner가 기록되기
-전에는 지속 검증 중인 self-hosted OS가 없습니다. 외부 fork CI는 별도의 일회용 ephemeral
-runner가 필요하며 persistent 또는 GitHub-hosted 장비로 fallback하지 않습니다.
+3.11과 3.14에서 검증되었습니다. 현재 지속 CI는 공유 Linux DGX self-hosted runner에서
+Python 3.14 하나를 대상으로 하며 Windows 또는 macOS matrix는 운영하지 않습니다. 외부
+fork workflow는 유지관리자의 승인 후 같은 장비에서 실행되며 read-only 저장소 권한만
+받고 배포 secret이나 OIDC 권한은 받지 않습니다. Runner 가용성은 GitHub Actions에서
+확인하는 운영 상태이며, 이 설명은 구성 대상을 뜻할 뿐 현재 online 상태를 보장하지
+않습니다.
 
 ```bash
 python -m pip install -e ".[dev]"

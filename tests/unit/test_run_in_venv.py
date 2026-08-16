@@ -75,11 +75,6 @@ def test_github_environment_path_is_unique_per_attempt_and_job(tmp_path: Path) -
     assert runner_temp == tmp_path
     assert environment == tmp_path / "ordifile-12345-2-required"
 
-    matrix_values = dict(values)
-    matrix_values["ORDIFILE_CI_VENV_SUFFIX"] = "py-3.11"
-    matrix_environment, _ = isolated.github_environment_paths(matrix_values)
-    assert matrix_environment == tmp_path / "ordifile-12345-2-required-py-3.11"
-
 
 @pytest.mark.parametrize(
     ("key", "value"),
@@ -87,7 +82,6 @@ def test_github_environment_path_is_unique_per_attempt_and_job(tmp_path: Path) -
         ("GITHUB_RUN_ID", "../1"),
         ("GITHUB_RUN_ATTEMPT", "one"),
         ("GITHUB_JOB", "../../outside"),
-        ("ORDIFILE_CI_VENV_SUFFIX", "../matrix"),
     ],
 )
 def test_github_environment_path_rejects_unbounded_or_path_like_values(

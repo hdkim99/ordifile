@@ -20,7 +20,6 @@ class EnvironmentError(RuntimeError):
 
 
 _GITHUB_JOB_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,100}")
-_GITHUB_SUFFIX_PATTERN = re.compile(r"[A-Za-z0-9_.-]{1,40}")
 
 
 def github_environment_paths(environment: dict[str, str] | None = None) -> tuple[Path, Path]:
@@ -39,12 +38,7 @@ def github_environment_paths(environment: dict[str, str] | None = None) -> tuple
         raise EnvironmentError("GitHub run attempt is invalid")
     if _GITHUB_JOB_PATTERN.fullmatch(job) is None:
         raise EnvironmentError("GitHub job ID is invalid")
-    suffix = values.get("ORDIFILE_CI_VENV_SUFFIX")
-    if suffix is not None and _GITHUB_SUFFIX_PATTERN.fullmatch(suffix) is None:
-        raise EnvironmentError("GitHub environment suffix is invalid")
     name = f"ordifile-{run_id}-{run_attempt}-{job}"
-    if suffix is not None:
-        name = f"{name}-{suffix}"
     return runner_temp / name, runner_temp
 
 

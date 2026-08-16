@@ -22,18 +22,15 @@ def _workspace(path: Path) -> Path:
 def test_cleanup_removes_exact_generated_allowlist_and_is_idempotent(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path / "workspace")
     generated_directories = (
-        ".ci-venv",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
         "build",
         "dist",
-        "fixture-cache",
         "htmlcov",
         "release-artifact",
         "release-download",
         ".github/.tmp",
-        ".research-downloads/external",
         "src/ordifile.egg-info",
         "src/ordifile/__pycache__",
     )
@@ -54,6 +51,7 @@ def test_cleanup_removes_exact_generated_allowlist_and_is_idempotent(tmp_path: P
         target.write_bytes(b"generated")
     preserved = (
         ".github/workflows/ci.yml",
+        ".external-fixtures/gc/proprietary.ch",
         ".research-downloads/keep.txt",
         "src/ordifile/module.py",
         "research-results.xlsx",
@@ -82,9 +80,9 @@ def test_cleanup_unlinks_allowlisted_symlink_without_touching_outside(
     sentinel = outside / "sentinel.txt"
     sentinel.write_text("outside\n", encoding="utf-8")
     try:
-        (workspace / ".ci-venv").symlink_to(outside, target_is_directory=True)
-        (workspace / ".research-downloads").mkdir()
-        (workspace / ".research-downloads" / "external").symlink_to(
+        (workspace / "dist").symlink_to(outside, target_is_directory=True)
+        (workspace / ".github").mkdir()
+        (workspace / ".github" / ".tmp").symlink_to(
             outside,
             target_is_directory=True,
         )
@@ -94,19 +92,15 @@ def test_cleanup_unlinks_allowlisted_symlink_without_touching_outside(
     cleanup.clean_workspace(workspace, phase="post")
 
     assert sentinel.read_text(encoding="utf-8") == "outside\n"
-    assert not (workspace / ".ci-venv").exists()
-    assert not (workspace / ".research-downloads" / "external").exists()
+    assert not (workspace / "dist").exists()
+    assert not (workspace / ".github" / ".tmp").exists()
 
 
-@pytest.mark.parametrize("parent", [".github", ".research-downloads"])
-def test_cleanup_rejects_allowlisted_target_beneath_symlink_parent(
-    tmp_path: Path,
-    parent: str,
-) -> None:
+def test_cleanup_rejects_allowlisted_target_beneath_symlink_parent(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path / "workspace")
     outside = tmp_path / "outside"
-    target_name = ".tmp" if parent == ".github" else "external"
-    outside_target = outside / target_name
+    parent = ".github"
+    outside_target = outside / ".tmp"
     outside_target.mkdir(parents=True)
     sentinel = outside_target / "sentinel.txt"
     sentinel.write_text("outside\n", encoding="utf-8")

@@ -5,5 +5,4 @@
 /scripts/ci/ @hdkim99
 /scripts/verify_release.py @hdkim99
 /scripts/fetch_external_fixture.py @hdkim99
-/docs/security/ @hdkim99
 /docs/releasing.md @hdkim99
