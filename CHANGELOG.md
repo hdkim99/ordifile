@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-17
+
 ### Added
 
 - A Unicode-filename synthetic example under `examples/unicode/` with a rendered
@@ -25,6 +27,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An Experimental Shimadzu GCMSsolution `.QGD` TIC reader for one exact `4.00`
   compound-file profile. It preserves the native unsigned TIC integers and verified
   retention-time axis; MS1 is structurally validated but not exported.
+- Maintainer-only external-fixture workflows for the exact Agilent, Shimadzu GCD, and
+  Shimadzu QGD profiles, with reviewed source and license records, exact size and
+  SHA-256 gates, no raw-fixture artifact upload, and mandatory cleanup.
+- Capability-specific format documentation that distinguishes verified scientific
+  signals, structural decoded records, unknown units, and unsupported variants.
+
+### Security
+
+- Added bounded proprietary-container and binary parsing, exact profile and stream
+  validation, malformed-input isolation, full-array reference digests, and explicit
+  rejection of unverified versions, detectors, scaling, units, and MS1 semantics.
+- Kept privacy-bearing native fixtures outside Git and release distributions, and kept
+  GPL/LGPL reference implementations outside Ordifile runtime code and dependencies.
 
 ## [0.1.0] - 2026-08-16
 

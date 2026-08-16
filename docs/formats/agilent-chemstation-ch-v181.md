@@ -1,6 +1,7 @@
 # Agilent ChemStation `.CH` internal version 181
 
-Status: **Experimental** (unreleased development capability)
+Status: **Experimental** (included in the v0.2.0 source tree; published availability is
+shown by the PyPI badge)
 
 Ordifile can detect one narrowly bounded ChemStation GC data profile and expose its
 decoded structural record stream. This is not a verified chromatogram signal and is
