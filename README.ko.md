@@ -11,8 +11,9 @@
 변환합니다.
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
-TXT, 감사된 non-macro XLSX. v0.2.0에는 아래에 설명한 범위가 매우 좁은 proprietary
-Experimental reader 세 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지 않습니다.
+TXT, 감사된 non-macro XLSX. v0.2.0 source tree에는 아래에 설명한 범위가 매우 좁은
+proprietary Experimental reader 세 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+않습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
 
@@ -33,10 +34,11 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## 설치
 
-PyPI에서 Ordifile v0.2.0을 설치합니다.
+PyPI에서 현재 공개된 최신 Ordifile release를 설치합니다. 위 PyPI badge에서 현재 공개
+version을 확인할 수 있습니다.
 
 ```bash
-python -m pip install --no-cache-dir ordifile==0.2.0
+python -m pip install --no-cache-dir ordifile
 ```
 
 ## 빠른 시작
@@ -95,8 +97,9 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 
-이 Experimental adapter들은 아래의 정확한 기능 경계와 함께 PyPI v0.2.0에
-포함됩니다. 검증되지 않은 profile은 넓게 해석하지 않고 거부합니다.
+이 Experimental adapter들은 아래의 정확한 기능 경계와 함께 v0.2.0 source tree에
+포함됩니다. 공개 여부는 PyPI badge에서 확인할 수 있습니다. 검증되지 않은 profile은
+넓게 해석하지 않고 거부합니다.
 
 Agilent adapter는 모든 decoded record를
 원래 순서대로 유지합니다. x는 retention time이 아닌 `decoded_record_index`, y는 물리

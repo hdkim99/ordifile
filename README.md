@@ -11,9 +11,9 @@ Batch-convert scientific instrument exports into one clean, ordered and auditabl
 Excel workbook.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
-XLSX using Ordifile's documented schema. v0.2.0 also includes three narrowly bounded
-Experimental proprietary readers described below; this is not general vendor-format
-support.
+XLSX using Ordifile's documented schema. The v0.2.0 source tree also includes three
+narrowly bounded Experimental proprietary readers described below; this is not general
+vendor-format support.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
 
@@ -34,10 +34,11 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## Install
 
-Install Ordifile v0.2.0 from PyPI:
+Install the latest published Ordifile release from PyPI. The PyPI badge above shows the
+currently available version.
 
 ```bash
-python -m pip install --no-cache-dir ordifile==0.2.0
+python -m pip install --no-cache-dir ordifile
 ```
 
 ## Quick start
@@ -96,8 +97,9 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 
-These Experimental adapters are included in PyPI v0.2.0 with the exact capability
-boundaries below. Unsupported profiles are rejected rather than interpreted broadly.
+These Experimental adapters are included in the v0.2.0 source tree with the exact
+capability boundaries below. Published availability is shown by the PyPI badge.
+Unsupported profiles are rejected rather than interpreted broadly.
 
 The Agilent adapter retains every
 decoded record in source order. Its x values are `decoded_record_index`, not retention
