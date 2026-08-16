@@ -50,9 +50,11 @@ to the workbook layout.
     output is never replaced without `overwrite=True`; inputs can never be outputs. A
     best-effort rollback covers ordinary process exceptions and interruptions, but a power
     failure cannot make a workbook plus multiple sidecars one filesystem-wide transaction.
-11. Python 3.11–3.14 and Linux, Windows, and macOS are validation targets. They become
-    documented support only after clean installation, tests, build, and CLI smoke jobs
-    pass for the defined CI matrix.
+11. Python 3.11–3.14 and Linux, Windows, and macOS are portability targets. The v0.1.0
+    release was validated on Ubuntu, Windows, and macOS with Python 3.11 and 3.14.
+    Ongoing self-hosted coverage is documented separately and includes only OS/Python
+    combinations backed by registered runners and passing clean-install, test, build,
+    and CLI smoke jobs.
 12. CLI exit codes are 0 success/warnings, 1 fatal or zero-success, 2 usage/configuration,
     3 valid workbook with file failures, and 130 interruption.
 13. GUI work and `PySide6-Essentials` adoption are deferred until a stable CLI plus an
@@ -115,6 +117,13 @@ to the workbook layout.
     research categories rather than runtime adapters, completed Clarity `.prm` and recovery
     `.raw` are distinct lifecycles, and no proprietary format appears in the support list before
     a lawful fixture and passing adapter tests exist.
+29. All Actions jobs use self-hosted runners with an Ordifile-specific trust label.
+    Internal repository work, external fork pull requests, and releases use
+    `ordifile-trusted`, `ordifile-pr-ephemeral`, and `ordifile-release` respectively.
+    External fork code never runs on a persistent trusted/release runner; missing
+    ephemeral or release capacity blocks the job instead of selecting a hosted fallback.
+    Runner readiness and host properties are operational facts recorded separately in
+    [`docs/security/`](../security/).
 
 ## Public boundaries
 

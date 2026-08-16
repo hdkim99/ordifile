@@ -253,8 +253,11 @@ print(result.success_count, result.failure_count, result.sort.effective)
 
 ## 개발
 
-Python 3.11–3.14를 대상으로 합니다. Linux, Windows, macOS CI가 구성되어 있으며 현재
-호환 상태는 workflow 결과를 기준으로 확인해 주세요.
+Python 3.11–3.14를 대상으로 합니다. v0.1.0 출시는 Ubuntu, Windows, macOS의 Python
+3.11과 3.14에서 검증되었습니다. 현재 지속 CI는 전용 self-hosted runner로 전환 중이며,
+[runner inventory](docs/security/self-hosted-runner-inventory.md)에 online runner가 기록되기
+전에는 지속 검증 중인 self-hosted OS가 없습니다. 외부 fork CI는 별도의 일회용 ephemeral
+runner가 필요하며 persistent 또는 GitHub-hosted 장비로 fallback하지 않습니다.
 
 ```bash
 python -m pip install -e ".[dev]"

@@ -260,8 +260,12 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 
 ## Development
 
-Ordifile targets Python 3.11–3.14. CI is configured for Linux, Windows, and macOS;
-use the workflow result as the current compatibility record.
+Ordifile targets Python 3.11–3.14. The v0.1.0 release was validated on Ubuntu,
+Windows, and macOS with Python 3.11 and 3.14. Current continuous CI is being moved to
+dedicated self-hosted runners; no self-hosted OS is continuously verified until the
+[runner inventory](https://github.com/hdkim99/ordifile/blob/main/docs/security/self-hosted-runner-inventory.md)
+records an online runner. External fork CI additionally requires a disposable ephemeral
+runner and does not fall back to a persistent or GitHub-hosted machine.
 
 ```bash
 python -m pip install -e ".[dev]"

@@ -43,6 +43,10 @@ pip-audit
 - Do not add a production dependency without documenting its purpose, maintenance
   status, actual license, transitive dependencies, and distribution impact.
 - Use English for code, APIs, CLI text, commit titles, issues, and pull requests.
+- Public-fork code runs only on a disposable self-hosted runner after maintainer review.
+  If no `ordifile-pr-ephemeral` runner is available, CI and merge remain blocked; the
+  contribution is never moved to a persistent trusted runner as a fallback. See the
+  [external contribution runbook](docs/security/external-contribution-runbook.md).
 
 ## Adapter contributions
 

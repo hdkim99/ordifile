@@ -41,15 +41,17 @@ include exploit details or affected data in that issue.
   a workbook and multiple sidecars one filesystem-wide transaction, so users should
   treat the Manifest as the authoritative artifact list.
 - A passing dependency audit does not replace source review or data-integrity testing.
+- GitHub Actions uses dedicated self-hosted trust classes. External fork code may run
+  only on a disposable `ordifile-pr-ephemeral` runner with no secrets, OIDC, cache,
+  fixture access, internal network, or persistent storage. See the
+  [CI trust boundaries](docs/security/ci-trust-boundaries.md).
 
 The exact v0.1 input and resource contract is documented in
 [`docs/formats/generic-tabular.md`](docs/formats/generic-tabular.md).
 
 ## Supported versions
 
-No stable release has been published yet. This table will be updated when a verified
-release exists.
-
 | Version | Supported |
 |---|---|
-| Unreleased `main` branch | Best effort; no stable release yet |
+| 0.1.x | Security fixes |
+| Unreleased `main` branch | Best effort |
