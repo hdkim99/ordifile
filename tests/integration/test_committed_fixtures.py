@@ -113,3 +113,41 @@ def test_basic_example_demonstrates_natural_filename_sort(tmp_path: Path) -> Non
         ]
     finally:
         workbook.close()
+
+
+UNICODE_EXAMPLE = Path(__file__).parents[2] / "examples" / "unicode"
+
+
+def test_unicode_filename_example_preserves_name_and_peak_order(tmp_path: Path) -> None:
+    result = convert(
+        (UNICODE_EXAMPLE,),
+        tmp_path / "unicode.xlsx",
+        extensions=(".csv",),
+        sort="filename",
+    )
+    assert result.success_count == 1
+    assert result.failure_count == 0
+    assert result.sort.effective.value == "filename"
+
+    workbook = load_workbook(result.output_path, read_only=True, data_only=False)
+    try:
+        samples = list(workbook["Samples"].values)
+        header = list(samples[0])
+        source_file_column = header.index("source_file")
+        status_column = header.index("status")
+        sample_rows = samples[1:]
+        assert len(sample_rows) == 1
+        assert sample_rows[0][source_file_column] == "시료_신호.csv"
+        assert sample_rows[0][status_column] == "success"
+
+        peaks = list(workbook["Peaks"].values)
+        peak_header = list(peaks[0])
+        sample_id_column = peak_header.index("sample_id")
+        compound_column = peak_header.index("compound")
+        assert [row[sample_id_column] for row in peaks[1:]] == [
+            "unicode_demo",
+            "unicode_demo",
+        ]
+        assert [row[compound_column] for row in peaks[1:]] == ["methanol", "ethanol"]
+    finally:
+        workbook.close()

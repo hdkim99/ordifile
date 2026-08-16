@@ -17,9 +17,9 @@ accepted versions.
 | et-xmlfile | 2.0.0 | MIT | et-xmlfile contributors | [Project](https://pypi.org/project/et-xmlfile/) · [License](https://foss.heptapod.net/openpyxl/et_xmlfile/-/blob/2.0.0/LICENCE.rst) |
 | XlsxWriter | 3.2.9 | BSD-2-Clause | John McNamara | [Project](https://github.com/jmcnamara/XlsxWriter) · [License](https://github.com/jmcnamara/XlsxWriter/blob/RELEASE_3.2.9/LICENSE.txt) |
 
-## Build, test, and quality tools
+## Build, test, quality, and documentation tools
 
-These tools are used to develop and verify the project; they are not runtime imports.
+These tools are used to develop, verify, or document the project; they are not runtime imports.
 
 | Package | Reviewed version | License | Source |
 |---|---:|---|---|
@@ -30,6 +30,7 @@ These tools are used to develop and verify the project; they are not runtime imp
 | Ruff | 0.16.x | MIT | [Project and license](https://github.com/astral-sh/ruff) |
 | mypy | 2.3.x | MIT | [Project and license](https://github.com/python/mypy) |
 | pip-audit | 2.10.1 | Apache-2.0 | [Project and license](https://github.com/pypa/pip-audit) |
+| Matplotlib | 3.11.1 | PSF-based | [Project](https://matplotlib.org/) · [License](https://matplotlib.org/stable/project/license.html) |
 
 Python itself is distributed under the Python Software Foundation License. GitHub
 Actions used by this repository retain their own licenses and are not included in the
