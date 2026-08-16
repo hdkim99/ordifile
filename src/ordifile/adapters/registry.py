@@ -22,6 +22,7 @@ from ordifile.adapters.generic_csv import GenericCsvAdapter
 from ordifile.adapters.generic_tsv import GenericTsvAdapter
 from ordifile.adapters.generic_txt import GenericSemicolonAdapter
 from ordifile.adapters.generic_xlsx import GenericXlsxAdapter
+from ordifile.adapters.shimadzu_gcmssolution_qgd import ShimadzuGcmssolutionQgdAdapter
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import SeriesKind
@@ -184,6 +185,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(GenericSemicolonAdapter())
     registry.register(GenericXlsxAdapter())
     registry.register(ShimadzuGcsolutionGcdAdapter())
+    registry.register(ShimadzuGcmssolutionQgdAdapter())
     if include_external:
         load_external_adapters(registry)
     return registry

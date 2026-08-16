@@ -58,11 +58,13 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "generic_tsv",
         "generic_xlsx",
         "shimadzu_gcsolution_gcd",
+        "shimadzu_gcmssolution_qgd",
     }
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
     assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
+    assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
     assert all(
         status is SupportStatus.VERIFIED
         for adapter_id, status in statuses.items()
@@ -71,6 +73,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     series_kinds = {item.adapter_id: item.series_kinds for item in descriptors}
     assert series_kinds["agilent_chemstation_ch_v181"] == (SeriesKind.DECODED_RECORDS,)
     assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
+    assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert all(
         kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)
         for adapter_id, kinds in series_kinds.items()

@@ -1,6 +1,6 @@
 # GC raw-fixture search
 
-- Research and access date: 2026-08-16
+- Research and access dates: 2026-08-15 through 2026-08-17
 - Purpose: identify a lawful, structurally complete, independently readable real GC
   fixture for a future proprietary adapter.
 - Scope: government and institutional repositories, Zenodo, NIST Public Data
@@ -35,6 +35,7 @@ archive sizes unless otherwise stated.
 | [YOUNG IN Chromass Track C](youngin-chromass-format-investigation.md) | YOUNG IN Chromass and DataApex official material | ChroZen GC and legacy YL-series; FID/TCD priority | YL-Clarity completed `.prm` candidate, temporary/recovery `.raw`, Autochro native formats, and documented exports | Unresolved for YL-Clarity/Autochro | No public native fixture found | YL-Clarity OEM relationship and general Clarity file lifecycle verified; no YoungIn-produced complete file, paired export, or independent reader |
 | [BSEE Side Wall Core Trim Extract GC Data](https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data) | BSEE; official data page | Agilent ChemStation; FID | `.CH` / internal version 181 single-channel file | Yes | 298,146 B / same | SHA-256 fixed below; ChromStream 0.2.0 produced 36,501 candidate x/y values; rainbow 1.4.0 exposed a time/signal length defect |
 | [chromConverterExtraTests `FS19_214.gcd`](https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md) | chromConverterExtraTests; pinned fixture register | Shimadzu LabSolutions 5.82, GC-2014; FID | CFB `.GCD`, single `Ch1`/`SFID1`, plus same-run ASCII reference | Yes | 1,433,600 B / same | Exact SHA-256; independent decoder and paired ASCII agree on 66,255-point time/signal; file-specific CC0, but embedded personal/local text requires controlled external handling |
+| [Dryad ant GC-MS chromatograms](https://doi.org/10.5061/dryad.8gtht76s4) | Csata et al. / Dryad | Shimadzu GCMSsolution; GC-MS | Ten CFB `.QGD` files | Yes | 408.17 MB set / 39,964,672 B selected file | CC0; exact selected SHA-256; 16,800-point RT/TIC arrays and every scan intensity sum independently verified; embedded paths require controlled external handling |
 | [Cambridge Apollo chromatography corpus](https://doi.org/10.17863/CAM.108306) | University of Cambridge; DOI dataset | Shimadzu LabSolutions 5.71 SP2/5.86; BID | 320 `.GCD`, 353 text, 306 exact pairs | Yes | Corpus-level | CC BY 4.0; independently corroborates GCD stream/time/signal equations but not the initial FID/5.82 profile |
 | [IODP Expedition 384 gas safety report](https://doi.org/10.5281/zenodo.15122350) | IODP / Zenodo 15122350 | Agilent ChemStation; FID and TCD | Raw and method ZIPs / v179 `.ch` plus complete method files | Yes | 827,059 B / 104,074 B paired run+method archives | Zenodo MD5 and local SHA-256 verified; Entab main read 4,680 points per channel; rainbow agreed on signals but not time origin or TCD classification |
 | [Rapid GC-MS methods](https://doi.org/10.18434/mds2-2862) | NIST, ARK mds2-2862 | Agilent 5977 GC-MS | Native `.D` / `data.ms`, scan files, XML and exported TIC | Yes | 24,934,205 B / 4,188,635 B run | Provider SHA-256 matched; rainbow 1.4.0 read all 26 runs; selected run 286 scans |
@@ -61,6 +62,7 @@ archive sizes unless otherwise stated.
 | YOUNG IN Chromass / YL-Clarity / Autochro | Proprietary CDS terms; no native fixture redistribution permission or public reader specification found | Product names only for factual compatibility research; no affiliation claim | Impossible to review without bytes | No public `.prm` or Autochro reader found; DataApex control SDK is not a public chromatogram-reader SDK | No implementation basis established | `BLOCKED_BY_FIXTURE`; required priority candidate, but not an Ordifile-supported format |
 | BSEE v181 `.CH` | BSEE public-information terms permit copying and distribution with source acknowledgement | Institution, exact page, unchanged-file statement, access date | No email, user-profile path, hostname or absolute path found | ChromStream 0.2.0 is recent; rainbow 1.4.0 is recent but fails point alignment; Entab does not read v181 | Independently written implementation; no reader code or dependency | `ACCEPT_REDISTRIBUTABLE`; external fixture backs a narrow Experimental decoded-record adapter |
 | `FS19_214.gcd` | Source README assigns file-specific CC0 1.0 | Source repository, exact commit and unchanged-file statement | Contributor and machine-local text are embedded | GPL reader is comparison-only; independent decoder plus paired LabSolutions ASCII validate values | `olefile` is permissive; Shimadzu semantics are independently implemented | `ACCEPT_CONTROLLED_CI`; exact Experimental LabSolutions 5.82 FID profile only, never committed/logged/uploaded |
+| `B4NF.7_C23.qgd` | Dryad dataset and file API declare CC0 1.0 | Dataset DOI, authors, original file record, and unchanged pinned mirror | Absolute data/method/batch paths and user-originated text are embedded | GPL readers are comparison-only; independent decoder plus exact scan-to-TIC equations validate Stage A | Existing permissive `olefile`; QGD semantics independently implemented | `ACCEPT_CONTROLLED_CI`; exact Experimental `4.00` TIC profile only, never committed/logged/uploaded |
 | Cambridge LabSolutions GCD corpus | CC BY 4.0 | Dataset/DOI attribution and change status required | File-level review required before any reuse | Independent corpus comparison performed from external files | No code reused | `ACCEPT_EXTERNAL_ONLY`; structural corroboration only because detector/version profiles differ |
 | IODP v179 FID/TCD | CC BY 4.0; lawful external research use, but attribution and embedded third-party rights remain separate | Full record attribution required | Method history contains names, machine identifiers and Windows paths | Entab 0.3.3/main is MIT but has packaging and CLI defects; rainbow is LGPL-3.0 and misclassifies TCD | Entab code license compatible, packaging/semantic scope not ready | `ACCEPT_EXTERNAL_ONLY`; strong signal evidence, unresolved time/detector semantics |
 | NIST mds2-2862 | NIST Open License; redistribution with attribution and change notice | NIST record and derived-file notice | Whole `.D` includes paths and instrument identifiers | rainbow LGPL-3.0 and Entab MIT both read `data.ms` | Direct dependency deferred | Whole run `ACCEPT_EXTERNAL_ONLY`; isolated `data.ms` only conditionally redistributable after privacy review |
@@ -85,6 +87,23 @@ archive sizes unless otherwise stated.
 
 The native and ASCII files are not committed. The ASCII has no separate file-level
 license and is used only to derive non-reversible numeric summaries and digests.
+
+### Shimadzu GCMSsolution QGD `4.00` TIC
+
+- Source: [Dryad DOI 10.5061/dryad.8gtht76s4](https://doi.org/10.5061/dryad.8gtht76s4)
+- Artifact: `B4NF.7_C23.qgd`
+- Size: 39,964,672 bytes
+- SHA-256: `64b2faab81c0ad10bc36c57b23ed770751dbe5253f48d2a13b8b15df1de23f5d`
+- License: CC0 1.0 in the original dataset and file records
+- Privacy: absolute local paths and source text; external controlled-CI only
+- Result: exact `4.00` CFB profile, 16,800 retention-time/TIC points, 200 ms
+  intervals, whole-array digests, and all scan intensity sums equal to native TIC.
+- Scope: Experimental TIC with unknown physical unit. MS1 blocks are structurally
+  validated but not exposed as scientific spectra.
+
+The file is not committed or uploaded as an artifact. GPL readers are behavior
+oracles only; the runtime implementation uses independent byte facts and the existing
+permissive CFB dependency.
 
 ### BSEE Agilent ChemStation GC-FID v181
 

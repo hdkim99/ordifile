@@ -66,3 +66,17 @@ other LabSolutions/GCsolution versions, detectors, units, factors, channels, GCD
 generations, `.QGD`, and `.LCD`. The native file remains external because it contains
 personal and machine-local text. See
 [`shimadzu-gcsolution-gcd-investigation.md`](shimadzu-gcsolution-gcd-investigation.md).
+
+## Proprietary candidate: Shimadzu GCMSsolution `.QGD`
+
+One CC0 Dryad QGD provides a narrower TIC profile with exact whole-array and internal
+scan constraints. The `4.00` compound-file profile stores 16,800 unsigned retention-
+time milliseconds and 16,800 unsigned TIC integers. A bounded scan walk proves that
+every scan header has the same RT and every scan intensity sum equals its native TIC.
+
+Decision: add Experimental TIC-only support for that exact profile. Retention time is
+exported in minutes; raw TIC integers are preserved with unknown physical unit. The
+9,508,566 MS1 records are structurally checked, but scientific MS1 export remains
+unsupported because the candidate m/z scale lacks an independent numeric oracle and
+the current model/exporter cannot preserve scan boundaries with bounded memory. See
+[`shimadzu-gcmssolution-qgd-investigation.md`](shimadzu-gcmssolution-qgd-investigation.md).

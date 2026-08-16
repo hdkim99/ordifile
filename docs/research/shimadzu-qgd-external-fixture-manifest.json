@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "fixture_id": "chromconverter-extra-b4nf-7-c23-qgd",
+  "url": "https://raw.githubusercontent.com/ethanbass/chromConverterExtraTests/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/inst/B4NF.7_C23.qgd",
+  "allowed_hosts": [
+    "raw.githubusercontent.com"
+  ],
+  "artifact_filename": "B4NF.7_C23.qgd",
+  "sha256": "64b2faab81c0ad10bc36c57b23ed770751dbe5253f48d2a13b8b15df1de23f5d",
+  "size_bytes": 39964672,
+  "archive_type": "file",
+  "selected_files": [],
+  "tree_sha256": null,
+  "source_page_url": "https://datadryad.org/dataset/doi:10.5061/dryad.8gtht76s4",
+  "license_name": "CC0 1.0 Universal (Dryad dataset and file declaration)",
+  "license_id": "CC0-1.0-B4NF-7-C23-QGD",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "license_acknowledged": true,
+  "redistribution": "permitted",
+  "attribution": "Source: Csata et al., Dryad DOI 10.5061/dryad.8gtht76s4; byte-identical pinned mirror: chromConverterExtraTests commit f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b. Used unchanged for transient integration validation.",
+  "privacy_review": "contains_personal_data",
+  "validated_with": [
+    {
+      "reader": "independent_decoder",
+      "version": "1.0.0",
+      "result": "accepted"
+    },
+    {
+      "reader": "chromconverter",
+      "version": "0.9.1",
+      "result": "accepted"
+    }
+  ],
+  "grade": "ACCEPT_CONTROLLED_CI",
+  "ci_eligible": true
+}

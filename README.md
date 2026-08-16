@@ -94,6 +94,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
+| Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 
 These Experimental adapters are not part of the PyPI v0.1.0 release.
 
@@ -110,6 +111,14 @@ and signal series were compared point by point with a same-run LabSolutions ASCI
 reference. It does not claim other LabSolutions or GCsolution versions, detectors,
 channels, factors, GCD profiles, peaks, `.QGD`, `.LCD`, or write support. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcsolution-gcd.md).
+
+The separate QGD adapter is limited to one exact GCMSsolution `4.00` compound-file
+profile. It preserves all 16,800 TIC integers and the verified millisecond-derived
+retention-time axis. The physical TIC unit is unknown. MS1 blocks are checked for
+bounded scan structure and exact TIC-sum agreement, but spectra are not exported and
+encoded mass values are not called m/z. It does not claim other QGD versions,
+SIM/MRM, identifications, quantitation, or write support. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md).
 
 ## CLI
 

@@ -46,8 +46,9 @@ def test_unsupported_empty_and_binary_inputs_are_structured(tmp_path: Path) -> N
     for name, content in (("empty.csv", b""), ("binary.csv", b"\x00\x01")):
         path = tmp_path / name
         path.write_bytes(content)
-        with pytest.raises(DetectionError, match="No adapter matched"):
+        with pytest.raises(DetectionError, match="No adapter matched") as caught:
             detect_adapter(path, registry)
+        assert len(caught.value.message) <= 512
 
 
 def test_similarly_confident_claims_are_ambiguous(tmp_path: Path) -> None:

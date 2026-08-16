@@ -13,6 +13,16 @@ from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.errors import AdapterAmbiguityError, DetectionError
 
 AMBIGUITY_MARGIN = 0.05
+MAX_DETECTION_ERROR_MESSAGE_CHARACTERS = 512
+
+
+def _bounded_no_match_message(reasons: str) -> str:
+    prefix = "No adapter matched bounded file content. Probe evidence: "
+    if len(prefix) + len(reasons) <= MAX_DETECTION_ERROR_MESSAGE_CHARACTERS:
+        return prefix + reasons
+    suffix = " [truncated]"
+    remaining = MAX_DETECTION_ERROR_MESSAGE_CHARACTERS - len(prefix) - len(suffix)
+    return prefix + reasons[:remaining].rstrip() + suffix
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +68,7 @@ def detect_adapter(
         reasons = "; ".join(f"{adapter_id}: {probe.reason}" for adapter_id, probe in probes)
         raise DetectionError(
             "FORMAT_NOT_DETECTED",
-            f"No adapter matched bounded file content. Probe evidence: {reasons}",
+            _bounded_no_match_message(reasons),
         )
     if len(matches) > 1 and matches[0][1].confidence - matches[1][1].confidence <= AMBIGUITY_MARGIN:
         claims = ", ".join(

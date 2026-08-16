@@ -22,6 +22,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   single-channel `SFID1` profile, with paired-reference validation of its 66,255-point
   retention-time and `uV` signal series. The privacy-bearing native fixture remains
   external and is never uploaded as a CI artifact.
+- An Experimental Shimadzu GCMSsolution `.QGD` TIC reader for one exact `4.00`
+  compound-file profile. It preserves the native unsigned TIC integers and verified
+  retention-time axis; MS1 is structurally validated but not exported.
 
 ## [0.1.0] - 2026-08-16
 

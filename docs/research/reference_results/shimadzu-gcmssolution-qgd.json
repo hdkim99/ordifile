@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "fixture_id": "chromconverter-extra-b4nf-7-c23-qgd",
+  "fixture_sha256": "64b2faab81c0ad10bc36c57b23ed770751dbe5253f48d2a13b8b15df1de23f5d",
+  "fixture_size_bytes": 39964672,
+  "profile": {
+    "container": "CFB v4, little-endian, 4096-byte sectors",
+    "file_property_marker": "4.00",
+    "software_family": "Shimadzu GCMSsolution",
+    "scientific_signal": "TIC",
+    "tic_unit": null,
+    "ms1_export_status": "unsupported"
+  },
+  "streams": {
+    "file_property": {
+      "path": "File Property",
+      "size_bytes": 3236,
+      "sha256": "9fcc13a79d9c1c5533336de8571fec083ef5607c25677757dc78f9652858c0f7"
+    },
+    "retention_time": {
+      "path": "GCMS Raw Data/Retention Time",
+      "size_bytes": 67200,
+      "sha256": "f949979273f2fd9d97261a51dc0aa4279ca13f7623abe73f8401fa0c66627ecf"
+    },
+    "tic": {
+      "path": "GCMS Raw Data/TIC Data",
+      "size_bytes": 134400,
+      "sha256": "9940fdebab6eeef339ad826befaac86ebb95ed398a1179cb31bdef73223e3a2d"
+    },
+    "spectrum_index": {
+      "path": "GCMS Raw Data/Spectrum Index",
+      "size_bytes": 67200,
+      "sha256": "5b4f5ebf9a6335f0881821982de44e770195f01fe3ff4c3989355dcd09698d71"
+    },
+    "ms_raw_data": {
+      "path": "GCMS Raw Data/MS Raw Data",
+      "size_bytes": 38814089,
+      "sha256": "45276fbcdb788e48b667f5331913433bbe25b1154083b97bbe5e627987ccc419"
+    }
+  },
+  "tic": {
+    "point_count": 16800,
+    "rt_encoding": "little-endian unsigned 32-bit milliseconds",
+    "tic_encoding": "little-endian unsigned 64-bit integer",
+    "rt_start_min": 4.0,
+    "rt_end_min": 59.99666666666667,
+    "interval_ms": 200,
+    "minimum": 289349,
+    "maximum": 25764044,
+    "sum": 9258016526,
+    "first_20_values": [289349, 1188395, 2133942, 1228615, 313071, 357697, 522316, 668503, 728974, 739333, 742314, 765801, 795145, 816858, 831175, 844116, 849721, 846574, 839075, 828566],
+    "last_20_values": [474116, 474566, 475660, 475348, 473701, 471739, 469881, 468112, 468773, 472201, 474319, 473548, 474164, 473000, 473222, 472018, 471421, 474400, 475760, 474016],
+    "rt_raw_be_u32_sha256": "cb64e34235b7cdbdd3bab3d09bafa434c94fe1102c4f4341f6296d8ee711c862",
+    "rt_minutes_be_f64_sha256": "5b05b696032d46547e1b914ae156057e8f5dd399f4e0d4c2a1af2da3013981f4",
+    "tic_be_u64_sha256": "ed6d7c404f2a898ca961358f47a5859e6a83c59847a0c8a7a7eade8591b84971"
+  },
+  "ms1_structure": {
+    "scan_count": 16800,
+    "total_records": 9508566,
+    "minimum_points_per_scan": 356,
+    "maximum_points_per_scan": 567,
+    "width_2_scan_count": 16372,
+    "width_3_scan_count": 428,
+    "minimum_intensity": 102,
+    "maximum_intensity": 4851696,
+    "all_scan_numbers_match_ordinals": true,
+    "all_scan_retention_times_match": true,
+    "all_intensity_sums_match_tic": true,
+    "trailing_bytes": 0,
+    "spectrum_offsets_be_u32_sha256": "25959d70b88e30d1e368e367e4a79e604283cb0bf632971c08db08e06f93ec79",
+    "raw_records_be_iii_qb_sha256": "f396ea55bd3eac820ab12356c545b5f0193105947a1e646339a09d4846a55ae4",
+    "scan_point_counts_be_u32_sha256": "a13098a96305e5a29d512e36af0ed45f63305496aec56bc4d7c3ef5240513d59",
+    "scan_summaries_be_iiqq_sha256": "0b7df4eab757360579796861a6b208f04732ce30917e67d689e3ffd4f8b870b8",
+    "candidate_mz_transform": "encoded_mass / 20; not exposed because independent numeric validation is unavailable"
+  },
+  "reader_boundaries": [
+    {
+      "reader": "ordifile_independent_research_decoder",
+      "result": "accepted",
+      "role": "byte, normalized-output, and internal-equation oracle"
+    },
+    {
+      "reader": "chromConverter",
+      "version": "0.9.1",
+      "commit": "9137b85f341ceb4f2bc71cc171650af75449ac96",
+      "result": "normalized TIC and MS1 behavior agreed",
+      "license": "GPL >= 3; research comparison only"
+    },
+    {
+      "reader": "shimadzu-qgd2csv",
+      "version": "0.2.4",
+      "commit": "992daeff178fd591095c8efcb44096b6d486efd6",
+      "result": "normalized behavior agreed",
+      "license": "GPL-3.0; common ancestry, research comparison only"
+    }
+  ]
+}

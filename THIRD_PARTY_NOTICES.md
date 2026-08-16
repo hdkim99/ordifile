@@ -44,7 +44,7 @@ rainbow (LGPL-3.0), and Entab (MIT) were used only as documented research/output
 oracles for the independent Experimental Agilent v181 decoder; none is bundled,
 imported, or installed by Ordifile.
 
-The Experimental Shimadzu GCD reader uses only `olefile` for strict, read-only access
+The Experimental Shimadzu GCD and QGD readers use only `olefile` for strict, read-only access
 to the Microsoft Compound File Binary container. No Shimadzu vendor component,
 chromConverter GPL code, or proprietary OpenChrom converter is bundled, translated,
 imported, or installed.
