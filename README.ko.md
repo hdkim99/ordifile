@@ -3,6 +3,7 @@
 [English](README.md)
 
 [![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/ordifile)](https://pypi.org/project/ordifile/)
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
@@ -31,14 +32,11 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## 설치
 
-PyPI에 v0.1.0 릴리스가 표시된 후 다음 명령으로 검증된 패키지를 설치합니다.
+PyPI에서 검증된 v0.1.0 패키지를 설치합니다.
 
 ```bash
 python -m pip install --no-cache-dir ordifile==0.1.0
 ```
-
-배포가 완료되기 전에는 새 가상환경에서 이 저장소를 clone한 뒤
-`python -m pip install .`로 설치합니다. 다른 index의 동명 패키지를 설치하지 마세요.
 
 ## 빠른 시작
 
@@ -255,8 +253,13 @@ print(result.success_count, result.failure_count, result.sort.effective)
 
 ## 개발
 
-Python 3.11–3.14를 대상으로 합니다. Linux, Windows, macOS CI가 구성되어 있으며 현재
-호환 상태는 workflow 결과를 기준으로 확인해 주세요.
+Python 3.11–3.14를 대상으로 합니다. v0.1.0 출시는 Ubuntu, Windows, macOS의 Python
+3.11과 3.14에서 검증되었습니다. 현재 지속 CI는 공유 Linux DGX self-hosted runner에서
+Python 3.14 하나를 대상으로 하며 Windows 또는 macOS matrix는 운영하지 않습니다. 외부
+fork workflow는 유지관리자의 승인 후 같은 장비에서 실행되며 read-only 저장소 권한만
+받고 배포 secret이나 OIDC 권한은 받지 않습니다. Runner 가용성은 GitHub Actions에서
+확인하는 운영 상태이며, 이 설명은 구성 대상을 뜻할 뿐 현재 online 상태를 보장하지
+않습니다.
 
 ```bash
 python -m pip install -e ".[dev]"

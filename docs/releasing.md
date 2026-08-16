@@ -4,20 +4,24 @@ This runbook is for maintainers of `hdkim99/ordifile`. Releases use GitHub Actio
 OpenID Connect (OIDC) trusted publishing. Do not create a PyPI API token or add a
 publishing token to GitHub secrets.
 
-The release workflow has three entry paths:
+The release workflow has two entry paths:
 
-- a pull request targeting `main` runs validation, build, and wheel smoke tests only;
 - a manual `workflow_dispatch` from the current `main` commit performs a dry run only;
 - an annotated `vX.Y.Z` tag contained in `main` performs the one-time TestPyPI and PyPI
   publication path.
 
-The pull-request and manual paths have read-only repository permission and cannot run
-TestPyPI, attestation, package publication, or GitHub Release jobs. The tag path builds
-once, stores one immutable Actions artifact, tests its wheel on
-Ubuntu, Windows, and macOS with Python 3.11 and 3.14, publishes and verifies the same
+The manual path has read-only repository permission and cannot run TestPyPI,
+attestation, package publication, or GitHub Release jobs. Pull requests never trigger
+the release workflow. The tag path builds once, stores one immutable Actions artifact,
+tests its wheel on the shared Linux DGX runner with Python 3.14, publishes and verifies the same
 wheel and sdist on TestPyPI, creates attestations and a draft GitHub Release, publishes
 the same wheel and sdist to PyPI, and only then makes the GitHub Release public. A pull request,
 branch push, manual dispatch, or fork cannot publish.
+
+All release jobs require a self-hosted runner with the `dgx-spark` label. The pinned PyPI
+publishing action requires GNU/Linux and Docker, and the pinned Node 24 Actions require
+runner version 2.327.1 or newer. Confirm those properties on the DGX before a dry run or
+release. Do not use a hosted runner or package-index token as a fallback.
 
 ## One-time account configuration
 
@@ -105,11 +109,10 @@ Codex or require a maintainer to disclose a PyPI password, recovery code, or API
 6. Open a pull request, require the normal CI and independent review, and merge without
    bypassing branch protection.
 
-The Release workflow also runs on pull requests targeting `main`. Its PR path performs
-the same full quality checks, builds once, and exercises the wheel in six OS/Python
-matrix combinations. Every external side-effect job retains an exact official-repository
-tag-push condition and is skipped. A green PR run is required, but it does not replace
-the post-merge dry run from the exact current `origin/main` commit.
+Normal pull-request quality, package, and wheel checks belong to `ci.yml`. Internal and
+approved public-fork changes use the shared DGX runner with read-only repository
+permission. Pull-request jobs cannot publish. A green pull-request check does not replace
+the post-merge release dry run from the exact current `origin/main` commit.
 
 Adapter protocol versions are not automatically the package version. Do not change
 adapter versions merely to make a package release unless their public adapter behavior
@@ -146,8 +149,8 @@ gh workflow run release.yml --ref main -f mode=dry-run
 gh run watch --exit-status
 ```
 
-The manual run performs all quality, build, checksum, and six-platform wheel-smoke jobs
-but has no publishing job. TestPyPI is intentionally not a manual preview channel:
+The manual run performs all quality, build, checksum, and configured release-runner
+wheel-smoke jobs but has no publishing job. TestPyPI is intentionally not a manual preview channel:
 PyPI indexes do not allow the same version file to be uploaded twice. A pre-release
 candidate that needs index-level testing must use a new PEP 440 pre-release version in
 a future release plan; it must not consume the final `0.1.0` filename early.

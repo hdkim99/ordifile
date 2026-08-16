@@ -435,11 +435,19 @@ def test_release_cli_contract_returns_nonzero_for_invalid_version(tmp_path: Path
 
 def test_release_workflow_closes_openpyxl_workbook_explicitly() -> None:
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    wheel_smoke = workflow.split(
+        "      - name: Install and exercise the wheel outside the checkout", maxsplit=1
+    )[1].split("      - name: Remove isolated job environment", maxsplit=1)[0]
 
     assert "workbook = load_workbook(" in workflow
     assert "with load_workbook(" not in workflow
     assert "finally:" in workflow
     assert "workbook.close()" in workflow
+    assert wheel_smoke.index('"pip", "install"') < wheel_smoke.index(
+        "from openpyxl import load_workbook"
+    )
+    assert 'sysconfig.get_path("scripts")' in wheel_smoke
+    assert 'shutil.which("ordifile")' not in wheel_smoke
 
 
 def test_release_workflow_revalidates_draft_before_final_publish() -> None:
@@ -456,7 +464,7 @@ def test_release_workflow_revalidates_draft_before_final_publish() -> None:
 
 def test_release_workflow_rejects_stale_or_extra_publish_files() -> None:
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "if [[ -e release-artifact ]]; then" in workflow
+    assert "Release artifact staging already exists; refusing stale payload files." in workflow
     test_publish = workflow.split("  publish-testpypi:", maxsplit=1)[1].split(
         "  verify-testpypi:", maxsplit=1
     )[0]
@@ -489,7 +497,9 @@ def test_release_workflow_rechecks_live_tag_and_uses_minimum_permissions() -> No
             maxsplit=1,
         )[0]
         assert "id-token: write" in job
-        assert "contents: read" not in job
+        assert "contents: read" in job
+        assert "attestations: write" not in job
+        assert "contents: write" not in job
 
 
 def test_release_workflow_rejects_nested_annotated_tags(tmp_path: Path) -> None:
@@ -527,5 +537,5 @@ def test_release_workflow_rejects_nested_annotated_tags(tmp_path: Path) -> None:
     assert nested == "tag"
 
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert 'target_type="$(git cat-file -p' in workflow
-    assert '[[ "$target_type" != "commit" ]]' in workflow
+    assert 'payload = git("cat-file", "-p", reference)' in workflow
+    assert 'target_types != ["commit"]' in workflow
