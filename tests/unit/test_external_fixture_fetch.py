@@ -179,6 +179,21 @@ def test_committed_bsee_manifest_is_strict_and_not_default_ci() -> None:
     assert manifest.ci_eligible is True
 
 
+def test_committed_shimadzu_manifest_requires_controlled_ci_handling() -> None:
+    manifest = fetch.load_manifest(
+        PROJECT_ROOT / "docs" / "research" / "shimadzu-gcd-external-fixture-manifest.json"
+    )
+
+    assert manifest.fixture_id == "chromconverter-extra-fs19-214-gcd"
+    assert manifest.artifact_filename == "FS19_214.gcd"
+    assert manifest.archive_type == "file"
+    assert manifest.size_bytes == 1_433_600
+    assert manifest.sha256 == ("d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180")
+    assert manifest.privacy_review == "contains_personal_data"
+    assert manifest.grade == "ACCEPT_CONTROLLED_CI"
+    assert manifest.ci_eligible is True
+
+
 def test_manifest_is_strict_https_and_enforces_documented_size_modes(tmp_path: Path) -> None:
     assert fetch.DEFAULT_DOWNLOAD_LIMIT == 256 * 1024 * 1024
     assert fetch.LARGE_DOWNLOAD_LIMIT == 2 * 1024 * 1024 * 1024
@@ -235,6 +250,23 @@ def test_manifest_is_strict_https_and_enforces_documented_size_modes(tmp_path: P
     )
     _write_manifest(path, ineligible)
     with pytest.raises(fetch.FixtureFetchError, match="ci_eligible"):
+        fetch.load_manifest(path)
+
+    controlled = dict(
+        base,
+        grade="ACCEPT_CONTROLLED_CI",
+        privacy_review="contains_personal_data",
+        ci_eligible=True,
+    )
+    _write_manifest(path, controlled)
+    assert fetch.load_manifest(path).grade == "ACCEPT_CONTROLLED_CI"
+
+    controlled_without_privacy_finding = dict(
+        controlled,
+        privacy_review="no_personal_data_observed",
+    )
+    _write_manifest(path, controlled_without_privacy_finding)
+    with pytest.raises(fetch.FixtureFetchError, match="ACCEPT_CONTROLLED_CI"):
         fetch.load_manifest(path)
 
     invalid_license_id = dict(base, license_id="not a stable ID!")

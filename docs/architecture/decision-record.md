@@ -128,6 +128,13 @@ to the workbook layout.
     adapter is Experimental: it exposes every decoded record by ordinal and raw integer,
     but no retention time, physical scaling, physical unit, peak table, `.D` grouping,
     or other `.CH` version.
+31. The Experimental Shimadzu adapter is limited to a LabSolutions 5.82, GC-2014,
+    single-`Ch1`, `SFID1`, `uV`, identity-factor profile. It exposes a scientific
+    signal because the native GCD stream and same-run LabSolutions ASCII reference
+    agree on all 66,255 points and the DLT-based time axis. `olefile` provides bounded,
+    read-only CFB access; Ordifile owns the profile validation and does not copy or
+    depend on the GPL reference parser. Other versions, detectors, factors, channels,
+    peak tables, `.QGD`, and `.LCD` remain unsupported.
 
 ## Public boundaries
 
@@ -168,6 +175,9 @@ CLI / future GUI
   The exact BSEE fixture supports a bounded Experimental decoded-record stream, while
   retention time, physical scaling, signal unit, and the last record's scientific role
   remain unresolved.
+- Treating one LabSolutions 5.82 FID fixture as universal GCsolution, LabSolutions,
+  Shimadzu, or `.GCD` support: rejected. Detection requires the exact linked
+  producer/channel/unit/factor profile and structured rejection of every other profile.
 - Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
   are not verified byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.

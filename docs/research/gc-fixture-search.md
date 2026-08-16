@@ -34,6 +34,8 @@ archive sizes unless otherwise stated.
 |---|---|---|---|---|---|---|
 | [YOUNG IN Chromass Track C](youngin-chromass-format-investigation.md) | YOUNG IN Chromass and DataApex official material | ChroZen GC and legacy YL-series; FID/TCD priority | YL-Clarity completed `.prm` candidate, temporary/recovery `.raw`, Autochro native formats, and documented exports | Unresolved for YL-Clarity/Autochro | No public native fixture found | YL-Clarity OEM relationship and general Clarity file lifecycle verified; no YoungIn-produced complete file, paired export, or independent reader |
 | [BSEE Side Wall Core Trim Extract GC Data](https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data) | BSEE; official data page | Agilent ChemStation; FID | `.CH` / internal version 181 single-channel file | Yes | 298,146 B / same | SHA-256 fixed below; ChromStream 0.2.0 produced 36,501 candidate x/y values; rainbow 1.4.0 exposed a time/signal length defect |
+| [chromConverterExtraTests `FS19_214.gcd`](https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md) | chromConverterExtraTests; pinned fixture register | Shimadzu LabSolutions 5.82, GC-2014; FID | CFB `.GCD`, single `Ch1`/`SFID1`, plus same-run ASCII reference | Yes | 1,433,600 B / same | Exact SHA-256; independent decoder and paired ASCII agree on 66,255-point time/signal; file-specific CC0, but embedded personal/local text requires controlled external handling |
+| [Cambridge Apollo chromatography corpus](https://doi.org/10.17863/CAM.108306) | University of Cambridge; DOI dataset | Shimadzu LabSolutions 5.71 SP2/5.86; BID | 320 `.GCD`, 353 text, 306 exact pairs | Yes | Corpus-level | CC BY 4.0; independently corroborates GCD stream/time/signal equations but not the initial FID/5.82 profile |
 | [IODP Expedition 384 gas safety report](https://doi.org/10.5281/zenodo.15122350) | IODP / Zenodo 15122350 | Agilent ChemStation; FID and TCD | Raw and method ZIPs / v179 `.ch` plus complete method files | Yes | 827,059 B / 104,074 B paired run+method archives | Zenodo MD5 and local SHA-256 verified; Entab main read 4,680 points per channel; rainbow agreed on signals but not time origin or TCD classification |
 | [Rapid GC-MS methods](https://doi.org/10.18434/mds2-2862) | NIST, ARK mds2-2862 | Agilent 5977 GC-MS | Native `.D` / `data.ms`, scan files, XML and exported TIC | Yes | 24,934,205 B / 4,188,635 B run | Provider SHA-256 matched; rainbow 1.4.0 read all 26 runs; selected run 286 scans |
 | [NIST/NIJ CADS](https://doi.org/10.18434/mds2-3628) | NIST, ARK mds2-3628 | GC-FID and GC-MS, multiple instruments | “Raw & processed” / FID TXT and MS mzXML | No for proprietary FID/MS | about 21 GB / member-level only | Official ZIP64 inventories inspected; FID members are exported `Time (min)` / `Value (pA)` tables |
@@ -58,6 +60,8 @@ archive sizes unless otherwise stated.
 |---|---|---|---|---|---|---|
 | YOUNG IN Chromass / YL-Clarity / Autochro | Proprietary CDS terms; no native fixture redistribution permission or public reader specification found | Product names only for factual compatibility research; no affiliation claim | Impossible to review without bytes | No public `.prm` or Autochro reader found; DataApex control SDK is not a public chromatogram-reader SDK | No implementation basis established | `BLOCKED_BY_FIXTURE`; required priority candidate, but not an Ordifile-supported format |
 | BSEE v181 `.CH` | BSEE public-information terms permit copying and distribution with source acknowledgement | Institution, exact page, unchanged-file statement, access date | No email, user-profile path, hostname or absolute path found | ChromStream 0.2.0 is recent; rainbow 1.4.0 is recent but fails point alignment; Entab does not read v181 | Independently written implementation; no reader code or dependency | `ACCEPT_REDISTRIBUTABLE`; external fixture backs a narrow Experimental decoded-record adapter |
+| `FS19_214.gcd` | Source README assigns file-specific CC0 1.0 | Source repository, exact commit and unchanged-file statement | Contributor and machine-local text are embedded | GPL reader is comparison-only; independent decoder plus paired LabSolutions ASCII validate values | `olefile` is permissive; Shimadzu semantics are independently implemented | `ACCEPT_CONTROLLED_CI`; exact Experimental LabSolutions 5.82 FID profile only, never committed/logged/uploaded |
+| Cambridge LabSolutions GCD corpus | CC BY 4.0 | Dataset/DOI attribution and change status required | File-level review required before any reuse | Independent corpus comparison performed from external files | No code reused | `ACCEPT_EXTERNAL_ONLY`; structural corroboration only because detector/version profiles differ |
 | IODP v179 FID/TCD | CC BY 4.0; lawful external research use, but attribution and embedded third-party rights remain separate | Full record attribution required | Method history contains names, machine identifiers and Windows paths | Entab 0.3.3/main is MIT but has packaging and CLI defects; rainbow is LGPL-3.0 and misclassifies TCD | Entab code license compatible, packaging/semantic scope not ready | `ACCEPT_EXTERNAL_ONLY`; strong signal evidence, unresolved time/detector semantics |
 | NIST mds2-2862 | NIST Open License; redistribution with attribution and change notice | NIST record and derived-file notice | Whole `.D` includes paths and instrument identifiers | rainbow LGPL-3.0 and Entab MIT both read `data.ms` | Direct dependency deferred | Whole run `ACCEPT_EXTERNAL_ONLY`; isolated `data.ms` only conditionally redistributable after privacy review |
 | NIST CADS | NIST Open License | NIST record and extraction/change notice | Member-specific review still required | Open-format readers available | Compatible for derived test data | `ACCEPT_EXTERNAL_ONLY` as a generic TXT/mzXML corpus; `REJECT` as proprietary evidence |
@@ -65,6 +69,22 @@ archive sizes unless otherwise stated.
 | Dryad/Zenodo 7378368 export | CC0 | Source citation recommended | Local paths and names present in original | Text format is documented; no proprietary reader needed | Yes for a documented derived fixture | Conditional `ACCEPT_REDISTRIBUTABLE` only after explicit redaction/change manifest |
 
 ## Downloaded and independently verified fixtures
+
+### Shimadzu LabSolutions 5.82 GC-FID GCD
+
+- Source register: [chromConverterExtraTests README](https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md)
+- Artifact: `FS19_214.gcd`
+- Size: 1,433,600 bytes
+- SHA-256: `d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180`
+- License: file-specific CC0 declaration in the pinned source register
+- Privacy: embedded personal and local-machine text; external controlled-CI only
+- Result: 66,255 finite `uV` samples, 40 ms interval, 20 ms initial delay, and
+  DLT-based minute axis match the same-run LabSolutions ASCII reference after its
+  documented rounding.
+- Scope: Experimental LabSolutions 5.82 / GC-2014 / one `Ch1` / `SFID1` only.
+
+The native and ASCII files are not committed. The ASCII has no separate file-level
+license and is used only to derive non-reversible numeric summaries and digests.
 
 ### BSEE Agilent ChemStation GC-FID v181
 

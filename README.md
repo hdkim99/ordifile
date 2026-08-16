@@ -12,8 +12,8 @@ Excel workbook.
 
 **Verified today:** CSV, TSV, semicolon-delimited TXT, and audited non-macro XLSX using
 Ordifile's documented schema. Proprietary vendor raw formats are not supported in
-v0.1.0. The unreleased source tree also contains one narrowly bounded Experimental
-Agilent ChemStation `.CH` v181 structural decoder described below.
+v0.1.0. The unreleased source tree also contains two narrowly bounded Experimental
+proprietary adapters described below.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
 
@@ -88,18 +88,28 @@ schema](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabul
 An extension is supporting evidence only; Ordifile also checks content and schema.
 Run `ordifile formats` to see the adapters installed in the current environment.
 
-## Experimental proprietary decoders
+## Experimental proprietary adapters
 
-| Format boundary | Metadata | Peaks | Record output | Status | Real fixture |
+| Format boundary | Metadata | Peaks | Output | Status | Real fixture |
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
+| Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 
-This Experimental adapter is not part of the PyPI v0.1.0 release. It retains every
+These Experimental adapters are not part of the PyPI v0.1.0 release.
+
+The Agilent adapter retains every
 decoded record in source order. Its x values are `decoded_record_index`, not retention
 time; its y values are `decoded_raw_integer`, not physically scaled intensity. Units,
 scientific point count, and the final record's role remain unresolved. It does not
 claim other `.CH` versions, `.D` directories, TCD, MS, peaks, calibrated values, or
 write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-ch-v181.md).
+
+The Shimadzu adapter is limited to an exact LabSolutions 5.82, GC-2014,
+single-channel `SFID1`, `uV`, identity-factor profile. Its 66,255-point retention-time
+and signal series were compared point by point with a same-run LabSolutions ASCII
+reference. It does not claim other LabSolutions or GCsolution versions, detectors,
+channels, factors, GCD profiles, peaks, `.QGD`, `.LCD`, or write support. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcsolution-gcd.md).
 
 ## CLI
 
@@ -311,9 +321,10 @@ search absence is not a reservation or legal trademark clearance. See the
 future compatibility notes, remain the property of their owners and do not imply
 affiliation or endorsement.
 
-Agilent, ChemStation, YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO, and related product names are
+Agilent, ChemStation, Shimadzu, LabSolutions, GCsolution, YOUNG IN Chromass, ChroZen,
+YL-Clarity, AUTOCHRO, and related product names are
 trademarks or product names of their respective owners. Ordifile is not affiliated with
-or endorsed by Agilent or YOUNG IN Chromass.
+or endorsed by Agilent, Shimadzu, or YOUNG IN Chromass.
 
 ## License
 

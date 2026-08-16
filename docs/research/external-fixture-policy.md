@@ -56,6 +56,12 @@ profiles, absolute paths, hostnames, serial numbers, clinical identifiers, and f
 text. A fixture with unresolved privacy review is ineligible for automated use. Raw
 member names must not be printed in public CI logs.
 
+`ACCEPT_CONTROLLED_CI` is a narrow exception for an artifact whose redistribution is
+explicitly permitted but whose internal content contains personal or machine-local
+text. It requires owner-only manual dispatch, a private job-local temporary directory,
+no content logging, no cache or artifact upload, no default-CI access, and unconditional
+deletion. This grade does not permit committing the file or exposing its metadata.
+
 ## Fetching and extraction
 
 The maintainer-only fetch script is not an Ordifile product command and is not installed
@@ -93,13 +99,14 @@ Default pull-request, push, and scheduled CI performs no external fixture downlo
 Tests use local synthetic HTTP responses and malicious synthetic archives to exercise
 checksum, redirect, traversal, alias, link, bomb, and cleanup controls.
 
-The Agilent v181 adapter has one owner-repository external integration workflow. It is
-manual-dispatch capable; its feature-branch push trigger is limited to the exact
-maintainer branch used to validate the first implementation before merge. It uses the
-shared self-hosted DGX runner, read-only repository permission, `RUNNER_TEMP`, and no
-Actions cache or artifact upload. It deletes the fixture cache in a final cleanup
-step. Pull requests and default CI never download the fixture. Scheduled use requires
-a separate decision covering stable access, automated-use permission, cost, and size.
+The Agilent v181 and Shimadzu LabSolutions 5.82 adapters each have an owner-repository
+external integration workflow. Both are `workflow_dispatch` only and use the shared
+self-hosted DGX runner with read-only repository permission, `RUNNER_TEMP`, and no
+Actions cache or artifact upload. Each deletes its fixture cache in a final cleanup
+step. The Shimadzu workflow additionally follows `ACCEPT_CONTROLLED_CI`: the fixture's
+embedded personal and local-machine text is never printed or exported. Pull requests
+and default CI never download either fixture. Scheduled use requires a separate
+decision covering stable access, automated-use permission, privacy, cost, and size.
 
 ## Removal and replacement
 

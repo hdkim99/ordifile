@@ -10,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Protocol, runtime_checkable
 
-from ordifile.core.models import DatasetBundle
+from ordifile.core.models import DatasetBundle, SeriesKind
 
 ADAPTER_API_VERSION = "1"
 
@@ -53,6 +53,7 @@ class AdapterDescriptor:
     signals: bool
     tested_fixture: bool
     support_status: SupportStatus = SupportStatus.FIXTURE_DECLARED
+    series_kinds: tuple[SeriesKind, ...] = (SeriesKind.SCIENTIFIC_SIGNAL,)
 
 
 @runtime_checkable

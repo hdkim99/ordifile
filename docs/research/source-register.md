@@ -78,6 +78,15 @@ topic reviews beside this register.
 | [Qt for Python](https://doc.qt.io/qtforpython-6/) | Qt Company | Official documentation | Qt 6 | GUI functionality, deployment, accessibility. |
 | [Likelihood of confusion](https://www.uspto.gov/trademarks/search/likelihood-confusion) | USPTO | Government guidance | Current | Trademark confusion is use/context dependent. |
 | [Shimadzu Trademarks](https://www.shimadzu.com/about/trademarks/index.html) | Shimadzu | Vendor policy | Current | Vendor names and marks remain their owners' property. |
+| [LabSolutions Operators Guide](https://chemistry.unt.edu/system/files/labsolutions_5_93_operators_guide_compressed.pdf) | Shimadzu | Official operator guide mirrored by the University of North Texas | Document 223-60088J, April 2017; accessed 2026-08-16 | Describes `.gcd` as a GC all-in-one data file containing method, batch, report, chromatogram, and quantitation information; not a byte specification. |
+| [LabSolutions LC/GC features](https://www.ssi.shimadzu.com/products/software-informatics/labsolutions-series/labsolutions-lcgc/features.html) | Shimadzu Scientific Instruments | Official product page | Accessed 2026-08-16 | Establishes the current LabSolutions LC/GC relationship to the earlier LCsolution and GCsolution products. |
+| [ChromSquare specifications](https://www.shimadzu.com/an/products/gas-chromatograph-mass-spectrometry/gc-ms-software/chromsquare/spec.html) | Shimadzu | Official product specification | Accessed 2026-08-16 | Lists `.GCD` as a GCsolution input extension; does not establish compatibility with every GCD generation. |
+| [MS-CFB Compound File Header](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/05060311-bfce-4b12-874d-71fd4ce63aea) | Microsoft | Official protocol specification | Accessed 2026-08-16 | CFB signature, byte order, sector-version, and header invariants used for container preflight. |
+| [FILETIME structure](https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-filetime) | Microsoft | Official API documentation | Accessed 2026-08-16 | UTC epoch and 100-nanosecond representation for the bounded acquisition timestamp field. |
+| [chromConverterExtraTests fixture register](https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md) | chromConverterExtraTests maintainers | Pinned dataset register | Commit `f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b`; accessed 2026-08-16 | Assigns file-level CC0 to `FS19_214.gcd`; the fixture remains external because it embeds personal and machine-local text. |
+| [chromConverter Shimadzu reader](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/R/read_shimadzu_gcd.R) / [test](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/tests/testthat/test-extra-shimadzu.R) / [license metadata](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/DESCRIPTION) | chromConverter maintainers | Pinned GPL >= 3 source | Release 0.9.1, commit `9137b85f341ceb4f2bc71cc171650af75449ac96`; accessed 2026-08-16 | Research-only behavior comparison. The inspected test computes but does not assert its chromatogram comparison, and its time construction was not adopted. |
+| [Cambridge Apollo chromatography corpus](https://doi.org/10.17863/CAM.108306) | University of Cambridge | Dataset record, CC BY 4.0 | Published 2024; accessed 2026-08-16 | 320 GCD files and 306 paired text chromatograms corroborate the observed stream/time/signal equations, but use BID profiles and do not broaden the initial FID adapter. |
+| [olefile 0.47](https://pypi.org/project/olefile/) / [license](https://github.com/decalage2/olefile/blob/v0.47/LICENSE.txt) | olefile maintainers | Package registry and pinned permissive license | Version 0.47; accessed 2026-08-16 | Pure-Python, read-only CFB container dependency; Shimadzu semantics and resource limits remain Ordifile-owned. |
 | [Thermo Fisher Trademark Information](https://www.thermofisher.com/io/en/home/global/trademark-information.html) | Thermo Fisher Scientific | Vendor policy | Updated 2025-09 | Trademark ownership and use cautions. |
 | [Trusted Publishers](https://docs.pypi.org/trusted-publishers/) | Python Package Index | Official documentation | Accessed 2026-08-16 | OIDC publishing model, pending-publisher fields, and account boundary. |
 | [Publishing package distribution releases using GitHub Actions CI/CD workflows](https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/) | Python Packaging Authority | Official guide | Accessed 2026-08-16 | Trusted Publishing workflow, environment protection, and build/publish separation. |
@@ -120,12 +129,15 @@ topic reviews beside this register.
 
 ## Gaps
 
-No authoritative complete Agilent `.ch` structure or formal `Ordifile` trademark
+No authoritative complete Agilent `.ch` or Shimadzu `.gcd` byte structure or formal `Ordifile` trademark
 clearance was established. A BSEE v181 `.CH` file has a redistribution basis and its
 decoded structural record stream was cross-checked, enabling a narrow Experimental
 adapter. Retention-time construction, physical signal scaling, signal unit, scientific
 point count, and the complete byte-level specification remain unresolved. ASTM
 E1947's paid text was not accessed or used as implementation evidence.
+One LabSolutions 5.82 FID GCD and its same-run ASCII reference validate a narrow
+Experimental signal profile. Other versions, detectors, factors, channels, and GCD
+generations remain unsupported pending their own lawful fixtures and gates.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
 paired official export, public native reader, or reader SDK was found. These gaps block
 proprietary support claims but do not block the generic export vertical slice or its

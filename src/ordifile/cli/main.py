@@ -39,10 +39,6 @@ _CONFIGURATION_ERROR_CODES = frozenset(
         "WINDOWS_OUTPUT_NAME_RESERVED",
     }
 )
-_VERIFIED_BUILTIN_ADAPTERS = frozenset(
-    {"generic_csv", "generic_semicolon", "generic_tsv", "generic_xlsx"}
-)
-_EXPERIMENTAL_BUILTIN_ADAPTERS = frozenset({"agilent_chemstation_ch_v181"})
 
 
 def _terminal_safe(value: object) -> str:
@@ -219,6 +215,23 @@ def _run_formats() -> int:
         "Signal output",
         "Verification",
     )
+
+    def signal_output(descriptor: object) -> str:
+        if not getattr(descriptor, "signals", False):
+            return "No"
+        kinds = getattr(descriptor, "series_kinds", ())
+        labels = []
+        if SeriesKind.SCIENTIFIC_SIGNAL in kinds:
+            labels.append("Scientific signals")
+        if SeriesKind.DECODED_RECORDS in kinds:
+            labels.append("Decoded records")
+        return ", ".join(labels) or "Yes"
+
+    verification_labels = {
+        SupportStatus.VERIFIED: "Verified",
+        SupportStatus.EXPERIMENTAL: "Experimental",
+        SupportStatus.FIXTURE_DECLARED: "Fixture declared",
+    }
     rows = [
         (
             _terminal_safe(item.adapter_id),
@@ -226,22 +239,8 @@ def _run_formats() -> int:
             ", ".join(_terminal_safe(extension) for extension in item.extensions),
             _yes_no(item.metadata),
             _yes_no(item.peaks),
-            (
-                "Decoded records"
-                if item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS
-                and item.support_status is SupportStatus.EXPERIMENTAL
-                else _yes_no(item.signals)
-            ),
-            (
-                "Built-in verified"
-                if item.adapter_id in _VERIFIED_BUILTIN_ADAPTERS
-                else (
-                    "Built-in experimental"
-                    if item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS
-                    and item.support_status is SupportStatus.EXPERIMENTAL
-                    else "External (fixture declared)"
-                )
-            ),
+            signal_output(item),
+            verification_labels[item.support_status],
         )
         for item in descriptors
     ]
@@ -254,14 +253,14 @@ def _run_formats() -> int:
     for row in rows:
         print("  ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
     print()
-    built_in_count = sum(item.adapter_id in _VERIFIED_BUILTIN_ADAPTERS for item in descriptors)
+    verified_count = sum(item.support_status is SupportStatus.VERIFIED for item in descriptors)
     experimental_count = sum(
-        item.adapter_id in _EXPERIMENTAL_BUILTIN_ADAPTERS for item in descriptors
+        item.support_status is SupportStatus.EXPERIMENTAL for item in descriptors
     )
-    external_count = len(descriptors) - built_in_count - experimental_count
-    print(f"Built-in verified adapters: {built_in_count}")
-    print(f"Built-in experimental adapters: {experimental_count}")
-    print(f"External fixture declarations: {external_count}")
+    fixture_declared_count = len(descriptors) - verified_count - experimental_count
+    print(f"Verified adapters: {verified_count}")
+    print(f"Experimental adapters: {experimental_count}")
+    print(f"Fixture declarations: {fixture_declared_count}")
     if report.load_errors:
         print(f"External adapter load failures: {len(report.load_errors)}")
         for error in report.load_errors:
