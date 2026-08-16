@@ -8,26 +8,58 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ordifile-trusted-single-capacity
+  cancel-in-progress: false
+
 jobs:
   compatibility:
-    name: ${{ matrix.os }} / Python ${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
+    name: Full check / trusted runner / Python ${{ matrix.python }}
+    runs-on: [self-hosted, ordifile-trusted]
+    timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        python: ["3.11", "3.14"]
+    env:
+      ORDIFILE_CI_VENV_SUFFIX: py-${{ matrix.python }}
+      PIP_NO_CACHE_DIR: "1"
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - name: Check out trusted source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python }}
-          cache: pip
-      - name: Install project
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
-      - name: Run checks
-        run: pytest
+      - name: Clean persistent workspace before job
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated job environment
+        run: python scripts/ci/run_in_venv.py create --github-runner
+      - name: Install project in the isolated environment
+        run: |
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --upgrade pip
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install -e ".[dev]"
+      - name: Check formatting
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m ruff format --check .
+      - name: Lint
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m ruff check .
+      - name: Type check
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m mypy
+      - name: Run unit and integration tests
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m pytest
       - name: Build package
-        run: python -m build
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m build
       - name: CLI smoke test
-        run: ordifile --help
+        run: python scripts/ci/run_in_venv.py run --github-runner --executable ordifile -- --help
+      - name: Audit dependencies
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m pip_audit
+      - name: Remove isolated job environment
+        if: always()
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Clean persistent workspace after job
+        if: always()
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post
