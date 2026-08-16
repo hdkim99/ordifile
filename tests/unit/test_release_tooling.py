@@ -446,6 +446,8 @@ def test_release_workflow_closes_openpyxl_workbook_explicitly() -> None:
     assert wheel_smoke.index('"pip", "install"') < wheel_smoke.index(
         "from openpyxl import load_workbook"
     )
+    assert 'sysconfig.get_path("scripts")' in wheel_smoke
+    assert 'shutil.which("ordifile")' not in wheel_smoke
 
 
 def test_release_workflow_revalidates_draft_before_final_publish() -> None:
