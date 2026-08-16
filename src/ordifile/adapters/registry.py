@@ -11,7 +11,13 @@ from collections.abc import Iterable
 from importlib import metadata
 from typing import Any, cast
 
-from ordifile.adapters.base import ADAPTER_API_VERSION, AdapterDescriptor, FormatAdapter
+from ordifile.adapters.agilent_chemstation_ch_v181 import AgilentChemStationChV181Adapter
+from ordifile.adapters.base import (
+    ADAPTER_API_VERSION,
+    AdapterDescriptor,
+    FormatAdapter,
+    SupportStatus,
+)
 from ordifile.adapters.generic_csv import GenericCsvAdapter
 from ordifile.adapters.generic_tsv import GenericTsvAdapter
 from ordifile.adapters.generic_txt import GenericSemicolonAdapter
@@ -96,6 +102,7 @@ class AdapterRegistry:
                     descriptor.tested_fixture,
                 )
             )
+            or type(descriptor.support_status) is not SupportStatus
         ):
             raise OrdifileError(
                 "ADAPTER_DESCRIPTOR_INVALID",
@@ -165,6 +172,7 @@ def load_external_adapters(
 def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     """Create the built-in registry and optionally load installed entry points."""
     registry = AdapterRegistry()
+    registry.register(AgilentChemStationChV181Adapter())
     registry.register(GenericCsvAdapter())
     registry.register(GenericTsvAdapter())
     registry.register(GenericSemicolonAdapter())

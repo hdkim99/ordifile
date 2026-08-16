@@ -37,4 +37,7 @@ Actions used by this repository retain their own licenses and are not included i
 Ordifile distribution.
 
 No code from the researched EPL-2.0, GPL-3.0, or LGPL-3.0 chromatography projects has
-been copied into Ordifile.
+been copied into Ordifile. ChromStream/chemplexity (MIT), chromConverter (GPL >= 3),
+rainbow (LGPL-3.0), and Entab (MIT) were used only as documented research/output
+oracles for the independent Experimental Agilent v181 decoder; none is bundled,
+imported, or installed by Ordifile.

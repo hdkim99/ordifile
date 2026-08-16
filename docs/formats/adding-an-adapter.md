@@ -93,6 +93,12 @@ Populate only the capabilities supported by evidence:
 - `Issue` for warnings and errors with stable codes and actionable messages;
 - `DatasetBundle` as the adapter result.
 
+Use `SeriesKind.DECODED_RECORDS` when byte-level records do not yet have verified
+scientific signal semantics. Such records must not be presented as calibrated or
+time-based data. In the descriptor, `signals=True` means that the adapter returns a
+`SignalSeries`; callers must inspect `series_kind` before treating it as a scientific
+signal. The CLI labels Experimental decoded-record output separately.
+
 ## External registration
 
 External packages register an adapter factory in the `ordifile.adapters` entry-point
@@ -104,6 +110,8 @@ Descriptors use bounded stable IDs, versions, extension tuples, exact Boolean ca
 and workbook-representable display names. Set `tested_fixture=True` only when the declared
 capabilities have a redistributable or synthetic fixture and passing tests; `list_formats()` and
 the CLI support table omit descriptors without that declaration.
+Set `support_status` independently to `VERIFIED`, `EXPERIMENTAL`, or the default
+external `FIXTURE_DECLARED` evidence level.
 
 Example registration in an adapter package's `pyproject.toml`:
 

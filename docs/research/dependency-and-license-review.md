@@ -33,9 +33,10 @@ as CPython-supported releases, Python 3.10 approaching October 2026 end-of-life,
 `requires-python = ">=3.11,<3.15"`. This does not become a Ordifile support claim until
 the runtime dependency install and repository checks pass in CI for each version.
 
-Linux, Windows, and macOS are support targets, not claims until package installation,
-tests, build, and CLI smoke tests pass in GitHub Actions. Pull requests test 3.11 and
-3.14 on each OS; a scheduled matrix covers all 3.11–3.14 combinations.
+Linux, Windows, and macOS remain package support targets. Current continuous CI runs
+Python 3.14 on the shared DGX self-hosted Linux ARM64 runner; it is not a current
+cross-platform matrix. The v0.1.0 release record separately preserves the historical
+Ubuntu, Windows, and macOS validation that preceded the DGX-only CI policy.
 
 ## GUI comparison and decision
 
@@ -87,9 +88,12 @@ but does not accept v181; rainbow 1.4.0 is LGPL-3.0 and produced a v181 time/sig
 length mismatch; ChromStream 0.2.0 and GPL-licensed chromConverter use
 chemplexity-derived axis/scaling assumptions that are not a vendor export
 cross-check. None is a production or development dependency, and no reader code was
-copied. The pinned commits, observed behavior, license boundary, and current clean-room
-NO-GO decision are in
+copied. The pinned commits, observed behavior, license boundary, and current
+independent-implementation decision are in
 [`agilent-chemstation-ch-v181-investigation.md`](agilent-chemstation-ch-v181-investigation.md).
+No reader is a runtime or development dependency. The Ordifile implementation was
+written from independently recorded byte facts and normalized output summaries, not
+by copying or translating reader source.
 
 ## Release workflow tooling
 

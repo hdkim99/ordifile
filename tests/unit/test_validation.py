@@ -32,6 +32,15 @@ def test_signal_length_and_sample_reference_are_validated() -> None:
     assert {item.code for item in issues} == {"SIGNAL_SAMPLE_MISMATCH", "SIGNAL_LENGTH_MISMATCH"}
 
 
+def test_signal_series_kind_requires_the_exact_enum() -> None:
+    source = _source()
+    sample = SampleRecord("sample", source)
+    signal = SignalSeries("sample", source.name, None, None, (0,), (1,))
+    object.__setattr__(signal, "series_kind", "decoded_records")
+    issues = validate_bundle(DatasetBundle((source,), (sample,), (signal,)))
+    assert {item.code for item in issues} == {"SIGNAL_SERIES_KIND_INVALID"}
+
+
 def test_valid_bundle_has_no_issues() -> None:
     source = _source()
     sample = SampleRecord("sample", source)

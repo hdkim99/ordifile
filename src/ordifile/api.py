@@ -64,7 +64,7 @@ def _inputs(
 
 
 def list_formats(*, registry: AdapterRegistry | None = None) -> tuple[AdapterDescriptor, ...]:
-    """List verified built-in and installed external adapter capabilities."""
+    """List fixture-tested adapters with explicit evidence status."""
     return tuple(
         descriptor
         for descriptor in get_format_report(registry=registry).descriptors

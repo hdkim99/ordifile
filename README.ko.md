@@ -12,6 +12,8 @@
 
 **현재 검증됨:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분 TXT,
 감사된 non-macro XLSX. 제조사 proprietary raw 형식은 v0.1.0에서 지원하지 않습니다.
+미출시 source tree에는 아래에 설명한 범위가 매우 좁은 Experimental Agilent
+ChemStation `.CH` v181 구조 레코드 decoder가 포함됩니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
 
@@ -86,6 +88,19 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 뿐이며 내용과 schema도 함께 확인합니다. 현재 환경의 adapter는
 `ordifile formats`로 확인할 수 있습니다.
 
+## Experimental proprietary decoder
+
+| 형식 경계 | Metadata | Peaks | 레코드 출력 | 상태 | 실제 fixture |
+|---|---:|---:|---|---|---:|
+| Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
+
+이 Experimental adapter는 PyPI v0.1.0에 포함되지 않습니다. 모든 decoded record를
+원래 순서대로 유지합니다. x는 retention time이 아닌 `decoded_record_index`, y는 물리
+scale이 적용된 intensity가 아닌 `decoded_raw_integer`입니다. Unit, scientific point
+count, 마지막 record의 역할은 아직 미확정입니다. 다른 `.CH` version, `.D` directory,
+TCD, MS, peak, 보정값, 쓰기 기능은 지원한다고 주장하지 않습니다. [정확한 기능·안전
+경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-ch-v181.md)를 확인해 주세요.
+
 ## CLI
 
 출력 없이 파일 하나를 검사합니다.
@@ -146,6 +161,7 @@ fallback합니다. 명시적 모드는 `acquired_at`, `sequence`, `filename`,
 | `Metadata` | 알 수 없는 필드, 잘못된 raw lexeme, 원래 provenance |
 | `Import_Log` | 성공·경고·실패·중복·제외 파일, sort key, hash |
 | `Signals_<channel>` | 실제 파싱되고 요청된 경우에만 원본 비보간 x/y 값 |
+| `Signals_Records_<channel>` | retention-time signal이 아닌 Experimental 구조 decoded record |
 
 Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로 나눕니다. 데이터를
 조용히 자르지 않습니다. Workbook 저장이 실용적이지 않으면
@@ -286,9 +302,9 @@ registry exact-name 검색에서는 기록을 찾지 못했지만, 검색 부재
 참고해 주세요. 향후 호환성 문서에 제조사 이름이 표시되더라도 해당 상표는 각
 소유자에게 있으며 제휴나 보증을 의미하지 않습니다.
 
-YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO 및 관련 제품명은 각 소유자의
+Agilent, ChemStation, YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO 및 관련 제품명은 각 소유자의
 상표 또는 제품명입니다. Ordifile은 YOUNG IN Chromass와 제휴하지 않으며 그 보증을
-받지 않습니다.
+받지 않고, Agilent와도 제휴하거나 그 보증을 받지 않습니다.
 
 ## 라이선스
 

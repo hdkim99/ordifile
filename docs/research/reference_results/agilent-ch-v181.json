@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "fixture": {
+    "id": "bsee-g6151510-fid1a-v181",
+    "size_bytes": 298146,
+    "sha256": "9abeb86b09d54c10e81f46648804acc0319b6e1d014cee54034eae91331f97ef"
+  },
+  "references": [
+    {
+      "name": "ChromStream",
+      "version": "0.2.0",
+      "signal_records": 36501,
+      "time_values": 36501,
+      "signal_agreement": "CONSENSUS",
+      "time_agreement": "LINEAGE_ONLY"
+    },
+    {
+      "name": "rainbow",
+      "version": "1.4.0",
+      "signal_records": 36501,
+      "time_values": 36500,
+      "signal_agreement": "CONSENSUS",
+      "time_agreement": "DISAGREEMENT"
+    },
+    {
+      "name": "Entab",
+      "version": "0.3.3",
+      "signal_records": null,
+      "time_values": null,
+      "signal_agreement": "UNAVAILABLE",
+      "time_agreement": "UNAVAILABLE"
+    },
+    {
+      "name": "Ordifile independent research decoder",
+      "version": "2026-08-16",
+      "signal_records": 36501,
+      "time_values": null,
+      "signal_agreement": "CONSENSUS",
+      "time_agreement": "NOT_EXPOSED"
+    }
+  ],
+  "decoded_records": {
+    "count": 36501,
+    "canonical_packing": "concatenated big-endian signed int64 (>q), one per decoded value",
+    "canonical_sequence_sha256": "9d0adc5724779c8c3061da6e9523952401953d859922c4079b023072c6161667",
+    "sequence_oracles": {
+      "ChromStream": "2150f244d7054c0f48d9036a2a68673bd906826e",
+      "rainbow": "da9b4f5babddaa5bf780539ac23b6a3f289f2997"
+    },
+    "absolute_records": 36500,
+    "ordinary_records": 1,
+    "minimum": 12878,
+    "maximum": 910054,
+    "first_20": [
+      13086, 13088, 13101, 13108, 13106, 13125, 13149, 13161, 13139, 13114,
+      13117, 13126, 13125, 13142, 13178, 13189, 13161, 13139, 13133, 13118
+    ],
+    "last_20": [
+      39493, 39485, 39488, 39490, 39521, 39528, 39532, 39510, 39495, 39506,
+      39500, 39497, 39501, 39523, 39517, 39503, 39496, 39485, 39467, 39467
+    ],
+    "terminal_role": "unresolved",
+    "all_records_retained": true
+  },
+  "ordifile_exposure": {
+    "x": "decoded_record_index",
+    "y": "decoded_raw_integer",
+    "retention_time": "not_exposed",
+    "physical_scaling": "not_applied",
+    "physical_unit": "unknown",
+    "status": "experimental"
+  }
+}

@@ -171,12 +171,12 @@ def test_committed_bsee_manifest_is_strict_and_not_default_ci() -> None:
     )
 
     assert manifest.fixture_id == "bsee-g6151510-fid1a-v181"
-    assert manifest.artifact_filename == "BSEE-G6151510-FID1A.CH"
+    assert manifest.artifact_filename == "FID1A.CH"
     assert manifest.archive_type == "file"
     assert manifest.size_bytes == 298_146
     assert manifest.sha256 == ("9abeb86b09d54c10e81f46648804acc0319b6e1d014cee54034eae91331f97ef")
     assert manifest.grade == "ACCEPT_REDISTRIBUTABLE"
-    assert manifest.ci_eligible is False
+    assert manifest.ci_eligible is True
 
 
 def test_manifest_is_strict_https_and_enforces_documented_size_modes(tmp_path: Path) -> None:

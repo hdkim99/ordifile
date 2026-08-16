@@ -53,6 +53,13 @@ class SortMode(StrEnum):
     INPUT_ORDER = "input_order"
 
 
+class SeriesKind(StrEnum):
+    """Semantic boundary between scientific signals and structural records."""
+
+    SCIENTIFIC_SIGNAL = "scientific_signal"
+    DECODED_RECORDS = "decoded_records"
+
+
 @dataclass(frozen=True, slots=True)
 class ProgressEvent:
     """A stable, presentation-neutral batch progress notification."""
@@ -116,18 +123,19 @@ class SampleRecord:
 
 @dataclass(frozen=True, slots=True)
 class SignalSeries:
-    """Original, uninterpolated signal coordinates."""
+    """Uninterpolated scientific coordinates or structural records by ``series_kind``."""
 
     sample_id: str
     source_file: str
     channel: str | None
     detector: str | None
-    x_values: tuple[float, ...]
-    y_values: tuple[float, ...]
+    x_values: tuple[int | float, ...]
+    y_values: tuple[int | float, ...]
     x_label: str = "time"
     x_unit: str | None = None
     y_label: str = "signal"
     y_unit: str | None = None
+    series_kind: SeriesKind = SeriesKind.SCIENTIFIC_SIGNAL
 
 
 @dataclass(frozen=True, slots=True)

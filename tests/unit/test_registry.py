@@ -5,7 +5,12 @@ from typing import Any, ClassVar
 
 import pytest
 
-from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.base import (
+    AdapterDescriptor,
+    DetectionResult,
+    ParseOptions,
+    SupportStatus,
+)
 from ordifile.adapters.registry import (
     ENTRY_POINT_GROUP,
     AdapterRegistry,
@@ -43,16 +48,24 @@ class FakeEntryPoint:
         return self._loaded
 
 
-def test_builtin_descriptors_are_verified_and_stable() -> None:
+def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> None:
     assert ENTRY_POINT_GROUP == "ordifile.adapters"
     descriptors = create_registry(include_external=False).descriptors()
     assert {item.adapter_id for item in descriptors} == {
+        "agilent_chemstation_ch_v181",
         "generic_csv",
         "generic_semicolon",
         "generic_tsv",
         "generic_xlsx",
     }
     assert all(item.tested_fixture for item in descriptors)
+    statuses = {item.adapter_id: item.support_status for item in descriptors}
+    assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
+    assert all(
+        status is SupportStatus.VERIFIED
+        for adapter_id, status in statuses.items()
+        if adapter_id.startswith("generic_")
+    )
 
 
 def test_collision_and_api_incompatibility_are_rejected() -> None:
@@ -139,6 +152,18 @@ def test_invalid_external_descriptor_load_is_isolated_from_builtins() -> None:
 
     assert registry.get("generic_csv").adapter_id == "generic_csv"
     assert registry.load_errors == ("unsafe~u00005F;x000D_name: OrdifileError",)
+
+
+def test_registry_rejects_invalid_support_status() -> None:
+    class InvalidStatusAdapter(ExternalAdapter):
+        descriptor = AdapterDescriptor(
+            "external_test", "1", "External", (".ext",), False, False, False, True
+        )
+
+    object.__setattr__(InvalidStatusAdapter.descriptor, "support_status", "verified")
+    with pytest.raises(OrdifileError) as caught:
+        AdapterRegistry().register(InvalidStatusAdapter())
+    assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
 
 
 def test_public_format_list_excludes_unverified_installed_descriptor() -> None:

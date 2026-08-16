@@ -19,6 +19,7 @@ from ordifile.core.models import (
     MetadataEntry,
     PeakRecord,
     SampleRecord,
+    SeriesKind,
     Severity,
     SignalSeries,
     SourceFile,
@@ -474,6 +475,15 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
         for field in ("x_label", "y_label"):
             validate_text(
                 getattr(signal, field), f"signal.{field}", signal.source_file, optional=False
+            )
+        if type(signal.series_kind) is not SeriesKind:
+            issues.append(
+                Issue(
+                    "SIGNAL_SERIES_KIND_INVALID",
+                    "signal.series_kind must be a supported SeriesKind value.",
+                    Severity.ERROR,
+                    signal.source_file,
+                )
             )
         if (
             type(signal.sample_id) is str

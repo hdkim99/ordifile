@@ -6,7 +6,7 @@
 from typing import ClassVar
 
 from ordifile.adapters._delimited import DelimitedAdapter
-from ordifile.adapters.base import AdapterDescriptor
+from ordifile.adapters.base import AdapterDescriptor, SupportStatus
 
 
 class GenericTsvAdapter(DelimitedAdapter):
@@ -24,4 +24,5 @@ class GenericTsvAdapter(DelimitedAdapter):
         True,
         True,
         True,
+        SupportStatus.VERIFIED,
     )

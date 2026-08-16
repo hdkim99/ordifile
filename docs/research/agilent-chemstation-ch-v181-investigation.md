@@ -1,9 +1,9 @@
 # Agilent ChemStation `.CH` internal version 181 investigation
 
 - Research and access date: 2026-08-16
-- Implementation decision: **NO-GO — semantic evidence incomplete**
-- Runtime adapter: not implemented or registered
-- Public support claim: not permitted
+- Implementation decision: **Experimental GO for structural decoded records**
+- Runtime adapter: `agilent_chemstation_ch_v181`
+- Public support claim: Experimental and capability-specific only
 - Related fixture: `bsee-g6151510-fid1a-v181` in
   [`external-fixture-manifest.json`](external-fixture-manifest.json)
 
@@ -14,11 +14,11 @@ file is sufficient evidence for Ordifile's first proprietary adapter. The decisi
 deliberately narrower than a general `.CH`, ChemStation, Agilent, or `.D` compatibility
 claim.
 
-The exact bytes and current public-reader outputs are reproducible, but several field
-roles, the nonzero ordinary-record recurrence, the retention-time axis, physical
-signal scaling, and signal unit are not independently verified against an official
-export or public vendor specification. Those fields are mandatory for the requested
-adapter scope. Ordifile therefore does not parse, list, or advertise this format yet.
+The exact bytes and current public-reader signal outputs are reproducible. Retention
+time, physical scaling, signal unit, and the final record's scientific role remain
+unresolved. The owner-approved Experimental boundary therefore exposes all decoded
+records by ordinal and raw integer only. It does not expose a retention-time axis,
+apply the candidate slope/intercept, assign a physical unit, or claim Verified support.
 
 ## Fixture identity and handling
 
@@ -60,7 +60,7 @@ scientific interpretation.
 | `2391` | UTF-16LE Pascal text | local date/time text | Encoding verified; timezone absent |
 | `2492`, `2533` | UTF-16LE Pascal text | generic inlet/GC text | Insufficient for a model claim |
 | `2574` | UTF-16LE Pascal text | method identifier | Verified field presence |
-| `3089` | UTF-16LE Pascal text | ChemStation software text | Verified producer-family evidence |
+| `3089` | UTF-16LE Pascal text | exact `Asterix ChemStation` | Exact producer-profile discriminator; other producer strings are outside the Experimental boundary |
 | `4106` | big-endian `i16` | `2` | Detector-code meaning unresolved |
 | `4122..4125` | two big-endian `u16` candidates | `10000`, `50000` | Sampling-ratio interpretation unresolved |
 | `4134` | big-endian `u32` | `4` | Meaning unresolved; not used as a version |
@@ -110,7 +110,7 @@ Applying the candidate expression `raw * slope + intercept` gives
 physical scale: the readers may share upstream implementation assumptions, and no
 paired ChemStation export exists for this run.
 
-## Retention-time blocker
+## Retention-time boundary
 
 The public reader implementations disagree or rely on an unverified convention:
 
@@ -130,9 +130,10 @@ The evidence does not establish whether the header endpoints are inclusive, whet
 the first point precedes or follows the stored start, whether the end is the last
 sample or run stop time, whether the two `u16` values define a sampling interval, or
 what the small negative start represents. Ordifile must not choose among these
-possibilities by approximation.
+possibilities by approximation. The Experimental adapter uses record ordinal x values
+and leaves retention time unsupported.
 
-## Scaling and unit blocker
+## Scaling and unit boundary
 
 Multiple readers apply the candidate slope and intercept, but the selected run has no
 full-resolution ChemStation CSV or AIA/ANDI export for comparison. Parser agreement is
@@ -145,7 +146,7 @@ incorrectly by the acquisition software. The selected fixture's exact header lex
 
 Current status:
 
-- raw integer signal: structurally decoded;
+- raw integer records: structurally decoded and exposed as Experimental;
 - slope/intercept-transformed numeric signal: candidate transform only;
 - physical signal unit: unresolved.
 
@@ -167,11 +168,16 @@ absolute acquisition ordering across timezones. The exact GC model is not identi
 The readers were used only as research oracles. No parser code was copied into
 Ordifile.
 
+The external manifest records rainbow as `rejected` because `validated_with.result`
+describes whether a reader is suitable as a complete fixture validator. The separate
+reference summary records its narrower signal-sequence agreement and time-axis
+failure; these are not contradictory acceptance claims.
+
 | Reader | Inspected version or commit | Result | License and decision |
 |---|---|---|---|
 | [ChromStream parser](https://github.com/MyonicS/ChromStream/blob/2150f244d7054c0f48d9036a2a68673bd906826e/src/chromstream/parsers/agilent.py) | 0.2.0 / `2150f244d7054c0f48d9036a2a68673bd906826e` | Produces 36,501 candidate x/y values; declares adaptation from chemplexity | [MIT](https://github.com/MyonicS/ChromStream/blob/2150f244d7054c0f48d9036a2a68673bd906826e/LICENSE.md); research oracle only, no code copy |
 | [chemplexity/chromatography](https://github.com/chemplexity/chromatography/blob/670ed772342a9c0440344682a02394a062c2467d/Development/File%20Conversion/ImportAgilentFID.m) | `670ed772342a9c0440344682a02394a062c2467d` | Public source of v181 offsets, delta decoding, axis, and scaling assumptions | [MIT](https://github.com/chemplexity/chromatography/blob/670ed772342a9c0440344682a02394a062c2467d/LICENSE); independent implementation preferred; notice required if adapted |
-| [rainbow parser](https://github.com/evanyeyeye/rainbow/blob/da9b4f5babddaa5bf780539ac23b6a3f289f2997/rainbow/agilent/chemstation.py) | 1.4.0 / `da9b4f5babddaa5bf780539ac23b6a3f289f2997` | Signal values agree; time count is one short | [LGPL-3.0](https://github.com/evanyeyeye/rainbow/blob/da9b4f5babddaa5bf780539ac23b6a3f289f2997/COPYING.LESSER); comparison only, no dependency or code copy |
+| [rainbow parser](https://github.com/evanyeyeye/rainbow/blob/da9b4f5babddaa5bf780539ac23b6a3f289f2997/rainbow/agilent/chemstation.py) | 1.4.0 / `da9b4f5babddaa5bf780539ac23b6a3f289f2997` | Signal values agree; overall fixture-reader result is rejected because its time count is one short | [LGPL-3.0](https://github.com/evanyeyeye/rainbow/blob/da9b4f5babddaa5bf780539ac23b6a3f289f2997/COPYING.LESSER); comparison only, no dependency or code copy |
 | [Entab parser](https://github.com/bovee/entab/blob/e442ba72bd452c2ac2a1d0c98af55bb7316c2f22/entab/src/parsers/agilent/chemstation.rs) / [version switch](https://github.com/bovee/entab/blob/e442ba72bd452c2ac2a1d0c98af55bb7316c2f22/entab/src/parsers/agilent/metadata.rs#L56-L64) | source `e442ba72bd452c2ac2a1d0c98af55bb7316c2f22`, PyPI 0.3.3 | Version switch does not accept v181 | [MIT](https://github.com/bovee/entab/blob/e442ba72bd452c2ac2a1d0c98af55bb7316c2f22/LICENSE.md); not an implementation basis for this version |
 | [chromConverter parser](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/R/read_chemstation_ch.R) | 0.9.1 / `9137b85f341ceb4f2bc71cc171650af75449ac96` | Uses the same chemplexity-derived axis/scaling assumptions | [GPL >= 3 metadata](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/DESCRIPTION) and [GPL text](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/LICENSE.md); behavior comparison only, no code copy or integration |
 
@@ -187,11 +193,14 @@ single-channel `.CH` as one source, one sample, and one uninterpolated signal. I
 cannot represent a complete `.D` directory, required siblings, or multi-channel run
 grouping without a future compound-input API.
 
-That technical fit does not override the evidence gate. No detection-only skeleton,
-runtime parser, registry entry, descriptor, CLI format listing, workbook capability,
-or README support row is added while the scientific semantics remain unresolved.
+The adapter uses that v1 boundary for a standalone file only. It introduces an
+explicit `decoded_records` series kind and Experimental descriptor status so structural
+records cannot be mistaken for verified scientific signals. Every 36,501 candidate
+record is retained; x is record ordinal and y is the unscaled decoded integer. A `.D`
+directory, siblings, multi-channel grouping, other versions, and write support remain
+outside this adapter.
 
-## Required evidence to reopen implementation
+## Required evidence before Verified status
 
 For the same run, obtain:
 
@@ -214,9 +223,9 @@ recurrence can be checked rather than inferred. At least one must be the exact B
 file opened in ChemStation and exported by the official software so that its current
 hash can be compared directly.
 
-Implementation may resume only after all of the following are demonstrated:
+Verified scientific-signal support requires all of the following:
 
-- a nonzero ordinary record agrees with the candidate second-delta recurrence and the
+- a nonzero chained ordinary record agrees with the candidate second-delta recurrence and the
   official export;
 - first/last time and interval construction are unambiguous;
 - header start/end and offsets `4122..4125` have verified meanings;
@@ -230,4 +239,6 @@ Implementation may resume only after all of the following are demonstrated:
 - normal, unsupported-version, corrupt, and truncated cases are reproducible; and
 - fixture use, privacy, attribution, and redistribution boundaries are documented.
 
-Until then, Issue #3 remains open and v0.2.0 is **not ready** for this adapter.
+Until then, Issue #3 remains open and the adapter remains **Experimental**. No release
+may describe its output as calibrated intensity, retention-time signal, or Verified
+Agilent raw support.

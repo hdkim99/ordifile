@@ -1,6 +1,6 @@
 # GC adapter boundaries
 
-- Status: Accepted research boundary; Agilent v181 implementation gate is NO-GO
+- Status: Accepted; Agilent v181 structural decoded-record adapter is Experimental
 - Date: 2026-08-16
 - Evidence:
   - [`gc-fixture-search.md`](../research/gc-fixture-search.md)
@@ -9,10 +9,10 @@
 
 ## Context
 
-Ordifile v0.1.0 supports only verified generic tabular exports. Research has identified
+Ordifile v0.1.0 supports only verified generic tabular exports. Subsequent research identified
 a small BSEE Agilent ChemStation GC-FID `.ch` v181 file and has established official
 product and lifecycle evidence for YOUNG IN Chromass, YL-Clarity, and Autochro. Neither
-track authorizes a proprietary parser in this release branch.
+track authorizes a broad proprietary-format claim.
 
 The boundary must prevent an instrument brand, a file extension, or a recovery artifact
 from becoming a broad support claim.
@@ -35,8 +35,11 @@ from becoming a broad support claim.
    detector channel maps to one uninterpolated `SignalSeries`, preserving its native
    time axis, values, units, channel identity, and source order.
 6. `FID` or `TCD` is assigned only when the source explicitly identifies the detector.
-   Signal shape, channel order, filename, or model marketing material is not detector
-   evidence. Unknown detector and unit semantics remain unknown.
+   Signal shape, channel order, ad hoc or partial filenames, and model marketing
+   material are not detector evidence. An exact complete basename may be used only
+   when an official vendor filename convention defines its detector/module/channel
+   roles; renamed or partial files remain unsupported and are rejected. Unknown
+   detector and unit semantics remain unknown.
 7. Required sibling roles are exact, versioned, and fixture-backed. A missing, changed,
    aliased, or out-of-root required member fails the whole logical acquisition. Unknown
    siblings are not executed or interpreted.
@@ -44,12 +47,12 @@ from becoming a broad support claim.
    schema may use the existing generic adapter, but that is not native Raw support. A
    different stable layout requires a separately tested format/profile adapter, such
    as `clarity_export_<profile-version>` or `autochro_export_<profile-version>`.
-9. The first proprietary implementation candidate remains the BSEE Agilent ChemStation
-   GC-FID `.ch` internal v181 slice. Exact bytes and current reader outputs are
-   reproducible, but some field roles, the nonzero ordinary-record recurrence, the
-   exact retention-time construction, physical signal scaling, and signal unit remain
-   unresolved. The implementation gate is therefore NO-GO until paired official
-   exports or equivalent authoritative evidence resolve those semantics. See
+9. The first proprietary implementation is the exact BSEE Agilent ChemStation GC-FID
+   `.ch` internal-v181 structural slice. Two public readers and an independent decoder
+   agree on the 36,501 decoded values, while one reader exposes only 36,500 time labels.
+   The adapter therefore retains every decoded record with ordinal x, unscaled integer
+   y, unknown units, and explicit Experimental warnings. It does not expose retention
+   time or apply candidate scaling. See
    [`agilent-chemstation-ch-v181-investigation.md`](../research/agilent-chemstation-ch-v181-investigation.md).
 10. YOUNG IN Chromass is reconsidered for first-adapter priority as soon as a complete
     lawful fixture, exact CDS version, completed-versus-recovery classification,
@@ -64,7 +67,8 @@ from becoming a broad support claim.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.
 - A directory or compound-acquisition input API.
-- Any proprietary entry in `ordifile formats` or the README support table.
+- Any proprietary **Verified** entry in `ordifile formats` or the README support table
+  before its scientific semantics and same-run official export are validated.
 
 If evidence later proves that a logical acquisition is a directory or exact sibling
 set, add an adapter API v2 with an immutable source-artifact kind, member inventory,
@@ -85,10 +89,12 @@ container relationships or run identifiers, never basename or timestamp heuristi
 
 ## Implementation gate summary
 
-The BSEE v181 candidate must stay unimplemented until the semantic gate closes. A
-future adapter must remain signal-only, single-channel, and version-specific unless
-further fixtures prove more. It must not claim peaks, TCD, all `.ch` generations,
-whole `.D` directories, GC-MS, or write support.
+The BSEE v181 adapter is limited to a standalone, version-specific decoded-record
+stream. `SeriesKind.DECODED_RECORDS` and `SupportStatus.EXPERIMENTAL` keep it separate
+from verified scientific signals. Verified promotion remains blocked by scientific
+point-count, retention-time, scaling, unit, additional-run, and official-export
+evidence. It must not claim peaks, TCD, all `.ch` generations, whole `.D` directories,
+GC-MS, or write support.
 
 The YoungIn track must stay documentation-only until the fixture request is fulfilled.
 A future support matrix must separate ChroZen from YL6500, YL-Clarity from each

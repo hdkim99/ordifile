@@ -13,9 +13,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   screenshot of its generated workbook, showing that normal Unicode input
   filenames are preserved in the `Samples` sheet. (Issue #7)
 - A reproducible Agilent ChemStation `.CH` internal-v181 evidence review that records
-  exact byte observations, separates reader-derived interpretations, and explicitly
-  blocks adapter implementation until record recurrence, retention-time, physical
-  signal scaling, and unit semantics are resolved.
+  exact byte observations and separates reader-derived interpretations.
+- An independently implemented Experimental Agilent ChemStation `.CH` internal-v181 adapter that
+  retains every decoded structural record by ordinal and raw integer, without claiming
+  retention time, physical scaling, signal units, peaks, other versions, or `.D`
+  directory support. The proprietary fixture remains external.
 
 ## [0.1.0] - 2026-08-16
 
