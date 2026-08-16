@@ -99,11 +99,12 @@ Default pull-request, push, and scheduled CI performs no external fixture downlo
 Tests use local synthetic HTTP responses and malicious synthetic archives to exercise
 checksum, redirect, traversal, alias, link, bomb, and cleanup controls.
 
-The Agilent v181 and Shimadzu LabSolutions 5.82 adapters each have an owner-repository
-external integration workflow. Both are `workflow_dispatch` only and use the shared
+The Agilent v181, Shimadzu LabSolutions 5.82 GCD, and Shimadzu GCMSsolution QGD
+adapters each have an owner-repository external integration workflow. All are
+`workflow_dispatch` only and use the shared
 self-hosted DGX runner with read-only repository permission, `RUNNER_TEMP`, and no
 Actions cache or artifact upload. Each deletes its fixture cache in a final cleanup
-step. The Shimadzu workflow additionally follows `ACCEPT_CONTROLLED_CI`: the fixture's
+step. The Shimadzu workflows additionally follow `ACCEPT_CONTROLLED_CI`: each fixture's
 embedded personal and local-machine text is never printed or exported. Pull requests
 and default CI never download either fixture. Scheduled use requires a separate
 decision covering stable access, automated-use permission, privacy, cost, and size.

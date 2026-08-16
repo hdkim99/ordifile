@@ -1,7 +1,7 @@
 # GC adapter boundaries
 
-- Status: Accepted; Agilent v181 decoded records and one Shimadzu LabSolutions 5.82
-  scientific-signal profile are Experimental
+- Status: Accepted; Agilent v181 decoded records, one Shimadzu LabSolutions 5.82
+  chromatogram profile, and one Shimadzu GCMSsolution QGD TIC profile are Experimental
 - Date: 2026-08-16
 - Evidence:
   - [`gc-fixture-search.md`](../research/gc-fixture-search.md)
@@ -66,6 +66,12 @@ from becoming a broad support claim.
     GCsolution, other LabSolutions versions, other detectors, multichannel files,
     `.QGD`, `.LCD`, or generic `.GCD` support. See
     [`shimadzu-gcsolution-gcd-investigation.md`](../research/shimadzu-gcsolution-gcd-investigation.md).
+12. The separate QGD boundary is the exact `4.00` GCMSsolution compound-file profile
+    in the CC0 Dryad fixture. It exposes only the 16,800-point TIC and verified minute
+    axis; the TIC unit is unknown. Its MS1 index and blocks are validated structurally,
+    and every scan intensity sum is required to equal the native TIC, but encoded mass
+    is not called m/z and MS1 is not exported. See
+    [`shimadzu-gcmssolution-qgd-investigation.md`](../research/shimadzu-gcmssolution-qgd-investigation.md).
 
 ## Deferred
 
@@ -79,6 +85,8 @@ from becoming a broad support claim.
   before its scientific semantics and same-run official export are validated.
 - Shimadzu GCD profiles outside the exact LabSolutions 5.82 FID boundary, including
   the corroborating BID corpus, until each profile has its own fixture-backed gate.
+- QGD MS1 scientific output, other QGD versions, width-4 recovery variants, SIM/MRM,
+  compound identification, quantitation, and write support.
 
 If evidence later proves that a logical acquisition is a directory or exact sibling
 set, add an adapter API v2 with an immutable source-artifact kind, member inventory,
@@ -115,3 +123,8 @@ The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` beca
 its paired same-run LabSolutions ASCII reference validates the sampled time and signal
 values. Verified promotion remains blocked by the single in-scope real FID fixture and
 the absence of broader independent in-profile validation.
+
+The QGD Experimental profile may expose its TIC as `SeriesKind.SCIENTIFIC_SIGNAL`
+because source RT/TIC arrays and all scan-level intensity sums agree. This does not
+authorize treating its structurally decoded MS records as mass spectra or flattening
+them into the chromatogram signal schema.

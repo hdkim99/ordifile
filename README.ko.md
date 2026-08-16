@@ -94,6 +94,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
+| Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 
 이 Experimental adapter들은 PyPI v0.1.0에 포함되지 않습니다.
 
@@ -109,6 +110,13 @@ profile로 한정됩니다. 66,255개 retention-time·signal 값 전부를 같�
 LabSolutions ASCII reference와 비교했습니다. 다른 LabSolutions/GCsolution version,
 detector, channel, factor, GCD profile, peak, `.QGD`, `.LCD`, 쓰기 기능은 지원한다고
 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcsolution-gcd.md)를 확인해 주세요.
+
+별도 QGD adapter는 정확한 GCMSsolution `4.00` compound-file profile 하나로
+한정됩니다. 16,800개 TIC 정수와 millisecond에서 검증된 retention-time axis를
+그대로 보존하며 TIC의 물리 unit은 미확정입니다. MS1 block은 bounded scan 구조와
+TIC 합 일치를 검증하지만 spectrum을 출력하지 않고 encoded mass를 m/z라고 부르지
+않습니다. 다른 QGD version, SIM/MRM, 물질 식별, 정량, 쓰기 기능은 지원한다고
+주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md)를 확인해 주세요.
 
 ## CLI
 

@@ -135,6 +135,13 @@ to the workbook layout.
     read-only CFB access; Ordifile owns the profile validation and does not copy or
     depend on the GPL reference parser. Other versions, detectors, factors, channels,
     peak tables, `.QGD`, and `.LCD` remain unsupported.
+32. The separate Experimental Shimadzu GCMSsolution `.QGD` adapter is limited to the
+    exact `4.00` compound-file profile established by the CC0 Dryad fixture. It exposes
+    the 16,800-point TIC with source milliseconds converted to minutes and preserves
+    unsigned TIC integers with no claimed physical unit. MS1 blocks are walked only to
+    validate offsets, scan/RT identity, record lengths, and the exact per-scan TIC sum;
+    spectra are not exported until an independent m/z oracle and a bounded canonical
+    mass-spectrum workbook model exist. The GPL readers remain comparison-only.
 
 ## Public boundaries
 
@@ -178,6 +185,9 @@ CLI / future GUI
 - Treating one LabSolutions 5.82 FID fixture as universal GCsolution, LabSolutions,
   Shimadzu, or `.GCD` support: rejected. Detection requires the exact linked
   producer/channel/unit/factor profile and structured rejection of every other profile.
+- Flattening QGD MS1 records into the existing two-dimensional signal model: rejected.
+  It would lose scan boundaries and materialize about 9.5 million rows before writing.
+  The first QGD adapter is TIC-only and makes MS1 non-export explicit.
 - Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
   are not verified byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.
