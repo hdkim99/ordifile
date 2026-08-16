@@ -41,15 +41,17 @@ include exploit details or affected data in that issue.
   a workbook and multiple sidecars one filesystem-wide transaction, so users should
   treat the Manifest as the authoritative artifact list.
 - A passing dependency audit does not replace source review or data-integrity testing.
+- GitHub Actions runs on a shared Linux DGX self-hosted runner. Public-fork workflows
+  require maintainer approval, run with read-only repository permission, and receive no
+  publishing secrets, OIDC permission, or release environment. Maintainers review
+  workflow and executable changes before approving outside-contributor runs.
 
 The exact v0.1 input and resource contract is documented in
 [`docs/formats/generic-tabular.md`](docs/formats/generic-tabular.md).
 
 ## Supported versions
 
-No stable release has been published yet. This table will be updated when a verified
-release exists.
-
 | Version | Supported |
 |---|---|
-| Unreleased `main` branch | Best effort; no stable release yet |
+| 0.1.x | Security fixes |
+| Unreleased `main` branch | Best effort |

@@ -4,64 +4,135 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ordifile-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  quality:
-    name: Quality and package
-    runs-on: ubuntu-latest
+  required:
+    name: CI / required
+    runs-on: [self-hosted, dgx-spark]
+    timeout-minutes: 60
+    env:
+      PIP_NO_CACHE_DIR: "1"
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
-          cache: pip
-      - name: Install project
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Clean workspace before job
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated job environment
+        run: python scripts/ci/run_in_venv.py create --github-runner
+      - name: Install project in the isolated environment
+        run: |
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --upgrade pip
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install -e ".[dev]"
       - name: Check formatting
-        run: ruff format --check .
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m ruff format --check .
       - name: Lint
-        run: ruff check .
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m ruff check .
       - name: Type check
-        run: mypy
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m mypy
       - name: Unit and integration tests
-        run: pytest
-      - name: Build distributions
-        run: python -m build
-      - name: Validate package metadata
-        run: >-
-          python -c "import pathlib, zipfile;
-          wheel=next(pathlib.Path('dist').glob('*.whl'));
-          z=zipfile.ZipFile(wheel);
-          metadata=z.read(next(n for n in z.namelist() if n.endswith('METADATA'))).decode();
-          assert 'License-Expression: Apache-2.0' in metadata;
-          assert 'License-File: LICENSE' in metadata;
-          assert 'License-File: NOTICE' in metadata;
-          assert 'License-File: THIRD_PARTY_NOTICES.md' in metadata"
-      - name: CLI smoke test
-        run: ordifile --help
-      - name: Audit dependencies
-        run: pip-audit
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m pytest
+      - name: Build wheel and source distribution
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m build
+      - name: Verify distributions and clean-wheel behavior
+        shell: python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import pathlib
+          import subprocess
+          import sys
+          import tomllib
 
-  test:
-    name: ${{ matrix.os }} / Python ${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11", "3.14"]
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: ${{ matrix.python }}
-          cache: pip
-      - name: Install project
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
-      - name: Run tests
-        run: pytest
-      - name: CLI smoke test
-        run: ordifile --help
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          version = project["project"]["version"]
+          subprocess.run(
+              [
+                  sys.executable,
+                  "scripts/verify_release.py",
+                  "--dist-dir",
+                  "dist",
+                  "--expected-version",
+                  version,
+                  "--checksums",
+                  "dist/SHA256SUMS.txt",
+              ],
+              check=True,
+          )
+      - name: Exercise installed CLI and workbook output
+        shell: python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import importlib.util
+          import os
+          import pathlib
+          import subprocess
+          import sys
+          import tempfile
+
+          from openpyxl import load_workbook
+
+          executable = pathlib.Path(sys.executable).with_name("ordifile")
+          for arguments in (
+              ("--help",),
+              ("--version",),
+              ("formats",),
+              ("inspect", "examples/basic/sample_1.csv"),
+          ):
+              subprocess.run([str(executable), *arguments], check=True)
+          with tempfile.TemporaryDirectory(
+              prefix="ordifile-ci-smoke-", dir=os.environ["RUNNER_TEMP"]
+          ) as temporary:
+              output = pathlib.Path(temporary) / "Ordifile_Result.xlsx"
+              subprocess.run(
+                  [
+                      str(executable),
+                      "convert",
+                      "examples/basic",
+                      "--sort",
+                      "filename",
+                      "--output",
+                      str(output),
+                  ],
+                  check=True,
+              )
+              workbook = load_workbook(output, read_only=True, data_only=True)
+              try:
+                  assert {
+                      "Manifest",
+                      "Samples",
+                      "Peak_Matrix",
+                      "Peaks",
+                      "Metadata",
+                      "Import_Log",
+                  }.issubset(workbook.sheetnames)
+                  samples = list(workbook["Samples"].iter_rows(values_only=True))
+                  assert [row[1] for row in samples[1:]] == [
+                      "sample_1",
+                      "sample_2",
+                      "sample_10",
+                  ]
+              finally:
+                  workbook.close()
+          assert importlib.util.find_spec("labconvert") is None
+          assert not executable.with_name("labconvert").exists()
+      - name: Audit dependencies
+        run: python scripts/ci/run_in_venv.py run --github-runner -- -m pip_audit
+      - name: Remove isolated job environment
+        if: always()
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Clean workspace after job
+        if: always()
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post

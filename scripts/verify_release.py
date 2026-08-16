@@ -473,7 +473,7 @@ def _verify_smoke_workbook(path: Path) -> None:
 
 def run_clean_wheel_smoke(wheel: Path) -> None:
     """Import only extracted wheel code from a temporary cwd and run CLI conversion."""
-    with tempfile.TemporaryDirectory(prefix="ordifile-release-smoke-") as raw_temp:
+    with tempfile.TemporaryDirectory(prefix="ordifile-wheel-smoke-") as raw_temp:
         workspace = Path(raw_temp)
         site = workspace / "wheel-site"
         site.mkdir()

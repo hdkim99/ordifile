@@ -43,6 +43,11 @@ pip-audit
 - Do not add a production dependency without documenting its purpose, maintenance
   status, actual license, transitive dependencies, and distribution impact.
 - Use English for code, APIs, CLI text, commit titles, issues, and pull requests.
+- Public-fork workflows require maintainer approval before they run on the shared DGX
+  self-hosted runner. Review workflow, dependency, script, binary, symlink, network,
+  credential, and hidden-control-character changes before approval. Pull-request jobs
+  receive read-only repository access and no publishing secrets, OIDC permission, or
+  release environment.
 
 ## Adapter contributions
 

@@ -1,0 +1,8 @@
+# Security-sensitive automation and supply-chain boundaries
+/.github/workflows/ @hdkim99
+/.github/CODEOWNERS @hdkim99
+/pyproject.toml @hdkim99
+/scripts/ci/ @hdkim99
+/scripts/verify_release.py @hdkim99
+/scripts/fetch_external_fixture.py @hdkim99
+/docs/releasing.md @hdkim99
