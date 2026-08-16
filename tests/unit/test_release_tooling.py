@@ -162,7 +162,12 @@ def test_source_version_requires_exact_tag_project_and_module_match(tmp_path: Pa
         release.verify_source_version(source, "0.1.1")
 
 
-def test_release_artifacts_and_checksums_are_verified_deterministically(tmp_path: Path) -> None:
+def test_release_artifacts_and_checksums_are_verified_deterministically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_REF_TYPE", "tag")
+    monkeypatch.setenv("GITHUB_REF_NAME", "v9.9.9")
     source = _source_tree(tmp_path / "source")
     wheel, sdist = _artifacts(source, tmp_path / "dist")
 
@@ -192,6 +197,8 @@ def test_release_artifacts_and_checksums_are_verified_deterministically(tmp_path
                 str(source),
                 "--expected-version",
                 "0.1.0",
+                "--tag",
+                "v0.1.0",
                 "--checksums",
                 str(wheel.parent / "SHA256SUMS.txt"),
                 "--skip-smoke",
