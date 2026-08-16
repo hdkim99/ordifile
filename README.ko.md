@@ -3,6 +3,7 @@
 [English](README.md)
 
 [![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/ordifile)](https://pypi.org/project/ordifile/)
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
@@ -31,14 +32,11 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## 설치
 
-PyPI에 v0.1.0 릴리스가 표시된 후 다음 명령으로 검증된 패키지를 설치합니다.
+PyPI에서 검증된 v0.1.0 패키지를 설치합니다.
 
 ```bash
 python -m pip install --no-cache-dir ordifile==0.1.0
 ```
-
-배포가 완료되기 전에는 새 가상환경에서 이 저장소를 clone한 뒤
-`python -m pip install .`로 설치합니다. 다른 index의 동명 패키지를 설치하지 마세요.
 
 ## 빠른 시작
 

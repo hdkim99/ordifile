@@ -3,6 +3,7 @@
 [한국어](https://github.com/hdkim99/ordifile/blob/main/README.ko.md)
 
 [![CI](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml/badge.svg)](https://github.com/hdkim99/ordifile/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/ordifile)](https://pypi.org/project/ordifile/)
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](https://github.com/hdkim99/ordifile/blob/main/pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](https://github.com/hdkim99/ordifile/blob/main/LICENSE)
 
@@ -32,15 +33,11 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 ## Install
 
-After the v0.1.0 release appears on PyPI, install the verified package with:
+Install the verified v0.1.0 package from PyPI:
 
 ```bash
 python -m pip install --no-cache-dir ordifile==0.1.0
 ```
-
-Before that publication is complete, clone this repository and run
-`python -m pip install .` in a new virtual environment. Do not install an unrelated
-package from another index.
 
 ## Quick start
 
