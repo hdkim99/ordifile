@@ -1,6 +1,6 @@
 # Shimadzu LabSolutions 5.82 `.GCD` GC-FID profile
 
-Status: **Experimental** (included in the v0.2.0 source tree; published availability is
+Status: **Experimental** (included in the v0.2.1 source tree; published availability is
 shown by the PyPI badge)
 
 Ordifile reads one exact scientific chromatogram profile: a LabSolutions 5.82 file

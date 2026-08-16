@@ -30,7 +30,7 @@ def test_required_workbook_structure_hashes_and_natural_order(tmp_path: Path) ->
         manifest = dict(
             (row[0], row[1]) for row in workbook["Manifest"].iter_rows(values_only=True)
         )
-        assert manifest["ordifile_version"] == "0.2.0"
+        assert manifest["ordifile_version"] == "0.2.1"
         assert "labconvert_version" not in manifest
         assert manifest["original_modified"] == "No"
         assert manifest["sort_effective"] == "filename"

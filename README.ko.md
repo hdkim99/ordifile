@@ -11,7 +11,7 @@
 변환합니다.
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
-TXT, 감사된 non-macro XLSX. v0.2.0 source tree에는 아래에 설명한 범위가 매우 좁은
+TXT, 감사된 non-macro XLSX. v0.2.1 source tree에는 아래에 설명한 범위가 매우 좁은
 proprietary Experimental reader 세 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
 않습니다.
 
@@ -97,7 +97,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 
-이 Experimental adapter들은 아래의 정확한 기능 경계와 함께 v0.2.0 source tree에
+이 Experimental adapter들은 아래의 정확한 기능 경계와 함께 v0.2.1 source tree에
 포함됩니다. 공개 여부는 PyPI badge에서 확인할 수 있습니다. 검증되지 않은 profile은
 넓게 해석하지 않고 거부합니다.
 
@@ -290,7 +290,7 @@ print(result.success_count, result.failure_count, result.sort.effective)
 
 ## 개발
 
-Python 3.11–3.14를 대상으로 합니다. v0.2.0 release CI와 실제 external fixture workflow는
+Python 3.11–3.14를 대상으로 합니다. v0.2.1 release CI와 실제 external fixture workflow는
 공유 Linux DGX self-hosted runner에서 Python 3.14 하나를 대상으로 하며 Windows 또는
 macOS matrix는 운영하지 않습니다. 외부
 fork workflow는 유지관리자의 승인 후 같은 장비에서 실행되며 read-only 저장소 권한만
