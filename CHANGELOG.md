@@ -7,7 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-08-17
+## [0.2.1] - 2026-08-17
 
 ### Added
 
@@ -40,6 +40,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rejection of unverified versions, detectors, scaling, units, and MS1 semantics.
 - Kept privacy-bearing native fixtures outside Git and release distributions, and kept
   GPL/LGPL reference implementations outside Ordifile runtime code and dependencies.
+
+### Fixed
+
+- Isolated synthetic release-verifier test data from the ambient GitHub tag context so
+  protected tag workflows validate the intended synthetic version without weakening
+  the real tag/version gate.
+
+## [0.2.0] - 2026-08-17
+
+### Release status
+
+- Not published to TestPyPI or PyPI. The protected tag workflow stopped during tests,
+  before building or uploading an artifact, because a synthetic release-verifier test
+  inherited the real tag version. No GitHub Release was created.
+- The annotated `v0.2.0` tag remains unchanged as the audit record. The isolated test
+  fix and the same reviewed feature set are assigned to v0.2.1.
 
 ## [0.1.0] - 2026-08-16
 

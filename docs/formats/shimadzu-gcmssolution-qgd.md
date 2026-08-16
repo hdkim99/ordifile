@@ -1,6 +1,6 @@
 # Shimadzu GCMSsolution `.QGD` `4.00` TIC profile
 
-Status: **Experimental** (included in the v0.2.0 source tree; published availability is
+Status: **Experimental** (included in the v0.2.1 source tree; published availability is
 shown by the PyPI badge)
 
 Ordifile reads the TIC from one exact GCMSsolution compound-file profile identified by

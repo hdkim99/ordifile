@@ -11,7 +11,7 @@ Batch-convert scientific instrument exports into one clean, ordered and auditabl
 Excel workbook.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
-XLSX using Ordifile's documented schema. The v0.2.0 source tree also includes three
+XLSX using Ordifile's documented schema. The v0.2.1 source tree also includes three
 narrowly bounded Experimental proprietary readers described below; this is not general
 vendor-format support.
 
@@ -97,7 +97,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 
-These Experimental adapters are included in the v0.2.0 source tree with the exact
+These Experimental adapters are included in the v0.2.1 source tree with the exact
 capability boundaries below. Published availability is shown by the PyPI badge.
 Unsupported profiles are rejected rather than interpreted broadly.
 
@@ -298,7 +298,7 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 
 ## Development
 
-Ordifile targets Python 3.11–3.14. The v0.2.0 release CI and external real-fixture
+Ordifile targets Python 3.11–3.14. The v0.2.1 release CI and external real-fixture
 workflows target Python 3.14 on a shared Linux DGX self-hosted runner, with no current
 Windows or macOS CI matrix.
 Public-fork workflows require maintainer approval before they run on that machine and
