@@ -435,11 +435,17 @@ def test_release_cli_contract_returns_nonzero_for_invalid_version(tmp_path: Path
 
 def test_release_workflow_closes_openpyxl_workbook_explicitly() -> None:
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    wheel_smoke = workflow.split(
+        "      - name: Install and exercise the wheel outside the checkout", maxsplit=1
+    )[1].split("      - name: Remove isolated job environment", maxsplit=1)[0]
 
     assert "workbook = load_workbook(" in workflow
     assert "with load_workbook(" not in workflow
     assert "finally:" in workflow
     assert "workbook.close()" in workflow
+    assert wheel_smoke.index('"pip", "install"') < wheel_smoke.index(
+        "from openpyxl import load_workbook"
+    )
 
 
 def test_release_workflow_revalidates_draft_before_final_publish() -> None:
