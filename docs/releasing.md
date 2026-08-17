@@ -258,6 +258,14 @@ identity differs, stop without publishing. After completion, remove the temporar
 environment policies and the one-time promotion mode in a separate reviewed cleanup PR;
 keep the normal hosted publication jobs.
 
+If the audited promotion has already published and byte-verified both indexes, generated
+the attestation, and created the exact draft Release but fails before making that draft
+public, do not upload either distribution again. After a reviewed workflow fix, dispatch
+the same immutable inputs with `mode=finalize-existing`. That path reruns the source,
+artifact, and live-tag gates; verifies the existing TestPyPI/PyPI bytes, each attested
+subject, and every draft asset; then makes the existing draft public. It has no package
+index environment, OIDC publication permission, build, artifact upload, or publish action.
+
 ## Post-release verification
 
 Download the GitHub Release assets and verify the checksums before installation:

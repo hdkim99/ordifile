@@ -14,6 +14,7 @@ on:
         options:
           - dry-run
           - promote-existing
+          - finalize-existing
       source_run_id:
         description: "Existing release run containing the immutable build artifact"
         required: false
@@ -217,7 +218,7 @@ jobs:
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      inputs.mode == 'promote-existing'
+      (inputs.mode == 'promote-existing' || inputs.mode == 'finalize-existing')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -305,6 +306,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)"
           git merge-base --is-ancestor "$EXPECTED_HEAD_SHA" refs/remotes/origin/main
       - name: Require empty indexes and no existing GitHub Release
+        if: inputs.mode == 'promote-existing'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -662,10 +664,14 @@ jobs:
   promote-publish-github-release:
     name: Publish the verified promoted v0.2.1 GitHub Release
     if: >-
+      always() &&
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      inputs.mode == 'promote-existing'
+      ((inputs.mode == 'promote-existing' &&
+        needs.promote-verify-pypi.result == 'success') ||
+       (inputs.mode == 'finalize-existing' &&
+        needs.promote-validate-existing.result == 'success'))
     needs: [promote-validate-existing, promote-verify-pypi]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -698,8 +704,14 @@ jobs:
           set -euo pipefail
           python scripts/verify_release_promotion.py index --index testpypi --root release-artifact
           python scripts/verify_release_promotion.py index --index pypi --root release-artifact
-          gh attestation verify release-artifact/packages/* --repo "$GITHUB_REPOSITORY"
-          gh attestation verify release-artifact/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY"
+          for subject in release-artifact/packages/* release-artifact/SHA256SUMS.txt; do
+            gh attestation verify "$subject" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow hdkim99/ordifile/.github/workflows/release.yml \
+              --source-digest fdc18aed133a56c3389e3f060d1ac926ecf4db13 \
+              --source-ref refs/heads/main \
+              --deny-self-hosted-runners
+          done
           python - <<'PY'
           import hashlib
           import json
@@ -716,11 +728,24 @@ jobs:
           tag = os.environ["RELEASE_TAG"]
           release = json.loads(
               subprocess.check_output(
-                  ["gh", "release", "view", tag, "--json", "isDraft,tagName,assets"],
+                  [
+                      "gh",
+                      "release",
+                      "view",
+                      tag,
+                      "--json",
+                      "isDraft,isPrerelease,tagName,name,body,assets",
+                  ],
                   text=True,
               )
           )
-          if release.get("isDraft") is not True or release.get("tagName") != tag:
+          if (
+              release.get("isDraft") is not True
+              or release.get("isPrerelease") is not False
+              or release.get("tagName") != tag
+              or release.get("name") != f"Ordifile {tag}"
+              or release.get("body") != (root / "release-notes.md").read_text(encoding="utf-8")
+          ):
               raise SystemExit("The expected v0.2.1 draft release is missing")
           if {asset.get("name") for asset in release.get("assets", [])} != set(expected):
               raise SystemExit("Draft release asset set differs from the source artifact")
@@ -767,6 +792,16 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
         run: gh release edit "$RELEASE_TAG" --draft=false
+      - name: Require the v0.2.1 GitHub Release to be public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          test "$(gh release view "$RELEASE_TAG" \
+            --json isDraft,isPrerelease,tagName,publishedAt \
+            --jq '.isDraft == false and .isPrerelease == false and
+                  .tagName == "v0.2.1" and .publishedAt != null')" = true
 
   smoke:
     name: Wheel smoke / shared DGX / Python 3.14

@@ -104,6 +104,7 @@ def test_release_uses_dgx_for_build_and_hosted_ubuntu_for_publication() -> None:
     assert "queue: max" in release
     assert "mode == 'dry-run'" in release
     assert "mode == 'promote-existing'" in release
+    assert "mode == 'finalize-existing'" in release
     assert release.count("runs-on: [self-hosted, dgx-spark]") == 2
     assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
 
@@ -212,3 +213,35 @@ def test_release_preserves_build_once_oidc_and_attestation_boundaries() -> None:
     assert "run-id: 31980576873" in release
     assert "digest-mismatch: error" in release
     assert release.count("verify_release_promotion.py tag") == 2
+
+
+def test_release_finalization_republishes_nothing() -> None:
+    release = _workflow("release.yml")
+    finalization = release.split("  promote-publish-github-release:", maxsplit=1)[1].split(
+        "\n  smoke:", maxsplit=1
+    )[0]
+
+    assert "always()" in finalization
+    assert "inputs.mode == 'finalize-existing'" in finalization
+    assert "needs.promote-validate-existing.result == 'success'" in finalization
+    assert "verify_release_promotion.py index --index testpypi" in finalization
+    assert "verify_release_promotion.py index --index pypi" in finalization
+    assert (
+        "for subject in release-artifact/packages/* release-artifact/SHA256SUMS.txt" in finalization
+    )
+    assert 'gh attestation verify "$subject"' in finalization
+    assert "--deny-self-hosted-runners" in finalization
+    assert "--source-digest fdc18aed133a56c3389e3f060d1ac926ecf4db13" in finalization
+    assert 'release.get("body") != (root / "release-notes.md").read_text' in finalization
+    assert 'gh release edit "$RELEASE_TAG" --draft=false' in finalization
+    assert "Require the v0.2.1 GitHub Release to be public" in finalization
+    assert 'test "$(gh release view' in finalization
+    for forbidden in (
+        "pypa/gh-action-pypi-publish@",
+        "actions/attest@",
+        "actions/upload-artifact@",
+        "Build wheel and source distribution",
+        "id-token: write",
+        "environment:",
+    ):
+        assert forbidden not in finalization
