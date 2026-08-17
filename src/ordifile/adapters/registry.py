@@ -28,6 +28,9 @@ from ordifile.adapters.generic_txt import GenericSemicolonAdapter
 from ordifile.adapters.generic_xlsx import GenericXlsxAdapter
 from ordifile.adapters.shimadzu_gcmssolution_qgd import ShimadzuGcmssolutionQgdAdapter
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
+from ordifile.adapters.shimadzu_labsolutions_result_ascii import (
+    ShimadzuLabsolutionsResultAsciiAdapter,
+)
 from ordifile.adapters.youngin_yl_clarity_prm_raw import YoungInYlClarityPrmRawAdapter
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import SeriesKind
@@ -194,6 +197,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(GenericXlsxAdapter())
     registry.register(ShimadzuGcsolutionGcdAdapter())
     registry.register(ShimadzuGcmssolutionQgdAdapter())
+    registry.register(ShimadzuLabsolutionsResultAsciiAdapter())
     registry.register(YoungInYlClarityPrmRawAdapter())
     if include_external:
         load_external_adapters(registry)

@@ -100,8 +100,9 @@ Tests use local synthetic HTTP responses and malicious synthetic archives to exe
 checksum, redirect, traversal, alias, link, bomb, and cleanup controls.
 
 The Agilent v181 raw decoder, Agilent ChemStation Result XML reader, Shimadzu
-LabSolutions 5.82 GCD reader, and Shimadzu GCMSsolution QGD reader each have an
-owner-repository external integration workflow. All are
+LabSolutions 5.82 GCD reader, Shimadzu LabSolutions 5.82 result ASCII reader, and
+Shimadzu GCMSsolution QGD reader each have an owner-repository external integration
+workflow. All are
 `workflow_dispatch` only and use the shared
 self-hosted DGX runner with read-only repository permission, `RUNNER_TEMP`, and no
 Actions cache or artifact upload. Each deletes its fixture cache in a final cleanup

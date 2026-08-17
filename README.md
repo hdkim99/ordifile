@@ -21,7 +21,7 @@ boundaries and semantics.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
 XLSX using Ordifile's documented schema. The current development source tree also
-includes five narrowly bounded Experimental proprietary readers described below; this
+includes six narrowly bounded Experimental proprietary readers described below; this
 is not general vendor-format support. Published availability is shown by the PyPI badge.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
@@ -105,6 +105,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
 | Agilent ChemStation Result XML, exact `C.01.10 [201]` single `FID1/A` Percent/Area profile | Scientific allowlist | ResultsGroup peaks | RT (min) + area (pA\*s) + height (pA); no raw signal | Experimental | One external CeCILL-2.1 fixture |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
+| Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Stored-label channels + ordered raw binary32 records; no time axis or unit | Experimental | 23 owner-supplied local-only files |
 
@@ -135,6 +136,17 @@ and signal series were compared point by point with a same-run LabSolutions ASCI
 reference. It does not claim other LabSolutions or GCsolution versions, detectors,
 channels, factors, GCD profiles, peaks, `.QGD`, `.LCD`, or write support. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcsolution-gcd.md).
+
+The separate Shimadzu result ASCII adapter reads one exact LabSolutions 5.82,
+GC-2014, single `SFID1` / `Ch1` export without requiring a raw sibling. It preserves
+all source `Peak#` values and independent source observation order, maps `R.Time`,
+`I.Time`, and `F.Time` to retention/start/end time in minutes, and retains area and
+height without inventing physical units. The exact fixture has no compound IDs or
+names, so no compound identity is emitted. Its embedded private metadata is omitted
+and its public source is a SHA-256 alias. Other software versions, instruments,
+detectors, channels, identified-compound tables, multiple peak sections and arbitrary
+LabSolutions text exports are unsupported. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-result-ascii.md).
 
 The separate QGD adapter is limited to one exact GCMSsolution `4.00` compound-file
 profile. It preserves all 16,800 TIC integers and the verified millisecond-derived

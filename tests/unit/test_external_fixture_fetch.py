@@ -209,6 +209,23 @@ def test_committed_agilent_result_xml_manifest_requires_controlled_ci_handling()
     assert manifest.ci_eligible is True
 
 
+def test_committed_shimadzu_result_ascii_manifest_requires_controlled_ci_handling() -> None:
+    manifest = fetch.load_manifest(
+        PROJECT_ROOT / "docs" / "research" / "shimadzu-result-ascii-external-fixture-manifest.json"
+    )
+
+    assert manifest.fixture_id == "chromconverter-ladder-shimadzu-result-ascii-582"
+    assert manifest.artifact_filename == "ladder.txt"
+    assert manifest.archive_type == "file"
+    assert manifest.size_bytes == 971_258
+    assert manifest.sha256 == ("46d1dcde188d7844c32abb89cda1f0d773cac480f6d6c93f2b6ca7149fdb9297")
+    assert manifest.license_name.endswith("file-specific notice absent)")
+    assert manifest.license_url.endswith("/9137b85f341ceb4f2bc71cc171650af75449ac96/LICENSE.md")
+    assert manifest.privacy_review == "contains_personal_data"
+    assert manifest.grade == "ACCEPT_CONTROLLED_CI"
+    assert manifest.ci_eligible is True
+
+
 def test_manifest_is_strict_https_and_enforces_documented_size_modes(tmp_path: Path) -> None:
     assert fetch.DEFAULT_DOWNLOAD_LIMIT == 256 * 1024 * 1024
     assert fetch.LARGE_DOWNLOAD_LIMIT == 2 * 1024 * 1024 * 1024

@@ -27,6 +27,14 @@ The Experimental Agilent Result XML adapter reuses the existing permissive
 bounds. GC2ASM code is not copied or linked; its pinned CeCILL-2.1 XML fixture is an
 external controlled-CI input only and is absent from distributions.
 
+The Experimental Shimadzu result ASCII adapter adds no dependency: bounded ASCII,
+decimal and hashing operations use the Python standard library. Its pinned primary
+fixture is covered only by repository-level GPL >= 3 with no file-specific notice, so
+the bytes remain a controlled external input. No GPL parser source, test expression,
+constant table, dependency or derived code is copied into Ordifile. The separate
+MIT-declared HPLC/RID file is documentation-only grammar evidence and does not expand
+the GC runtime profile.
+
 Development tools selected after inspecting their current package metadata are
 Hatchling (MIT), build 1.5.0 (MIT; 1.5.1 was yanked at the research date), pytest
 (MIT), pytest-cov (MIT), Ruff (MIT), mypy (MIT), and pip-audit (Apache-2.0).
@@ -111,6 +119,9 @@ than Shimadzu interpretation. Ordifile independently validates the exact LabSolu
 5.82 stream inventory, metadata relationships, point-count equations, time axis, and
 signal semantics described in
 [`shimadzu-gcsolution-gcd-investigation.md`](shimadzu-gcsolution-gcd-investigation.md).
+The LabSolutions result ASCII reader is independently implemented from the pinned
+fixture's observable schema, official Peak Table semantics and same-file/paired-file
+invariants. It does not import or execute chromConverter.
 
 ## Release workflow tooling
 

@@ -181,6 +181,16 @@ to the workbook layout.
     RT/area pairs, at most 8,188 pairs per Excel segment; compound `Peak_Matrix` remains
     unchanged. Result XML uses `SHA256_ALIAS`, exports only allowlisted scientific
     metadata, requires no raw sibling, and makes no broader Agilent claim.
+37. The separate Experimental Shimadzu result adapter is limited to one exact
+    LabSolutions 5.82, GC-2014, single-`SFID1` / `Ch1` ASCII export profile. It maps
+    Peak Table rows to the same manufacturer-neutral `PeakRecord`, `Peaks` and
+    source-order matrix contract without a raw sibling. Source `Peak#` and independent
+    source observation order are both preserved; RT/start/end are minutes, while area
+    and height units remain unset. Shared `.txt` discovery keeps a provisional SHA
+    alias until a generic adapter completes parse, validation and integrity checks.
+    Identified unsupported LabSolutions profiles fail safely instead of falling
+    through to the generic semicolon reader. The primary GPL-hosted fixture remains a
+    controlled external oracle only; no reader or test expressions are copied.
 
 ## Public boundaries
 

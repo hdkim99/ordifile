@@ -9,6 +9,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An Experimental standalone Shimadzu LabSolutions result ASCII reader for the exact
+  5.82, GC-2014, single `SFID1` / `Ch1` profile. It preserves source peak numbers,
+  observation order, RT/start/end minutes, area and height while leaving area/height
+  units unresolved and emitting no compound identity.
+- A maintainer-only controlled-CI workflow that validates all 83 external result rows,
+  canonical digests, workbook output, privacy exclusion, and the full paired same-run
+  GCD chromatogram without committing or uploading either source file.
 - An Experimental, standalone Agilent ChemStation Result XML reader for the exact
   `C.01.10 [201]`, single `FID1/A`, `Percent`/`Area` profile. It preserves canonical
   source-order RT, area, height, integration boundaries, calibrated compound names and
@@ -30,6 +37,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Shared `.txt` discovery now keeps a provisional SHA-256 alias while the private
+  Shimadzu result owner is unresolved, selectively redacts its probe reason, and
+  restores ordinary relative-path provenance only after a generic TXT adapter parses
+  and validates successfully. Ordered result streams may preserve a consistently
+  unresolved area unit as `None`; mixed or blank unit states remain invalid.
 - Implemented the first manufacturer-neutral result adapter under the result-first
   contract. Standalone Agilent Result XML RT/area rows map to common `PeakRecord`,
   `Peaks`, compound `Peak_Matrix` and conditional source-order `Peak_Order_Matrix`

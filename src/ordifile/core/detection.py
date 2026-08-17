@@ -26,6 +26,11 @@ def _bounded_no_match_message(reasons: str) -> str:
     return prefix + reasons[:remaining].rstrip() + suffix
 
 
+def _error_reason(result: DetectionResult, *, redact: bool) -> str:
+    """Return safe error-only evidence without changing successful probe records."""
+    return SOURCE_IDENTITY_PROBE_REASON if redact else result.reason
+
+
 @dataclass(frozen=True, slots=True)
 class DetectionOutcome:
     """Selected adapter and all probe evidence."""
@@ -40,9 +45,12 @@ def detect_adapter(
     *,
     forced_adapter: str | None = None,
     redact_reasons: bool = False,
+    redact_adapter_ids: frozenset[str] | None = None,
+    redact_error_reasons: bool = False,
 ) -> DetectionOutcome:
-    """Probe adapters, optionally replacing untrusted reasons before any disclosure."""
+    """Probe adapters, optionally replacing selected reasons before any disclosure."""
     adapters = (registry.get(forced_adapter),) if forced_adapter else registry.adapters()
+    reason_redactions = frozenset() if redact_adapter_ids is None else redact_adapter_ids
     probes: list[tuple[str, DetectionResult]] = []
     for adapter in adapters:
         try:
@@ -62,7 +70,9 @@ def detect_adapter(
                 DetectionResult(
                     result.matched,
                     confidence,
-                    SOURCE_IDENTITY_PROBE_REASON if redact_reasons else result.reason,
+                    SOURCE_IDENTITY_PROBE_REASON
+                    if redact_reasons or adapter.adapter_id in reason_redactions
+                    else result.reason,
                 ),
             )
         )
@@ -71,14 +81,18 @@ def detect_adapter(
         key=lambda item: (-item[1].confidence, item[0]),
     )
     if not matches:
-        reasons = "; ".join(f"{adapter_id}: {probe.reason}" for adapter_id, probe in probes)
+        reasons = "; ".join(
+            f"{adapter_id}: {_error_reason(probe, redact=redact_error_reasons)}"
+            for adapter_id, probe in probes
+        )
         raise DetectionError(
             "FORMAT_NOT_DETECTED",
             _bounded_no_match_message(reasons),
         )
     if len(matches) > 1 and matches[0][1].confidence - matches[1][1].confidence <= AMBIGUITY_MARGIN:
         claims = ", ".join(
-            f"{adapter_id} (confidence={result.confidence:.2f}; reason={result.reason})"
+            f"{adapter_id} (confidence={result.confidence:.2f}; reason="
+            f"{_error_reason(result, redact=redact_error_reasons)})"
             for adapter_id, result in matches
         )
         raise AdapterAmbiguityError(
@@ -87,7 +101,7 @@ def detect_adapter(
             details={
                 f"claim_{index}": (
                     f"adapter={adapter_id};confidence={result.confidence:.6f};"
-                    f"reason={result.reason}"
+                    f"reason={_error_reason(result, redact=redact_error_reasons)}"
                 )
                 for index, (adapter_id, result) in enumerate(matches, start=1)
             },

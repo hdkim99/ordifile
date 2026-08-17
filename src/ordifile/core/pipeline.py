@@ -82,6 +82,26 @@ def _source_identity_policy_before_detection(
     return SourceIdentityPolicy.RELATIVE_PATH
 
 
+def _sha256_alias_owner_ids_before_detection(
+    path: Path,
+    registry: AdapterRegistry,
+    forced_adapter: str | None,
+) -> frozenset[str]:
+    """Return suffix owners whose probe evidence requires selective redaction."""
+    if forced_adapter is not None:
+        adapter = registry.get(forced_adapter)
+        if adapter.descriptor.source_identity_policy is SourceIdentityPolicy.SHA256_ALIAS:
+            return frozenset((adapter.adapter_id,))
+        return frozenset()
+    suffix = path.suffix.casefold()
+    return frozenset(
+        adapter.adapter_id
+        for adapter in registry.adapters()
+        if adapter.descriptor.source_identity_policy is SourceIdentityPolicy.SHA256_ALIAS
+        and suffix in {extension.casefold() for extension in adapter.descriptor.extensions}
+    )
+
+
 def _apply_source_identity(source: SourceFile, policy: SourceIdentityPolicy) -> SourceFile:
     """Create a core-owned alias and disregard any adapter-provided public identity."""
     if policy is SourceIdentityPolicy.RELATIVE_PATH:
@@ -98,6 +118,16 @@ def _rebind_issue_sources(issues: tuple[Issue, ...], source: SourceFile) -> tupl
     """Replace adapter or discovery source labels with the core public reference."""
     reference = workbook_audit_display(source.public_reference)
     return tuple(replace(issue, source=reference) for issue in issues)
+
+
+def _redact_all_probe_reasons(
+    probes: tuple[tuple[str, float, str], ...],
+) -> tuple[tuple[str, float, str], ...]:
+    """Withhold every probe reason when provisional private identity remains effective."""
+    return tuple(
+        (adapter_id, confidence, SOURCE_IDENTITY_PROBE_REASON)
+        for adapter_id, confidence, _reason in probes
+    )
 
 
 def _bundle_issue_has_private_path(bundle: DatasetBundle) -> bool:
@@ -454,6 +484,9 @@ def run_pipeline(
             )
 
     for completed, discovered in enumerate(discovered_files, start=1):
+        sha256_alias_owner_ids = _sha256_alias_owner_ids_before_detection(
+            discovered.source.path, registry, forced_adapter
+        )
         initial_policy = _source_identity_policy_before_detection(
             discovered.source.path, registry, forced_adapter
         )
@@ -511,23 +544,25 @@ def run_pipeline(
                 source.path,
                 registry,
                 forced_adapter=forced_adapter,
-                redact_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
+                redact_adapter_ids=sha256_alias_owner_ids,
+                redact_error_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
             )
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
-            selected_policy = detection.adapter.descriptor.source_identity_policy
+            selected_adapter_policy = detection.adapter.descriptor.source_identity_policy
+            selected_policy = selected_adapter_policy
             if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
                 selected_policy = SourceIdentityPolicy.SHA256_ALIAS
             probes = tuple(
                 (
                     adapter_id,
                     probe.confidence,
-                    SOURCE_IDENTITY_PROBE_REASON
-                    if selected_policy is SourceIdentityPolicy.SHA256_ALIAS
-                    else probe.reason,
+                    probe.reason,
                 )
                 for adapter_id, probe in detection.probes
             )
+            if selected_adapter_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                probes = _redact_all_probe_reasons(probes)
             source = replace(
                 _apply_source_identity(source, selected_policy),
                 detected_format=detection.adapter.adapter_id,
@@ -564,6 +599,8 @@ def run_pipeline(
                     f"({type(error).__name__}).",
                 ) from error
             if source.sha256 != post_parse_sha256:
+                if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                    probes = _redact_all_probe_reasons(probes)
                 issue = Issue(
                     "INPUT_CHANGED_DURING_PARSE",
                     "Input content changed between discovery and the post-parse integrity check; "
@@ -583,6 +620,8 @@ def run_pipeline(
                 processed.append(result)
                 stopped = stopped or on_error == "stop"
             elif structure_issues:
+                if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                    probes = _redact_all_probe_reasons(probes)
                 result = FileResult(
                     source,
                     FileStatus.FAILED,
@@ -608,6 +647,8 @@ def run_pipeline(
                     display_source,
                 )
                 if any(issue.severity is Severity.ERROR for issue in issues):
+                    if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                        probes = _redact_all_probe_reasons(probes)
                     result = FileResult(
                         source,
                         FileStatus.FAILED,
@@ -620,6 +661,16 @@ def run_pipeline(
                     processed.append(result)
                     stopped = stopped or on_error == "stop"
                 else:
+                    if selected_adapter_policy is SourceIdentityPolicy.RELATIVE_PATH:
+                        source = replace(
+                            _apply_source_identity(
+                                discovered.source,
+                                SourceIdentityPolicy.RELATIVE_PATH,
+                            ),
+                            detected_format=detection.adapter.adapter_id,
+                        )
+                        bundle = _bind_source(bundle, source)
+                        issues = _rebind_issue_sources(issues, source)
                     status = FileStatus.WARNING if issues else FileStatus.SUCCESS
                     result = FileResult(
                         source,
@@ -634,6 +685,8 @@ def run_pipeline(
         except (KeyboardInterrupt, SystemExit, MemoryError):
             raise
         except Exception as error:  # per-file boundary isolates ordinary plugin/parser failures
+            if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                probes = _redact_all_probe_reasons(probes)
             result = FileResult(
                 source,
                 FileStatus.FAILED,
