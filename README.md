@@ -21,7 +21,7 @@ boundaries and semantics.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
 XLSX using Ordifile's documented schema. The current development source tree also
-includes four narrowly bounded Experimental proprietary readers described below; this
+includes five narrowly bounded Experimental proprietary readers described below; this
 is not general vendor-format support. Published availability is shown by the PyPI badge.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
@@ -103,6 +103,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Format boundary | Metadata | Peaks | Output | Status | Real fixture |
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
+| Agilent ChemStation Result XML, exact `C.01.10 [201]` single `FID1/A` Percent/Area profile | Scientific allowlist | ResultsGroup peaks | RT (min) + area (pA\*s) + height (pA); no raw signal | Experimental | One external CeCILL-2.1 fixture |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Stored-label channels + ordered raw binary32 records; no time axis or unit | Experimental | 23 owner-supplied local-only files |
@@ -110,12 +111,23 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 These Experimental adapters have the exact capability boundaries below. Unsupported
 profiles are rejected rather than interpreted broadly.
 
-The Agilent adapter retains every
+The Agilent `.CH` adapter retains every
 decoded record in source order. Its x values are `decoded_record_index`, not retention
 time; its y values are `decoded_raw_integer`, not physically scaled intensity. Units,
 scientific point count, and the final record's role remain unresolved. It does not
 claim other `.CH` versions, `.D` directories, TCD, MS, peaks, calibrated values, or
 write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-ch-v181.md).
+
+The separate Agilent Result XML adapter reads one exact ChemStation
+`C.01.10 [201]`, single `FID1/A`, `Percent`/`Area` report profile without requiring a
+raw sibling. It maps the canonical `ResultsGroup/Peak` rows to source-order peaks,
+retains explicit min, pA\*s and pA units, and checks every RT/area/height decimal string
+against its duplicate integration row. Peak boundaries are preserved, calibrated
+nonblank `Name` values map to `compound`, and source labels `FID1`/`A` map separately
+to canonical detector/channel `FID`/`FID1A`. Other revisions, multiple signals,
+detectors, quantitation modes, raw chromatograms and write support are rejected or
+unsupported. The external fixture remains controlled-CI only because it includes
+privacy-bearing run metadata. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-result-xml.md).
 
 The Shimadzu adapter is limited to an exact LabSolutions 5.82, GC-2014,
 single-channel `SFID1`, `uV`, identity-factor profile. Its 66,255-point retention-time
@@ -197,7 +209,8 @@ workbook.
 | `Manifest` | Version, UTC generation time, counts, options, sorting, limits, warnings, and sidecars |
 | `Samples` | One row per discovered input, status, public source reference (relative path by default or core hash alias), adapter facts, peak count, and SHA-256 |
 | `Peak_Matrix` | One row per sample only for explicit compound names; duplicate peaks remain separate |
-| `Peaks` | All explicit peaks in long form without retention-time identity inference |
+| `Peak_Order_Matrix` | Conditional source-order RT/area pairs with sample, source, manufacturer, detector, channel and units; pairs split atomically before Excel limits |
+| `Peaks` | All explicit peaks in long form, including manufacturer and evidence-backed units/boundaries, without retention-time identity inference |
 | `Metadata` | Unknown fields, invalid raw lexemes, and provenance without invented semantics |
 | `Import_Log` | Every public source reference, success, warning, failure, duplicate, skipped artifact, sort key, and hash |
 | `Signals_<channel>` | Original uninterpolated x/y values, only when requested and actually parsed |

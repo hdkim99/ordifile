@@ -12,6 +12,9 @@ from importlib import metadata
 from typing import Any, cast
 
 from ordifile.adapters.agilent_chemstation_ch_v181 import AgilentChemStationChV181Adapter
+from ordifile.adapters.agilent_chemstation_result_xml import (
+    AgilentChemStationResultXmlAdapter,
+)
 from ordifile.adapters.base import (
     ADAPTER_API_VERSION,
     AdapterDescriptor,
@@ -109,7 +112,8 @@ class AdapterRegistry:
             )
             or type(descriptor.support_status) is not SupportStatus
             or type(descriptor.series_kinds) is not tuple
-            or not descriptor.series_kinds
+            or descriptor.signals
+            and not descriptor.series_kinds
             or any(type(kind) is not SeriesKind for kind in descriptor.series_kinds)
             or len(set(descriptor.series_kinds)) != len(descriptor.series_kinds)
             or type(descriptor.source_identity_policy) is not SourceIdentityPolicy
@@ -183,6 +187,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     """Create the built-in registry and optionally load installed entry points."""
     registry = AdapterRegistry()
     registry.register(AgilentChemStationChV181Adapter())
+    registry.register(AgilentChemStationResultXmlAdapter())
     registry.register(GenericCsvAdapter())
     registry.register(GenericTsvAdapter())
     registry.register(GenericSemicolonAdapter())

@@ -156,18 +156,31 @@ to the workbook layout.
     is available, `source-input-<input order>`. Adapter-provided aliases are ignored.
     Detection failures, canonical records, issues, progress, API/CLI output, sort keys,
     `Samples` and `Import_Log` all use the same public reference. The policy is
-    manufacturer-neutral and may be reused by future result adapters.
+    manufacturer-neutral and may be reused by future result adapters. If an adapter
+    reports integrity from its bounded read, core requires its size/SHA-256 to equal
+    discovery provenance before rebinding; the independent post-parse hash remains a
+    second gate, and either mismatch excludes the parsed bundle.
 35. Proprietary result consolidation is result-first and manufacturer-neutral.
     Evidence-backed Agilent, Shimadzu and YoungIn result adapters map RT/area rows to the
-    existing `PeakRecord` model and common `Peaks` / `Peak_Matrix`; raw signals are an
+    common `PeakRecord`, `Peaks` and compound `Peak_Matrix`; raw signals are an
     optional independent capability, and a standalone result export never requires a
     raw source merely for pairing. The three vendor adapters remain separate exact-
     format readers, while their canonical peak rows, batch isolation, ordering,
-    provenance and Excel output obey the same contract. No vendor result parser, new
-    canonical result field or alternative peak matrix is implemented before an actual
+    provenance and Excel output obey the same contract. No vendor result parser,
+    canonical result field or source-order matrix is implemented before an actual
     result fixture establishes field boundaries and semantics. The current 23 YoungIn
     PRM files have no proven peak result table, so YoungIn RT/area remains NO-GO even
     though structural raw conversion proceeds.
+36. The first manufacturer-neutral result implementation is limited to the exact
+    Agilent ChemStation Result XML `C.01.10 [201]`, single `FID1/A`, Percent/Area
+    profile. Canonical rows come only from `ResultsGroup/Peak`; duplicate integration
+    rows must agree exactly for RT, area and height and supply bounded start/end times.
+    `PeakRecord` additively retains observation order, boundaries, area unit and height
+    unit. `Peaks` adds manufacturer without reordering legacy columns. A conditional
+    `Peak_Order_Matrix` uses seven fixed identity columns followed by atomic source-order
+    RT/area pairs, at most 8,188 pairs per Excel segment; compound `Peak_Matrix` remains
+    unchanged. Result XML uses `SHA256_ALIAS`, exports only allowlisted scientific
+    metadata, requires no raw sibling, and makes no broader Agilent claim.
 
 ## Public boundaries
 

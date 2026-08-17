@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from ordifile.core.models import (
     MAX_CANONICAL_INTEGER_DECIMAL_DIGITS,
@@ -418,7 +418,11 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 sample.source.public_reference,
             )
         )
+    ordered_peak_streams: dict[tuple[str, str, str | None, str | None], list[PeakRecord]] = {}
     for peak in bundle.peaks:
+        ordered_peak_streams.setdefault(
+            (peak.sample_id, peak.source_file, peak.detector, peak.channel), []
+        ).append(peak)
         validate_text(peak.sample_id, "peak.sample_id", peak.source_file, optional=False)
         validate_text(peak.source_file, "peak.source_file", None, optional=False)
         for field in (
@@ -427,6 +431,8 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             "retention_time_unit",
             "compound",
             "compound_source",
+            "area_unit",
+            "height_unit",
         ):
             validate_text(getattr(peak, field), f"peak.{field}", peak.source_file)
         validate_text(peak.status, "peak.status", peak.source_file, optional=False)
@@ -454,7 +460,24 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             )
         else:
             validate_integer(peak.peak_number, "peak.peak_number", peak.source_file)
-        for field in ("retention_time", "area", "height"):
+        if peak.observation_order is not None and (
+            type(peak.observation_order) is not int or peak.observation_order < 1
+        ):
+            issues.append(
+                Issue(
+                    "PEAK_OBSERVATION_ORDER_INVALID",
+                    "peak.observation_order must be a positive integer or None.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
+        else:
+            validate_integer(
+                peak.observation_order,
+                "peak.observation_order",
+                peak.source_file,
+            )
+        for field in ("retention_time", "area", "height", "start_time", "end_time"):
             value = getattr(peak, field)
             if value is not None and (type(value) not in {int, float}):
                 issues.append(
@@ -467,6 +490,77 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 )
             else:
                 validate_integer(value, f"peak.{field}", peak.source_file)
+        start_time = peak.start_time
+        retention_time = peak.retention_time
+        end_time = peak.end_time
+        if (
+            type(start_time) in {int, float}
+            and type(retention_time) in {int, float}
+            and type(end_time) in {int, float}
+            and not cast(int | float, start_time)
+            <= cast(int | float, retention_time)
+            <= cast(int | float, end_time)
+        ):
+            issues.append(
+                Issue(
+                    "PEAK_TIME_BOUNDARY_INVALID",
+                    "peak retention time must be within its explicit start and end times.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
+    for stream in ordered_peak_streams.values():
+        has_observation_order = [peak.observation_order is not None for peak in stream]
+        if not any(has_observation_order):
+            continue
+        source_file = stream[0].source_file
+        if not all(has_observation_order):
+            issues.append(
+                Issue(
+                    "PEAK_OBSERVATION_ORDER_PARTIAL",
+                    "A peak stream must provide observation_order for every row or no rows.",
+                    Severity.ERROR,
+                    source_file,
+                )
+            )
+            continue
+        if tuple(peak.observation_order for peak in stream) != tuple(range(1, len(stream) + 1)):
+            issues.append(
+                Issue(
+                    "PEAK_OBSERVATION_ORDER_INVALID",
+                    "A peak stream must use contiguous source tuple order starting at one.",
+                    Severity.ERROR,
+                    source_file,
+                )
+            )
+        for field in ("retention_time", "area"):
+            if any(
+                type(getattr(peak, field)) not in {int, float}
+                or not math.isfinite(getattr(peak, field))
+                for peak in stream
+            ):
+                issues.append(
+                    Issue(
+                        "ORDERED_PEAK_VALUE_INVALID",
+                        f"An ordered peak stream requires finite numeric {field} values.",
+                        Severity.ERROR,
+                        source_file,
+                    )
+                )
+        for field in ("retention_time_unit", "area_unit"):
+            units = tuple(getattr(peak, field) for peak in stream)
+            if (
+                any(type(unit) is not str or not unit.strip() for unit in units)
+                or len(set(units)) != 1
+            ):
+                issues.append(
+                    Issue(
+                        "ORDERED_PEAK_UNIT_INVALID",
+                        f"An ordered peak stream requires one consistent nonempty {field}.",
+                        Severity.ERROR,
+                        source_file,
+                    )
+                )
     for signal in bundle.signals:
         validate_text(signal.sample_id, "signal.sample_id", signal.source_file, optional=False)
         validate_text(signal.source_file, "signal.source_file", None, optional=False)

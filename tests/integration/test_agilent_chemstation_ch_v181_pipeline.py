@@ -75,6 +75,12 @@ def test_valid_and_corrupt_v181_files_are_isolated_in_one_workbook(tmp_path: Pat
                 "compound",
                 "compound_source",
                 "status",
+                "manufacturer",
+                "observation_order",
+                "start_time",
+                "end_time",
+                "area_unit",
+                "height_unit",
             )
         ]
         import_log = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))

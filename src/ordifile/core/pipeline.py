@@ -260,6 +260,36 @@ def _bind_source(bundle: DatasetBundle, source: SourceFile) -> DatasetBundle:
     )
 
 
+def _adapter_source_integrity_issue(bundle: DatasetBundle, source: SourceFile) -> Issue | None:
+    """Reject a bounded adapter read that does not match discovery provenance."""
+    if len(bundle.sources) != 1:
+        return None
+    adapter_source = bundle.sources[0]
+    if adapter_source.sha256 is None:
+        return None
+    if (
+        type(adapter_source.sha256) is not str
+        or _SHA256.fullmatch(adapter_source.sha256) is None
+        or type(adapter_source.size) is not int
+        or adapter_source.size < 0
+    ):
+        return Issue(
+            "ADAPTER_SOURCE_INTEGRITY_INVALID",
+            "The adapter returned malformed source integrity metadata; parsed data was excluded.",
+            Severity.ERROR,
+            workbook_audit_display(source.public_reference),
+        )
+    if adapter_source.sha256 != source.sha256 or adapter_source.size != source.size:
+        return Issue(
+            "INPUT_CHANGED_DURING_PARSE",
+            "The adapter's bounded read did not match discovery provenance; parsed data was "
+            "excluded from output.",
+            Severity.ERROR,
+            workbook_audit_display(source.public_reference),
+        )
+    return None
+
+
 def _normalize_datetimes(
     bundle: DatasetBundle, source_file: str
 ) -> tuple[DatasetBundle, tuple[Issue, ...]]:
@@ -506,6 +536,10 @@ def run_pipeline(
             display_source = workbook_audit_display(source.public_reference)
             parsed_bundle = detection.adapter.parse(source.path, options)
             structure_issues = validate_bundle_structure(parsed_bundle)
+            if not structure_issues:
+                adapter_integrity_issue = _adapter_source_integrity_issue(parsed_bundle, source)
+                if adapter_integrity_issue is not None:
+                    structure_issues = (adapter_integrity_issue,)
             if not structure_issues and _bundle_issue_has_private_path(parsed_bundle):
                 structure_issues = (
                     Issue(
@@ -542,7 +576,7 @@ def run_pipeline(
                     FileStatus.FAILED,
                     detection.adapter.adapter_id,
                     detection.adapter.adapter_version,
-                    bundle,
+                    None,
                     (*discovery_issues, issue),
                     probes=probes,
                 )

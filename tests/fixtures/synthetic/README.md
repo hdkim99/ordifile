@@ -13,6 +13,9 @@ python tests/fixtures/synthetic/generate_xlsx.py
 The committed workbook is intentional: integration tests exercise the same redistributable
 fixture that the support table describes.
 
+`generate_agilent_chemstation_result_xml.py` creates invented UTF-16LE XML matching
+only the exact structural gates exercised by the Experimental Result XML adapter.
+
 The generator fixes workbook properties, archive member order, timestamps, ZipInfo metadata,
 and uses `ZIP_STORED` so output bytes do not depend on the host zlib implementation. Its
 expected SHA-256 is recorded below:

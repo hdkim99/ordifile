@@ -414,6 +414,7 @@ def test_input_mutation_during_parse_is_detected_and_excluded(tmp_path: Path) ->
         source, tmp_path / "mutated.xlsx", registry=_registry(BundleAdapter(mutate=True))
     )
     assert result.files[0].status is FileStatus.FAILED
+    assert result.files[0].bundle is None
     assert any(issue.code == "INPUT_CHANGED_DURING_PARSE" for issue in result.files[0].issues)
     workbook = load_workbook(result.output_path, read_only=True, data_only=False)
     try:

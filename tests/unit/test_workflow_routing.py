@@ -9,6 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parents[2]
 WORKFLOW_ROOT = PROJECT_ROOT / ".github" / "workflows"
 WORKFLOW_NAMES = (
+    "agilent-result-xml-external.yml",
     "agilent-v181-external.yml",
     "ci.yml",
     "release.yml",
@@ -124,6 +125,24 @@ def test_agilent_external_fixture_is_maintainer_controlled_and_non_persistent() 
     assert "actions/cache" not in workflow
     assert "actions/upload-artifact" not in workflow
     assert "--allow-ci" in workflow
+    assert "Remove exact external fixture cache" in workflow
+
+
+def test_agilent_result_xml_external_fixture_is_controlled_private_and_non_persistent() -> None:
+    workflow = _workflow("agilent-result-xml-external.yml")
+    assert "workflow_dispatch:" in workflow
+    assert "  push:" not in workflow
+    assert "  pull_request:" not in workflow
+    assert "github.repository == 'hdkim99/ordifile'" in workflow
+    assert "permissions:\n  contents: read" in workflow
+    assert "id-token: write" not in workflow
+    assert "secrets." not in workflow
+    assert "actions/cache" not in workflow
+    assert "actions/upload-artifact" not in workflow
+    assert "--allow-ci" in workflow
+    assert "CECILL-2.1-IFPEN-GC2ASM-RESULT-XML" in workflow
+    assert "without logging its content" in workflow
+    assert '--basetemp "$RUNNER_TEMP/ordifile-agilent-result-xml-fixture/pytest"' in workflow
     assert "Remove exact external fixture cache" in workflow
 
 

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ifpen-gc2asm-agilent-result-xml-c0110",
+  "url": "https://raw.githubusercontent.com/ifpen/GC2ASM/161b940846bd606e33e0100b4c0614aef328bd01/src/test/resources/V181.D/Result.xml",
+  "allowed_hosts": [
+    "raw.githubusercontent.com"
+  ],
+  "artifact_filename": "Result.xml",
+  "sha256": "4c876bb5712b2d943b5ad32ce5854698018e0b82f2dfc10cc0971ffab9a7056f",
+  "size_bytes": 98084,
+  "archive_type": "file",
+  "selected_files": [],
+  "tree_sha256": null,
+  "source_page_url": "https://github.com/ifpen/GC2ASM/blob/161b940846bd606e33e0100b4c0614aef328bd01/src/test/resources/V181.D/Result.xml",
+  "license_name": "CeCILL Free Software License Agreement v2.1",
+  "license_id": "CECILL-2.1-IFPEN-GC2ASM-RESULT-XML",
+  "license_url": "https://github.com/ifpen/GC2ASM/blob/161b940846bd606e33e0100b4c0614aef328bd01/LICENCE.txt",
+  "license_acknowledged": true,
+  "redistribution": "permitted",
+  "attribution": "Source: IFPEN GC2ASM Result.xml fixture, pinned commit 161b940846bd606e33e0100b4c0614aef328bd01. Used unchanged as an external controlled-CI fixture. Accessed 2026-08-17.",
+  "privacy_review": "contains_personal_data",
+  "validated_with": [
+    {
+      "reader": "independent_decoder",
+      "version": "0.1.0",
+      "result": "accepted"
+    },
+    {
+      "reader": "official_schema",
+      "version": "C.01.10",
+      "result": "accepted"
+    }
+  ],
+  "grade": "ACCEPT_CONTROLLED_CI",
+  "ci_eligible": true
+}

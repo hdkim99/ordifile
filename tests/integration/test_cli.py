@@ -65,13 +65,14 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
         assert adapter_id in output
     assert "Verified adapters: 4" in output
     assert "agilent_chemstation_ch_v181" in output
+    assert "agilent_chemstation_result_xml" in output
     assert "shimadzu_gcsolution_gcd" in output
     assert "shimadzu_gcmssolution_qgd" in output
     assert "youngin_yl_clarity_prm_raw" in output
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 4" in output
+    assert "Experimental adapters: 5" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 
