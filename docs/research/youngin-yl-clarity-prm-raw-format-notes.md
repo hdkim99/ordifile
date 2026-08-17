@@ -119,7 +119,7 @@ optional and separate from the result-first consolidation path.
 | Exact observed profile detection | Experimental, fixture-backed |
 | Deterministic raw binary32 extraction | Experimental GO |
 | Stored channel-label separation | Experimental |
-| User-supplied FID/TCD grouping | Supported as local label only |
+| Maintainer FID/TCD fixture grouping | Local external oracle only; not runtime output |
 | Independently verified detector identity | Unverified |
 | Retention-time axis | Unsupported |
 | Physical/display scaling | Unsupported |

@@ -124,6 +124,8 @@ def _batch_digest(paths: tuple[Path, ...]) -> tuple[str, Counter[int], int, int,
         signals = bundle.signals
         source_sha256 = inspected.file.source.sha256
         assert source_sha256 is not None
+        assert bundle.samples[0].sample_id == f"PRM_{source_sha256[:16]}"
+        assert not any(entry.key == "user_supplied_group" for entry in bundle.metadata)
         alias = path.stem.encode("ascii")
         digest.update(struct.pack(">H", len(alias)))
         digest.update(alias)
@@ -239,6 +241,8 @@ def test_all_local_prm_files_parse_deterministically_and_reopen_one_workbook(
                 public_text.update(str(value) for value in row if type(value) is str)
         rendered = "\n".join(sorted(public_text))
         assert not any(name in rendered for name in private_names)
+        assert not any(path.stem in rendered for path in staged)
+        assert "user_supplied_group" not in rendered
         assert _EMAIL.search(rendered) is None
         assert _LOCAL_PATH.search(rendered) is None
     finally:

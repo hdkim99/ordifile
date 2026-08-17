@@ -137,8 +137,8 @@ PRM profile. It preserves 563,240 finite stored binary32 records from 43 current
 across 23 local-only files and separates the allowlisted FID/TCD labels stored in those
 files, while leaving the canonical detector field unset. Its x coordinate is record
 ordinal, not retention time. No physical scaling or unit is applied, and peaks are not
-exported. User-supplied FID/TCD grouping remains a label rather than binary detector
-evidence. It does not claim other PRM generations, recovery `.RAW`, Autochro, calibrated
+exported. Runtime sample IDs are content-derived, and no filename-derived grouping is
+exported. It does not claim other PRM generations, recovery `.RAW`, Autochro, calibrated
 chromatograms, or write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).
 
 ## CLI

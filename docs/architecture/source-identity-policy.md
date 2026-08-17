@@ -13,11 +13,29 @@ events, the Python API, CLI output and workbook audit sheets.
   input, the core emits `source-input-<six-digit input order>` instead.
 
 The core creates these aliases. Adapter-provided aliases are discarded, so a parser
-cannot accidentally restore a private basename. When a forced adapter, or every owner
-of an input extension, declares `SHA256_ALIAS`, the policy is applied before content
-detection so discovery and malformed-file errors are also safe. The selected adapter's
-policy is applied again after detection. SHA-aliased files use their public reference
-for deterministic sorting; generic relative-path ordering is unchanged.
+cannot accidentally restore a private basename. When a forced adapter declares
+`SHA256_ALIAS`, or any owner of an input extension declares it, the policy is applied
+before content detection so no-match, ambiguity, discovery and malformed-file errors
+are also safe. The selected adapter's policy is applied again after detection without
+downgrading a conservative pre-detection SHA alias. SHA-aliased files use their public
+reference for deterministic sorting; generic relative-path ordering is unchanged.
+
+An adapter's `DetectionResult.reason` is untrusted text. Under an effective
+`SHA256_ALIAS` policy, the core replaces every probe reason with one fixed
+non-identifying explanation before constructing no-match or ambiguity errors and
+before storing public probe evidence. Match decisions and bounded confidence values
+are unchanged. `RELATIVE_PATH` adapters retain their existing inspectable probe-reason
+behavior.
+
+Adapter exceptions follow the same boundary. Under an effective `SHA256_ALIAS` policy,
+the core preserves a valid structured error code but replaces its free-form message
+and details with fixed non-identifying output. An ordinary exception becomes one fixed
+generic error without exposing its class name or message. This includes a
+`RELATIVE_PATH` adapter selected from an extension-owner set whose conservative
+pre-detection policy was `SHA256_ALIAS`. `RELATIVE_PATH`-only inputs retain the existing
+validated structured message/context and bounded ordinary-exception class behavior.
+Canonical bundle warnings and metadata continue through their existing independent
+validation boundary.
 
 The core retains the real path only while it must read and protect the input. Public
 `inspect_file()` and `convert()` results replace `path`, `relative_path` and `name` for

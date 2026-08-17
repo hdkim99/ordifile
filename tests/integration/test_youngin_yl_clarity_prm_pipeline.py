@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 from pathlib import Path
 
@@ -36,11 +37,12 @@ def test_inspect_and_cli_report_decoded_records_not_scientific_signals(
 def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Path) -> None:
     inputs = tmp_path / "inputs"
     inputs.mkdir()
-    (inputs / "FID_STD_001.prm").write_bytes(synthetic_prm_bytes(channels=((1.0, 2.0, 3.0),)))
-    (inputs / "TCD_STD_001.prm").write_bytes(synthetic_prm_bytes(channels=((10.0, 20.0),)))
-    (inputs / "MIXED_SAMPLE_001.prm").write_bytes(
-        synthetic_prm_bytes(channels=((5.0,), (6.0, 7.0)))
-    )
+    first_data = synthetic_prm_bytes(channels=((1.0, 2.0, 3.0),))
+    second_data = synthetic_prm_bytes(channels=((10.0, 20.0),))
+    third_data = synthetic_prm_bytes(channels=((5.0,), (6.0, 7.0)))
+    (inputs / "FID_STD_001.prm").write_bytes(first_data)
+    (inputs / "TCD_STD_001.prm").write_bytes(second_data)
+    (inputs / "MIXED_SAMPLE_001.prm").write_bytes(third_data)
     (inputs / "FID_STD_002.prm").write_bytes(synthetic_prm_bytes()[:-21])
     output = tmp_path / "result.xlsx"
 
@@ -60,13 +62,12 @@ def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Pat
         assert {row[-1] for row in fid_rows[1:] + tcd_rows[1:]} == {"decoded_records"}
         samples = list(workbook["Samples"].iter_rows(min_row=2, values_only=True))
         assert {row[1] for row in samples if row[12] != "failed"} == {
-            "FID_STD_001",
-            "TCD_STD_001",
-            "MIXED_SAMPLE_001",
+            f"PRM_{hashlib.sha256(first_data).hexdigest()[:16]}",
+            f"PRM_{hashlib.sha256(second_data).hexdigest()[:16]}",
+            f"PRM_{hashlib.sha256(third_data).hexdigest()[:16]}",
         }
         metadata = list(workbook["Metadata"].iter_rows(min_row=2, values_only=True))
-        groups = {row[4] for row in metadata if row[3] == "user_supplied_group"}
-        assert groups == {"FID_STANDARD", "TCD_STANDARD", "FID_TCD_SAMPLE"}
+        assert not any(row[3] == "user_supplied_group" for row in metadata)
         import_log = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
         assert {row[4] for row in import_log} == {"warning", "failed"}
         assert all(row[9] for row in import_log)

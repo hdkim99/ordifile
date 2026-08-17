@@ -24,13 +24,13 @@ Each bounded current raw block becomes one decoded-record series:
 - peaks: unsupported.
 
 The workbook uses `Signals_Records_*` sheets. These rows are not ordinary scientific
-`Signals_*` rows and the index is not retention time. A user-supplied local grouping
-such as `FID_STANDARD`, `TCD_STANDARD`, or `FID_TCD_SAMPLE` is retained only when the
-input has first been staged as `FID_STD_NNN.PRM`, `TCD_STD_NNN.PRM`, or
-`MIXED_SAMPLE_NNN.PRM`. This privacy-safe alias convention is never treated as binary
-detector evidence. Other basenames receive a deterministic source-hash pseudonym.
+`Signals_*` rows and the index is not retention time. Every runtime sample ID is the
+content-derived `PRM_<first 16 source SHA-256 characters>` pseudonym. The adapter does
+not inspect basenames for FID/TCD grouping and exports no filename-derived group.
+Privacy-safe staged aliases are used only by the local maintainer oracle to aggregate
+the owner-supplied fixture set; they are not runtime metadata or detector evidence.
 
-Independently of the sample ID, every public source reference for this adapter is the
+Every public source reference for this adapter is the
 core-generated `source-<full SHA-256>` alias. It is used by API and CLI results,
 progress events, sort keys, issues, `Samples`, and `Import_Log`, including corrupt PRM
 files that fail parsing. Files that cannot be hashed use a deterministic input-order

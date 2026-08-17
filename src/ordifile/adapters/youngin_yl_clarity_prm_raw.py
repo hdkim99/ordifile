@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import ClassVar
 
@@ -35,23 +34,10 @@ from ordifile.core.models import (
 )
 
 _NAMESPACE = "adapter:youngin_yl_clarity_prm_raw"
-_SAFE_ALIAS = re.compile(r"(FID_STD|TCD_STD|MIXED_SAMPLE)_[0-9]{3}\Z")
-_GROUP_BY_PREFIX = {
-    "FID_STD": "FID_STANDARD",
-    "TCD_STD": "TCD_STANDARD",
-    "MIXED_SAMPLE": "FID_TCD_SAMPLE",
-}
 
 
 def _parse_error(error: YoungInPrmStructureError) -> ParseError:
     return ParseError(error.code, error.message, details=error.details)
-
-
-def _sample_identity(stem: str, source_sha256: str) -> tuple[str, str | None]:
-    match = _SAFE_ALIAS.fullmatch(stem)
-    if match is None:
-        return f"PRM_{source_sha256[:16]}", None
-    return stem, _GROUP_BY_PREFIX[match.group(1)]
 
 
 class YoungInYlClarityPrmRawAdapter:
@@ -111,7 +97,7 @@ class YoungInYlClarityPrmRawAdapter:
                 f"Could not stat the input ({type(error).__name__}).",
             ) from error
 
-        sample_id, user_group = _sample_identity(path.stem, decoded.source_sha256)
+        sample_id = f"PRM_{decoded.source_sha256[:16]}"
         safe_source = f"{sample_id}.prm"
         source = SourceFile(path, safe_source, safe_source, size, decoded.source_sha256, None, 0)
         channel_ids = tuple(channel.channel_id for channel in decoded.channels)
@@ -171,8 +157,6 @@ class YoungInYlClarityPrmRawAdapter:
             ("peak_table_status", "unsupported", None),
             ("scientific_semantics_status", "pending_paired_export", None),
         ]
-        if user_group is not None:
-            values.append(("user_supplied_group", user_group, None))
         for index, channel in enumerate(decoded.channels, start=1):
             prefix = f"structural_channel_{index:03d}"
             values.extend(

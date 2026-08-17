@@ -134,7 +134,8 @@ Local-only 파일 23개의 현재 block 43개에서 유한한 stored binary32 re
 순서대로 보존하고, 파일에 저장된 allowlisted FID/TCD label로 channel을 분리하지만
 canonical detector field는 비워 둡니다. x는 retention time이 아니라 record ordinal이며,
 physical scaling이나 unit을 적용하지 않고 peak도 내보내지 않습니다. 사용자가 제공한
-FID/TCD grouping도 binary detector evidence가 아닌 label입니다. 다른 PRM generation,
+FID/TCD grouping은 local maintainer oracle에만 남고 runtime metadata로 출력되지 않습니다.
+Runtime sample ID도 파일명이 아닌 content hash로 생성됩니다. 다른 PRM generation,
 recovery `.RAW`, Autochro, calibrated chromatogram, 쓰기 기능은 지원한다고 주장하지
 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 

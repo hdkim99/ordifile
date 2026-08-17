@@ -32,7 +32,7 @@
       "13190": 6,
       "13210": 2
     },
-    "canonical_batch_digest_algorithm": "SHA-256 over domain ordifile-youngin-local-reference-v1\\0; for each privacy-safe staged alias in FID_STD, TCD_STD, MIXED_SAMPLE order: BE-u16 alias length, ASCII alias, 32-byte source SHA-256, BE-u16 block count; for each source-order block: BE-u16 ordinal, BE-u64 count, then each decoded value packed as BE-f32",
+    "canonical_batch_digest_algorithm": "Local-only external oracle: SHA-256 over domain ordifile-youngin-local-reference-v1\\0; for each privacy-safe staged alias in FID_STD, TCD_STD, MIXED_SAMPLE order: BE-u16 alias length, ASCII alias, 32-byte source SHA-256, BE-u16 block count; for each source-order block: BE-u16 ordinal, BE-u64 count, then each decoded value packed as BE-f32. Staged groups are not runtime metadata.",
     "canonical_batch_sha256": "96d84945222d583c621459d25b57a2f5bb5cca9cf0cfa9f830811a5d483a3c5a",
     "repeated_run_equal": true
   },

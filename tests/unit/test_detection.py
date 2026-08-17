@@ -7,7 +7,7 @@ import pytest
 
 from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
 from ordifile.adapters.registry import AdapterRegistry, create_registry
-from ordifile.core.detection import detect_adapter
+from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, detect_adapter
 from ordifile.core.errors import AdapterAmbiguityError, DetectionError
 from ordifile.core.models import DatasetBundle
 
@@ -74,3 +74,20 @@ def test_forced_adapter_records_probe_failure(tmp_path: Path) -> None:
     with pytest.raises(DetectionError) as caught:
         detect_adapter(path, create_registry(include_external=False), forced_adapter="generic_csv")
     assert "generic_csv" in caught.value.message
+
+
+def test_probe_reason_redaction_preserves_match_and_confidence(tmp_path: Path) -> None:
+    path = tmp_path / "private.dat"
+    path.write_bytes(b"data")
+    registry = AdapterRegistry()
+    registry.register(ClaimingAdapter("private_claim", 0.73))
+
+    outcome = detect_adapter(path, registry, redact_reasons=True)
+
+    adapter_id, probe = outcome.probes[0]
+    assert outcome.adapter.adapter_id == "private_claim"
+    assert adapter_id == "private_claim"
+    assert probe.matched is True
+    assert probe.confidence == pytest.approx(0.73)
+    assert probe.reason == SOURCE_IDENTITY_PROBE_REASON
+    assert path.name not in probe.reason

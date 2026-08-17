@@ -16,7 +16,7 @@ from pathlib import Path
 
 from ordifile.adapters.base import ParseOptions, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
-from ordifile.core.detection import detect_adapter
+from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, detect_adapter
 from ordifile.core.discovery import discover_files, sha256_file
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import (
@@ -53,6 +53,11 @@ MAX_ERROR_DETAIL_KEY_CHARACTERS = 64
 MAX_ERROR_DETAIL_VALUE_CHARACTERS = 512
 _ADAPTER_ERROR_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,63}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+SOURCE_IDENTITY_ADAPTER_ERROR_MESSAGE = "Adapter error details withheld by source identity policy."
+SOURCE_IDENTITY_UNEXPECTED_ERROR_MESSAGE = (
+    "The adapter raised an unexpected error; identifying details were withheld by "
+    "source identity policy."
+)
 
 
 def _source_identity_policy_before_detection(
@@ -60,7 +65,7 @@ def _source_identity_policy_before_detection(
     registry: AdapterRegistry,
     forced_adapter: str | None,
 ) -> SourceIdentityPolicy:
-    """Return the policy known without inspecting private source content."""
+    """Return the most private policy known without inspecting source content."""
     if forced_adapter is not None:
         return registry.get(forced_adapter).descriptor.source_identity_policy
     suffix = path.suffix.casefold()
@@ -69,7 +74,7 @@ def _source_identity_policy_before_detection(
         for adapter in registry.adapters()
         if suffix in {extension.casefold() for extension in adapter.descriptor.extensions}
     )
-    if owners and all(
+    if owners and any(
         adapter.descriptor.source_identity_policy is SourceIdentityPolicy.SHA256_ALIAS
         for adapter in owners
     ):
@@ -152,9 +157,29 @@ def _safe_error_context(details: object) -> tuple[tuple[str, str], ...]:
     return tuple(context)
 
 
-def _issue_from_error(error: Exception, source: SourceFile) -> Issue:
+def _issue_from_error(
+    error: Exception,
+    source: SourceFile,
+    *,
+    redact_details: bool = False,
+) -> Issue:
     safe_source = workbook_audit_display(source.public_reference)
     if isinstance(error, OrdifileError):
+        if redact_details:
+            if type(error.code) is not str or _ADAPTER_ERROR_CODE.fullmatch(error.code) is None:
+                return Issue(
+                    "ADAPTER_ERROR_INVALID",
+                    "The adapter raised a malformed structured error; identifying details "
+                    "were withheld.",
+                    Severity.ERROR,
+                    safe_source,
+                )
+            return Issue(
+                error.code,
+                SOURCE_IDENTITY_ADAPTER_ERROR_MESSAGE,
+                Severity.ERROR,
+                safe_source,
+            )
         if (
             type(error.code) is not str
             or _ADAPTER_ERROR_CODE.fullmatch(error.code) is None
@@ -175,6 +200,13 @@ def _issue_from_error(error: Exception, source: SourceFile) -> Issue:
             Severity.ERROR,
             safe_source,
             _safe_error_context(error.details),
+        )
+    if redact_details:
+        return Issue(
+            "ADAPTER_UNEXPECTED_ERROR",
+            SOURCE_IDENTITY_UNEXPECTED_ERROR_MESSAGE,
+            Severity.ERROR,
+            safe_source,
         )
     error_type = type(error).__name__
     if len(error_type) > 80 or not workbook_text_is_exact(error_type):
@@ -445,15 +477,29 @@ def run_pipeline(
         selected_adapter_version: str | None = None
         probes: tuple[tuple[str, float, str], ...] = ()
         try:
-            detection = detect_adapter(source.path, registry, forced_adapter=forced_adapter)
-            probes = tuple(
-                (adapter_id, probe.confidence, probe.reason)
-                for adapter_id, probe in detection.probes
+            detection = detect_adapter(
+                source.path,
+                registry,
+                forced_adapter=forced_adapter,
+                redact_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
             )
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
+            selected_policy = detection.adapter.descriptor.source_identity_policy
+            if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                selected_policy = SourceIdentityPolicy.SHA256_ALIAS
+            probes = tuple(
+                (
+                    adapter_id,
+                    probe.confidence,
+                    SOURCE_IDENTITY_PROBE_REASON
+                    if selected_policy is SourceIdentityPolicy.SHA256_ALIAS
+                    else probe.reason,
+                )
+                for adapter_id, probe in detection.probes
+            )
             source = replace(
-                _apply_source_identity(source, detection.adapter.descriptor.source_identity_policy),
+                _apply_source_identity(source, selected_policy),
                 detected_format=detection.adapter.adapter_id,
             )
             discovery_issues = _rebind_issue_sources(discovery_issues, source)
@@ -560,7 +606,15 @@ def run_pipeline(
                 selected_adapter_id,
                 selected_adapter_version,
                 issues=_bounded_file_issues(
-                    (*discovery_issues, _issue_from_error(error, source)), display_source
+                    (
+                        *discovery_issues,
+                        _issue_from_error(
+                            error,
+                            source,
+                            redact_details=source.public_id is not None,
+                        ),
+                    ),
+                    display_source,
                 ),
                 probes=probes,
             )

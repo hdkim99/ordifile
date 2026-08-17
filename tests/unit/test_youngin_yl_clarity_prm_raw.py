@@ -52,13 +52,14 @@ def test_descriptor_and_detection_are_exact_and_experimental(tmp_path: Path) -> 
     assert _error(wrong_extension) == "YOUNGIN_PRM_EXTENSION_INVALID"
 
 
-def test_single_channel_raw_records_and_user_label_are_not_detector_claims(
+def test_single_channel_raw_records_use_content_identity_and_not_detector_claims(
     tmp_path: Path,
 ) -> None:
-    path = _write(tmp_path / "FID_STD_001.prm")
+    data = synthetic_prm_bytes()
+    path = _write(tmp_path / "FID_STD_001.prm", data)
     bundle = YoungInYlClarityPrmRawAdapter().parse(path, ParseOptions())
 
-    assert bundle.samples[0].sample_id == "FID_STD_001"
+    assert bundle.samples[0].sample_id == f"PRM_{hashlib.sha256(data).hexdigest()[:16]}"
     assert bundle.samples[0].channels == ("native_label_TCD",)
     assert bundle.samples[0].detectors == ()
     assert bundle.samples[0].acquired_at is None
@@ -74,7 +75,7 @@ def test_single_channel_raw_records_and_user_label_are_not_detector_claims(
     assert signal.y_unit is None
     assert signal.series_kind is SeriesKind.DECODED_RECORDS
     metadata = {entry.key: entry.value for entry in bundle.metadata}
-    assert metadata["user_supplied_group"] == "FID_STANDARD"
+    assert "user_supplied_group" not in metadata
     assert metadata["detector_verified"] is False
     assert metadata["time_axis_status"] == "not_exposed"
     assert metadata["physical_scaling_status"] == "not_applied"
@@ -82,21 +83,17 @@ def test_single_channel_raw_records_and_user_label_are_not_detector_claims(
     assert bundle.samples[0].detectors == ()
 
 
-@pytest.mark.parametrize(
-    ("stem", "expected_group"),
-    (
-        ("FID_STD_010", "FID_STANDARD"),
-        ("TCD_STD_010", "TCD_STANDARD"),
-        ("MIXED_SAMPLE_003", "FID_TCD_SAMPLE"),
-    ),
-)
-def test_exact_safe_aliases_preserve_user_group_only(
-    tmp_path: Path, stem: str, expected_group: str
+@pytest.mark.parametrize("stem", ("FID_STD_010", "TCD_STD_010", "MIXED_SAMPLE_003"))
+def test_former_group_alias_patterns_do_not_affect_runtime_identity(
+    tmp_path: Path, stem: str
 ) -> None:
-    bundle = YoungInYlClarityPrmRawAdapter().parse(_write(tmp_path / f"{stem}.prm"), ParseOptions())
+    data = synthetic_prm_bytes()
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / f"{stem}.prm", data), ParseOptions()
+    )
     metadata = {entry.key: entry.value for entry in bundle.metadata}
-    assert bundle.samples[0].sample_id == stem
-    assert metadata["user_supplied_group"] == expected_group
+    assert bundle.samples[0].sample_id == f"PRM_{hashlib.sha256(data).hexdigest()[:16]}"
+    assert "user_supplied_group" not in metadata
     assert bundle.samples[0].detectors == ()
 
 

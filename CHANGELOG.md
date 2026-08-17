@@ -29,7 +29,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Added a core-owned SHA-256 public source identity policy for privacy-sensitive
   adapters so API, CLI, progress, sorting, issues and workbook audit sheets do not
-  expose private source basenames.
+  expose private source basenames. YoungIn runtime sample IDs are also content-derived;
+  filename-based FID/TCD grouping is limited to the local maintainer oracle and is not
+  exported. Probe reasons supplied by adapters are replaced with fixed non-identifying
+  evidence whenever the effective source identity policy uses a SHA-256 alias. At the
+  same boundary, structured adapter errors preserve only validated codes and ordinary
+  adapter exceptions expose neither free-form messages nor class names.
 
 ## [0.2.1] - 2026-08-17
 
