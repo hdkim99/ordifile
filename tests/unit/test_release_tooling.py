@@ -463,10 +463,35 @@ def test_release_workflow_revalidates_draft_before_final_publish() -> None:
 
     assert "actions/download-artifact@" in final_publish
     assert "if len(expected) != 3:" in final_publish
-    assert '"isDraft,tagName,assets"' in final_publish
+    assert '"isDraft,isPrerelease,tagName,name,body,assets"' in final_publish
+    assert 'release.get("isPrerelease") is not False' in final_publish
+    assert 'release.get("name") != f"Ordifile {tag}"' in final_publish
+    assert 'release.get("body")' in final_publish
+    assert '(root / "release-notes.md").read_text(encoding="utf-8")' in final_publish
     assert 'f"repos/{repository}/git/ref/tags/{tag}"' in final_publish
     assert "Draft release bytes changed" in final_publish
     assert 'gh release edit "$GITHUB_REF_NAME" --draft=false' in final_publish
+
+
+def test_release_notes_identify_their_filename_version() -> None:
+    release_notes = PROJECT_ROOT / "docs" / "releases"
+    for path in sorted(release_notes.glob("v*.md")):
+        expected_heading = f"# Ordifile {path.stem}"
+        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+        assert first_line == expected_heading or first_line.startswith(expected_heading + " ")
+
+
+def test_release_workflow_validates_release_note_heading() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    build_gate = workflow.split(
+        "      - name: Enforce release source, version, and tag policy", maxsplit=1
+    )[1].split("      - name: Install release tooling and project", maxsplit=1)[0]
+
+    assert 'notes.read_text(encoding="utf-8").splitlines()[0]' in build_gate
+    assert 'expected_heading = f"# Ordifile v{version}"' in build_gate
+    assert "not first_line.startswith(" in build_gate
+    assert 'expected_heading + " "' in build_gate
+    assert "Release notes are unreadable or empty" in build_gate
 
 
 def test_release_workflow_rejects_stale_or_extra_publish_files() -> None:

@@ -147,6 +147,18 @@ jobs:
           notes = pathlib.Path(f"docs/releases/v{version}.md")
           if not notes.is_file():
               raise SystemExit(f"Missing release notes: {notes}")
+          try:
+              first_line = notes.read_text(encoding="utf-8").splitlines()[0]
+          except (OSError, UnicodeDecodeError, IndexError) as error:
+              raise SystemExit(f"Release notes are unreadable or empty: {notes}") from error
+          expected_heading = f"# Ordifile v{version}"
+          if first_line != expected_heading and not first_line.startswith(
+              expected_heading + " "
+          ):
+              raise SystemExit(
+                  "Release notes heading does not identify "
+                  f"Ordifile v{version}: {first_line!r}"
+              )
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8", newline="\n") as output:
               output.write(f"version={version}\n")
       - name: Install release tooling and project
@@ -1603,11 +1615,25 @@ jobs:
 
           release = json.loads(
               subprocess.check_output(
-                  ["gh", "release", "view", tag, "--json", "isDraft,tagName,assets"],
+                  [
+                      "gh",
+                      "release",
+                      "view",
+                      tag,
+                      "--json",
+                      "isDraft,isPrerelease,tagName,name,body,assets",
+                  ],
                   text=True,
               )
           )
-          if release.get("isDraft") is not True or release.get("tagName") != tag:
+          if (
+              release.get("isDraft") is not True
+              or release.get("isPrerelease") is not False
+              or release.get("tagName") != tag
+              or release.get("name") != f"Ordifile {tag}"
+              or release.get("body")
+              != (root / "release-notes.md").read_text(encoding="utf-8")
+          ):
               raise SystemExit("The expected draft release is missing or no longer a draft")
           asset_names = {asset.get("name") for asset in release.get("assets", [])}
           if asset_names != set(expected):

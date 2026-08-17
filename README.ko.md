@@ -336,9 +336,11 @@ print(result.success_count, result.failure_count, result.sort.effective)
 
 ## 개발
 
-Python 3.11–3.14를 대상으로 합니다. v0.2.1 release CI와 실제 external fixture workflow는
-공유 Linux DGX self-hosted runner에서 Python 3.14 하나를 대상으로 하며 Windows 또는
-macOS matrix는 운영하지 않습니다. 외부
+Python 3.11–3.14를 대상으로 합니다. 필수 test, release build, wheel smoke, 실제
+external fixture workflow는 공유 Linux DGX self-hosted runner에서 Python 3.14로
+실행합니다. TestPyPI/PyPI publish, byte verification, attestation, GitHub Release
+publish는 GitHub-hosted Ubuntu에서 실행합니다. Windows 또는 macOS matrix는 운영하지
+않습니다. 외부
 fork workflow는 유지관리자의 승인 후 같은 장비에서 실행되며 read-only 저장소 권한만
 받고 배포 secret이나 OIDC 권한은 받지 않습니다. Runner 가용성은 GitHub Actions에서
 확인하는 운영 상태이며, 이 설명은 구성 대상을 뜻할 뿐 현재 online 상태를 보장하지

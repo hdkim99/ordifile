@@ -343,9 +343,11 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 
 ## Development
 
-Ordifile targets Python 3.11–3.14. The v0.2.1 release CI and external real-fixture
-workflows target Python 3.14 on a shared Linux DGX self-hosted runner, with no current
-Windows or macOS CI matrix.
+Ordifile targets Python 3.11–3.14. Required tests, release builds, wheel smoke tests,
+and external real-fixture workflows target Python 3.14 on a shared Linux DGX
+self-hosted runner. TestPyPI/PyPI publishing, byte verification, attestations, and
+GitHub Release publication use GitHub-hosted Ubuntu. There is no current Windows or
+macOS CI matrix.
 Public-fork workflows require maintainer approval before they run on that machine and
 receive read-only repository permission without publishing secrets or OIDC permission.
 Runner availability is an operational setting visible in GitHub Actions; this describes
