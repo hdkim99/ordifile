@@ -7,12 +7,29 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Manual runs validate only and never publish"
+        description: "Release operation"
         required: true
         default: dry-run
         type: choice
         options:
           - dry-run
+          - promote-existing
+      source_run_id:
+        description: "Existing release run containing the immutable build artifact"
+        required: false
+        type: string
+      release_tag:
+        description: "Existing immutable release tag"
+        required: false
+        type: string
+      expected_head_sha:
+        description: "Expected commit targeted by the tag and source run"
+        required: false
+        type: string
+      artifact_name:
+        description: "Exact artifact name from the source build run"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -28,7 +45,11 @@ concurrency:
 jobs:
   build:
     name: Validate and build once
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.mode == 'dry-run')
     runs-on: [self-hosted, dgx-spark]
     timeout-minutes: 30
     outputs:
@@ -190,6 +211,563 @@ jobs:
         if: always()
         run: python scripts/ci/clean_workspace.py --workspace . --phase post
 
+  promote-validate-existing:
+    name: Validate existing release artifact
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.context.outputs.artifact-id }}
+      artifact-name: ${{ steps.context.outputs.artifact-name }}
+      source-run-id: ${{ steps.context.outputs.source-run-id }}
+      release-tag: ${{ steps.context.outputs.release-tag }}
+      expected-head-sha: ${{ steps.context.outputs.expected-head-sha }}
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate dispatch inputs against the audited recovery
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py request \
+            --source-run-id "$SOURCE_RUN_ID" \
+            --release-tag "$RELEASE_TAG" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --artifact-name "$ARTIFACT_NAME"
+      - name: Read source run, artifact, and live tag metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir promotion-metadata
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > promotion-metadata/run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?filter=latest&per_page=100" \
+            > promotion-metadata/jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" \
+            > promotion-metadata/artifacts.json
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+            > promotion-metadata/tag-ref.json
+          tag_object_sha="$(python - <<'PY'
+          import json
+          import re
+
+          with open("promotion-metadata/tag-ref.json", encoding="utf-8") as source:
+              value = json.load(source).get("object", {}).get("sha")
+          if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+              raise SystemExit("GitHub returned an invalid annotated-tag object SHA")
+          print(value)
+          PY
+          )"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha" \
+            > promotion-metadata/tag-object.json
+      - name: Validate the source workflow and immutable artifact identity
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py source \
+            --source-run-id "$SOURCE_RUN_ID" \
+            --release-tag "$RELEASE_TAG" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --artifact-name "$ARTIFACT_NAME" \
+            --run-json promotion-metadata/run.json \
+            --jobs-json promotion-metadata/jobs.json \
+            --artifacts-json promotion-metadata/artifacts.json \
+            --tag-ref-json promotion-metadata/tag-ref.json \
+            --tag-object-json promotion-metadata/tag-object.json
+      - name: Require the tagged commit and workflow commit in current main
+        env:
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)"
+          git merge-base --is-ancestor "$EXPECTED_HEAD_SHA" refs/remotes/origin/main
+      - name: Require empty indexes and no existing GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py index-absent --index testpypi
+          python scripts/verify_release_promotion.py index-absent --index pypi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The v0.2.1 GitHub Release already exists." >&2
+            exit 1
+          fi
+      - name: Check out the exact tagged source for archive comparison
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 1
+          path: tagged-source
+          persist-credentials: false
+          ref: 33e1b6ec4d6d822e1a0b532e0d075adc4d79c788
+      - name: Download the exact source artifact by ID
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: 9272226213
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: 31980576873
+      - name: Verify package bytes, archives, metadata, licenses, and notes
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py artifact --root release-artifact
+          python scripts/verify_release.py \
+            --dist-dir release-artifact/packages \
+            --source-root tagged-source \
+            --expected-version 0.2.1 \
+            --tag v0.2.1 \
+            --checksums "$RUNNER_TEMP/promotion-SHA256SUMS.txt" \
+            --skip-smoke
+          cmp "$RUNNER_TEMP/promotion-SHA256SUMS.txt" release-artifact/SHA256SUMS.txt
+          cmp tagged-source/docs/releases/v0.2.1.md release-artifact/release-notes.md
+      - name: Export the validated immutable context
+        id: context
+        run: |
+          set -euo pipefail
+          {
+            echo 'artifact-id=9272226213'
+            echo 'artifact-name=ordifile-distributions-31980576873'
+            echo 'source-run-id=31980576873'
+            echo 'release-tag=v0.2.1'
+            echo 'expected-head-sha=33e1b6ec4d6d822e1a0b532e0d075adc4d79c788'
+          } >> "$GITHUB_OUTPUT"
+
+  promote-testpypi:
+    name: Promote existing v0.2.1 distributions to TestPyPI
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: promote-validate-existing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/ordifile
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Revalidate artifact and empty package indexes
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py artifact --root release-artifact
+          python scripts/verify_release_promotion.py index-absent --index testpypi
+          python scripts/verify_release_promotion.py index-absent --index pypi
+      - name: Revalidate the live annotated tag immediately before TestPyPI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          mkdir live-tag
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > live-tag/ref.json
+          tag_object_sha="$(python - <<'PY'
+          import json
+          import re
+
+          with open("live-tag/ref.json", encoding="utf-8") as source:
+              value = json.load(source).get("object", {}).get("sha")
+          if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+              raise SystemExit("GitHub returned an invalid annotated-tag object SHA")
+          print(value)
+          PY
+          )"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha" > live-tag/object.json
+          python scripts/verify_release_promotion.py tag \
+            --tag-ref-json live-tag/ref.json \
+            --tag-object-json live-tag/object.json
+      - name: Publish the existing distributions to TestPyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: release-artifact/packages/
+          repository-url: https://test.pypi.org/legacy/
+          verbose: true
+
+  promote-verify-testpypi:
+    name: Verify promoted TestPyPI bytes
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Verify exact TestPyPI filenames, hashes, and bytes
+        run: python scripts/verify_release_promotion.py index --index testpypi --root release-artifact
+
+  promote-attest:
+    name: Attest the promoted v0.2.1 distributions
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-verify-testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: write
+      artifact-metadata: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Revalidate the immutable artifact
+        run: python scripts/verify_release_promotion.py artifact --root release-artifact
+      - name: Attest the exact promoted artifact bytes
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            release-artifact/packages/*
+            release-artifact/SHA256SUMS.txt
+
+  promote-create-github-release:
+    name: Create the promoted v0.2.1 draft GitHub Release
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Revalidate artifact and require no existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py artifact --root release-artifact
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The v0.2.1 GitHub Release already exists." >&2
+            exit 1
+          fi
+      - name: Create a draft from the same promoted distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            release-artifact/packages/*.whl \
+            release-artifact/packages/*.tar.gz \
+            release-artifact/SHA256SUMS.txt \
+            --verify-tag \
+            --draft \
+            --title "Ordifile $RELEASE_TAG" \
+            --notes-file release-artifact/release-notes.md
+
+  promote-pypi:
+    name: Promote existing v0.2.1 distributions to PyPI
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-create-github-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ordifile
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Require exact TestPyPI bytes and an empty PyPI version
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py index --index testpypi --root release-artifact
+          python scripts/verify_release_promotion.py index-absent --index pypi
+      - name: Revalidate the live annotated tag immediately before PyPI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          mkdir live-tag
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > live-tag/ref.json
+          tag_object_sha="$(python - <<'PY'
+          import json
+          import re
+
+          with open("live-tag/ref.json", encoding="utf-8") as source:
+              value = json.load(source).get("object", {}).get("sha")
+          if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+              raise SystemExit("GitHub returned an invalid annotated-tag object SHA")
+          print(value)
+          PY
+          )"
+          gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha" > live-tag/object.json
+          python scripts/verify_release_promotion.py tag \
+            --tag-ref-json live-tag/ref.json \
+            --tag-object-json live-tag/object.json
+      - name: Publish the existing distributions to PyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: release-artifact/packages/
+          verbose: true
+
+  promote-verify-pypi:
+    name: Verify promoted PyPI and draft release bytes
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Verify exact package-index bytes
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py index --index testpypi --root release-artifact
+          python scripts/verify_release_promotion.py index --index pypi --root release-artifact
+
+  promote-publish-github-release:
+    name: Publish the verified promoted v0.2.1 GitHub Release
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.mode == 'promote-existing'
+    needs: [promote-validate-existing, promote-verify-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+    steps:
+      - name: Check out the reviewed promotion verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Download the validated source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.promote-validate-existing.outputs.artifact-id }}
+          digest-mismatch: error
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+          repository: hdkim99/ordifile
+          run-id: ${{ needs.promote-validate-existing.outputs.source-run-id }}
+      - name: Reverify indexes, attestation, tag, and draft release assets
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.promote-validate-existing.outputs.expected-head-sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: |
+          set -euo pipefail
+          python scripts/verify_release_promotion.py index --index testpypi --root release-artifact
+          python scripts/verify_release_promotion.py index --index pypi --root release-artifact
+          gh attestation verify release-artifact/packages/* --repo "$GITHUB_REPOSITORY"
+          gh attestation verify release-artifact/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          expected = {path.name: path for path in packages.iterdir() if path.is_file()}
+          expected["SHA256SUMS.txt"] = root / "SHA256SUMS.txt"
+          if len(expected) != 3:
+              raise SystemExit("Expected wheel, sdist, and SHA256SUMS.txt")
+          tag = os.environ["RELEASE_TAG"]
+          release = json.loads(
+              subprocess.check_output(
+                  ["gh", "release", "view", tag, "--json", "isDraft,tagName,assets"],
+                  text=True,
+              )
+          )
+          if release.get("isDraft") is not True or release.get("tagName") != tag:
+              raise SystemExit("The expected v0.2.1 draft release is missing")
+          if {asset.get("name") for asset in release.get("assets", [])} != set(expected):
+              raise SystemExit("Draft release asset set differs from the source artifact")
+          reference = json.loads(
+              subprocess.check_output(
+                  ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/git/ref/tags/{tag}"],
+                  text=True,
+              )
+          )
+          target = reference.get("object", {})
+          if target.get("type") != "tag":
+              raise SystemExit("v0.2.1 is no longer an annotated tag")
+          annotation = json.loads(
+              subprocess.check_output(
+                  [
+                      "gh",
+                      "api",
+                      f"repos/{os.environ['GITHUB_REPOSITORY']}/git/tags/{target.get('sha', '')}",
+                  ],
+                  text=True,
+              )
+          )
+          annotated_target = annotation.get("object", {})
+          if (
+              annotated_target.get("type") != "commit"
+              or annotated_target.get("sha") != os.environ["EXPECTED_HEAD_SHA"]
+          ):
+              raise SystemExit("v0.2.1 annotated tag target changed")
+          destination = Path("release-download")
+          destination.mkdir()
+          subprocess.check_call(["gh", "release", "download", tag, "--dir", str(destination)])
+          downloaded = {path.name: path for path in destination.iterdir() if path.is_file()}
+          if set(downloaded) != set(expected):
+              raise SystemExit("Downloaded draft asset set is incomplete")
+          for name, source in expected.items():
+              if hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(
+                  downloaded[name].read_bytes()
+              ).digest():
+                  raise SystemExit(f"Draft release bytes changed for {name}")
+          PY
+      - name: Publish the verified existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.promote-validate-existing.outputs.release-tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false
+
   smoke:
     name: Wheel smoke / shared DGX / Python 3.14
     needs: build
@@ -314,12 +892,13 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
       name: testpypi
       url: https://test.pypi.org/p/ordifile
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -427,9 +1006,10 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, publish-testpypi]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - name: Check out release source for workspace cleanup
@@ -557,9 +1137,10 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke, verify-testpypi]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
       id-token: write
       attestations: write
@@ -620,9 +1201,10 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke, attest]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Check out release source for workspace cleanup
@@ -689,12 +1271,13 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke, create-github-release]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/p/ordifile
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -801,9 +1384,10 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, publish-pypi]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - name: Check out release source for workspace cleanup
@@ -931,9 +1515,10 @@ jobs:
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
     needs: [build, verify-pypi]
-    runs-on: [self-hosted, dgx-spark]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Check out release source for workspace cleanup

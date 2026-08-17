@@ -487,7 +487,7 @@ def test_release_workflow_rechecks_live_tag_and_uses_minimum_permissions() -> No
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "persist-credentials: false" in workflow
     assert workflow.count("The live annotated tag no longer targets this workflow commit") == 2
-    assert workflow.count("id-token: write") == 3
+    assert workflow.count("id-token: write") == 6
     attest_job = workflow.split("  attest:", maxsplit=1)[1].split(
         "\n  create-github-release:", maxsplit=1
     )[0]
@@ -507,6 +507,47 @@ def test_release_workflow_rechecks_live_tag_and_uses_minimum_permissions() -> No
         assert "contents: read" in job
         assert "attestations: write" not in job
         assert "contents: write" not in job
+
+
+def test_release_promotion_is_allowlisted_hosted_and_never_rebuilds() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    verifier = (PROJECT_ROOT / "scripts" / "verify_release_promotion.py").read_text(
+        encoding="utf-8"
+    )
+    audited_source = workflow + verifier
+    promotion = workflow.split("  promote-validate-existing:", maxsplit=1)[1].split(
+        "\n  smoke:", maxsplit=1
+    )[0]
+
+    for value in (
+        "31980576873",
+        "9272226213",
+        "584321",
+        "sha256:44a4040411ea5870d1dfb78e4a0d0969ccfbde666357441bd03c0ddf34de6216",
+        "33e1b6ec4d6d822e1a0b532e0d075adc4d79c788",
+        "ordifile-distributions-31980576873",
+        "0d485620f46fb86cd37518ee9cd3cb38ecb4e421d2a96fc8666e4399616b4fa8",
+        "14f71d8ebd4581c4c3001c724de5bb547b5274f165941af628d6f9b02e85ef39",
+    ):
+        assert value in audited_source
+    assert "artifact-ids: 9272226213" in promotion
+    assert "digest-mismatch: error" in promotion
+    assert "merge-base --is-ancestor" in promotion
+    assert "index-absent --index testpypi" in promotion
+    assert "index-absent --index pypi" in promotion
+    assert "--skip-smoke" in promotion
+    assert "Build wheel and source distribution" not in promotion
+    assert "actions/upload-artifact@" not in promotion
+    assert "skip-existing" not in workflow
+    assert "TWINE_PASSWORD" not in workflow
+    assert "password:" not in workflow
+
+    hosted_jobs = promotion.count("runs-on: ubuntu-latest")
+    assert hosted_jobs == 8
+    assert "runs-on: [self-hosted, dgx-spark]" not in promotion
+    assert promotion.count("id-token: write") == 3
+    assert promotion.count("environment:\n      name: testpypi") == 1
+    assert promotion.count("environment:\n      name: pypi") == 1
 
 
 def test_release_workflow_rejects_nested_annotated_tags(tmp_path: Path) -> None:

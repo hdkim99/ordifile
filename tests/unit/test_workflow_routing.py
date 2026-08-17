@@ -26,9 +26,9 @@ def _job_count(workflow: str) -> int:
     return len(re.findall(r"^  [a-z][a-z0-9-]+:\s*$", jobs, flags=re.MULTILINE))
 
 
-def test_every_execution_job_uses_only_the_shared_dgx_runner() -> None:
+def test_execution_jobs_use_the_shared_dgx_except_hosted_release_publication() -> None:
     combined = "\n".join(_workflow(name) for name in WORKFLOW_NAMES)
-    for hosted_label in ("ubuntu-latest", "windows-latest", "macos-latest"):
+    for hosted_label in ("windows-latest", "macos-latest"):
         assert hosted_label not in combined
     for removed_label in (
         "ordifile-" + "trusted",
@@ -43,8 +43,15 @@ def test_every_execution_job_uses_only_the_shared_dgx_runner() -> None:
     assert not (WORKFLOW_ROOT / "full-check.yml").exists()
 
     for name in WORKFLOW_NAMES:
+        if name == "release.yml":
+            continue
         workflow = _workflow(name)
+        assert "ubuntu-latest" not in workflow
         assert workflow.count("runs-on: [self-hosted, dgx-spark]") == _job_count(workflow)
+
+    release = _workflow("release.yml")
+    assert release.count("runs-on: [self-hosted, dgx-spark]") == 2
+    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
 
 
 def test_ci_is_one_read_only_python_314_job_for_main_and_pull_requests() -> None:
@@ -87,7 +94,7 @@ def test_ci_is_one_read_only_python_314_job_for_main_and_pull_requests() -> None
         assert command in ci
 
 
-def test_release_uses_the_same_runner_without_pr_or_matrix() -> None:
+def test_release_uses_dgx_for_build_and_hosted_ubuntu_for_publication() -> None:
     release = _workflow("release.yml")
     assert "  pull_request:" not in release
     assert 'python-version: "3.14"' in release
@@ -95,6 +102,10 @@ def test_release_uses_the_same_runner_without_pr_or_matrix() -> None:
     assert "strategy:" not in release
     assert "ordifile-publish-${{ github.ref }}" in release
     assert "queue: max" in release
+    assert "mode == 'dry-run'" in release
+    assert "mode == 'promote-existing'" in release
+    assert release.count("runs-on: [self-hosted, dgx-spark]") == 2
+    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
 
 
 def test_agilent_external_fixture_is_maintainer_controlled_and_non_persistent() -> None:
@@ -152,11 +163,13 @@ def test_workflows_use_job_local_environments_and_bounded_cleanup() -> None:
     for name in WORKFLOW_NAMES:
         workflow = _workflow(name)
         jobs = _job_count(workflow)
-        assert workflow.count("Create isolated job environment") == jobs
-        assert workflow.count("Remove isolated job environment") == jobs
-        assert workflow.count("--phase pre") == jobs
-        assert workflow.count("--phase post") == jobs
-        assert workflow.count("persist-credentials: false") == jobs
+        persistent_jobs = 9 if name == "release.yml" else jobs
+        assert workflow.count("Create isolated job environment") == persistent_jobs
+        assert workflow.count("Remove isolated job environment") == persistent_jobs
+        assert workflow.count("--phase pre") == persistent_jobs
+        assert workflow.count("--phase post") == persistent_jobs
+        expected_checkouts = jobs + 1 if name == "release.yml" else jobs
+        assert workflow.count("persist-credentials: false") == expected_checkouts
         assert "GITHUB_PATH" not in workflow
         assert "${{ runner.temp }}" not in workflow
         assert "run_in_venv.py run" in workflow
@@ -169,7 +182,7 @@ def test_workflows_use_job_local_environments_and_bounded_cleanup() -> None:
                     flags=re.DOTALL,
                 )
             )
-            == jobs
+            == persistent_jobs
         )
 
 
@@ -189,9 +202,13 @@ def test_release_preserves_build_once_oidc_and_attestation_boundaries() -> None:
 
     assert release.count("Build wheel and source distribution") == 1
     assert release.count("actions/upload-artifact@") == 1
-    assert release.count("id-token: write") == 3
-    assert "actions/attest@" in release
-    assert "pypa/gh-action-pypi-publish@" in release
+    assert release.count("id-token: write") == 6
+    assert release.count("actions/attest@") == 2
+    assert release.count("pypa/gh-action-pypi-publish@") == 4
     assert "artifact-metadata: write" in release
     assert "workflow_dispatch:" in release
     assert "github.ref == 'refs/heads/main'" in release
+    assert "artifact-ids: 9272226213" in release
+    assert "run-id: 31980576873" in release
+    assert "digest-mismatch: error" in release
+    assert release.count("verify_release_promotion.py tag") == 2

@@ -4,24 +4,32 @@ This runbook is for maintainers of `hdkim99/ordifile`. Releases use GitHub Actio
 OpenID Connect (OIDC) trusted publishing. Do not create a PyPI API token or add a
 publishing token to GitHub secrets.
 
-The release workflow has two entry paths:
+The release workflow has two routine entry paths:
 
 - a manual `workflow_dispatch` from the current `main` commit performs a dry run only;
 - an annotated `vX.Y.Z` tag contained in `main` performs the one-time TestPyPI and PyPI
   publication path.
 
-The manual path has read-only repository permission and cannot run TestPyPI,
+An additional, code-allowlisted `promote-existing` dispatch may be present temporarily
+to recover one audited immutable artifact after its DGX build and wheel smoke succeeded
+but publication did not start. It is not a general manual publishing interface. Its
+run, tag, commit, artifact ID, artifact digest, filenames, and package hashes must all
+match reviewed constants before any package-index environment is entered.
+
+The normal `dry-run` path has read-only repository permission and cannot run TestPyPI,
 attestation, package publication, or GitHub Release jobs. Pull requests never trigger
 the release workflow. The tag path builds once, stores one immutable Actions artifact,
-tests its wheel on the shared Linux DGX runner with Python 3.14, publishes and verifies the same
-wheel and sdist on TestPyPI, creates attestations and a draft GitHub Release, publishes
-the same wheel and sdist to PyPI, and only then makes the GitHub Release public. A pull request,
-branch push, manual dispatch, or fork cannot publish.
+and tests its wheel on the shared Linux DGX runner with Python 3.14. Hosted Ubuntu jobs
+then publish and verify the same wheel and sdist on TestPyPI, create attestations and a
+draft GitHub Release, publish the same bytes to PyPI, and only then make the GitHub
+Release public. A pull request, ordinary branch push, fork, or `dry-run` cannot publish.
 
-All release jobs require a self-hosted runner with the `dgx-spark` label. The pinned PyPI
-publishing action requires GNU/Linux and Docker, and the pinned Node 24 Actions require
-runner version 2.327.1 or newer. Confirm those properties on the DGX before a dry run or
-release. Do not use a hosted runner or package-index token as a fallback.
+Only `Validate and build once` and `Wheel smoke / shared DGX / Python 3.14` use the
+self-hosted runner with the `dgx-spark` label. TestPyPI/PyPI publishing, index-byte
+verification, attestation, and GitHub Release jobs use GitHub-hosted Ubuntu. The pinned
+PyPA publisher is a Docker container action; keeping publication hosted means the DGX
+does not need Docker installation, Docker-group membership, socket permission changes,
+or administrator access. Do not use a package-index token as a fallback.
 
 ## One-time account configuration
 
@@ -76,6 +84,13 @@ For both environments:
 2. Restrict deployment branches and tags to the release-tag pattern `v*.*.*`.
 3. Do not add publishing secrets; OIDC supplies a short-lived identity to the package
    index.
+
+The normal policy permits only the release-tag pattern. A reviewed existing-artifact
+recovery dispatched from `main` requires a temporary exact `main` branch policy in both
+environments because GitHub evaluates the workflow run ref before entering an
+environment. Add that branch policy only after the recovery PR and current-main dry run
+are green. Keep the existing tag policy and the `pypi` reviewer. Remove both temporary
+`main` policies immediately after the recovery run succeeds, fails, or is cancelled.
 
 The `testpypi` environment normally does not need a required reviewer: the annotated
 tag, exact-version gate, and TestPyPI byte verification are its pre-production gates.
@@ -197,6 +212,52 @@ skip an existing file. After PyPI succeeds, the workflow performs the same exact
 filename, index digest, and downloaded-byte checks against PyPI. The final job makes the
 existing GitHub Release public only after that verification succeeds.
 
+## Promote one existing immutable artifact
+
+Use `promote-existing` only when all of the following are true:
+
+- the original tag workflow completed the DGX build and wheel smoke successfully;
+- upload to TestPyPI did not begin and both package indexes still return 404 for the version;
+- no GitHub Release exists for the tag;
+- the source artifact is unexpired and its ID, archive digest, filenames, and package
+  SHA-256 values have been independently recorded;
+- the annotated tag still points directly to the original build commit in `main`;
+- a reviewed workflow change allowlists that exact recovery and passes normal CI,
+  release dry run, and independent verification.
+
+For the audited v0.2.1 recovery, dispatch the current `main` workflow with the exact
+recorded run, tag, commit, and artifact name:
+
+```bash
+gh workflow run release.yml --ref main \
+  -f mode=promote-existing \
+  -f source_run_id=31980576873 \
+  -f release_tag=v0.2.1 \
+  -f expected_head_sha=33e1b6ec4d6d822e1a0b532e0d075adc4d79c788 \
+  -f artifact_name=ordifile-distributions-31980576873
+```
+
+The validation job reads the source run and tag through the GitHub API, requires the
+reviewed build/smoke conclusions and artifact ID/digest/size, downloads that artifact
+by exact ID, verifies archive metadata and package bytes against the tagged source, and
+does not invoke a build or wheel-smoke job. The hosted promotion chain then follows the
+same irreversible order as a normal release:
+
+```text
+TestPyPI publish → exact-byte verification → attestation → draft GitHub Release
+→ PyPI approval/publish → exact-byte verification → public GitHub Release
+```
+
+The recovery attestation proves the reviewed promotion workflow handled those exact
+bytes. It does not retroactively claim that the hosted job built them; the source run,
+artifact ID/digest, and wheel/sdist hashes preserve the link to the DGX build.
+
+Never rerun the failed v0.2.1 publish job, move either v0.2-series tag, rebuild the
+archives, enable `skip-existing`, or introduce PyPI/TestPyPI credentials. If any expected
+identity differs, stop without publishing. After completion, remove the temporary
+environment policies and the one-time promotion mode in a separate reviewed cleanup PR;
+keep the normal hosted publication jobs.
+
 ## Post-release verification
 
 Download the GitHub Release assets and verify the checksums before installation:
@@ -233,7 +294,9 @@ replaceable object, and deletion does not make reusing that filename or version 
 release process.
 
 - If validation fails before either index receives a file, fix the release branch,
-  merge normally, and rerun the manual dry run. Do not move an existing tag.
+  merge normally, and rerun the manual dry run. Do not move an existing tag. An
+  existing-artifact promotion is allowed only for an explicitly audited artifact under
+  the stricter procedure above; it is not an automatic retry.
 - If TestPyPI received `0.1.0` and a later job fails, preserve the evidence, do not
   re-upload or overwrite `0.1.0`, and prepare `0.1.1` from a new reviewed commit.
 - If PyPI received a file, never rebuild or reuse that version. Correct the project in
