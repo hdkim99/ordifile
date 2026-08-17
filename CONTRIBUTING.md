@@ -43,6 +43,8 @@ pip-audit
 - Do not add a production dependency without documenting its purpose, maintenance
   status, actual license, transitive dependencies, and distribution impact.
 - Use English for code, APIs, CLI text, commit titles, issues, and pull requests.
+- AI-assisted contributions are permitted, but automated tools must not be listed as
+  commit authors or co-authors; attribution belongs to the human contributors.
 - Public-fork workflows require maintainer approval before they run on the shared DGX
   self-hosted runner. Review workflow, dependency, script, binary, symlink, network,
   credential, and hidden-control-character changes before approval. Pull-request jobs

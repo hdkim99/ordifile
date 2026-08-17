@@ -26,11 +26,19 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           clean: true
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
+      - name: Reject automated-tool contributor attribution
+        env:
+          ORDIFILE_EVENT_NAME: ${{ github.event_name }}
+        run: >-
+          python scripts/ci/verify_contributor_attribution.py
+          --event "$GITHUB_EVENT_PATH"
+          --event-name "$ORDIFILE_EVENT_NAME"
       - name: Clean workspace before job
         run: python scripts/ci/clean_workspace.py --workspace . --phase pre
       - name: Create isolated job environment

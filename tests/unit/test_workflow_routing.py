@@ -63,6 +63,9 @@ def test_ci_is_one_read_only_python_314_job_for_main_and_pull_requests() -> None
     assert "group: ordifile-ci-${{ github.event.pull_request.number || github.ref }}" in ci
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in ci
     assert 'python-version: "3.14"' in ci
+    assert "fetch-depth: 0" in ci
+    assert "scripts/ci/verify_contributor_attribution.py" in ci
+    assert 'event-name "$ORDIFILE_EVENT_NAME"' in ci
     assert "matrix:" not in ci
     assert "permissions:\n  contents: read" in ci
     for forbidden in (
