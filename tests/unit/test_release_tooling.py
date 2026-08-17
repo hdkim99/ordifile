@@ -549,6 +549,19 @@ def test_release_promotion_is_allowlisted_hosted_and_never_rebuilds() -> None:
     assert promotion.count("environment:\n      name: testpypi") == 1
     assert promotion.count("environment:\n      name: pypi") == 1
 
+    finalization = promotion.split("  promote-publish-github-release:", maxsplit=1)[1]
+    assert "inputs.mode == 'finalize-existing'" in finalization
+    assert (
+        "for subject in release-artifact/packages/* release-artifact/SHA256SUMS.txt" in finalization
+    )
+    assert 'gh attestation verify "$subject"' in finalization
+    assert "--deny-self-hosted-runners" in finalization
+    assert "--source-ref refs/heads/main" in finalization
+    assert 'release.get("body") != (root / "release-notes.md").read_text' in finalization
+    assert "Require the v0.2.1 GitHub Release to be public" in finalization
+    assert "pypa/gh-action-pypi-publish@" not in finalization
+    assert "actions/attest@" not in finalization
+
 
 def test_release_workflow_rejects_nested_annotated_tags(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
