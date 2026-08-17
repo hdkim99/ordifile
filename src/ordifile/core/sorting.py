@@ -18,7 +18,11 @@ def _success(item: FileResult) -> bool:
 
 def _filename_key(item: FileResult) -> tuple[object, ...]:
     if item.source.public_id is not None:
-        return (item.source.public_reference.casefold(), item.source.input_order)
+        # A hash-based public identifier is opaque, not a filename.  Compare it
+        # lexically so digit runs in the digest are not reinterpreted as
+        # natural-sort integers.
+        public_key = ((1, item.source.public_reference.casefold()),)
+        return (public_key, public_key, item.source.input_order)
     return (
         natural_key(item.source.name),
         natural_key(item.source.relative_path),

@@ -51,6 +51,86 @@ def test_peak_matrix_columns_split_and_preserve_occurrences(
     assert segments[0].rows[0] == ("sample", 1, 2)
 
 
+def test_peak_order_matrix_splits_only_between_atomic_rt_area_pairs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed = (
+        "sample_id",
+        "source_file",
+        "manufacturer",
+        "detector",
+        "channel",
+        "retention_time_unit",
+        "area_unit",
+    )
+    dataset = excel._SheetData(
+        "Peak_Order_Matrix",
+        (
+            *fixed,
+            "peak_1_rt",
+            "peak_1_area",
+            "peak_2_rt",
+            "peak_2_area",
+            "peak_3_rt",
+            "peak_3_area",
+        ),
+        (("sample", "source", "Agilent", "FID", "FID1A", "min", "pA*s", 1, 10, 2, 20, 3, 30),),
+    )
+    monkeypatch.setattr(excel, "MAX_EXCEL_COLUMNS", 11)
+
+    segments = excel._column_segments(dataset)
+
+    assert [item.headers for item in segments] == [
+        (*fixed, "peak_1_rt", "peak_1_area", "peak_2_rt", "peak_2_area"),
+        (*fixed, "peak_3_rt", "peak_3_area"),
+    ]
+    assert segments[0].rows[0][-4:] == (1, 10, 2, 20)
+    assert segments[1].rows[0][-2:] == (3, 30)
+
+
+def test_peak_order_matrix_requires_room_for_identity_and_one_atomic_pair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = excel._SheetData(
+        "Peak_Order_Matrix",
+        (
+            "sample_id",
+            "source_file",
+            "manufacturer",
+            "detector",
+            "channel",
+            "retention_time_unit",
+            "area_unit",
+            "peak_1_rt",
+            "peak_1_area",
+        ),
+        (("sample", "source", "Agilent", "FID", "FID1A", "min", "pA*s", 1, 10),),
+    )
+    monkeypatch.setattr(excel, "MAX_EXCEL_COLUMNS", 8)
+    with pytest.raises(ExportLimitError) as caught:
+        excel._column_segments(dataset)
+    assert caught.value.code == "EXCEL_COLUMN_LIMIT"
+
+
+def test_peak_order_matrix_sidecar_placeholder_keeps_identity_columns() -> None:
+    headers = (
+        "sample_id",
+        "source_file",
+        "manufacturer",
+        "detector",
+        "channel",
+        "retention_time_unit",
+        "area_unit",
+        "peak_1_rt",
+        "peak_1_area",
+    )
+    dataset = excel._SheetData("Peak_Order_Matrix", headers, ())
+    assert excel._sidecar_eligible(dataset)
+    placeholder = excel._datasets_for_workbook((dataset,), (dataset,))[0]
+    assert placeholder.headers == (*headers[:7], "sidecar_status")
+    assert placeholder.rows == ()
+
+
 def test_impractical_sheet_plan_requires_explicit_sidecar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

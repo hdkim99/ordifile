@@ -37,6 +37,11 @@ validated structured message/context and bounded ordinary-exception class behavi
 Canonical bundle warnings and metadata continue through their existing independent
 validation boundary.
 
+When an adapter returns SHA-256 and size from its own bounded read, the core compares
+both with discovery provenance before source rebinding. A mismatch—including a file
+that changes for parsing and is then restored—is a structured integrity failure and no
+parsed bundle is exposed. The independent post-parse file hash remains a second gate.
+
 The core retains the real path only while it must read and protect the input. Public
 `inspect_file()` and `convert()` results replace `path`, `relative_path` and `name` for
 a SHA-aliased source with the same public reference, including nested sample sources.
@@ -51,9 +56,9 @@ this is not a vendor-specific exception.
 ## Result sources
 
 `ResultSource` is the policy boundary described here, not a new canonical model type.
-A future standalone vendor result adapter must bind every canonical `PeakRecord` and
-metadata row to the same core-owned public source reference. RT/area result
-consolidation remains manufacturer-neutral: evidence-backed vendor results map to the
-existing `PeakRecord` model and then to `Peaks` / `Peak_Matrix`. A vendor-specific
-result parser, new result fields, or a new matrix is not added until an actual result
-fixture proves the required source fields and semantics.
+A standalone vendor result adapter must bind every canonical `PeakRecord` and metadata
+row to the same core-owned public source reference. RT/area result consolidation
+remains manufacturer-neutral: the first exact Agilent Result XML adapter maps evidence-
+backed rows to `PeakRecord`, `Peaks`, compound `Peak_Matrix`, and the conditional
+source-order `Peak_Order_Matrix`. Future vendor-specific parsers or fields remain
+blocked until an actual result fixture proves their boundaries and semantics.

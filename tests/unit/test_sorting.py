@@ -101,6 +101,19 @@ def test_public_alias_controls_filename_order_without_private_basename_dependenc
     ]
 
 
+def test_public_alias_and_relative_path_use_one_comparable_filename_key() -> None:
+    generic = _result("generic_2.csv", 0)
+    private = _result("private-result.xml", 1)
+    private = replace(private, source=replace(private.source, public_id="source-" + "a" * 64))
+
+    ordered, _decision = sort_file_results((private, generic), SortMode.FILENAME)
+
+    assert {item.source.name for item in ordered} == {"generic_2.csv", "private-result.xml"}
+    assert next(item for item in ordered if item.source.public_id is not None).sort_key == (
+        "source-" + "a" * 64
+    )
+
+
 def test_filename_and_input_order_include_every_file_status() -> None:
     files = (
         _result("sample_10.csv", 0),

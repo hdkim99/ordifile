@@ -1,6 +1,6 @@
 # Dependency and license review
 
-- Research dates: 2026-08-15 through 2026-08-16
+- Research dates: 2026-08-15 through 2026-08-17
 - Scope: minimal runtime/build/test dependencies, Python/OS policy, GUI candidates,
   release actions, GC reader candidates, and redistribution implications.
 - Source details: exact titles, owners, source types, dates when available, URLs, and
@@ -21,6 +21,11 @@ transitive runtime dependencies are recorded in `THIRD_PARTY_NOTICES.md`; none i
 into this source repository. Standard-library
 `dataclass`, `csv`, `argparse`, `pathlib`, and `hashlib` avoid unnecessary pandas,
 NumPy, Pydantic, and Typer dependencies.
+
+The Experimental Agilent Result XML adapter reuses the existing permissive
+`defusedxml` dependency with adapter-owned byte, element, nesting, text and numeric
+bounds. GC2ASM code is not copied or linked; its pinned CeCILL-2.1 XML fixture is an
+external controlled-CI input only and is absent from distributions.
 
 Development tools selected after inspecting their current package metadata are
 Hatchling (MIT), build 1.5.0 (MIT; 1.5.1 was yanked at the research date), pytest

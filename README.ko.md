@@ -20,7 +20,7 @@ adapter는 각각의 exact format reader로 분리하지만, 검증된 peak row�
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
 TXT, 감사된 non-macro XLSX. 현재 개발 source tree에는 아래에 설명한 범위가 매우 좁은
-proprietary Experimental reader 네 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+proprietary Experimental reader 다섯 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
 않습니다. 공개된 version은 PyPI badge에서 확인할 수 있습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
@@ -102,6 +102,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 | 형식 경계 | Metadata | Peaks | 출력 | 상태 | 실제 fixture |
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
+| Agilent ChemStation Result XML, exact `C.01.10 [201]` 단일 `FID1/A` Percent/Area profile | 과학 데이터 allowlist | ResultsGroup peak | RT (min) + area (pA\*s) + height (pA), raw signal 없음 | Experimental | 외부 CeCILL-2.1 fixture 1개 |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | stored-label channel + 순서 보존 raw binary32 record, time axis/unit 없음 | Experimental | 사용자 제공 local-only 파일 23개 |
@@ -109,12 +110,23 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 이 Experimental adapter들은 아래의 정확한 기능 경계를 가집니다. 검증되지 않은
 profile은 넓게 해석하지 않고 거부합니다.
 
-Agilent adapter는 모든 decoded record를
+Agilent `.CH` adapter는 모든 decoded record를
 원래 순서대로 유지합니다. x는 retention time이 아닌 `decoded_record_index`, y는 물리
 scale이 적용된 intensity가 아닌 `decoded_raw_integer`입니다. Unit, scientific point
 count, 마지막 record의 역할은 아직 미확정입니다. 다른 `.CH` version, `.D` directory,
 TCD, MS, peak, 보정값, 쓰기 기능은 지원한다고 주장하지 않습니다. [정확한 기능·안전
 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-ch-v181.md)를 확인해 주세요.
+
+별도 Agilent Result XML adapter는 raw sibling 없이 정확한 ChemStation
+`C.01.10 [201]`, 단일 `FID1/A`, `Percent`/`Area` report profile 하나를 읽습니다.
+Canonical `ResultsGroup/Peak` 행을 source 순서대로 보존하고 min, pA\*s, pA unit과
+integration 시작·종료를 유지하며, RT/area/height decimal string을 중복
+IntegrationResults 행과 전부 대조합니다. 비어 있지 않은 calibrated `Name`은
+`compound`로 매핑하고 source label `FID1`/`A`와 canonical detector/channel
+`FID`/`FID1A`를 구분합니다. 다른 revision, multiple signal, detector, quantitation
+mode, raw chromatogram, 쓰기 기능은 거부하거나 지원하지 않습니다. 개인정보성 run
+metadata 때문에 실제 fixture는 controlled CI에서만 사용합니다. [정확한 기능·안전
+경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/agilent-chemstation-result-xml.md)를 확인해 주세요.
 
 Shimadzu adapter는 LabSolutions 5.82, GC-2014, 단일 `SFID1`, `uV`, identity-factor
 profile로 한정됩니다. 66,255개 retention-time·signal 값 전부를 같은 run의
@@ -195,7 +207,8 @@ fallback합니다. 명시적 모드는 `acquired_at`, `sequence`, `filename`,
 | `Manifest` | 버전, UTC 생성시각, 개수, 옵션, 정렬, 제한, 경고, sidecar |
 | `Samples` | 발견된 입력별 한 행, 상태, 공개 source reference(기본 상대 경로 또는 core hash alias), adapter, peak 수, SHA-256 |
 | `Peak_Matrix` | 명시적 성분명이 있을 때만 시료별 wide format; 중복 peak는 분리 |
-| `Peaks` | RT 기반 성분 추론 없이 모든 명시적 peak의 long format |
+| `Peak_Order_Matrix` | sample/source/manufacturer/detector/channel/unit과 source 순서 RT/area pair; Excel limit 전에 pair 단위로 분할 |
+| `Peaks` | manufacturer와 근거가 있는 unit/boundary를 포함하는 모든 명시적 peak의 long format; RT 기반 성분 추론 없음 |
 | `Metadata` | 알 수 없는 필드, 잘못된 raw lexeme, 원래 provenance |
 | `Import_Log` | 공개 source reference, 성공·경고·실패·중복·제외 파일, sort key, hash |
 | `Signals_<channel>` | 실제 파싱되고 요청된 경우에만 원본 비보간 x/y 값 |

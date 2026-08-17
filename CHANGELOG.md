@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An Experimental, standalone Agilent ChemStation Result XML reader for the exact
+  `C.01.10 [201]`, single `FID1/A`, `Percent`/`Area` profile. It preserves canonical
+  source-order RT, area, height, integration boundaries, calibrated compound names and
+  explicit units while rejecting other revisions and report shapes.
+- A conditional manufacturer-aware `Peak_Order_Matrix` with atomic source-order
+  RT/area pairs, plus additive `PeakRecord` observation order, integration boundaries,
+  area unit and height unit fields. The existing compound `Peak_Matrix` is unchanged.
+- A maintainer-only controlled-CI integration workflow for the exact external
+  Result XML fixture, with immutable size/SHA-256/license gates and no fixture or
+  workbook artifact upload.
 - An Experimental structural converter for one observed YoungIn YL-Clarity
   `9.0.1.19` `.PRM` profile. It preserves ordered native binary32 records and
   allowlisted stored channel labels across local-only real fixtures without claiming
@@ -20,6 +30,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Implemented the first manufacturer-neutral result adapter under the result-first
+  contract. Standalone Agilent Result XML RT/area rows map to common `PeakRecord`,
+  `Peaks`, compound `Peak_Matrix` and conditional source-order `Peak_Order_Matrix`
+  output independently of raw chromatogram support.
 - Documented one manufacturer-neutral, result-first contract for future Agilent,
   Shimadzu and YoungIn result adapters: standalone verified RT/area exports map to the
   existing `PeakRecord`, `Peaks` and `Peak_Matrix` behavior, independently of optional

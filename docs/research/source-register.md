@@ -1,6 +1,6 @@
 # Source register
 
-- Research and access dates: 2026-08-15 through 2026-08-16
+- Research and access dates: 2026-08-15 through 2026-08-17
 - Search scope: names, package registries, chromatography conversion software, GC
   exports, format standards, licenses, Python support, Excel limits, GUI distribution,
   vendor trademark guidance, OOXML worksheet coordinates and cell semantics, Excel
@@ -27,6 +27,8 @@ topic reviews beside this register.
 | [HUPO-PSI mzML](https://github.com/HUPO-PSI/mzML) | HUPO-PSI | Standard repository | Active 2026 | mzML is an MS format, not generic GC-FID. |
 | [Export Chromatogram Signal as CSV](https://community.agilent.com/knowledge/chromatography-software-portal/kmp/chromatography-software-articles/kp331.export-chromatogram-signal-as-csv-with-openlab-cds-version-2-4-or-higher) | Agilent | Vendor documentation | Modified 2024-01-11 | Signal CSV export. |
 | [Peak Area and Retention Time in Excel](https://community.agilent.com/knowledge/chromatography-software-portal/kmp/chromatography-software-articles/kp908.reporting-peak-area-and-retention-time-of-sequence-in-excel-format-with-openlab-cds) | Agilent | Vendor documentation | Modified 2025-11-14 | Processed peak report semantics. |
+| [Agilent OpenLAB CDS ChemStation Edition XML Connectivity Guide](https://www.agilent.com/library/usermanuals/Public/CDS_CS_XML.pdf) | Agilent | Official connectivity guide | Accessed 2026-08-17 | ChemStation XML result/schema semantics and calibrated Peak/Name compound meaning. |
+| [GC2ASM Result XML fixture](https://github.com/ifpen/GC2ASM/blob/161b940846bd606e33e0100b4c0614aef328bd01/src/test/resources/V181.D/Result.xml) / [license](https://github.com/ifpen/GC2ASM/blob/161b940846bd606e33e0100b4c0614aef328bd01/LICENCE.txt) | IFPEN / GC2ASM | Pinned external fixture and CeCILL-2.1 terms | Commit `161b940846bd606e33e0100b4c0614aef328bd01`; accessed 2026-08-17 | Exact C.01.10 single-FID Result XML structure, units, cardinality and full source-row regression; privacy-bearing bytes remain controlled-CI only. |
 | [Export AIA Files](https://community.agilent.com/knowledge/chromatography-software-portal/kmp/chromatography-software-articles/kp1566.how-to-export-aia-files-in-openlab-cds) | Agilent | Vendor documentation | Modified 2025-10-03 | AIA export behavior. |
 | [netCDF File Format Specifications](https://docs.unidata.ucar.edu/netcdf-c/current/file_format_specifications.html) | NSF Unidata | Specification | Current | Public byte-level netCDF structure. |
 | [netCDF copyright](https://docs.unidata.ucar.edu/netcdf-c/current/copyright.html) | NSF Unidata | License | Current | BSD-3-Clause terms. |

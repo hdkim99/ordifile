@@ -160,6 +160,11 @@ class PeakRecord:
     compound: str | None = None
     compound_source: str | None = None
     status: str = "parsed"
+    observation_order: int | None = None
+    start_time: float | None = None
+    end_time: float | None = None
+    area_unit: str | None = None
+    height_unit: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

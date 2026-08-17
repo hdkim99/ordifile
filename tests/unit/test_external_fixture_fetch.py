@@ -194,6 +194,21 @@ def test_committed_shimadzu_manifest_requires_controlled_ci_handling() -> None:
     assert manifest.ci_eligible is True
 
 
+def test_committed_agilent_result_xml_manifest_requires_controlled_ci_handling() -> None:
+    manifest = fetch.load_manifest(
+        PROJECT_ROOT / "docs" / "research" / "agilent-result-xml-external-fixture-manifest.json"
+    )
+
+    assert manifest.fixture_id == "ifpen-gc2asm-agilent-result-xml-c0110"
+    assert manifest.artifact_filename == "Result.xml"
+    assert manifest.archive_type == "file"
+    assert manifest.size_bytes == 98_084
+    assert manifest.sha256 == ("4c876bb5712b2d943b5ad32ce5854698018e0b82f2dfc10cc0971ffab9a7056f")
+    assert manifest.privacy_review == "contains_personal_data"
+    assert manifest.grade == "ACCEPT_CONTROLLED_CI"
+    assert manifest.ci_eligible is True
+
+
 def test_manifest_is_strict_https_and_enforces_documented_size_modes(tmp_path: Path) -> None:
     assert fetch.DEFAULT_DOWNLOAD_LIMIT == 256 * 1024 * 1024
     assert fetch.LARGE_DOWNLOAD_LIMIT == 2 * 1024 * 1024 * 1024

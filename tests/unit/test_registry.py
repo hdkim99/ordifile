@@ -54,6 +54,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     descriptors = create_registry(include_external=False).descriptors()
     assert {item.adapter_id for item in descriptors} == {
         "agilent_chemstation_ch_v181",
+        "agilent_chemstation_result_xml",
         "generic_csv",
         "generic_semicolon",
         "generic_tsv",
@@ -65,6 +66,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
     assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
+    assert statuses["agilent_chemstation_result_xml"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL
@@ -75,6 +77,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     )
     series_kinds = {item.adapter_id: item.series_kinds for item in descriptors}
     assert series_kinds["agilent_chemstation_ch_v181"] == (SeriesKind.DECODED_RECORDS,)
+    assert series_kinds["agilent_chemstation_result_xml"] == ()
     assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
@@ -85,10 +88,11 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     )
     identity_policies = {item.adapter_id: item.source_identity_policy for item in descriptors}
     assert identity_policies["youngin_yl_clarity_prm_raw"] is SourceIdentityPolicy.SHA256_ALIAS
+    assert identity_policies["agilent_chemstation_result_xml"] is SourceIdentityPolicy.SHA256_ALIAS
     assert all(
         policy is SourceIdentityPolicy.RELATIVE_PATH
         for adapter_id, policy in identity_policies.items()
-        if adapter_id != "youngin_yl_clarity_prm_raw"
+        if adapter_id not in {"youngin_yl_clarity_prm_raw", "agilent_chemstation_result_xml"}
     )
 
 
@@ -212,6 +216,44 @@ def test_registry_rejects_non_enum_source_identity_policy() -> None:
     )
     with pytest.raises(OrdifileError) as caught:
         AdapterRegistry().register(InvalidPolicyAdapter())
+    assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
+
+
+def test_registry_allows_empty_series_kinds_only_for_adapter_without_signals() -> None:
+    class PeakOnlyAdapter(ExternalAdapter):
+        adapter_id = "peak_only"
+        adapter_version = "1"
+        descriptor = AdapterDescriptor(
+            adapter_id,
+            adapter_version,
+            "Peak only",
+            (".peak",),
+            True,
+            True,
+            False,
+            True,
+            series_kinds=(),
+        )
+
+    AdapterRegistry().register(PeakOnlyAdapter())
+
+    class InvalidSignalAdapter(ExternalAdapter):
+        adapter_id = "empty_signal_kinds"
+        adapter_version = "1"
+        descriptor = AdapterDescriptor(
+            adapter_id,
+            adapter_version,
+            "Invalid signal",
+            (".signal",),
+            False,
+            False,
+            True,
+            True,
+            series_kinds=(),
+        )
+
+    with pytest.raises(OrdifileError) as caught:
+        AdapterRegistry().register(InvalidSignalAdapter())
     assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
 
 
