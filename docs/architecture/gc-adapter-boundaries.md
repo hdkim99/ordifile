@@ -75,8 +75,8 @@ from becoming a broad support claim.
 
 ## Deferred
 
-- Every YOUNG IN Chromass native adapter and branded export-profile adapter; status is
-  `BLOCKED_BY_FIXTURE`.
+- Every YOUNG IN Chromass native adapter and branded export-profile adapter; the local
+  `.prm` intake remains `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`.
 - Clarity `.raw` recovery inspection or salvage.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.
@@ -114,10 +114,12 @@ point-count, retention-time, scaling, unit, additional-run, and official-export
 evidence. It must not claim peaks, TCD, all `.ch` generations, whole `.D` directories,
 GC-MS, or write support.
 
-The YoungIn track must stay documentation-only until the fixture request is fulfilled.
-A future support matrix must separate ChroZen from YL6500, YL-Clarity from each
-Autochro generation, completed data from recovery data, and FID from TCD and
-multi-channel claims.
+The YoungIn track must stay documentation-only after the 2026-08-17 local intake. The
+23 `.prm` candidates contain no paired official export, and their detector/channel,
+time, signal, scaling, and unit semantics have not been independently verified. A
+future support matrix must separate ChroZen from YL6500, YL-Clarity from each Autochro
+generation, completed data from recovery data, and FID from TCD and multi-channel
+claims.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because
 its paired same-run LabSolutions ASCII reference validates the sampled time and signal

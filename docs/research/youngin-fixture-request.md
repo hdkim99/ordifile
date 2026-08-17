@@ -9,6 +9,21 @@ request is to obtain enough lawful, privacy-reviewed material to distinguish com
 chromatograms from temporary or recovery files and to compare native values with an
 official export. Receiving a file does not create a support claim.
 
+## Intake status — 2026-08-17
+
+An owner-supplied, local-only archive has partially fulfilled the native-file request.
+It contains 23 unique `.prm` completed-chromatogram candidates with YL-Clarity 9.0.1
+candidate markers, but no `.raw`, method, sequence, calibration, `.chr`, `.txt`,
+`.cdf`, `.asc`, or other official export companion. Ten filenames are FID-labelled,
+ten are TCD-labelled, and three remain unclassified; none of those labels is accepted
+as native detector evidence.
+
+The remaining minimum request is a privacy-reviewed official `.chr`, `.txt`, or `.cdf`
+export from at least one of those exact runs, the matching detector/channel
+configuration, and the vendor procedure used to create the export. A multi-detector
+claim also requires a confirmed FID+TCD run and its complete multi-signal export. The
+local native files remain `ACCEPT_EXTERNAL_ONLY` and must not be attached to Issue #2.
+
 ## Minimum useful set
 
 Please preserve each acquisition's original run or project structure. Do not detach a

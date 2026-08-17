@@ -1,7 +1,7 @@
 # YOUNG IN Chromass GC format investigation
 
-- Research and access date: 2026-08-16
-- Status: `BLOCKED_BY_FIXTURE`; no Ordifile support claim
+- Research and access dates: 2026-08-16; local fixture intake 2026-08-17
+- Status: `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`; no Ordifile support claim
 - Canonical project identifier: `youngin_chromass`
 - Canonical display: YOUNG IN Chromass / 영인크로매스
 
@@ -161,8 +161,13 @@ YOUNG IN Chromass solely because its producing software might be YL-Clarity.
 
 Product literature confirms that ChroZen and YL6500 configurations can use FID and TCD.
 General Clarity supports multiple signals, per-detector TXT/CDF exports, and combined
-CHR export. No actual YL-Clarity file was available to establish whether native FID and
-TCD are in one `.prm`, separate chromatograms, or version-dependent.
+CHR export. A 2026-08-17 local-only intake now contains 23 distinct `.prm` completed-
+chromatogram candidates carrying YL-Clarity 9.0.1 candidate markers. Ten filenames are
+FID-labelled, ten are TCD-labelled, and three cannot be classified without reading the
+native detector/channel structure. Filename labels are not detector evidence, so the
+three remaining files are not claimed as FID+TCD runs. The intake still does not
+establish whether native FID and TCD are in one `.prm`, separate chromatograms, or
+version-dependent.
 
 A future adapter must preserve channel names and detector types, retain the native
 time axis without interpolation, keep multi-channel sample identity, and export
@@ -177,15 +182,23 @@ and application/service notes in Korean and English.
 
 - Official application and service notes contain plotted chromatograms and conditions,
   not downloadable native signal files.
-- No YOUNG IN Chromass `.prm`, Autochro native run, paired official export, or open
-  parser was found.
+- No public redistributable YOUNG IN Chromass `.prm`, Autochro native run, paired
+  official export, or open source parser was found.
 - A University of York page advertises generic Clarity PRM/CDF/TXT teaching files, but
   it is not a YoungIn acquisition; its FTP timed out and an HTTPS substitute returned
   404 during this review.
 - DataApex demo material is registration/EULA controlled and is not a YoungIn fixture.
-- No matching local file is currently present in the ignored YoungIn fixture paths.
+- One owner-supplied local archive is now present only in the ignored YoungIn fixture
+  path. It contains 23 unique `.prm` files and no `.raw`, `.txt`, `.chr`, `.cdf`,
+  `.asc`, or other export companion. Its SHA-256 is
+  `4af61e1aa8abef3694a4c24a28203b0a1d382a11b6442c3e9b43653487f97fe5`.
+- Central-directory, path, member-type, encryption, compression-ratio, full-read, and
+  CRC checks passed. Filename-derived sample identifiers and embedded local-path or
+  operator-field candidates require local-only handling. No credential pattern was
+  detected, and no original name, metadata value, or file byte is published.
 
-No YoungIn data was downloaded. Future material must stay under
+No YoungIn data was downloaded from a third party. The owner-supplied material remains
+local-only. Future material must stay under
 `.external-fixtures/youngin/` or `.research-downloads/youngin/` and follow
 [`youngin-fixture-request.md`](youngin-fixture-request.md).
 
@@ -201,6 +214,15 @@ license, SDK, and native specification remain unresolved. Do not bundle vendor
 software, request access-control bypasses, or implement a binary reader from protected
 program files. A lawful public specification, reader API, or reviewed clean-room basis
 is required in addition to a fixture.
+
+OpenChrom's current converter catalogue lists a DataApex FID `.prm` converter, but the
+vendor converter service is proprietary and does not establish source availability,
+redistribution rights, TCD or multi-detector support, or compatibility with the
+observed YL-Clarity 9.0.1 candidates. It may be a separately licensed comparison oracle
+only after its terms and exact fixture behavior are reviewed; it is not an Ordifile
+dependency or implementation source. `chromConverter` previously delegated this path
+to OpenChrom and is GPL >= 3, so neither project supplies an Apache-2.0 implementation
+basis.
 
 Any user-provided file remains `ACCEPT_EXTERNAL_ONLY` unless written redistribution
 permission, attribution, and privacy review establish otherwise.
@@ -240,16 +262,16 @@ a future source-kind API without changing v1 single-file semantics.
 
 | Gate | BSEE Agilent ChemStation `.ch` v181 | YL-Clarity completed `.prm` | Autochro native |
 |---|---:|---:|---:|
-| Normal complete fixture | Yes | No | No |
+| Normal complete fixture | Yes | 23 local completed-file candidates; native health and scientific layout unresolved | No |
 | Lawful public source | Yes | No | No |
 | Redistribution basis | BSEE public-information guidance | No | No |
-| Privacy review | Passed | Impossible without bytes | Impossible without bytes |
-| Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | Unresolved | Unresolved |
-| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Not possible | Not possible |
-| Detector meaning | FID-scoped evidence | Product literature only | Unresolved |
+| Privacy review | Passed | Local-only intake reviewed; identifying metadata candidates withheld from every public surface | Impossible without bytes |
+| Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | YL-Clarity 9.0.1 candidate markers observed in all 23 files; binary profile role unresolved | Unresolved |
+| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Not verified | Not possible |
+| Detector meaning | FID-scoped evidence | Ten filenames each are FID- and TCD-labelled; three are unclassified; native mapping unresolved | Unresolved |
 | Paired official export | No | No | No |
-| Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | No public specification/reader | No public specification/reader |
-| Current decision | Experimental decoded-record adapter; Verified gate remains open | `BLOCKED_BY_FIXTURE` | `BLOCKED_BY_FIXTURE` |
+| Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | Owner-file observation and official documentation are available, but no public specification, source reader, or paired export oracle | No public specification/reader |
+| Current decision | Experimental decoded-record adapter; Verified gate remains open | `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE` | `BLOCKED_BY_FIXTURE` |
 
 YOUNG IN Chromass takes priority as soon as a normal completed fixture, exact CDS and
 format version, FID/TCD channel semantics, same-run unbunched official export, reproducible
@@ -286,10 +308,10 @@ FID evidence cannot become a TCD claim. ChroZen evidence cannot become YL6500 su
 
 ## Implementation recommendation
 
-Do not implement native YoungIn support in this release branch. Create a public
-research issue, use the fixture request to obtain privacy-clean paired runs, and first
-validate a format-based official export profile if one is available. Native `.prm` or
-Autochro work begins only after the exact gates above pass.
+Do not implement native YoungIn support from the current intake. Keep Issue #2 open and
+obtain privacy-clean, same-run `.chr`, `.txt`, or `.cdf` exports plus confirmed
+detector/channel configuration for at least one of the 23 local `.prm` candidates.
+Native `.prm` work begins only after the exact scientific and privacy gates above pass.
 
 The README may say only “Under investigation: YOUNG IN Chromass GC data formats.” It
 must not claim ChroZen, YL-Clarity, YL6500, FID, TCD, or Autochro compatibility.
