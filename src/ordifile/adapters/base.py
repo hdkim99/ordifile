@@ -23,6 +23,13 @@ class SupportStatus(StrEnum):
     FIXTURE_DECLARED = "fixture_declared"
 
 
+class SourceIdentityPolicy(StrEnum):
+    """Core-owned policy for public references to one source file."""
+
+    RELATIVE_PATH = "relative_path"
+    SHA256_ALIAS = "sha256_alias"
+
+
 @dataclass(frozen=True, slots=True)
 class DetectionResult:
     """Bounded probe result with confidence and inspectable evidence."""
@@ -54,6 +61,7 @@ class AdapterDescriptor:
     tested_fixture: bool
     support_status: SupportStatus = SupportStatus.FIXTURE_DECLARED
     series_kinds: tuple[SeriesKind, ...] = (SeriesKind.SCIENTIFIC_SIGNAL,)
+    source_identity_policy: SourceIdentityPolicy = SourceIdentityPolicy.RELATIVE_PATH
 
 
 @runtime_checkable

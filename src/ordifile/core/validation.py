@@ -265,7 +265,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "WORKBOOK_CELL_TEXT_LIMIT",
                 "sample_id exceeds the mandatory workbook cell text limit.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     elif not workbook_text_is_exact(sample_id_value):
@@ -274,7 +274,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "WORKBOOK_TEXT_UNREPRESENTABLE",
                 "sample_id contains text that XLSX cannot preserve exactly.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     if type(status_value) is not FileStatus:
@@ -283,7 +283,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "SAMPLE_STATUS_TYPE_INVALID",
                 "sample.status must be a FileStatus value.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     if type(reliability_value) is not bool:
@@ -312,7 +312,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "ACQUIRED_AT_RELIABILITY_INVALID",
                 "acquired_at_reliable=True requires a timezone-aware acquisition timestamp.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     if sample.sequence is not None and (type(sample.sequence) is not int):
@@ -321,18 +321,18 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "SEQUENCE_TYPE_INVALID",
                 "sample.sequence must be an integer or None.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     else:
-        validate_integer(sample.sequence, "sample.sequence", sample.source.relative_path)
+        validate_integer(sample.sequence, "sample.sequence", sample.source.public_reference)
     if sample.runtime is not None and (type(sample.runtime) not in {int, float}):
         issues.append(
             Issue(
                 "RUNTIME_TYPE_INVALID",
                 "sample.runtime must be numeric or None.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     elif type(sample.runtime) is float and not math.isfinite(sample.runtime):
@@ -341,30 +341,30 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "RUNTIME_NONFINITE",
                 "sample.runtime must be finite.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     else:
-        validate_integer(sample.runtime, "sample.runtime", sample.source.relative_path)
+        validate_integer(sample.runtime, "sample.runtime", sample.source.public_reference)
     if type(instrument_value) is not InstrumentMetadata:
         issues.append(
             Issue(
                 "INSTRUMENT_METADATA_TYPE_INVALID",
                 "sample.instrument must be InstrumentMetadata.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     else:
         validate_mandatory_text(
             instrument_value.instrument_type,
             "sample.instrument.instrument_type",
-            sample.source.relative_path,
+            sample.source.public_reference,
         )
         validate_mandatory_text(
             instrument_value.vendor,
             "sample.instrument.vendor",
-            sample.source.relative_path,
+            sample.source.public_reference,
         )
     for field in ("channels", "detectors"):
         values = getattr(sample, field)
@@ -374,7 +374,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     "CANONICAL_TUPLE_TYPE_INVALID",
                     f"sample.{field} must be an immutable tuple.",
                     Severity.ERROR,
-                    sample.source.relative_path,
+                    sample.source.public_reference,
                 )
             )
         elif any(type(value) is not str for value in values):
@@ -383,7 +383,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     "CANONICAL_TUPLE_ELEMENT_INVALID",
                     f"sample.{field} must contain only strings.",
                     Severity.ERROR,
-                    sample.source.relative_path,
+                    sample.source.public_reference,
                 )
             )
         elif any(not workbook_text_is_exact(value) for value in values):
@@ -392,7 +392,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     "WORKBOOK_TEXT_UNREPRESENTABLE",
                     f"sample.{field} contains text that XLSX cannot preserve exactly.",
                     Severity.ERROR,
-                    sample.source.relative_path,
+                    sample.source.public_reference,
                 )
             )
         elif len("; ".join(values)) > MAX_WORKBOOK_CELL_CHARACTERS:
@@ -401,7 +401,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     "WORKBOOK_CELL_TEXT_LIMIT",
                     f"Joined sample.{field} exceeds the mandatory workbook cell text limit.",
                     Severity.ERROR,
-                    sample.source.relative_path,
+                    sample.source.public_reference,
                 )
             )
     if (
@@ -415,7 +415,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "WORKBOOK_CELL_TEXT_LIMIT",
                 "Joined detector_channels exceeds the mandatory workbook cell text limit.",
                 Severity.ERROR,
-                sample.source.relative_path,
+                sample.source.public_reference,
             )
         )
     for peak in bundle.peaks:

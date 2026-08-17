@@ -7,6 +7,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- An Experimental structural converter for one observed YoungIn YL-Clarity
+  `9.0.1.19` `.PRM` profile. It preserves ordered native binary32 records and
+  allowlisted stored channel labels across local-only real fixtures without claiming
+  retention time, physical scaling, physical units, peaks, or Verified detector
+  semantics.
+- Synthetic bounded-parser, batch-isolation, deterministic-digest and workbook
+  regression coverage for the YoungIn PRM raw-record boundary. Native owner files stay
+  outside Git, Actions artifacts and release distributions.
+
+### Changed
+
+- Documented one manufacturer-neutral, result-first contract for future Agilent,
+  Shimadzu and YoungIn result adapters: standalone verified RT/area exports map to the
+  existing `PeakRecord`, `Peaks` and `Peak_Matrix` behavior, independently of optional
+  raw chromatogram support.
+
+### Security
+
+- Added a core-owned SHA-256 public source identity policy for privacy-sensitive
+  adapters so API, CLI, progress, sorting, issues and workbook audit sheets do not
+  expose private source basenames. YoungIn runtime sample IDs are also content-derived;
+  filename-based FID/TCD grouping is limited to the local maintainer oracle and is not
+  exported. Probe reasons supplied by adapters are replaced with fixed non-identifying
+  evidence whenever the effective source identity policy uses a SHA-256 alias. At the
+  same boundary, structured adapter errors preserve only validated codes and ordinary
+  adapter exceptions expose neither free-form messages nor class names.
+
 ## [0.2.1] - 2026-08-17
 
 ### Added

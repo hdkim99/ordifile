@@ -1,0 +1,45 @@
+{
+  "schema": "ordifile.youngin-yl-clarity-prm-raw-reference.v1",
+  "status": "experimental-structural-only",
+  "fixture": {
+    "distribution": "owner-supplied-local-only",
+    "archive_size": 3083937,
+    "archive_sha256": "4af61e1aa8abef3694a4c24a28203b0a1d382a11b6442c3e9b43653487f97fe5",
+    "prm_file_count": 23,
+    "native_bytes_committed": false
+  },
+  "profile": {
+    "producer": "YL-Clarity 9.0.1.19",
+    "structural_block_count": 43,
+    "dual_native_label_files": 20,
+    "single_native_label_files": 3,
+    "native_label_profiles": [
+      ["FID", "TCD"],
+      ["TCD"]
+    ],
+    "detector_identity_verified": false,
+    "retention_time_status": "unsupported",
+    "physical_scaling_status": "unsupported",
+    "physical_unit_status": "unknown"
+  },
+  "decoded_records": {
+    "encoding": "finite little-endian IEEE-754 binary32",
+    "total_count": 563240,
+    "count_histogram": {
+      "11970": 2,
+      "11980": 1,
+      "13180": 32,
+      "13190": 6,
+      "13210": 2
+    },
+    "canonical_batch_digest_algorithm": "Local-only external oracle: SHA-256 over domain ordifile-youngin-local-reference-v1\\0; for each privacy-safe staged alias in FID_STD, TCD_STD, MIXED_SAMPLE order: BE-u16 alias length, ASCII alias, 32-byte source SHA-256, BE-u16 block count; for each source-order block: BE-u16 ordinal, BE-u64 count, then each decoded value packed as BE-f32. Staged groups are not runtime metadata.",
+    "canonical_batch_sha256": "96d84945222d583c621459d25b57a2f5bb5cca9cf0cfa9f830811a5d483a3c5a",
+    "repeated_run_equal": true
+  },
+  "oracles": {
+    "native_duplicate_payloads": "all 43 RAWData6 and PRMData pairs byte-identical",
+    "declared_count_equation": "all 43 RAWSize values equal decompressed length divided by four",
+    "openchrom": "unavailable: current proprietary converter is GUI-installed and has no public automated headless import path",
+    "paired_official_export": "pending"
+  }
+}

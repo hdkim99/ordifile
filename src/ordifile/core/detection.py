@@ -14,6 +14,7 @@ from ordifile.core.errors import AdapterAmbiguityError, DetectionError
 
 AMBIGUITY_MARGIN = 0.05
 MAX_DETECTION_ERROR_MESSAGE_CHARACTERS = 512
+SOURCE_IDENTITY_PROBE_REASON = "Probe reason withheld by source identity policy."
 
 
 def _bounded_no_match_message(reasons: str) -> str:
@@ -38,8 +39,9 @@ def detect_adapter(
     registry: AdapterRegistry,
     *,
     forced_adapter: str | None = None,
+    redact_reasons: bool = False,
 ) -> DetectionOutcome:
-    """Probe each adapter and reject close competing claims."""
+    """Probe adapters, optionally replacing untrusted reasons before any disclosure."""
     adapters = (registry.get(forced_adapter),) if forced_adapter else registry.adapters()
     probes: list[tuple[str, DetectionResult]] = []
     for adapter in adapters:
@@ -57,7 +59,11 @@ def detect_adapter(
         probes.append(
             (
                 adapter.adapter_id,
-                DetectionResult(result.matched, confidence, result.reason),
+                DetectionResult(
+                    result.matched,
+                    confidence,
+                    SOURCE_IDENTITY_PROBE_REASON if redact_reasons else result.reason,
+                ),
             )
         )
     matches = sorted(

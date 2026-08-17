@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -82,6 +83,22 @@ def test_input_order_is_preserved() -> None:
     ordered, decision = sort_file_results(files, "input_order")
     assert decision.effective is SortMode.INPUT_ORDER
     assert _names(ordered) == ["z.csv", "a.csv"]
+
+
+def test_public_alias_controls_filename_order_without_private_basename_dependence() -> None:
+    first = _result("a-private.prm", 0)
+    second = _result("z-private.prm", 1)
+    first = replace(first, source=replace(first.source, public_id="source-" + "f" * 64))
+    second = replace(second, source=replace(second.source, public_id="source-" + "0" * 64))
+
+    ordered, decision = sort_file_results((second, first), SortMode.FILENAME)
+
+    assert decision.effective is SortMode.FILENAME
+    assert _names(ordered) == ["z-private.prm", "a-private.prm"]
+    assert [item.sort_key for item in ordered] == [
+        "source-" + "0" * 64,
+        "source-" + "f" * 64,
+    ]
 
 
 def test_filename_and_input_order_include_every_file_status() -> None:

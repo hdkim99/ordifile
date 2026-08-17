@@ -2,21 +2,21 @@
 
 - Prepared: 2026-08-16
 - Status: local research request; do not attach files to a public issue
-- Target: evidence needed to evaluate a future verified Ordifile adapter
+- Target: paired evidence needed to promote the Experimental raw-record adapter
 
-Ordifile does not currently support YOUNG IN Chromass native data. The purpose of this
-request is to obtain enough lawful, privacy-reviewed material to distinguish completed
-chromatograms from temporary or recovery files and to compare native values with an
-official export. Receiving a file does not create a support claim.
+Ordifile's development source tree contains an Experimental structural reader for one
+exact observed YL-Clarity PRM profile. The purpose of this request is to obtain enough
+lawful, privacy-reviewed paired material to validate scientific time, scaling, units
+and detector semantics. It is not a request for broad YOUNG IN Chromass support.
 
 ## Intake status — 2026-08-17
 
-An owner-supplied, local-only archive has partially fulfilled the native-file request.
-It contains 23 unique `.prm` completed-chromatogram candidates with YL-Clarity 9.0.1
-candidate markers, but no `.raw`, method, sequence, calibration, `.chr`, `.txt`,
-`.cdf`, `.asc`, or other official export companion. Ten filenames are FID-labelled,
-ten are TCD-labelled, and three remain unclassified; none of those labels is accepted
-as native detector evidence.
+An owner-supplied, local-only archive has fulfilled the initial structural-file request.
+It contains 23 unique completed `.prm` files with the exact observed YL-Clarity
+9.0.1.19 profile, but no `.raw`, method, sequence, calibration, `.chr`, `.txt`, `.cdf`,
+`.asc`, or other official export companion. Deterministic raw binary32 extraction and
+stored-label channel separation are Experimental GO. Filename groups remain user
+labels, and scientific detector meaning is not independently verified.
 
 The remaining minimum request is a privacy-reviewed official `.chr`, `.txt`, or `.cdf`
 export from at least one of those exact runs, the matching detector/channel

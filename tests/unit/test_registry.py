@@ -9,6 +9,7 @@ from ordifile.adapters.base import (
     AdapterDescriptor,
     DetectionResult,
     ParseOptions,
+    SourceIdentityPolicy,
     SupportStatus,
 )
 from ordifile.adapters.registry import (
@@ -59,12 +60,14 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "generic_xlsx",
         "shimadzu_gcsolution_gcd",
         "shimadzu_gcmssolution_qgd",
+        "youngin_yl_clarity_prm_raw",
     }
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
     assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
+    assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL
     assert all(
         status is SupportStatus.VERIFIED
         for adapter_id, status in statuses.items()
@@ -74,10 +77,18 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert series_kinds["agilent_chemstation_ch_v181"] == (SeriesKind.DECODED_RECORDS,)
     assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
+    assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
     assert all(
         kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)
         for adapter_id, kinds in series_kinds.items()
         if adapter_id.startswith("generic_")
+    )
+    identity_policies = {item.adapter_id: item.source_identity_policy for item in descriptors}
+    assert identity_policies["youngin_yl_clarity_prm_raw"] is SourceIdentityPolicy.SHA256_ALIAS
+    assert all(
+        policy is SourceIdentityPolicy.RELATIVE_PATH
+        for adapter_id, policy in identity_policies.items()
+        if adapter_id != "youngin_yl_clarity_prm_raw"
     )
 
 
@@ -176,6 +187,31 @@ def test_registry_rejects_invalid_support_status() -> None:
     object.__setattr__(InvalidStatusAdapter.descriptor, "support_status", "verified")
     with pytest.raises(OrdifileError) as caught:
         AdapterRegistry().register(InvalidStatusAdapter())
+    assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
+
+
+def test_registry_rejects_non_enum_source_identity_policy() -> None:
+    class InvalidPolicyAdapter(ExternalAdapter):
+        adapter_id = "invalid_policy"
+        adapter_version = "1"
+        descriptor = AdapterDescriptor(
+            adapter_id,
+            adapter_version,
+            "Invalid policy",
+            (".invalid-policy",),
+            False,
+            False,
+            False,
+            True,
+        )
+
+    object.__setattr__(
+        InvalidPolicyAdapter.descriptor,
+        "source_identity_policy",
+        "sha256_alias",
+    )
+    with pytest.raises(OrdifileError) as caught:
+        AdapterRegistry().register(InvalidPolicyAdapter())
     assert caught.value.code == "ADAPTER_DESCRIPTOR_INVALID"
 
 

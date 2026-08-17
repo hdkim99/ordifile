@@ -142,6 +142,32 @@ to the workbook layout.
     validate offsets, scan/RT identity, record lengths, and the exact per-scan TIC sum;
     spectra are not exported until an independent m/z oracle and a bounded canonical
     mass-spectrum workbook model exist. The GPL readers remain comparison-only.
+33. The Experimental YoungIn adapter is limited to one owner-observed YL-Clarity
+    `9.0.1.19` completed-PRM profile. It exposes only the current, duplicate-validated
+    little-endian binary32 blocks as `SeriesKind.DECODED_RECORDS`. The stored `FID` and
+    `TCD` values are Experimental native channel labels, not Verified detector
+    identities; `SignalSeries.detector`, time coordinates, physical scaling and units
+    remain unset. Twenty-three local-only files establish bounded one/two-block parsing,
+    source order and deterministic extraction. Same-run official export evidence is a
+    Verified promotion gate rather than a structural-converter implementation gate.
+34. Public source identity is adapter-declared but core-owned. `RELATIVE_PATH` remains
+    the default for generic inputs; privacy-sensitive adapters may declare
+    `SHA256_ALIAS`, which the core renders as `source-<full SHA-256>` or, before a hash
+    is available, `source-input-<input order>`. Adapter-provided aliases are ignored.
+    Detection failures, canonical records, issues, progress, API/CLI output, sort keys,
+    `Samples` and `Import_Log` all use the same public reference. The policy is
+    manufacturer-neutral and may be reused by future result adapters.
+35. Proprietary result consolidation is result-first and manufacturer-neutral.
+    Evidence-backed Agilent, Shimadzu and YoungIn result adapters map RT/area rows to the
+    existing `PeakRecord` model and common `Peaks` / `Peak_Matrix`; raw signals are an
+    optional independent capability, and a standalone result export never requires a
+    raw source merely for pairing. The three vendor adapters remain separate exact-
+    format readers, while their canonical peak rows, batch isolation, ordering,
+    provenance and Excel output obey the same contract. No vendor result parser, new
+    canonical result field or alternative peak matrix is implemented before an actual
+    result fixture establishes field boundaries and semantics. The current 23 YoungIn
+    PRM files have no proven peak result table, so YoungIn RT/area remains NO-GO even
+    though structural raw conversion proceeds.
 
 ## Public boundaries
 
@@ -188,8 +214,9 @@ CLI / future GUI
 - Flattening QGD MS1 records into the existing two-dimensional signal model: rejected.
   It would lose scan boundaries and materialize about 9.5 million rows before writing.
   The first QGD adapter is TIC-only and makes MS1 non-export explicit.
-- Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: brand and suffix
-  are not verified byte-format or lifecycle boundaries.
+- Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: the
+  fixture-backed Experimental adapter is limited to one exact observed PRM profile;
+  brand and suffix alone are not byte-format or lifecycle boundaries.
 - GUI in the first vertical slice: delays verification of the shared core workflow.
 
 ## Known risks

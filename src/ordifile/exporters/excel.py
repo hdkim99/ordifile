@@ -188,11 +188,11 @@ def _samples_data(result: BatchResult) -> _SheetData:
         rows.append(
             (
                 order,
-                workbook_audit_display(item.source.path.stem)
+                workbook_audit_display(Path(item.source.public_reference).stem)
                 if sample is None
                 else sample.sample_id,
-                workbook_audit_display(item.source.relative_path),
-                workbook_audit_display(item.source.relative_path),
+                workbook_audit_display(item.source.public_reference),
+                workbook_audit_display(item.source.public_reference),
                 item.source.detected_format,
                 None if sample is None else sample.instrument.instrument_type,
                 None if sample is None else sample.instrument.vendor,
@@ -370,7 +370,7 @@ def _import_log_data(result: BatchResult) -> _SheetData:
         errors = [issue for issue in item.issues if issue.severity.value == "error"]
         rows.append(
             (
-                workbook_audit_display(item.source.relative_path),
+                workbook_audit_display(item.source.public_reference),
                 item.source.detected_format,
                 item.adapter_id,
                 item.adapter_version,
@@ -709,7 +709,8 @@ def _manifest_data(
             sum(
                 1
                 for item in result.files
-                if workbook_audit_display(item.source.relative_path) != item.source.relative_path
+                if workbook_audit_display(item.source.public_reference)
+                != item.source.public_reference
             ),
             None,
             None,

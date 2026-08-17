@@ -7,13 +7,21 @@
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](LICENSE)
 
-과학 장비 export를 하나의 깔끔하고 정돈되며 감사 가능한 Excel workbook으로 일괄
-변환합니다.
+과학 장비 결과를 일괄 변환·통합하여 하나의 깔끔하고 정돈되며 감사 가능한
+Excel workbook으로 만듭니다.
+
+Ordifile의 proprietary 형식 방향은 **result-first**입니다. 근거가 확보된 Agilent,
+Shimadzu, YoungIn retention time·area result를 동일한 `Peaks` / `Peak_Matrix` workbook
+model로 통합하며 raw signal은 별도로 검증하는 선택 기능입니다. Result
+export만 있어도 raw file 없이 변환할 수 있습니다. Agilent·Shimadzu·YoungIn result
+adapter는 각각의 exact format reader로 분리하지만, 검증된 peak row는 canonical 변환
+후 모두 동일하게 동작합니다. 실제 result fixture로 field 경계와 의미가 확인되기
+전에는 vendor result parser 지원을 주장하지 않습니다.
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
-TXT, 감사된 non-macro XLSX. v0.2.1 source tree에는 아래에 설명한 범위가 매우 좁은
-proprietary Experimental reader 세 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
-않습니다.
+TXT, 감사된 non-macro XLSX. 현재 개발 source tree에는 아래에 설명한 범위가 매우 좁은
+proprietary Experimental reader 네 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+않습니다. 공개된 version은 PyPI badge에서 확인할 수 있습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
 
@@ -96,10 +104,10 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | stored-label channel + 순서 보존 raw binary32 record, time axis/unit 없음 | Experimental | 사용자 제공 local-only 파일 23개 |
 
-이 Experimental adapter들은 아래의 정확한 기능 경계와 함께 v0.2.1 source tree에
-포함됩니다. 공개 여부는 PyPI badge에서 확인할 수 있습니다. 검증되지 않은 profile은
-넓게 해석하지 않고 거부합니다.
+이 Experimental adapter들은 아래의 정확한 기능 경계를 가집니다. 검증되지 않은
+profile은 넓게 해석하지 않고 거부합니다.
 
 Agilent adapter는 모든 decoded record를
 원래 순서대로 유지합니다. x는 retention time이 아닌 `decoded_record_index`, y는 물리
@@ -120,6 +128,16 @@ detector, channel, factor, GCD profile, peak, `.QGD`, `.LCD`, 쓰기 기능은 �
 TIC 합 일치를 검증하지만 spectrum을 출력하지 않고 encoded mass를 m/z라고 부르지
 않습니다. 다른 QGD version, SIM/MRM, 물질 식별, 정량, 쓰기 기능은 지원한다고
 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md)를 확인해 주세요.
+
+YoungIn adapter는 YL-Clarity `9.0.1.19` PRM profile 하나를 위한 구조 변환기입니다.
+Local-only 파일 23개의 현재 block 43개에서 유한한 stored binary32 record 563,240개를
+순서대로 보존하고, 파일에 저장된 allowlisted FID/TCD label로 channel을 분리하지만
+canonical detector field는 비워 둡니다. x는 retention time이 아니라 record ordinal이며,
+physical scaling이나 unit을 적용하지 않고 peak도 내보내지 않습니다. 사용자가 제공한
+FID/TCD grouping은 local maintainer oracle에만 남고 runtime metadata로 출력되지 않습니다.
+Runtime sample ID도 파일명이 아닌 content hash로 생성됩니다. 다른 PRM generation,
+recovery `.RAW`, Autochro, calibrated chromatogram, 쓰기 기능은 지원한다고 주장하지
+않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 
 ## CLI
 
@@ -175,11 +193,11 @@ fallback합니다. 명시적 모드는 `acquired_at`, `sequence`, `filename`,
 | Sheet | 내용 |
 |---|---|
 | `Manifest` | 버전, UTC 생성시각, 개수, 옵션, 정렬, 제한, 경고, sidecar |
-| `Samples` | 발견된 입력별 한 행, 상태, 상대경로, adapter, peak 수, SHA-256 |
+| `Samples` | 발견된 입력별 한 행, 상태, 공개 source reference(기본 상대 경로 또는 core hash alias), adapter, peak 수, SHA-256 |
 | `Peak_Matrix` | 명시적 성분명이 있을 때만 시료별 wide format; 중복 peak는 분리 |
 | `Peaks` | RT 기반 성분 추론 없이 모든 명시적 peak의 long format |
 | `Metadata` | 알 수 없는 필드, 잘못된 raw lexeme, 원래 provenance |
-| `Import_Log` | 성공·경고·실패·중복·제외 파일, sort key, hash |
+| `Import_Log` | 공개 source reference, 성공·경고·실패·중복·제외 파일, sort key, hash |
 | `Signals_<channel>` | 실제 파싱되고 요청된 경우에만 원본 비보간 x/y 값 |
 | `Signals_Records_<channel>` | retention-time signal이 아닌 Experimental 구조 decoded record |
 
@@ -222,9 +240,10 @@ print(result.success_count, result.failure_count, result.sort.effective)
 처음 기여하기 좋은 작업으로는 합성 delimiter fixture 추가, 오류 메시지 테스트,
 문서 번역 개선, 공개 재배포 fixture를 사용한 소규모 adapter 제안이 있습니다.
 
-**조사 중:** YOUNG IN Chromass GC 데이터 형식은 향후 proprietary adapter의 필수
-우선 후보입니다. 완료 파일의 의미와 재현 가능한 FID/TCD fixture를 검증하기 전까지
-호환성을 주장하지 않습니다.
+**조사 중:** Experimental YoungIn raw adapter는 peak result table을 노출하지 않습니다.
+현재 PRM fixture 23개에는 검증된 RT+area result 구조가 없으므로 같은 run의
+`export_results` companion을 확보하기 전에는 YoungIn result adapter를 구현하지 않습니다.
+이는 별도로 범위를 제한한 raw-record converter를 막지 않습니다.
 
 ## 무결성과 보안 경계
 
@@ -237,9 +256,12 @@ print(result.success_count, result.failure_count, result.sort.effective)
 - formula처럼 보이는 문자열도 literal text로 쓰며 formula와 URL 자동 변환을 끕니다.
 - 검증된 XLSX writer/reader 조합에서 정확히 표현할 수 없는 값은 조용히 바꾸지 않고
   해당 파일의 구조화 오류로 처리합니다.
-- XLSX audit cell의 source identity는 reversible 표시 encoder를 사용합니다. 안전하지 않은
-  code point는 `~uXXXXXX;`가 되고 literal `~`는 두 번 씁니다. Manifest는 정책과 적용 파일
-  수를 기록하며 입력 path·bytes·hash는 바뀌지 않습니다.
+- 일반 형식의 XLSX audit source identity는 reversible 표시 encoder를 사용합니다.
+  안전하지 않은 code point는 `~uXXXXXX;`가 되고 literal `~`는 두 번 씁니다.
+  개인정보 민감 adapter는 대신 core가 생성한 `source-<전체 SHA-256>` alias를 API, CLI,
+  progress와 손상 파일 issue까지 일관되게 사용할 수 있습니다. 입력 path·bytes·hash는
+  바뀌지 않습니다. [source identity 정책](docs/architecture/source-identity-policy.md)을
+  확인해 주세요.
 - CLI는 terminal control과 bidirectional format 문자를 한 줄의 눈에 보이는 escape로
   표시하되 정상 Unicode와 Windows 경로는 그대로 유지합니다.
 - XLSX는 openpyxl 전에 ZIP, relationship, Content-Type, XML namespace, 좌표,

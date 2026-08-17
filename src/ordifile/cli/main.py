@@ -298,7 +298,7 @@ def _run_inspect(args: argparse.Namespace) -> int:
     )
     result = inspected.file
     bundle = result.bundle
-    print(f"File: {_terminal_safe(result.source.relative_path)}")
+    print(f"File: {_terminal_safe(result.source.public_reference)}")
     print(f"Status: {_terminal_safe(result.status.value)}")
     print(f"Detected format: {_terminal_safe(result.source.detected_format or 'not detected')}")
     print(f"Adapter: {_terminal_safe(result.adapter_id or 'none')}")
@@ -342,13 +342,12 @@ def _print_file_failures(result: object, *, verbose: bool) -> None:
     for item in failed:
         errors = [issue for issue in item.issues if issue.severity.value == "error"]
         if not errors:
-            print(
-                f"- {_terminal_safe(item.source.relative_path)}: no structured error was recorded"
-            )
+            source_reference = _terminal_safe(item.source.public_reference)
+            print(f"- {source_reference}: no structured error was recorded")
             continue
         first = errors[0]
         print(
-            f"- {_terminal_safe(item.source.relative_path)} "
+            f"- {_terminal_safe(item.source.public_reference)} "
             f"[{_terminal_safe(first.code)}]: {_terminal_safe(first.message)}"
         )
         if verbose:
@@ -369,7 +368,7 @@ def _print_file_warnings(result: object, *, verbose: bool) -> None:
     for item, warnings in warned:
         first = warnings[0]
         print(
-            f"- {_terminal_safe(item.source.relative_path)} "
+            f"- {_terminal_safe(item.source.public_reference)} "
             f"[{_terminal_safe(first.code)}]: {_terminal_safe(first.message)}"
         )
         if verbose:
@@ -381,7 +380,7 @@ def _print_batch_detection_evidence(result: object) -> None:
     files = getattr(result, "files", ())
     print("Detection evidence:")
     for item in files:
-        source_file = _terminal_safe(item.source.relative_path)
+        source_file = _terminal_safe(item.source.public_reference)
         if not item.probes:
             print(f"- {source_file}: no successful probe evidence was recorded")
             continue
