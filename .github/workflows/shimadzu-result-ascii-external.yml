@@ -1,0 +1,76 @@
+name: Shimadzu Result ASCII external fixtures
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ordifile-shimadzu-result-ascii-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  external-shimadzu-result-ascii:
+    name: External / Shimadzu LabSolutions Result ASCII
+    if: github.repository == 'hdkim99/ordifile'
+    runs-on: [self-hosted, dgx-spark]
+    timeout-minutes: 30
+    env:
+      PIP_NO_CACHE_DIR: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - name: Clean workspace before job
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated job environment
+        run: python scripts/ci/run_in_venv.py create --github-runner
+      - name: Install project in the isolated environment
+        run: |
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --upgrade pip
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install -e ".[dev]"
+      - name: Fetch the reviewed result ASCII without logging its content
+        run: >-
+          python scripts/ci/run_in_venv.py run --github-runner --
+          scripts/fetch_external_fixture.py
+          docs/research/shimadzu-result-ascii-external-fixture-manifest.json
+          --cache-dir "$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures"
+          --accept-license GPL-3.0-OR-LATER-CHROMCONVERTER-LADDER-ASCII
+          --allow-ci
+      - name: Fetch the reviewed same-run GCD without logging its content
+        run: >-
+          python scripts/ci/run_in_venv.py run --github-runner --
+          scripts/fetch_external_fixture.py
+          docs/research/shimadzu-gcd-external-fixture-manifest.json
+          --cache-dir "$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures"
+          --accept-license CC0-1.0-FS19-214-GCD
+          --allow-ci
+      - name: Run exact external result and same-run integration
+        run: |
+          export ORDIFILE_SHIMADZU_RESULT_ASCII_FIXTURE="$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures/downloads/chromconverter-ladder-shimadzu-result-ascii-582/46d1dcde188d7844c32abb89cda1f0d773cac480f6d6c93f2b6ca7149fdb9297/ladder.txt"
+          export ORDIFILE_SHIMADZU_GCD_FIXTURE="$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures/downloads/chromconverter-extra-fs19-214-gcd/d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180/FS19_214.gcd"
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pytest --no-cov --basetemp "$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures/pytest" tests/external/test_shimadzu_labsolutions_result_ascii_real.py
+      - name: Remove exact external fixture cache
+        if: always()
+        shell: python {0}
+        run: |
+          import os
+          import pathlib
+          import shutil
+
+          target = pathlib.Path(os.environ["RUNNER_TEMP"]) / "ordifile-shimadzu-result-ascii-fixtures"
+          if target.exists():
+              shutil.rmtree(target)
+      - name: Remove isolated job environment
+        if: always()
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Clean workspace after job
+        if: always()
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post

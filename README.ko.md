@@ -20,7 +20,7 @@ adapter는 각각의 exact format reader로 분리하지만, 검증된 peak row�
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
 TXT, 감사된 non-macro XLSX. 현재 개발 source tree에는 아래에 설명한 범위가 매우 좁은
-proprietary Experimental reader 다섯 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+proprietary Experimental reader 여섯 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
 않습니다. 공개된 version은 PyPI badge에서 확인할 수 있습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
@@ -104,6 +104,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
 | Agilent ChemStation Result XML, exact `C.01.10 [201]` 단일 `FID1/A` Percent/Area profile | 과학 데이터 allowlist | ResultsGroup peak | RT (min) + area (pA\*s) + height (pA), raw signal 없음 | Experimental | 외부 CeCILL-2.1 fixture 1개 |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
+| Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | stored-label channel + 순서 보존 raw binary32 record, time axis/unit 없음 | Experimental | 사용자 제공 local-only 파일 23개 |
 
@@ -133,6 +134,16 @@ profile로 한정됩니다. 66,255개 retention-time·signal 값 전부를 같�
 LabSolutions ASCII reference와 비교했습니다. 다른 LabSolutions/GCsolution version,
 detector, channel, factor, GCD profile, peak, `.QGD`, `.LCD`, 쓰기 기능은 지원한다고
 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcsolution-gcd.md)를 확인해 주세요.
+
+별도 Shimadzu result ASCII adapter는 raw sibling 없이 정확한 LabSolutions 5.82,
+GC-2014, 단일 `SFID1` / `Ch1` export 하나를 읽습니다. Source `Peak#`와 별도의 source
+observation order를 모두 보존하고 `R.Time`, `I.Time`, `F.Time`을 각각 retention/start/end
+time(min)으로 매핑하며, area와 height는 물리 unit을 만들지 않고 보존합니다. Exact
+fixture에는 compound ID와 name이 없으므로 compound identity를 출력하지 않습니다.
+내장된 private metadata는 내보내지 않고 public source에는 SHA-256 alias를 사용합니다.
+다른 software version, instrument, detector, channel, identified-compound table, multiple
+peak section, 임의 LabSolutions text export는 지원하지 않습니다. [정확한 기능·안전
+경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-result-ascii.md)를 확인해 주세요.
 
 별도 QGD adapter는 정확한 GCMSsolution `4.00` compound-file profile 하나로
 한정됩니다. 16,800개 TIC 정수와 millisecond에서 검증된 retention-time axis를

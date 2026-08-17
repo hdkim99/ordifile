@@ -547,20 +547,41 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                         source_file,
                     )
                 )
-        for field in ("retention_time_unit", "area_unit"):
-            units = tuple(getattr(peak, field) for peak in stream)
-            if (
-                any(type(unit) is not str or not unit.strip() for unit in units)
-                or len(set(units)) != 1
-            ):
-                issues.append(
-                    Issue(
-                        "ORDERED_PEAK_UNIT_INVALID",
-                        f"An ordered peak stream requires one consistent nonempty {field}.",
-                        Severity.ERROR,
-                        source_file,
-                    )
+        retention_time_units = tuple(peak.retention_time_unit for peak in stream)
+        if (
+            any(type(unit) is not str or not unit.strip() for unit in retention_time_units)
+            or len(set(retention_time_units)) != 1
+        ):
+            issues.append(
+                Issue(
+                    "ORDERED_PEAK_UNIT_INVALID",
+                    "An ordered peak stream requires one consistent nonempty retention_time_unit.",
+                    Severity.ERROR,
+                    source_file,
                 )
+            )
+        area_units = tuple(peak.area_unit for peak in stream)
+        nonempty_area_units = tuple(
+            unit for unit in area_units if type(unit) is str and unit.strip()
+        )
+        if (
+            any(
+                unit is not None and (type(unit) is not str or not unit.strip())
+                for unit in area_units
+            )
+            or nonempty_area_units
+            and len(nonempty_area_units) != len(area_units)
+            or len(set(nonempty_area_units)) > 1
+        ):
+            issues.append(
+                Issue(
+                    "ORDERED_PEAK_UNIT_INVALID",
+                    "An ordered peak stream requires area_unit to be consistently unresolved "
+                    "or one consistent nonempty string.",
+                    Severity.ERROR,
+                    source_file,
+                )
+            )
     for signal in bundle.signals:
         validate_text(signal.sample_id, "signal.sample_id", signal.source_file, optional=False)
         validate_text(signal.source_file, "signal.source_file", None, optional=False)

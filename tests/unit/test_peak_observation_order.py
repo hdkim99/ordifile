@@ -50,7 +50,7 @@ def test_complete_contiguous_ordered_peak_stream_is_valid() -> None:
         ((replace(_peak(1), retention_time=float("nan")),), "ORDERED_PEAK_VALUE_INVALID"),
         ((replace(_peak(1), area=float("inf")),), "ORDERED_PEAK_VALUE_INVALID"),
         ((replace(_peak(1), retention_time_unit=""),), "ORDERED_PEAK_UNIT_INVALID"),
-        ((replace(_peak(1), area_unit=None),), "ORDERED_PEAK_UNIT_INVALID"),
+        ((replace(_peak(1), area_unit=""),), "ORDERED_PEAK_UNIT_INVALID"),
         ((replace(_peak(1), start_time=2.0),), "PEAK_TIME_BOUNDARY_INVALID"),
     ),
 )
@@ -60,4 +60,17 @@ def test_invalid_ordered_peak_stream_is_rejected(peaks: tuple[PeakRecord, ...], 
 
 def test_ordered_peak_units_must_be_consistent_per_stream() -> None:
     peaks = (_peak(1), replace(_peak(2, retention_time=2.0), area_unit="counts"))
+    assert "ORDERED_PEAK_UNIT_INVALID" in {issue.code for issue in validate_bundle(_bundle(peaks))}
+
+
+def test_ordered_peak_area_unit_can_be_consistently_unresolved() -> None:
+    peaks = (
+        replace(_peak(1), area_unit=None, height_unit=None),
+        replace(_peak(2, retention_time=2.0), area_unit=None, height_unit=None),
+    )
+    assert validate_bundle(_bundle(peaks)) == ()
+
+
+def test_ordered_peak_area_unit_cannot_mix_unresolved_and_explicit() -> None:
+    peaks = (_peak(1), replace(_peak(2, retention_time=2.0), area_unit=None))
     assert "ORDERED_PEAK_UNIT_INVALID" in {issue.code for issue in validate_bundle(_bundle(peaks))}

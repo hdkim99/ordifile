@@ -61,6 +61,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "generic_xlsx",
         "shimadzu_gcsolution_gcd",
         "shimadzu_gcmssolution_qgd",
+        "shimadzu_labsolutions_result_ascii",
         "youngin_yl_clarity_prm_raw",
     }
     assert all(item.tested_fixture for item in descriptors)
@@ -69,6 +70,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert statuses["agilent_chemstation_result_xml"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
+    assert statuses["shimadzu_labsolutions_result_ascii"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL
     assert all(
         status is SupportStatus.VERIFIED
@@ -80,6 +82,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert series_kinds["agilent_chemstation_result_xml"] == ()
     assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
+    assert series_kinds["shimadzu_labsolutions_result_ascii"] == ()
     assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
     assert all(
         kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)
@@ -89,10 +92,18 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     identity_policies = {item.adapter_id: item.source_identity_policy for item in descriptors}
     assert identity_policies["youngin_yl_clarity_prm_raw"] is SourceIdentityPolicy.SHA256_ALIAS
     assert identity_policies["agilent_chemstation_result_xml"] is SourceIdentityPolicy.SHA256_ALIAS
+    assert (
+        identity_policies["shimadzu_labsolutions_result_ascii"] is SourceIdentityPolicy.SHA256_ALIAS
+    )
     assert all(
         policy is SourceIdentityPolicy.RELATIVE_PATH
         for adapter_id, policy in identity_policies.items()
-        if adapter_id not in {"youngin_yl_clarity_prm_raw", "agilent_chemstation_result_xml"}
+        if adapter_id
+        not in {
+            "youngin_yl_clarity_prm_raw",
+            "agilent_chemstation_result_xml",
+            "shimadzu_labsolutions_result_ascii",
+        }
     )
 
 

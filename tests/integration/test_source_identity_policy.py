@@ -542,6 +542,27 @@ def test_selected_policy_overrides_mixed_extension_owners_and_adapter_alias(
     assert "private.identity-test" not in repr(item.issues)
 
 
+def test_relative_success_restores_path_and_only_sha_owner_probe_is_redacted(
+    tmp_path: Path,
+) -> None:
+    data = b"relative success with provisional SHA identity"
+    source = tmp_path / "ordinary.identity-test"
+    source.write_bytes(data)
+    registry = AdapterRegistry()
+    registry.register(_RelativeSuccess())
+    registry.register(_ShaNonMatch())
+
+    inspected = inspect_file(source, registry=registry)
+
+    assert inspected.file.source.public_id is None
+    assert inspected.file.source.public_reference == source.name
+    assert inspected.file.source.path == source.resolve()
+    assert inspected.probes == (
+        ("relative_success", 1.0, _private_probe_reason(source)),
+        ("sha_nonmatch", 0.0, SOURCE_IDENTITY_PROBE_REASON),
+    )
+
+
 @pytest.mark.parametrize(
     ("adapters", "expected_code"),
     (

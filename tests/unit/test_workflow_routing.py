@@ -15,6 +15,7 @@ WORKFLOW_NAMES = (
     "release.yml",
     "shimadzu-gcd-external.yml",
     "shimadzu-qgd-external.yml",
+    "shimadzu-result-ascii-external.yml",
 )
 
 
@@ -179,6 +180,26 @@ def test_shimadzu_qgd_external_fixture_is_controlled_private_and_non_persistent(
     assert "CC0-1.0-B4NF-7-C23-QGD" in workflow
     assert "without logging its content" in workflow
     assert '--basetemp "$RUNNER_TEMP/ordifile-shimadzu-qgd-fixture/pytest"' in workflow
+    assert "Remove exact external fixture cache" in workflow
+
+
+def test_shimadzu_result_ascii_external_fixtures_are_controlled_and_non_persistent() -> None:
+    workflow = _workflow("shimadzu-result-ascii-external.yml")
+    assert "workflow_dispatch:" in workflow
+    assert "  push:" not in workflow
+    assert "  pull_request:" not in workflow
+    assert "github.repository == 'hdkim99/ordifile'" in workflow
+    assert "permissions:\n  contents: read" in workflow
+    assert "id-token: write" not in workflow
+    assert "secrets." not in workflow
+    assert "actions/cache" not in workflow
+    assert "actions/upload-artifact" not in workflow
+    assert workflow.count("--allow-ci") == 2
+    assert "GPL-3.0-OR-LATER-CHROMCONVERTER-LADDER-ASCII" in workflow
+    assert "CC0-1.0-FS19-214-GCD" in workflow
+    assert workflow.count("without logging its content") == 2
+    assert '--basetemp "$RUNNER_TEMP/ordifile-shimadzu-result-ascii-fixtures/pytest"' in workflow
+    assert "if: always()" in workflow
     assert "Remove exact external fixture cache" in workflow
 
 

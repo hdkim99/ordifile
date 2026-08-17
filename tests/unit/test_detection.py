@@ -34,6 +34,11 @@ class ClaimingAdapter:
         raise NotImplementedError
 
 
+class NonClaimingAdapter(ClaimingAdapter):
+    def probe(self, path: Path) -> DetectionResult:
+        return DetectionResult(False, self.confidence, f"rejected private={path.name}")
+
+
 def test_content_detection_ignores_misleading_extension(tmp_path: Path) -> None:
     path = tmp_path / "table.bin"
     path.write_text("sample_id\tarea\na\t1\n", encoding="utf-8")
@@ -91,3 +96,29 @@ def test_probe_reason_redaction_preserves_match_and_confidence(tmp_path: Path) -
     assert probe.confidence == pytest.approx(0.73)
     assert probe.reason == SOURCE_IDENTITY_PROBE_REASON
     assert path.name not in probe.reason
+
+
+def test_error_only_redaction_hides_all_no_match_and_ambiguity_reasons(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "private-detection.dat"
+    path.write_bytes(b"data")
+
+    no_match = AdapterRegistry()
+    no_match.register(NonClaimingAdapter("relative_nonmatch", 0.0))
+    with pytest.raises(DetectionError) as caught_no_match:
+        detect_adapter(path, no_match, redact_error_reasons=True)
+    assert path.name not in caught_no_match.value.message
+    assert SOURCE_IDENTITY_PROBE_REASON in caught_no_match.value.message
+
+    ambiguous = AdapterRegistry()
+    ambiguous.register(ClaimingAdapter("relative_first", 0.90))
+    ambiguous.register(ClaimingAdapter("relative_second", 0.88))
+    with pytest.raises(AdapterAmbiguityError) as caught_ambiguity:
+        detect_adapter(path, ambiguous, redact_error_reasons=True)
+    assert path.name not in caught_ambiguity.value.message
+    assert path.name not in repr(caught_ambiguity.value.details)
+    assert SOURCE_IDENTITY_PROBE_REASON in caught_ambiguity.value.message
+    assert all(
+        SOURCE_IDENTITY_PROBE_REASON in detail for detail in caught_ambiguity.value.details.values()
+    )

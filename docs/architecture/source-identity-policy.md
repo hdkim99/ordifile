@@ -16,16 +16,23 @@ The core creates these aliases. Adapter-provided aliases are discarded, so a par
 cannot accidentally restore a private basename. When a forced adapter declares
 `SHA256_ALIAS`, or any owner of an input extension declares it, the policy is applied
 before content detection so no-match, ambiguity, discovery and malformed-file errors
-are also safe. The selected adapter's policy is applied again after detection without
-downgrading a conservative pre-detection SHA alias. SHA-aliased files use their public
-reference for deterministic sorting; generic relative-path ordering is unchanged.
+are also safe. This is a provisional privacy boundary for shared extensions. A
+successfully selected `RELATIVE_PATH` adapter may restore ordinary relative provenance
+only after its parse, canonical validation and source-integrity checks all succeed.
+Every detection, ambiguity, unsupported-profile, parse, validation or integrity
+failure retains the conservative SHA alias. SHA-aliased results use their public
+reference for deterministic sorting; successful generic relative-path ordering is
+unchanged.
 
 An adapter's `DetectionResult.reason` is untrusted text. Under an effective
-`SHA256_ALIAS` policy, the core replaces every probe reason with one fixed
-non-identifying explanation before constructing no-match or ambiguity errors and
-before storing public probe evidence. Match decisions and bounded confidence values
-are unchanged. `RELATIVE_PATH` adapters retain their existing inspectable probe-reason
-behavior.
+`SHA256_ALIAS` policy, the core replaces reasons from privacy-sensitive owner IDs with
+one fixed non-identifying explanation before constructing no-match or ambiguity errors
+and before storing public probe evidence. If the selected adapter itself requires the
+SHA policy, all exposed probe reasons are fixed. Match decisions and bounded confidence
+values are unchanged. No-match and ambiguity errors under the provisional SHA boundary
+replace every probe reason, including reasons from relative-path candidates. A generic
+`RELATIVE_PATH` adapter that completes the success gate restores its existing
+inspectable probe-reason behavior.
 
 Adapter exceptions follow the same boundary. Under an effective `SHA256_ALIAS` policy,
 the core preserves a valid structured error code but replaces its free-form message
@@ -49,9 +56,9 @@ Generic results retain their original path provenance.
 
 The YoungIn YL-Clarity PRM raw adapter is the first opt-in user. Its owner-supplied
 fixtures can have privacy-bearing native basenames, while the full content hash already
-provides stable provenance. Future Agilent, Shimadzu or YoungIn result adapters may opt
-in to the same policy when their fixture evidence shows that source names are unsafe;
-this is not a vendor-specific exception.
+provides stable provenance. The exact Agilent Result XML and Shimadzu LabSolutions
+result ASCII adapters also opt in because their fixture evidence shows privacy-bearing
+source metadata and names. This is not a vendor-specific exception.
 
 ## Result sources
 
@@ -60,5 +67,7 @@ A standalone vendor result adapter must bind every canonical `PeakRecord` and me
 row to the same core-owned public source reference. RT/area result consolidation
 remains manufacturer-neutral: the first exact Agilent Result XML adapter maps evidence-
 backed rows to `PeakRecord`, `Peaks`, compound `Peak_Matrix`, and the conditional
-source-order `Peak_Order_Matrix`. Future vendor-specific parsers or fields remain
-blocked until an actual result fixture proves their boundaries and semantics.
+source-order `Peak_Order_Matrix`; the exact Shimadzu result ASCII adapter maps its
+evidence-backed Peak Table rows to the same contract. Future vendor-specific parsers
+or fields remain blocked until an actual result fixture proves their boundaries and
+semantics.
