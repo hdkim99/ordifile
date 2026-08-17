@@ -7,13 +7,22 @@
 [![Python 3.11–3.14](https://img.shields.io/badge/Python-3.11%E2%80%933.14-blue)](https://github.com/hdkim99/ordifile/blob/main/pyproject.toml)
 [![Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue)](https://github.com/hdkim99/ordifile/blob/main/LICENSE)
 
-Batch-convert scientific instrument exports into one clean, ordered and auditable
-Excel workbook.
+Batch-convert and consolidate scientific instrument results into one clean, ordered
+and auditable Excel workbook.
+
+Ordifile's proprietary-format direction is **result-first**: evidence-backed retention
+time and area tables from Agilent, Shimadzu and YoungIn should converge on the same
+`Peaks` / `Peak_Matrix` workbook model. Raw signals are an optional, independently
+validated capability: a result export does not require its raw file to be present.
+Each Agilent, Shimadzu, or YoungIn result adapter remains a separate exact-format
+reader, but its verified peak rows behave identically after canonical conversion. No
+vendor result parser is claimed before an actual result fixture proves its field
+boundaries and semantics.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
-XLSX using Ordifile's documented schema. The v0.2.1 source tree also includes three
-narrowly bounded Experimental proprietary readers described below; this is not general
-vendor-format support.
+XLSX using Ordifile's documented schema. The current development source tree also
+includes four narrowly bounded Experimental proprietary readers described below; this
+is not general vendor-format support. Published availability is shown by the PyPI badge.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
 
@@ -96,10 +105,10 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Stored-label channels + ordered raw binary32 records; no time axis or unit | Experimental | 23 owner-supplied local-only files |
 
-These Experimental adapters are included in the v0.2.1 source tree with the exact
-capability boundaries below. Published availability is shown by the PyPI badge.
-Unsupported profiles are rejected rather than interpreted broadly.
+These Experimental adapters have the exact capability boundaries below. Unsupported
+profiles are rejected rather than interpreted broadly.
 
 The Agilent adapter retains every
 decoded record in source order. Its x values are `decoded_record_index`, not retention
@@ -122,6 +131,15 @@ bounded scan structure and exact TIC-sum agreement, but spectra are not exported
 encoded mass values are not called m/z. It does not claim other QGD versions,
 SIM/MRM, identifications, quantitation, or write support. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md).
+
+The YoungIn adapter is a structural converter for one observed YL-Clarity `9.0.1.19`
+PRM profile. It preserves 563,240 finite stored binary32 records from 43 current blocks
+across 23 local-only files and separates the allowlisted FID/TCD labels stored in those
+files, while leaving the canonical detector field unset. Its x coordinate is record
+ordinal, not retention time. No physical scaling or unit is applied, and peaks are not
+exported. User-supplied FID/TCD grouping remains a label rather than binary detector
+evidence. It does not claim other PRM generations, recovery `.RAW`, Autochro, calibrated
+chromatograms, or write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).
 
 ## CLI
 
@@ -177,11 +195,11 @@ workbook.
 | Sheet | Contents |
 |---|---|
 | `Manifest` | Version, UTC generation time, counts, options, sorting, limits, warnings, and sidecars |
-| `Samples` | One row per discovered input, status, relative path, adapter facts, peak count, and SHA-256 |
+| `Samples` | One row per discovered input, status, public source reference (relative path by default or core hash alias), adapter facts, peak count, and SHA-256 |
 | `Peak_Matrix` | One row per sample only for explicit compound names; duplicate peaks remain separate |
 | `Peaks` | All explicit peaks in long form without retention-time identity inference |
 | `Metadata` | Unknown fields, invalid raw lexemes, and provenance without invented semantics |
-| `Import_Log` | Every success, warning, failure, duplicate, skipped artifact, sort key, and hash |
+| `Import_Log` | Every public source reference, success, warning, failure, duplicate, skipped artifact, sort key, and hash |
 | `Signals_<channel>` | Original uninterpolated x/y values, only when requested and actually parsed |
 | `Signals_Records_<channel>` | Experimental structural decoded records, explicitly not a retention-time signal |
 
@@ -227,10 +245,10 @@ Good first contributions include an additional synthetic delimiter fixture, a cl
 error-message test, a documentation translation, or a small adapter proposal backed by
 an openly redistributable fixture.
 
-**Under investigation:** YOUNG IN Chromass GC data formats are a required priority
-candidate for a future proprietary adapter. No compatibility is claimed yet; the work
-is blocked until completed-file semantics and reproducible FID/TCD fixtures are
-verified.
+**Under investigation:** the Experimental YoungIn raw adapter does not expose a peak
+result table. The 23 current PRM fixtures contain no proven RT+area result structure;
+a same-run `export_results` companion is required before a YoungIn result adapter is
+implemented. This does not block the separately bounded raw-record converter.
 
 ## Integrity and security boundaries
 
@@ -244,9 +262,11 @@ verified.
   disabled.
 - Values that the verified XLSX writer/reader combination cannot represent exactly are
   rejected for that file instead of being silently changed.
-- Source identities in XLSX audit cells use a reversible display encoder: unsafe code
-  points become `~uXXXXXX;` and a literal `~` is doubled. The Manifest records the
-  policy and affected-file count; input paths, bytes, and hashes remain unchanged.
+- Generic source identities in XLSX audit cells use a reversible display encoder:
+  unsafe code points become `~uXXXXXX;` and a literal `~` is doubled. Privacy-sensitive
+  adapters can instead request a core-owned `source-<full SHA-256>` alias; this also
+  applies to API/CLI/progress and malformed-file issues. Input paths, bytes and hashes
+  remain unchanged. See the [source identity policy](docs/architecture/source-identity-policy.md).
 - CLI output renders terminal control and bidirectional-format characters as visible,
   single-line escapes while preserving normal Unicode and Windows paths.
 - XLSX packages pass ZIP, relationship, Content-Type, XML namespace, coordinate,

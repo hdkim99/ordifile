@@ -67,10 +67,11 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "agilent_chemstation_ch_v181" in output
     assert "shimadzu_gcsolution_gcd" in output
     assert "shimadzu_gcmssolution_qgd" in output
+    assert "youngin_yl_clarity_prm_raw" in output
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 3" in output
+    assert "Experimental adapters: 4" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 
@@ -234,6 +235,7 @@ def test_inspect_terminal_escapes_issue_context_and_probe_evidence(
         file=SimpleNamespace(
             source=SimpleNamespace(
                 relative_path="sample.csv",
+                public_reference="sample.csv",
                 detected_format="format\x1b[31m",
                 sha256="a" * 64,
             ),

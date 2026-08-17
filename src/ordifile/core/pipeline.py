@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-from ordifile.adapters.base import ParseOptions
+from ordifile.adapters.base import ParseOptions, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.detection import detect_adapter
 from ordifile.core.discovery import discover_files, sha256_file
@@ -52,6 +52,47 @@ MAX_ERROR_DETAIL_ITEMS = 32
 MAX_ERROR_DETAIL_KEY_CHARACTERS = 64
 MAX_ERROR_DETAIL_VALUE_CHARACTERS = 512
 _ADAPTER_ERROR_CODE = re.compile(r"[A-Z][A-Z0-9_]{0,63}\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def _source_identity_policy_before_detection(
+    path: Path,
+    registry: AdapterRegistry,
+    forced_adapter: str | None,
+) -> SourceIdentityPolicy:
+    """Return the policy known without inspecting private source content."""
+    if forced_adapter is not None:
+        return registry.get(forced_adapter).descriptor.source_identity_policy
+    suffix = path.suffix.casefold()
+    owners = tuple(
+        adapter
+        for adapter in registry.adapters()
+        if suffix in {extension.casefold() for extension in adapter.descriptor.extensions}
+    )
+    if owners and all(
+        adapter.descriptor.source_identity_policy is SourceIdentityPolicy.SHA256_ALIAS
+        for adapter in owners
+    ):
+        return SourceIdentityPolicy.SHA256_ALIAS
+    return SourceIdentityPolicy.RELATIVE_PATH
+
+
+def _apply_source_identity(source: SourceFile, policy: SourceIdentityPolicy) -> SourceFile:
+    """Create a core-owned alias and disregard any adapter-provided public identity."""
+    if policy is SourceIdentityPolicy.RELATIVE_PATH:
+        return replace(source, public_id=None)
+    public_id = (
+        f"source-{source.sha256}"
+        if type(source.sha256) is str and _SHA256.fullmatch(source.sha256) is not None
+        else f"source-input-{source.input_order + 1:06d}"
+    )
+    return replace(source, public_id=public_id)
+
+
+def _rebind_issue_sources(issues: tuple[Issue, ...], source: SourceFile) -> tuple[Issue, ...]:
+    """Replace adapter or discovery source labels with the core public reference."""
+    reference = workbook_audit_display(source.public_reference)
+    return tuple(replace(issue, source=reference) for issue in issues)
 
 
 def _bundle_issue_has_private_path(bundle: DatasetBundle) -> bool:
@@ -112,7 +153,7 @@ def _safe_error_context(details: object) -> tuple[tuple[str, str], ...]:
 
 
 def _issue_from_error(error: Exception, source: SourceFile) -> Issue:
-    safe_source = workbook_audit_display(source.relative_path)
+    safe_source = workbook_audit_display(source.public_reference)
     if isinstance(error, OrdifileError):
         if (
             type(error.code) is not str
@@ -167,10 +208,12 @@ def _bounded_file_issues(issues: tuple[Issue, ...], source_file: str) -> tuple[I
 
 def _bind_source(bundle: DatasetBundle, source: SourceFile) -> DatasetBundle:
     samples = tuple(replace(sample, source=source) for sample in bundle.samples)
-    safe_reference = workbook_audit_display(source.relative_path)
+    safe_reference = workbook_audit_display(source.public_reference)
     peaks = tuple(replace(peak, source_file=safe_reference) for peak in bundle.peaks)
     signals = tuple(replace(signal, source_file=safe_reference) for signal in bundle.signals)
     metadata = tuple(replace(entry, source_file=safe_reference) for entry in bundle.metadata)
+    warnings = tuple(replace(issue, source=safe_reference) for issue in bundle.warnings)
+    errors = tuple(replace(issue, source=safe_reference) for issue in bundle.errors)
     # Preserve adapter cardinality so validation can enforce the exactly-one v0.1 contract.
     sources = tuple(source for _adapter_source in bundle.sources)
     return replace(
@@ -180,6 +223,8 @@ def _bind_source(bundle: DatasetBundle, source: SourceFile) -> DatasetBundle:
         peaks=peaks,
         signals=signals,
         metadata=metadata,
+        warnings=warnings,
+        errors=errors,
     )
 
 
@@ -341,16 +386,19 @@ def run_pipeline(
                     "processing",
                     completed,
                     total_files,
-                    workbook_audit_display(item.source.relative_path),
+                    workbook_audit_display(item.source.public_reference),
                     item.status,
                 )
             )
 
     for completed, discovered in enumerate(discovered_files, start=1):
-        source = discovered.source
-        display_source = workbook_audit_display(source.relative_path)
-        discovery_issues = discovered.issues
-        if display_source != source.relative_path:
+        initial_policy = _source_identity_policy_before_detection(
+            discovered.source.path, registry, forced_adapter
+        )
+        source = _apply_source_identity(discovered.source, initial_policy)
+        display_source = workbook_audit_display(source.public_reference)
+        discovery_issues = _rebind_issue_sources(discovered.issues, source)
+        if display_source != source.public_reference:
             discovery_issues = (
                 *discovery_issues,
                 Issue(
@@ -404,7 +452,12 @@ def run_pipeline(
             )
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
-            source = replace(source, detected_format=detection.adapter.adapter_id)
+            source = replace(
+                _apply_source_identity(source, detection.adapter.descriptor.source_identity_policy),
+                detected_format=detection.adapter.adapter_id,
+            )
+            discovery_issues = _rebind_issue_sources(discovery_issues, source)
+            display_source = workbook_audit_display(source.public_reference)
             parsed_bundle = detection.adapter.parse(source.path, options)
             structure_issues = validate_bundle_structure(parsed_bundle)
             if not structure_issues and _bundle_issue_has_private_path(parsed_bundle):
@@ -417,6 +470,7 @@ def run_pipeline(
                         display_source,
                     ),
                 )
+            structure_issues = _rebind_issue_sources(structure_issues, source)
             bundle = None if structure_issues else _bind_source(parsed_bundle, source)
             datetime_issues: tuple[Issue, ...] = ()
             if bundle is not None and len(bundle.samples) == 1:
@@ -512,6 +566,8 @@ def run_pipeline(
             )
             processed.append(result)
             stopped = stopped or on_error == "stop"
+        result = replace(result, issues=_rebind_issue_sources(result.issues, result.source))
+        processed[-1] = result
         report_processed(result, completed)
     ordered, decision = sort_file_results(tuple(processed), requested_sort)
     return BatchResult(

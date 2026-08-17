@@ -1,16 +1,17 @@
 # YOUNG IN Chromass GC format investigation
 
 - Research and access dates: 2026-08-16; local fixture intake 2026-08-17
-- Status: `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`; no Ordifile support claim
+- Status: `PEAK_RT_AREA_BLOCKED_BY_RESULT_SOURCE`; `RAW_CONVERSION_GO`;
+  `SCIENTIFIC_SEMANTICS_PENDING`; `VERIFIED_STATUS_BLOCKED_BY_PAIRED_EXPORT`
 - Canonical project identifier: `youngin_chromass`
 - Canonical display: YOUNG IN Chromass / 영인크로매스
 
 ## Purpose
 
-This track evaluates YOUNG IN Chromass as a required priority candidate for
-Ordifile's first proprietary GC adapter. It separates manufacturer, instrument, CDS,
-native file, recovery file, and export evidence. It does not implement an adapter and
-does not add YOUNG IN Chromass to the v0.1.0 support table.
+This track evaluates one exact YL-Clarity completed-PRM profile. It separates
+manufacturer, instrument, CDS, native file, recovery file, structural conversion and
+scientific semantics. The fixture-backed Experimental adapter exposes only bounded raw
+records; it is not broad YOUNG IN Chromass support.
 
 ## Terminology
 
@@ -73,7 +74,7 @@ Other `YL` model names are not added based on naming similarity alone.
 
 | Software | Verified relationship and versions | OS / instrument evidence | Project and file evidence | Export / SDK | Decision |
 |---|---|---|---|---|---|
-| YL-Clarity | DataApex officially announced in 2008 that Young Lin Instruments would sell a Clarity OEM as `YL-Clarity`; a 2021 YOUNG IN Chromass note names 8.1, 8.5, and 8.6.1 | 2021 note maps versions to ChroZen and YL6500 detector configurations; generic Clarity OS claims cannot be copied to every OEM build | General Clarity structure is documented below; YL binary identity remains unverified | Current product page describes export and post-run features; DataApex control-module SDK is contractual, not a public `.prm` reader SDK | Required current-CDS research target; blocked by fixture |
+| YL-Clarity | DataApex officially announced in 2008 that Young Lin Instruments would sell a Clarity OEM as `YL-Clarity`; a 2021 YOUNG IN Chromass note names 8.1, 8.5, and 8.6.1 | 2021 note maps versions to ChroZen and YL6500 detector configurations; generic Clarity OS claims cannot be copied to every OEM build | One local-only 9.0.1.19 structural profile is fixture-backed; equivalence to other OEM or vanilla Clarity versions remains unresolved | Current product page describes export and post-run features; DataApex control-module SDK is contractual, not a public `.prm` reader SDK | Exact-profile raw records Experimental; scientific semantics pending |
 | AUTOCHRO-II / Autochro-2 | Official history records `Autochro2` in 2012; a 2017 official item describes XP/Vista/7/8 use and YL6500/HPLC control | Multiple-channel and auxiliary-signal acquisition described | Native extension, project tree, method, sequence, calibration and report structures unresolved | ASCII/CDF compatibility mentioned; public SDK and license not found | Treat spelling equivalence and format generation as unresolved |
 | Autochro-3000 | Current YOUNG IN Chromass training form lists it as a separate program | Supported GC models and Windows versions unresolved | Native extension, format version and project structure unresolved | Export, SDK and license unresolved | Separate research backlog; never alias to Autochro-2 |
 
@@ -91,7 +92,7 @@ General DataApex Clarity documentation establishes this lifecycle:
 4. recovery data may omit the last 10–90 seconds and can be reprocessed with a method
    selected during recovery rather than the original control method.
 
-The future normal reader boundary is therefore a completed `.prm`, not `.raw`.
+The normal structural-reader boundary is therefore a completed `.prm`, not `.raw`.
 Recovery support, if ever added, must be a separate experimental capability that warns
 about incompleteness and method provenance.
 
@@ -100,11 +101,11 @@ documentation mentions up to 32 signals, while the current YL-Clarity page descr
 up to 12 detector signals per instrument and older material mentions four. These are
 version-sensitive limits, not a universal YoungIn channel layout.
 
-Still unresolved without a YL-produced fixture:
+The local YL-produced intake resolves the completed-file role, exact observed
+9.0.1.19 structure and its one/two stored-label block layouts. Still unresolved:
 
-- whether YL-Clarity actually finalizes every supported run as `.prm`;
-- its `.prm` signature, internal format version, and vanilla-Clarity compatibility;
-- whether FID/TCD signals share one `.prm` or are stored separately in each version;
+- compatibility with other YL-Clarity profiles and vanilla Clarity;
+- whether other versions share or separate FID/TCD signals;
 - which instrument, detector, method, sequence, calibration, and result fields are
   embedded or sibling records;
 - whether a YL and vanilla Clarity installation lawfully cross-open the same file.
@@ -128,7 +129,7 @@ otherwise.
 
 | Extension or structure | Software | Claimed purpose | Verified purpose | Evidence | YoungIn fixture |
 |---|---|---|---|---|---|
-| `.prm` | General Clarity; YL-Clarity candidate | Completed chromatogram | Verified for general Clarity; YL-Clarity applicability unresolved | DataApex terminology, error-flow and recovery documentation | None |
+| `.prm` | General Clarity; exact observed YL-Clarity 9.0.1.19 profile | Completed chromatogram | General lifecycle verified; exact local structural profile supports Experimental raw records | DataApex lifecycle plus 23 local files | 23 local-only files |
 | `.raw` | General Clarity; YL-Clarity candidate | Acquisition/recovery data | Verified temporary/recovery role for general Clarity; not a normal completed chromatogram | DataApex recovery and error-flow documentation | None |
 | `.met` | General Clarity | Acquisition and processing method | Verified for general Clarity | DataApex terminology | None |
 | `.seq` | General Clarity | Automatic analysis sequence | Verified for general Clarity | DataApex terminology | None |
@@ -139,6 +140,9 @@ otherwise.
 | `.chr` | General Clarity | Multi-detector text export | Verified for general Clarity | DataApex export documentation | None |
 | `.cdf` | General Clarity | AIA/NetCDF chromatogram export | Verified; signal/basic description only, not full results/method/calibration/GLP | DataApex export documentation | None |
 | `.asc` | General Clarity | EZChrom ASCII export | Verified export choice | DataApex export documentation | None |
+| `.txt`, `.csv` | General Clarity Export Data | Result Table export | Verified format choices for result export; exact YL 9.0.1 schema pending a same-run file | DataApex Export Data documentation | None |
+| `.xls`, `.xlsx` | General Clarity Export Data | Result Table export | Verified format choices; XLS/XLSX availability is documented for the 9.0 generation | DataApex Export Data and changelog | None |
+| `.dbf` | General Clarity Export Data | Result Table export | Verified Result Table-only choice; not an initial Ordifile target | DataApex Export Data documentation | None |
 | Autochro native structure | Autochro family | Unresolved | Unresolved | No authoritative format document or file | None |
 
 ## Native versus exported data
@@ -154,25 +158,48 @@ official export. General Clarity export has important scope controls:
 - A signal oracle should use `All Data`, include the x-axis, and use `Time Step=0` or a
   value below the acquisition sampling interval.
 
-Until a real YoungIn header is verified, a Clarity export must not be labelled as
-YOUNG IN Chromass solely because its producing software might be YL-Clarity.
+A future paired export must be tied to one of the exact local runs; generic Clarity
+output must not be labelled YOUNG IN Chromass solely because it resembles YL-Clarity.
+
+## Peak-result priority and current evidence
+
+Result extraction is independent of raw chromatogram conversion. General Clarity's
+`prm_export` command writes chromatogram curves in CDF, CHR, TXT or ASC form; it is not
+the peak-table route. GUI **Export Data** or the command-line `export_results` route can
+write the active chromatogram Result Table as TXT, CSV, XLS, XLSX or DBF according to
+the selected export settings. The documented Result Table includes retention time,
+area, optional height, compound and peak-boundary fields. An exact adapter must preserve
+the headers and units actually present in the result file rather than infer them from
+general documentation.
+
+The owner archive contains only 23 PRM files. A bounded search found no companion
+result export and no deterministic internal Result Table with linked retention-time and
+area rows. Apparent peak-width and time-like properties belong to method or processing
+event structures, and empty result/calibration indicators do not establish computed
+peak rows. Therefore current scientific RT, area and height extraction is NO-GO; no
+`PeakRecord` is synthesized from these PRMs.
+
+When a same-run Result Table arrives, a standalone exact result adapter may parse it
+without requiring the PRM. YoungIn, Agilent and Shimadzu result adapters remain
+vendor-specific readers, but all verified rows map to the same `PeakRecord`, `Peaks`
+and explicit-assignment-only `Peak_Matrix` behavior. Raw-source pairing is optional
+evidence, not a runtime requirement.
 
 ## FID/TCD channel representation
 
 Product literature confirms that ChroZen and YL6500 configurations can use FID and TCD.
 General Clarity supports multiple signals, per-detector TXT/CDF exports, and combined
-CHR export. A 2026-08-17 local-only intake now contains 23 distinct `.prm` completed-
-chromatogram candidates carrying YL-Clarity 9.0.1 candidate markers. Ten filenames are
-FID-labelled, ten are TCD-labelled, and three cannot be classified without reading the
-native detector/channel structure. Filename labels are not detector evidence, so the
-three remaining files are not claimed as FID+TCD runs. The intake still does not
-establish whether native FID and TCD are in one `.prm`, separate chromatograms, or
-version-dependent.
+CHR export. A 2026-08-17 local-only intake contains 23 distinct completed `.prm` files
+carrying the exact observed YL-Clarity 9.0.1.19 producer prefix. Filename-derived user
+groups are 10 FID-labelled, 10 TCD-labelled and 3 mixed/sample-labelled files; these
+groups remain user labels rather than detector evidence. Native structure independently
+contains 20 source-ordered `FID`, `TCD` label pairs and 3 single `TCD` labels. The
+adapter preserves those allowlisted native values as Experimental channel labels while
+leaving the canonical detector field unset.
 
-A future adapter must preserve channel names and detector types, retain the native
-time axis without interpolation, keep multi-channel sample identity, and export
-separate `Signals_FID_*` and `Signals_TCD_*` sheets. Missing peak tables are valid; it
-must not perform peak detection or infer cross-detector compound identity.
+The structural adapter preserves source channel order without interpolation and writes
+separate decoded-record sheets for the stored labels. It does not create a time axis,
+perform peak detection, infer cross-detector identity, or assign physical units.
 
 ## Public and locally supplied fixtures
 
@@ -211,18 +238,18 @@ The contractual control-module SDK is not evidence of a public chromatogram-read
 
 No Apache-2.0-compatible YoungIn/Clarity `.prm` or Autochro reader was found. Autochro
 license, SDK, and native specification remain unresolved. Do not bundle vendor
-software, request access-control bypasses, or implement a binary reader from protected
-program files. A lawful public specification, reader API, or reviewed clean-room basis
-is required in addition to a fixture.
+software, request access-control bypasses, or implement from protected program files.
+The Experimental PRM reader is independently written from owner-file byte facts,
+public lifecycle/history documentation, gzip and IEEE-754 behavior; it does not use a
+vendor executable as an implementation source.
 
 OpenChrom's current converter catalogue lists a DataApex FID `.prm` converter, but the
-vendor converter service is proprietary and does not establish source availability,
-redistribution rights, TCD or multi-detector support, or compatibility with the
-observed YL-Clarity 9.0.1 candidates. It may be a separately licensed comparison oracle
-only after its terms and exact fixture behavior are reviewed; it is not an Ordifile
-dependency or implementation source. `chromConverter` previously delegated this path
-to OpenChrom and is GPL >= 3, so neither project supplies an Apache-2.0 implementation
-basis.
+converter is proprietary, installed separately through the GUI and absent from the
+open-source core. OpenChrom 1.5 and later removed the former public command-line import
+path, and the current headless service is commercial. The local fixture therefore
+could not be run through a privacy-safe automated oracle. OpenChrom is not an Ordifile
+dependency or implementation source. `chromConverter` has no native PRM parser and its
+deprecated GPL >= 3 bridge targeted OpenChrom 1.4 or earlier.
 
 Any user-provided file remains `ACCEPT_EXTERNAL_ONLY` unless written redistribution
 permission, attribution, and privacy review establish otherwise.
@@ -237,7 +264,8 @@ format adapters
   clarity_text_export
   clarity_multidetector_chr
   aia_cdf
-  dataapex_clarity_prm        # deferred; only after lawful native evidence
+  youngin_yl_clarity_prm_raw  # exact observed 9.0.1.19 structural profile only
+  dataapex_clarity_prm        # deferred; broader equivalence not established
   autochro2_<verified_format> # deferred; exact generation required
   autochro3000_<verified_format>
 
@@ -245,8 +273,10 @@ provenance profile, only when file evidence supports it
   youngin_chromass / source software / model / detector
 ```
 
-- `youngin_yl_clarity` is too broad. If OEM binary equivalence is later proven, use a
-  format-level `dataapex_clarity_prm` reader and a separate YoungIn provenance profile.
+- `youngin_yl_clarity` remains too broad. The current runtime adapter includes
+  `prm_raw` and the observed producer profile in its documented boundary. If broader
+  OEM binary equivalence is later proven, use a format-level `dataapex_clarity_prm`
+  reader and a separate YoungIn provenance profile.
 - `youngin_autochro` is too broad. Split by verified generation and internal format.
 - `youngin_export` should usually be a documented Clarity/Autochro export profile or
   schema preset. If an existing generic adapter represents it exactly, do not duplicate
@@ -262,21 +292,20 @@ a future source-kind API without changing v1 single-file semantics.
 
 | Gate | BSEE Agilent ChemStation `.ch` v181 | YL-Clarity completed `.prm` | Autochro native |
 |---|---:|---:|---:|
-| Normal complete fixture | Yes | 23 local completed-file candidates; native health and scientific layout unresolved | No |
+| Normal complete fixture | Yes | 23 local completed files; structural profile validated | No |
 | Lawful public source | Yes | No | No |
 | Redistribution basis | BSEE public-information guidance | No | No |
 | Privacy review | Passed | Local-only intake reviewed; identifying metadata candidates withheld from every public surface | Impossible without bytes |
-| Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | YL-Clarity 9.0.1 candidate markers observed in all 23 files; binary profile role unresolved | Unresolved |
-| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Not verified | Not possible |
-| Detector meaning | FID-scoped evidence | Ten filenames each are FID- and TCD-labelled; three are unclassified; native mapping unresolved | Unresolved |
+| Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | Exact observed start, producer, history, block and footer boundary for YL-Clarity 9.0.1.19 | Unresolved |
+| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | 563,240 deterministic finite raw binary32 records in 43 current blocks; no scientific time/scaling/unit claim | Not possible |
+| Detector meaning | FID-scoped evidence | Stored FID/TCD values exposed as Experimental channel labels; detector verification unresolved | Unresolved |
 | Paired official export | No | No | No |
-| Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | Owner-file observation and official documentation are available, but no public specification, source reader, or paired export oracle | No public specification/reader |
-| Current decision | Experimental decoded-record adapter; Verified gate remains open | `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE` | `BLOCKED_BY_FIXTURE` |
+| Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | Independently written from owner-file observations, public documents and standard gzip/IEEE-754; no proprietary/GPL code copy | No public specification/reader |
+| Current decision | Experimental decoded-record adapter; Verified gate remains open | Experimental raw-record adapter GO; Verified scientific status blocked by paired export | `BLOCKED_BY_FIXTURE` |
 
-YOUNG IN Chromass takes priority as soon as a normal completed fixture, exact CDS and
-format version, FID/TCD channel semantics, same-run unbunched official export, reproducible
-test permission, and lawful implementation basis are all established. Until then, BSEE
-v181 remains the highest-priority implemented Experimental candidate.
+The exact observed YoungIn PRM raw-record boundary is now implemented. Same-run
+unbunched official export, broader fixtures and scientific time/scaling/unit evidence
+remain the next priority for promotion beyond Experimental structural conversion.
 
 ## Minimum verification before “Verified”
 
@@ -297,8 +326,8 @@ FID evidence cannot become a TCD claim. ChroZen evidence cannot become YL6500 su
 
 ## Unresolved questions
 
-- Exact YL-Clarity `.prm` signatures and version compatibility.
-- Native FID/TCD and multi-channel storage layout.
+- Compatibility of other YL-Clarity `.prm` generations and general DataApex Clarity.
+- Independent scientific confirmation of the stored FID/TCD labels.
 - ChroZen TQ GC/MS CDS and native format.
 - AUTOCHRO-II versus Autochro-2 naming and format identity.
 - Autochro-3000 lineage, native extensions, export, SDK, and EULA.
@@ -308,13 +337,13 @@ FID evidence cannot become a TCD claim. ChroZen evidence cannot become YL6500 su
 
 ## Implementation recommendation
 
-Do not implement native YoungIn support from the current intake. Keep Issue #2 open and
-obtain privacy-clean, same-run `.chr`, `.txt`, or `.cdf` exports plus confirmed
-detector/channel configuration for at least one of the 23 local `.prm` candidates.
-Native `.prm` work begins only after the exact scientific and privacy gates above pass.
-
-The README may say only “Under investigation: YOUNG IN Chromass GC data formats.” It
-must not claim ChroZen, YL-Clarity, YL6500, FID, TCD, or Autochro compatibility.
+Implement only the exact observed YL-Clarity 9.0.1.19 structural profile. Keep Issue #2
+open and first obtain a privacy-clean same-run Result Table through GUI Export Data or
+`export_results` as CSV/TXT/XLS/XLSX for RT/area consolidation. Separately obtain
+`.chr`, `.txt`, `.cdf`, or `.asc` curve output plus confirmed detector/channel
+configuration for promotion to a scientific chromatogram.
+The README may list Experimental PRM raw records with explicit unknowns, but must not
+claim all YL-Clarity, YL6500, ChroZen, FID/TCD scientific response, or Autochro support.
 
 YOUNG IN Chromass, ChroZen, YL-Clarity, YL6500, AUTOCHRO, and related product names
 are trademarks or product names of their respective owners. Ordifile is an independent
@@ -341,7 +370,11 @@ Chromass, YOUNGIN Scientific, YL Instruments, or DataApex.
 | List of terms | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/100-list-of-terms/100.000-list-of-terms/100-list-of-terms.htm) | `.prm`, `.raw`, `.met`, `.seq`, `.cal`, `.prj`, `.sty` meanings |
 | Recovering data after crash or freeze | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/user-guide/troubleshooting/13-recovering-data-after-crash-freeze.htm) | `RUN.RAW` and `LAST.RAW` recovery semantics |
 | Clarity Error Messages | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/090-troubleshooting/090.010-error-messages/090.010-error-messages.htm) | Acquisition raw-to-finalized-PRM flow |
+| Open Chromatogram | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-open-chromatogram.htm) | Current and read-only historical method semantics |
 | Export Chromatogram | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-export-chromatogram.htm) | CDF/TXT/CHR/ASC behavior and AIA limitations |
-| Export Data | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | Result export, all/displayed range, and time-step bunching |
+| Export Data | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | Result Table export to TXT/CSV/XLS/XLSX/DBF plus separately configurable chromatogram/header content |
+| Result Table | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.060-results/030.060-result-table.htm) | Official retention-time, area, height, compound and boundary semantics; not a PRM byte map |
+| Command-line parameters | DataApex | Current | [Official documentation](https://www.dataapex.com/documentation/Content/Help/110-technical-specifications/110.020-command-line-parameters/110.020-command-line-parameters.htm) | Separates result-table `export_results` from curve-only `prm_export` |
+| OpenChrom format and converter catalogues | Lablicate / OpenChrom | Accessed 2026-08-17 | [Core formats](https://www.openchrom.net/) / [converter installer](https://converter.openchrom.net/) | Separately installed proprietary DataApex FID PRM converter; not executed or used as implementation evidence |
 | Business opportunities | DataApex | Updated 2026-07-29 | [Official page](https://www.dataapex.com/business-opportunities) | OEM and contractual control-module SDK scope |
 | Clarity EULA | DataApex | 2024-01-12 | [Official EULA](https://www.dataapex.com/downloads/26027/view) | Proprietary license and reverse-engineering/distribution boundary |

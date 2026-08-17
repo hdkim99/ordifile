@@ -17,6 +17,8 @@ def _success(item: FileResult) -> bool:
 
 
 def _filename_key(item: FileResult) -> tuple[object, ...]:
+    if item.source.public_id is not None:
+        return (item.source.public_reference.casefold(), item.source.input_order)
     return (
         natural_key(item.source.name),
         natural_key(item.source.relative_path),
@@ -49,9 +51,10 @@ def _sequence_key(item: FileResult) -> tuple[object, ...]:
 
 
 def _sort_key_text(item: FileResult, mode: SortMode) -> str:
+    public_reference = item.source.public_reference
     if mode is SortMode.ACQUIRED_AT:
         if not _success(item):
-            return f"fallback:{item.source.name}"
+            return f"fallback:{public_reference}"
         sample = item.bundle.samples[0]  # type: ignore[union-attr]
         if sample.acquired_at is not None and sample.acquired_at_reliable:
             try:
@@ -60,17 +63,17 @@ def _sort_key_text(item: FileResult, mode: SortMode) -> str:
                 raise
             except Exception:
                 pass
-        return f"fallback:{item.source.name}"
+        return f"fallback:{public_reference}"
     if mode is SortMode.SEQUENCE:
         if not _success(item):
-            return f"fallback:{item.source.name}"
+            return f"fallback:{public_reference}"
         sample = item.bundle.samples[0]  # type: ignore[union-attr]
         return (
-            str(sample.sequence) if sample.sequence is not None else f"fallback:{item.source.name}"
+            str(sample.sequence) if sample.sequence is not None else f"fallback:{public_reference}"
         )
     if mode is SortMode.INPUT_ORDER:
         return str(item.source.input_order)
-    return item.source.name
+    return public_reference
 
 
 def sort_file_results(

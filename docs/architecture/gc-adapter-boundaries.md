@@ -1,7 +1,8 @@
 # GC adapter boundaries
 
-- Status: Accepted; Agilent v181 decoded records, one Shimadzu LabSolutions 5.82
-  chromatogram profile, and one Shimadzu GCMSsolution QGD TIC profile are Experimental
+- Status: Accepted; Agilent v181 and YoungIn YL-Clarity 9.0.1.19 decoded records,
+  one Shimadzu LabSolutions 5.82 chromatogram profile, and one Shimadzu GCMSsolution
+  QGD TIC profile are Experimental
 - Date: 2026-08-16
 - Evidence:
   - [`gc-fixture-search.md`](../research/gc-fixture-search.md)
@@ -20,8 +21,9 @@ from becoming a broad support claim.
 
 ## Accepted
 
-1. `youngin_yl_clarity`, `youngin_autochro`, and `youngin_export` are research and
-   fixture-tracking categories, not runtime adapter IDs or public support entries.
+1. `youngin_yl_clarity`, `youngin_autochro`, and `youngin_export` remain broad research
+   categories. The runtime ID `youngin_yl_clarity_prm_raw` names only the exact observed
+   YL-Clarity 9.0.1.19 structural profile and is not an umbrella vendor entry.
 2. Runtime adapters are named for a verified byte format and version family. A future
    completed Clarity reader may use an ID such as `clarity_prm_<version-family>` only
    after a lawful, self-contained fixture proves its signature and version boundary.
@@ -55,10 +57,11 @@ from becoming a broad support claim.
    y, unknown units, and explicit Experimental warnings. It does not expose retention
    time or apply candidate scaling. See
    [`agilent-chemstation-ch-v181-investigation.md`](../research/agilent-chemstation-ch-v181-investigation.md).
-10. YOUNG IN Chromass is reconsidered for first-adapter priority as soon as a complete
-    lawful fixture, exact CDS version, completed-versus-recovery classification,
-    FID/TCD channel semantics, paired unbunched official export, reproducible test
-    permission, and lawful implementation route are all available.
+10. The owner-supplied intake authorizes local validation of 23 completed PRM files.
+    Their exact producer marker, bounded typed properties, duplicate gzip blocks,
+    record-count equations, finite binary32 payloads and stored FID/TCD labels support
+    an Experimental structural adapter. Paired official export remains mandatory for
+    Verified scientific semantics, not for deterministic raw-record conversion.
 11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
     single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
     A paired same-run ASCII chromatogram and an independent byte decoder validate the
@@ -72,11 +75,17 @@ from becoming a broad support claim.
     and every scan intensity sum is required to equal the native TIC, but encoded mass
     is not called m/z and MS1 is not exported. See
     [`shimadzu-gcmssolution-qgd-investigation.md`](../research/shimadzu-gcmssolution-qgd-investigation.md).
+13. The YoungIn runtime boundary is the exact observed YL-Clarity `9.0.1.19` PRM
+    profile. Current blocks are exposed as `decoded_record_index` plus unscaled stored
+    binary32 values. Stored FID/TCD labels may separate structural channels with an
+    Experimental status, but detector verification, retention time, physical scaling,
+    units and peaks remain unresolved or unsupported. See
+    [`youngin-yl-clarity-prm-raw-format-notes.md`](../research/youngin-yl-clarity-prm-raw-format-notes.md).
 
 ## Deferred
 
-- Every YOUNG IN Chromass native adapter and branded export-profile adapter; the local
-  `.prm` intake remains `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`.
+- YoungIn PRM scientific-signal output and Verified promotion remain
+  `BLOCKED_BY_PAIRED_EXPORT`; the narrow raw-record adapter is not blocked.
 - Clarity `.raw` recovery inspection or salvage.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.
@@ -114,11 +123,14 @@ point-count, retention-time, scaling, unit, additional-run, and official-export
 evidence. It must not claim peaks, TCD, all `.ch` generations, whole `.D` directories,
 GC-MS, or write support.
 
-The YoungIn track must stay documentation-only after the 2026-08-17 local intake. The
-23 `.prm` candidates contain no paired official export, and their detector/channel,
-time, signal, scaling, and unit semantics have not been independently verified. A
-future support matrix must separate ChroZen from YL6500, YL-Clarity from each Autochro
-generation, completed data from recovery data, and FID from TCD and multi-channel
+The YoungIn raw-conversion track is Experimental GO after the 2026-08-17 local intake.
+The 23 completed PRM files establish one exact producer/layout profile, 43 bounded
+duplicate-validated raw blocks, stored FID/TCD labels and deterministic binary32
+records. `SeriesKind.DECODED_RECORDS` keeps those values separate from scientific
+signals. Retention time, detector verification, scaling, units and peaks remain
+unsupported or unresolved, and paired official export is still required for Verified
+promotion. The support matrix continues to separate YL-Clarity from Autochro,
+completed PRM from recovery RAW, and the exact observed profile from broad YoungIn
 claims.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because

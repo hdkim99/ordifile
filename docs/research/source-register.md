@@ -127,11 +127,14 @@ topic reviews beside this register.
 | [ChroZen GC/MS](https://kor.youngincm.com/goods/read.php?M2_IDX=18353&SC_SC2_IDX=896&SP_CODE=1912SQGW) | YOUNGIN Chromass | Official product page | Accessed 2026-08-16 | Single-quadrupole scope and stated YL-Clarity integration. |
 | [ChroZen TQ GC/MS System](https://kor.youngincm.com/goods/read.php?M2_IDX=18353&SC_ALL=N&SC_SC2_IDX=1732&SP_CODE=2003BTSG) | YOUNGIN Chromass | Official product page | Documented 2020-03; accessed 2026-08-16 | Tandem-MS scope; the page does not establish a CDS or native format. |
 | [Clarity list of terms](https://www.dataapex.com/documentation/Content/Help/100-list-of-terms/100.000-list-of-terms/100-list-of-terms.htm) | DataApex | Official documentation | Accessed 2026-08-16 | General Clarity `.prm`, `.raw`, method, sequence, calibration, project, and report-layout meanings. |
+| [Open Chromatogram](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-open-chromatogram.htm) | DataApex | Official documentation | Accessed 2026-08-17 | Current and read-only historical processing-method semantics used to interpret the observed ascending PRM revision boundary. |
 | [Recovering data after crash or freeze](https://www.dataapex.com/documentation/Content/user-guide/troubleshooting/13-recovering-data-after-crash-freeze.htm) | DataApex | Official documentation | Accessed 2026-08-16 | General Clarity `RUN.RAW` and `LAST.RAW` recovery semantics and incompleteness risk. |
 | [Export Chromatogram](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-export-chromatogram.htm) | DataApex | Official documentation | Accessed 2026-08-16 | General Clarity CDF, TXT, CHR, and ASC export behavior and AIA scope limits. |
-| [Export Data](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | DataApex | Official documentation | Accessed 2026-08-16 | All-versus-displayed export range and time-step bunching. |
+| [Export Data](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | DataApex | Official documentation | Accessed 2026-08-16 | Result Table export to TXT/CSV/XLS/XLSX/DBF plus separately configurable chromatogram and header content. |
+| [Result Table](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.060-results/030.060-result-table.htm) | DataApex | Official documentation | Accessed 2026-08-17 | Retention-time, area, height, compound, and peak-boundary semantics; not a PRM byte specification. |
+| [Command-line parameters](https://www.dataapex.com/documentation/Content/Help/110-technical-specifications/110.020-command-line-parameters/110.020-command-line-parameters.htm) | DataApex | Official documentation | Accessed 2026-08-17 | Separates Result Table `export_results` from curve-only `prm_export`. |
 | [Clarity End User License Agreement](https://www.dataapex.com/downloads/26027/view) | DataApex | Official software license | 2024-01-12 | Proprietary licensing, redistribution, modification, and reverse-engineering boundary. |
-| [OpenChrom](https://www.openchrom.net/) / [converter catalogue](https://converter.openchrom.net/) | Lablicate / OpenChrom | Open-source core plus separately distributed proprietary converter service | Accessed 2026-08-17 | The catalogue lists a DataApex FID `.prm` converter, but does not establish YL-Clarity 9.0.1, TCD, multi-detector, source, redistribution, or Apache-2.0 dependency compatibility. Comparison-oracle candidate only. |
+| [OpenChrom](https://www.openchrom.net/) / [converter catalogue](https://converter.openchrom.net/) | Lablicate / OpenChrom | Open-source core plus separately distributed proprietary converter service | Accessed 2026-08-17 | The catalogue lists a DataApex FID `.prm` converter, but the current converter is GUI-installed proprietary software and no public headless import path is available. It was not executed, bundled, or used as implementation evidence. |
 
 ## Gaps
 
@@ -145,8 +148,7 @@ One LabSolutions 5.82 FID GCD and its same-run ASCII reference validate a narrow
 Experimental signal profile. Other versions, detectors, factors, channels, and GCD
 generations remain unsupported pending their own lawful fixtures and gates.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
-paired official export, public native reader, or reader SDK was found. These gaps block
-proprietary support claims but do not block the generic export vertical slice or its
-v0.1.0 release. One local-only owner archive now supplies 23 `.prm` candidates, but it
-contains no official export companion and does not close the scientific or licensing
-gates for a runtime adapter.
+paired official export, public native reader, or reader SDK was found. One local-only
+owner archive supplies the 23 PRM files used for an exact Experimental structural
+reader. These gaps continue to block broad YoungIn claims and Verified scientific
+semantics while the input files remain outside Git and release distributions.

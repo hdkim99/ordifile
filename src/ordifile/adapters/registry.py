@@ -16,6 +16,7 @@ from ordifile.adapters.base import (
     ADAPTER_API_VERSION,
     AdapterDescriptor,
     FormatAdapter,
+    SourceIdentityPolicy,
     SupportStatus,
 )
 from ordifile.adapters.generic_csv import GenericCsvAdapter
@@ -24,6 +25,7 @@ from ordifile.adapters.generic_txt import GenericSemicolonAdapter
 from ordifile.adapters.generic_xlsx import GenericXlsxAdapter
 from ordifile.adapters.shimadzu_gcmssolution_qgd import ShimadzuGcmssolutionQgdAdapter
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
+from ordifile.adapters.youngin_yl_clarity_prm_raw import YoungInYlClarityPrmRawAdapter
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import SeriesKind
 from ordifile.core.workbook_text import workbook_audit_display, workbook_text_is_exact
@@ -110,6 +112,7 @@ class AdapterRegistry:
             or not descriptor.series_kinds
             or any(type(kind) is not SeriesKind for kind in descriptor.series_kinds)
             or len(set(descriptor.series_kinds)) != len(descriptor.series_kinds)
+            or type(descriptor.source_identity_policy) is not SourceIdentityPolicy
         ):
             raise OrdifileError(
                 "ADAPTER_DESCRIPTOR_INVALID",
@@ -186,6 +189,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(GenericXlsxAdapter())
     registry.register(ShimadzuGcsolutionGcdAdapter())
     registry.register(ShimadzuGcmssolutionQgdAdapter())
+    registry.register(YoungInYlClarityPrmRawAdapter())
     if include_external:
         load_external_adapters(registry)
     return registry

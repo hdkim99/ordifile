@@ -95,6 +95,12 @@ class SourceFile:
     input_order: int
     detected_format: str | None = None
     duplicate_of: int | None = None
+    public_id: str | None = None
+
+    @property
+    def public_reference(self) -> str:
+        """Return the core-owned public identity without changing the input path."""
+        return self.relative_path if self.public_id is None else self.public_id
 
 
 @dataclass(frozen=True, slots=True)

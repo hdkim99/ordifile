@@ -32,7 +32,7 @@ archive sizes unless otherwise stated.
 
 | Candidate | Publisher / persistent ID | Instrument, vendor, detector | Claimed / inspected format | Native raw | Size / smallest useful run | Integrity and independent reader |
 |---|---|---|---|---|---|---|
-| [YOUNG IN Chromass Track C](youngin-chromass-format-investigation.md) | YOUNG IN Chromass and DataApex official material plus owner-supplied local intake | GC detector configuration unresolved; FID/TCD priority | 23 local-only YL-Clarity 9.0.1 `.prm` candidates; no `.raw` or export companion | Yes, local-only completed-file candidates | 23 files / 353,830 B smallest | YL-Clarity OEM relationship and general Clarity lifecycle verified; no paired export, public source reader, or native scientific decoder |
+| [YOUNG IN Chromass Track C](youngin-chromass-format-investigation.md) | YOUNG IN Chromass and DataApex official material plus owner-supplied local intake | Stored FID/TCD labels; scientific detector semantics unresolved | 23 local-only YL-Clarity 9.0.1.19 `.prm` files; no `.raw` or export companion | Yes, local-only completed files | 23 files / 353,830 B smallest | Exact structural profile and raw binary32 records validated; no paired export or public source reader |
 | [BSEE Side Wall Core Trim Extract GC Data](https://www.bsee.gov/stats-facts/ocs-regions/alaska/arctic-drilling/arctic-exploration-burger-j-well-data-2015/side-wall-core-trim-extract-gc-data) | BSEE; official data page | Agilent ChemStation; FID | `.CH` / internal version 181 single-channel file | Yes | 298,146 B / same | SHA-256 fixed below; ChromStream 0.2.0 produced 36,501 candidate x/y values; rainbow 1.4.0 exposed a time/signal length defect |
 | [chromConverterExtraTests `FS19_214.gcd`](https://github.com/ethanbass/chromConverterExtraTests/blob/f9cb88d90f6be00e3c0f16fa3e2bb7734a5da66b/README.md) | chromConverterExtraTests; pinned fixture register | Shimadzu LabSolutions 5.82, GC-2014; FID | CFB `.GCD`, single `Ch1`/`SFID1`, plus same-run ASCII reference | Yes | 1,433,600 B / same | Exact SHA-256; independent decoder and paired ASCII agree on 66,255-point time/signal; file-specific CC0, but embedded personal/local text requires controlled external handling |
 | [Dryad ant GC-MS chromatograms](https://doi.org/10.5061/dryad.8gtht76s4) | Csata et al. / Dryad | Shimadzu GCMSsolution; GC-MS | Ten CFB `.QGD` files | Yes | 408.17 MB set / 39,964,672 B selected file | CC0; exact selected SHA-256; 16,800-point RT/TIC arrays and every scan intensity sum independently verified; embedded paths require controlled external handling |
@@ -59,7 +59,7 @@ archive sizes unless otherwise stated.
 
 | Candidate | License / redistribution | Attribution | Personal or machine data | Parser candidate and maintenance | Apache-2.0 reuse | Decision and reason |
 |---|---|---|---|---|---|---|
-| YOUNG IN Chromass / YL-Clarity / Autochro | Proprietary CDS terms; local `.prm` redistribution is not authorized and no public reader specification was found | Product names only for factual compatibility research; no affiliation claim | Filename/sample and local-path or operator-field candidates observed; values remain local-only; credential patterns absent | No public source `.prm` or Autochro reader found; a proprietary OpenChrom converter listing is not an implementation basis | Owner-file observation and official documentation only; no code reused | `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`; local intake is not an Ordifile-supported format |
+| YOUNG IN Chromass / YL-Clarity / Autochro | Proprietary CDS terms; local `.prm` redistribution is not authorized and no public reader specification was found | Product names only for factual compatibility research; no affiliation claim | Filename/sample and local-path or operator-field candidates observed; values remain local-only; credential patterns absent | No public source `.prm` or Autochro reader found; a proprietary OpenChrom converter listing is not an implementation basis | Independently written structural reader from owner-file facts and public docs; no proprietary/GPL code reused | Exact YL-Clarity 9.0.1.19 raw records are Experimental GO; scientific semantics and Verified status remain blocked by paired export |
 | BSEE v181 `.CH` | BSEE public-information terms permit copying and distribution with source acknowledgement | Institution, exact page, unchanged-file statement, access date | No email, user-profile path, hostname or absolute path found | ChromStream 0.2.0 is recent; rainbow 1.4.0 is recent but fails point alignment; Entab does not read v181 | Independently written implementation; no reader code or dependency | `ACCEPT_REDISTRIBUTABLE`; external fixture backs a narrow Experimental decoded-record adapter |
 | `FS19_214.gcd` | Source README assigns file-specific CC0 1.0 | Source repository, exact commit and unchanged-file statement | Contributor and machine-local text are embedded | GPL reader is comparison-only; independent decoder plus paired LabSolutions ASCII validate values | `olefile` is permissive; Shimadzu semantics are independently implemented | `ACCEPT_CONTROLLED_CI`; exact Experimental LabSolutions 5.82 FID profile only, never committed/logged/uploaded |
 | `B4NF.7_C23.qgd` | Dryad dataset and file API declare CC0 1.0 | Dataset DOI, authors, original file record, and unchanged pinned mirror | Absolute data/method/batch paths and user-originated text are embedded | GPL readers are comparison-only; independent decoder plus exact scan-to-TIC equations validate Stage A | Existing permissive `olefile`; QGD semantics independently implemented | `ACCEPT_CONTROLLED_CI`; exact Experimental `4.00` TIC profile only, never committed/logged/uploaded |
@@ -176,12 +176,11 @@ GO** for structural decoded records and **NO-GO** for Verified scientific signal
 support. The runtime adapter and README row use those exact limitations.
 
 YOUNG IN Chromass was included as a mandatory priority candidate. A 2026-08-17 local
-intake supplies 23 YL-Clarity 9.0.1 `.prm` candidates, but no paired official export,
-verified native detector/channel layout, scientific decoder, redistribution basis, or
-independent source reader. It remains `BLOCKED_BY_PAIRED_EXPORT_AND_FORMAT_EVIDENCE`,
-not rejected. It should be reconsidered immediately when the gate in
-[`youngin-chromass-format-investigation.md`](youngin-chromass-format-investigation.md)
-is satisfied.
+intake supplies 23 YL-Clarity 9.0.1.19 completed PRM files. Exact typed-property,
+duplicate-gzip, record-count, label and finite-binary32 gates now support an
+Experimental raw-record adapter. The lack of a paired official export blocks Verified
+scientific time/scaling/unit semantics, not deterministic structural conversion. See
+[`youngin-chromass-format-investigation.md`](youngin-chromass-format-investigation.md).
 
 Why:
 

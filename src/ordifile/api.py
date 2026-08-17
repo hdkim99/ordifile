@@ -23,10 +23,13 @@ from ordifile.core.errors import ExportError, OrdifileError
 from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
+    DatasetBundle,
+    FileResult,
     InspectionResult,
     ProgressEvent,
     Severity,
     SortMode,
+    SourceFile,
 )
 from ordifile.core.pipeline import run_pipeline
 from ordifile.exporters.excel import ExcelExporter
@@ -38,6 +41,55 @@ class FormatReport:
 
     descriptors: tuple[AdapterDescriptor, ...]
     load_errors: tuple[str, ...]
+
+
+def _public_api_source(source: SourceFile) -> SourceFile:
+    """Remove a privacy-policy source path from a public API return value."""
+    if source.public_id is None:
+        return source
+    reference = source.public_reference
+    return replace(
+        source,
+        path=Path(reference),
+        relative_path=reference,
+        name=reference,
+    )
+
+
+def _public_api_bundle(bundle: DatasetBundle | None) -> DatasetBundle | None:
+    """Rebind nested source records to their public-only API representation."""
+    if bundle is None:
+        return None
+    sources = tuple(_public_api_source(source) for source in bundle.sources)
+    source_by_order = {source.input_order: source for source in sources}
+    samples = tuple(
+        replace(
+            sample,
+            source=source_by_order.get(
+                sample.source.input_order,
+                _public_api_source(sample.source),
+            ),
+        )
+        for sample in bundle.samples
+    )
+    return replace(bundle, sources=sources, samples=samples)
+
+
+def _public_api_file_result(result: FileResult) -> FileResult:
+    """Return one result without privacy-policy filesystem names or paths."""
+    return replace(
+        result,
+        source=_public_api_source(result.source),
+        bundle=_public_api_bundle(result.bundle),
+    )
+
+
+def _public_api_batch_result(result: BatchResult) -> BatchResult:
+    """Return a batch safe for callers while leaving generic provenance unchanged."""
+    return replace(
+        result,
+        files=tuple(_public_api_file_result(item) for item in result.files),
+    )
 
 
 def _require_bool(name: str, value: object) -> None:
@@ -131,7 +183,8 @@ def inspect_file(
     if discovery_errors:
         issue = discovery_errors[0]
         raise OrdifileError(issue.code, issue.message)
-    return InspectionResult(file_result, file_result.probes)
+    public_file_result = _public_api_file_result(file_result)
+    return InspectionResult(public_file_result, public_file_result.probes)
 
 
 def convert(
@@ -255,7 +308,7 @@ def convert(
             None,
         )
         details = {
-            "source_file": failed.source.relative_path,
+            "source_file": failed.source.public_reference,
             "error_code": issue.code if issue is not None else "UNKNOWN_FILE_FAILURE",
             "message": (
                 issue.message
@@ -297,4 +350,4 @@ def convert(
     )
     if progress is not None:
         progress(ProgressEvent("export_complete", 1, 1, output_path.name))
-    return exported
+    return _public_api_batch_result(exported)
