@@ -7,7 +7,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-17
+
+### Fixed
+
+- TestPyPI and PyPI installed-wheel verification no longer depends on `PATH`.
+  Release verification resolves the `ordifile` entry point from the active isolated
+  Python environment's scripts directory and executes that exact file.
+- Added real temporary-venv regression coverage proving that installed entry-point
+  verification succeeds with the venv scripts directory absent from `PATH`, and that
+  an unrelated `ordifile` on `PATH` is never accepted for a missing venv entry point.
+
 ## [0.3.0] - 2026-08-17
+
+### Release status
+
+- An immutable annotated `v0.3.0` tag was created and its exact wheel and source
+  distribution were published to TestPyPI. Their filenames, hashes and downloaded
+  bytes matched the single DGX-built release artifact, and wheel installation
+  succeeded.
+- The workflow then stopped because its installed-CLI check searched the host `PATH`
+  even though the isolated environment deliberately does not alter `PATH`. Version
+  0.3.0 was never published to PyPI and no GitHub Release was created. The tag and
+  TestPyPI files remain unchanged as an audit record; v0.3.1 carries the same reviewed
+  feature set with the deterministic verification repair.
 
 ### Added
 

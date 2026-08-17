@@ -1087,9 +1087,9 @@ jobs:
           import hashlib
           import json
           import os
-          import shutil
           import subprocess
           import sys
+          import sysconfig
           import tempfile
           import time
           from pathlib import Path
@@ -1163,8 +1163,9 @@ jobs:
           subprocess.check_call(
               [sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)]
           )
-          executable = shutil.which("ordifile")
-          if executable is None:
+          scripts = Path(sysconfig.get_path("scripts"))
+          executable = scripts / ("ordifile.exe" if os.name == "nt" else "ordifile")
+          if not executable.is_file():
               raise SystemExit("Verified TestPyPI wheel did not install the ordifile entry point")
           with tempfile.TemporaryDirectory(prefix="ordifile-testpypi-smoke-") as work:
               subprocess.check_call([executable, "--version"], cwd=work)
@@ -1465,9 +1466,9 @@ jobs:
           import hashlib
           import json
           import os
-          import shutil
           import subprocess
           import sys
+          import sysconfig
           import tempfile
           import time
           from pathlib import Path
@@ -1541,8 +1542,9 @@ jobs:
           subprocess.check_call(
               [sys.executable, "-m", "pip", "install", "--no-cache-dir", str(wheel)]
           )
-          executable = shutil.which("ordifile")
-          if executable is None:
+          scripts = Path(sysconfig.get_path("scripts"))
+          executable = scripts / ("ordifile.exe" if os.name == "nt" else "ordifile")
+          if not executable.is_file():
               raise SystemExit("Verified PyPI wheel did not install the ordifile entry point")
           with tempfile.TemporaryDirectory(prefix="ordifile-pypi-smoke-") as work:
               subprocess.check_call([executable, "--version"], cwd=work)
