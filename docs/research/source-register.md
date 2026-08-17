@@ -73,7 +73,7 @@ topic reviews beside this register.
 | [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets) | GitHub | Official repository protection reference | Accessed 2026-08-16 | Pull-request, status-check, history, deletion, update and creation restrictions for branches/tags. |
 | [Troubleshooting required status checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks) | GitHub | Official pull-request documentation | Accessed 2026-08-16 | A required check must have succeeded in the repository during the previous seven days before selection. |
 | [actions/runner releases](https://github.com/actions/runner/releases) | GitHub | Official runner releases | Accessed 2026-08-16 | Node 24-compatible pinned Actions require self-hosted runner version 2.327.1 or newer. |
-| [Pinned PyPI publish action](https://github.com/pypa/gh-action-pypi-publish/blob/dc37677b2e1c63e2034f94d8a5b11f265b73ba33/action.yml) | Python Packaging Authority | Immutable action definition | Commit `dc37677b2e1c63e2034f94d8a5b11f265b73ba33`; accessed 2026-08-16 | The release publisher rejects non-Linux hosts and uses a Docker action; a GNU/Linux self-hosted release runner with Docker is required. |
+| [Pinned PyPI publish action](https://github.com/pypa/gh-action-pypi-publish/blob/dc37677b2e1c63e2034f94d8a5b11f265b73ba33/action.yml) | Python Packaging Authority | Immutable action definition | Commit `dc37677b2e1c63e2034f94d8a5b11f265b73ba33`; accessed 2026-08-16 | The publisher is a Docker container action. Ordifile builds on DGX and downloads the immutable artifact into GitHub-hosted Ubuntu publication jobs; DGX does not require Docker. |
 | [Codex configuration reference](https://developers.openai.com/codex/config-reference/) | OpenAI | Official documentation | Accessed 2026-08-15 | Current `web_search`, agent enablement, concurrency, and per-agent configuration keys used in `.codex/`. |
 | [Qt for Python](https://doc.qt.io/qtforpython-6/) | Qt Company | Official documentation | Qt 6 | GUI functionality, deployment, accessibility. |
 | [Likelihood of confusion](https://www.uspto.gov/trademarks/search/likelihood-confusion) | USPTO | Government guidance | Current | Trademark confusion is use/context dependent. |
@@ -131,6 +131,7 @@ topic reviews beside this register.
 | [Export Chromatogram](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-export-chromatogram.htm) | DataApex | Official documentation | Accessed 2026-08-16 | General Clarity CDF, TXT, CHR, and ASC export behavior and AIA scope limits. |
 | [Export Data](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | DataApex | Official documentation | Accessed 2026-08-16 | All-versus-displayed export range and time-step bunching. |
 | [Clarity End User License Agreement](https://www.dataapex.com/downloads/26027/view) | DataApex | Official software license | 2024-01-12 | Proprietary licensing, redistribution, modification, and reverse-engineering boundary. |
+| [OpenChrom](https://www.openchrom.net/) / [converter catalogue](https://converter.openchrom.net/) | Lablicate / OpenChrom | Open-source core plus separately distributed proprietary converter service | Accessed 2026-08-17 | The catalogue lists a DataApex FID `.prm` converter, but does not establish YL-Clarity 9.0.1, TCD, multi-detector, source, redistribution, or Apache-2.0 dependency compatibility. Comparison-oracle candidate only. |
 
 ## Gaps
 
@@ -146,4 +147,6 @@ generations remain unsupported pending their own lawful fixtures and gates.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
 paired official export, public native reader, or reader SDK was found. These gaps block
 proprietary support claims but do not block the generic export vertical slice or its
-v0.1.0 release.
+v0.1.0 release. One local-only owner archive now supplies 23 `.prm` candidates, but it
+contains no official export companion and does not close the scientific or licensing
+gates for a runtime adapter.
