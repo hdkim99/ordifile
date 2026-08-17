@@ -38,11 +38,31 @@ Python itself is distributed under the Python Software Foundation License. GitHu
 Actions used by this repository retain their own licenses and are not included in the
 Ordifile distribution.
 
+## External research fixtures (not distributed)
+
+The following privacy-bearing fixtures are used only as controlled external or local
+validation inputs. Their licenses govern those external bytes, not the Apache-2.0
+Ordifile source or release distributions.
+
+- The pinned Agilent ChemStation Result XML fixture is hosted by the IFPEN
+  [GC2ASM repository](https://github.com/ifpen/GC2ASM/tree/161b940846bd606e33e0100b4c0614aef328bd01)
+  under its [CeCILL-2.1 repository boundary](https://github.com/ifpen/GC2ASM/blob/161b940846bd606e33e0100b4c0614aef328bd01/LICENCE.txt).
+- The pinned Shimadzu LabSolutions result ASCII fixture is hosted by the
+  [chromConverter repository](https://github.com/ethanbass/chromConverter/tree/9137b85f341ceb4f2bc71cc171650af75449ac96)
+  under its [repository-level GPL >= 3 boundary](https://github.com/ethanbass/chromConverter/blob/9137b85f341ceb4f2bc71cc171650af75449ac96/LICENSE.md);
+  no file-specific notice was found.
+- Owner-provided YoungIn YL-Clarity fixtures remain private, local-only, and without
+  redistribution authorization.
+
+None of these fixture bytes, upstream parser code, generated workbooks, or external
+fixture caches is committed, bundled, installed as a runtime dependency, or included
+in Ordifile wheels and source distributions.
+
 No code from the researched EPL-2.0, GPL-3.0, or LGPL-3.0 chromatography projects has
 been copied into Ordifile. ChromStream/chemplexity (MIT), chromConverter (GPL >= 3),
 rainbow (LGPL-3.0), and Entab (MIT) were used only as documented research/output
-oracles for the independent Experimental Agilent v181 decoder; none is bundled,
-imported, or installed by Ordifile.
+oracles for independent Experimental adapters; none is bundled, imported, or installed
+by Ordifile.
 
 The Experimental Shimadzu GCD and QGD readers use only `olefile` for strict, read-only access
 to the Microsoft Compound File Binary container. No Shimadzu vendor component,
