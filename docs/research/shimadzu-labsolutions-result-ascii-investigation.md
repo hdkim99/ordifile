@@ -21,9 +21,11 @@ The primary fixture is the pinned `ladder.txt` file in the chromConverter reposi
 The primary file bytes and GPL reader/test expressions are not committed, bundled,
 logged, uploaded as Actions artifacts, translated or imported into Ordifile. The
 implementation uses independently recorded file facts and canonical full-sequence
-digests. The paired `FS19_214.gcd` is file-specific CC0, and published metadata plus
-full-array assertions establish that it represents the same run. That relationship is
-useful cross-validation, not independent official vendor certification.
+digests. The paired `FS19_214.gcd` is file-specific CC0. Published metadata and enforced
+Peak Table comparisons support the same-run relationship; the published chromatogram
+comparison itself is not an enforced assertion. Ordifile's controlled external test
+separately asserts all 66,255 chromatogram points. That relationship is useful
+cross-validation, not independent official vendor certification.
 
 ## Exact observed profile
 
