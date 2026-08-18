@@ -94,11 +94,11 @@ def _private_build_path_groups(
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
     groups: list[tuple[str, tuple[str, ...]]] = [
         ("source", (str(source.resolve()),)),
-        ("temporary", (str(stage.resolve()), str(Path(tempfile.gettempdir()).resolve()))),
         (
             "runtime",
             (str(Path(sys.prefix).resolve()), str(Path(sys.executable).resolve())),
         ),
+        ("temporary", (str(stage.resolve()), str(Path(tempfile.gettempdir()).resolve()))),
     ]
     environment_groups = {
         "source": ("GITHUB_WORKSPACE",),

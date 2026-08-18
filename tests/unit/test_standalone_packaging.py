@@ -9,6 +9,7 @@ import os
 import platform
 import stat
 import sys
+import tempfile
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -645,6 +646,23 @@ def test_private_bundle_data_classification_is_category_only(
     (bundle / "bin" / "Ordifile").write_text(value, encoding="utf-8")
     assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
         f"bundle-audit-private-{category}"
+    )
+
+
+def test_private_bundle_data_prefers_runtime_over_containing_temporary_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    stage = tmp_path / "stage"
+    runtime = tmp_path / "tool-cache" / "python"
+    bundle = _candidate(tmp_path / "candidate")
+    monkeypatch.setattr(sys, "prefix", str(runtime))
+    monkeypatch.setattr(sys, "executable", str(runtime / "bin" / "python"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    (bundle / "bin" / "Ordifile").write_text(str(runtime), encoding="utf-8")
+
+    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
+        "bundle-audit-private-runtime"
     )
 
 
