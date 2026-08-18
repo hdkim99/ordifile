@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -109,11 +110,13 @@ def test_unsafe_source_name_on_corrupt_file_keeps_good_workbook_and_audit_row(
     try:
         log = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
         bad_log = next(row for row in log if row[4] == "failed")
-        assert bad_log[0] == workbook_audit_display(bad.name)
+        expected_alias = f"source-{hashlib.sha256(bad.read_bytes()).hexdigest()}"
+        assert bad_log[0] == expected_alias
         assert bad_log[9]
-        assert "SOURCE_DISPLAY_ESCAPED" in bad_log[5]
+        assert "SOURCE_DISPLAY_ESCAPED" not in bad_log[5]
         samples = list(workbook["Samples"].iter_rows(min_row=2, values_only=True))
-        assert any(row[2] == workbook_audit_display(bad.name) for row in samples)
+        assert any(row[2] == expected_alias for row in samples)
+        assert workbook_audit_display(bad.name) not in repr(samples)
         peaks = list(workbook["Peaks"].iter_rows(min_row=2, values_only=True))
         assert len(peaks) == 1
         assert peaks[0][0] == "good"
@@ -272,24 +275,14 @@ def test_all_failed_auto_sort_is_reflected_in_import_log(tmp_path: Path) -> None
     result = convert(tuple(inputs), tmp_path / "failed.xlsx")
 
     assert result.sort.effective.value == "filename"
-    assert [item.source.name for item in result.files] == [
-        "sample_1.csv",
-        "sample_2.csv",
-        "sample_10.csv",
-    ]
+    expected_alias = f"source-{hashlib.sha256(bytes((0xFF, 0xFE))).hexdigest()}"
+    assert [item.source.name for item in result.files] == [expected_alias] * 3
+    assert [item.source.input_order for item in result.files] == [0, 1, 2]
     workbook = load_workbook(result.output_path, read_only=True, data_only=False)
     try:
         rows = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
-        assert [row[0] for row in rows] == [
-            "sample_1.csv",
-            "sample_2.csv",
-            "sample_10.csv",
-        ]
-        assert [row[8] for row in rows] == [
-            "sample_1.csv",
-            "sample_2.csv",
-            "sample_10.csv",
-        ]
+        assert [row[0] for row in rows] == [expected_alias] * 3
+        assert [row[8] for row in rows] == [expected_alias] * 3
     finally:
         workbook.close()
 

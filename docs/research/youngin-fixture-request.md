@@ -13,22 +13,16 @@ and detector semantics. It is not a request for broad YOUNG IN Chromass support.
 
 An owner-supplied, local-only archive has fulfilled the initial structural-file request.
 It contains 23 unique completed `.prm` files with the exact observed YL-Clarity
-9.0.1.19 profile, but no `.raw`, method, sequence, calibration, `.chr`, `.txt`, `.cdf`,
-`.asc`, or other official export companion. Deterministic raw binary32 extraction and
+9.0.1.19 profile. Deterministic raw binary32 extraction and
 stored-label channel separation are Experimental GO. Filename groups remain user
 labels, and scientific detector meaning is not independently verified.
 
-Ordifile no longer waits indefinitely for a separately supplied result fixture. A
-maintainer-only local bridge now automates the documented YL-Clarity/Clarity Result
-Table export path for these 23 PRM files. A bounded search found no YL-Clarity
-installation in the accessible Windows environment; license state was not assessed
-because no installation was found. The exact 9.0.1.19 OEM command surface and one-file
-pilot therefore remain unresolved. The operational status is
-`LOCAL_VENDOR_EXPORT_BRIDGE_READY`: once the bridge is run on a normally licensed
-YL-Clarity workstation, a successful explicit RT+Area export moves directly to exact
-adapter implementation. A multi-detector claim still requires a confirmed FID+TCD run
-and complete multi-signal export. The native files and generated exports remain
-`ACCEPT_EXTERNAL_ONLY` and must not be attached to Issue #2.
+Two owner-generated local YL-Clarity Result Table exports now establish explicit RT,
+Area and Height for one exact Experimental standalone adapter. They include two
+populated TCD sections and one explicit empty FID section; this is signal-layout
+evidence, not Verified detector semantics. The bridge remains optional local tooling.
+The native files and generated exports remain `ACCEPT_EXTERNAL_ONLY` and must not be
+attached to Issue #2.
 
 ## Minimum useful set
 

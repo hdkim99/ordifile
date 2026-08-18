@@ -491,6 +491,17 @@ def run_pipeline(
             discovered.source.path, registry, forced_adapter
         )
         source = _apply_source_identity(discovered.source, initial_policy)
+        artifact_excluded = any(
+            issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in discovered.issues
+        )
+        if artifact_excluded:
+            # Core-owned output artifacts are already classified before adapter
+            # detection and retain their ordinary audit names instead of inheriting a
+            # shared-extension vendor privacy policy.
+            source = _apply_source_identity(
+                discovered.source,
+                SourceIdentityPolicy.RELATIVE_PATH,
+            )
         display_source = workbook_audit_display(source.public_reference)
         discovery_issues = _rebind_issue_sources(discovered.issues, source)
         if display_source != source.public_reference:
@@ -504,7 +515,7 @@ def run_pipeline(
                     display_source,
                 ),
             )
-        if any(issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in discovery_issues):
+        if artifact_excluded:
             result = FileResult(source, FileStatus.SKIPPED, issues=discovery_issues)
             processed.append(result)
             report_processed(result, completed)
@@ -671,6 +682,22 @@ def run_pipeline(
                         )
                         bundle = _bind_source(bundle, source)
                         issues = _rebind_issue_sources(issues, source)
+                        restored_display = workbook_audit_display(source.public_reference)
+                        if restored_display != source.public_reference:
+                            issues = _bounded_file_issues(
+                                (
+                                    *issues,
+                                    Issue(
+                                        "SOURCE_DISPLAY_ESCAPED",
+                                        "Unsafe source identity code points were reversibly "
+                                        "escaped for workbook audit fields; the input file and "
+                                        "its SHA-256 were not changed.",
+                                        Severity.WARNING,
+                                        restored_display,
+                                    ),
+                                ),
+                                restored_display,
+                            )
                     status = FileStatus.WARNING if issues else FileStatus.SUCCESS
                     result = FileResult(
                         source,
