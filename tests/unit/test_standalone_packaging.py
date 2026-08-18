@@ -10,6 +10,7 @@ import platform
 import stat
 import sys
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -621,6 +622,30 @@ def test_private_build_path_inventory_includes_environment_without_logging(
     assert str((tmp_path / "runner").resolve()) in values
     assert str(Path.home().resolve()) in values
     assert str(Path(os.path.realpath(sys.prefix))) in values
+
+
+@pytest.mark.parametrize(
+    ("category", "value_factory"),
+    [
+        ("source", lambda source, stage: str(source.resolve())),
+        ("temporary", lambda source, stage: str(stage.resolve())),
+        ("runtime", lambda source, stage: str(Path(sys.prefix).resolve())),
+        ("home", lambda source, stage: str(Path.home().resolve())),
+    ],
+)
+def test_private_bundle_data_classification_is_category_only(
+    tmp_path: Path,
+    category: str,
+    value_factory: Callable[[Path, Path], str],
+) -> None:
+    source = tmp_path / "source"
+    stage = tmp_path / "stage"
+    bundle = _candidate(tmp_path / category)
+    value = value_factory(source, stage)
+    (bundle / "bin" / "Ordifile").write_text(value, encoding="utf-8")
+    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
+        f"bundle-audit-private-{category}"
+    )
 
 
 def test_extracted_candidate_must_equal_manifest_and_expected_commit(tmp_path: Path) -> None:

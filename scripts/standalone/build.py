@@ -22,11 +22,17 @@ from pathlib import Path
 from ordifile import __version__
 
 try:
-    from .verify import StandaloneVerificationError, build_manifest, write_manifest
+    from .verify import (
+        StandaloneVerificationError,
+        build_manifest,
+        inventory_bundle,
+        write_manifest,
+    )
 except ImportError:
     from verify import (  # type: ignore[import-not-found,no-redef]
         StandaloneVerificationError,
         build_manifest,
+        inventory_bundle,
         write_manifest,
     )
 
@@ -44,6 +50,10 @@ BUILD_FAILURE_STAGES = frozenset(
         "bundle-audit",
         "bundle-audit-network-runtime",
         "bundle-audit-private-data",
+        "bundle-audit-private-home",
+        "bundle-audit-private-runtime",
+        "bundle-audit-private-source",
+        "bundle-audit-private-temporary",
         "bundle-audit-prohibited-data",
         "bundle-discovery",
         "deploy",
@@ -77,6 +87,44 @@ def _bundle_audit_failure_stage(error: StandaloneVerificationError) -> str:
     if message == "A prohibited scientific fixture is bundled.":
         return "bundle-audit-prohibited-data"
     return "bundle-audit"
+
+
+def _private_build_path_groups(
+    source: Path, stage: Path
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    groups: list[tuple[str, tuple[str, ...]]] = [
+        ("source", (str(source.resolve()),)),
+        ("temporary", (str(stage.resolve()), str(Path(tempfile.gettempdir()).resolve()))),
+        (
+            "runtime",
+            (str(Path(sys.prefix).resolve()), str(Path(sys.executable).resolve())),
+        ),
+    ]
+    environment_groups = {
+        "source": ("GITHUB_WORKSPACE",),
+        "temporary": ("RUNNER_TEMP",),
+        "runtime": ("RUNNER_TOOL_CACHE",),
+    }
+    expanded: list[tuple[str, tuple[str, ...]]] = []
+    for label, values in groups:
+        candidates = set(values)
+        for name in environment_groups[label]:
+            value = os.environ.get(name)
+            if value:
+                candidates.add(str(Path(value).resolve()))
+        expanded.append((label, tuple(sorted(candidates))))
+    expanded.append(("home", (str(Path.home().resolve()),)))
+    return tuple(expanded)
+
+
+def _classify_private_bundle_data(bundle: Path, source: Path, stage: Path) -> str:
+    for label, values in _private_build_path_groups(source, stage):
+        try:
+            inventory_bundle(bundle, forbidden_text=values)
+        except StandaloneVerificationError as error:
+            if _bundle_audit_failure_stage(error) == "bundle-audit-private-data":
+                return f"bundle-audit-private-{label}"
+    return "bundle-audit-private-data"
 
 
 def _render_spec(template: Path, destination: Path, stage: Path, executable_dir: Path) -> None:
@@ -194,17 +242,8 @@ def _sha256(path: Path) -> str:
 
 def _private_build_paths(source: Path, stage: Path) -> tuple[str, ...]:
     candidates = {
-        str(source.resolve()),
-        str(stage.resolve()),
-        str(Path.home().resolve()),
-        str(Path(sys.prefix).resolve()),
-        str(Path(sys.executable).resolve()),
-        str(Path(tempfile.gettempdir()).resolve()),
+        value for _, values in _private_build_path_groups(source, stage) for value in values
     }
-    for name in ("GITHUB_WORKSPACE", "RUNNER_TEMP", "RUNNER_TOOL_CACHE"):
-        value = os.environ.get(name)
-        if value:
-            candidates.add(str(Path(value).resolve()))
     return tuple(sorted(candidates))
 
 
@@ -276,6 +315,8 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
                 )
             except StandaloneVerificationError as error:
                 build_stage = _bundle_audit_failure_stage(error)
+                if build_stage == "bundle-audit-private-data":
+                    build_stage = _classify_private_bundle_data(bundle, source, temporary_stage)
                 raise
             build_stage = "archive"
             output.mkdir(parents=True)
