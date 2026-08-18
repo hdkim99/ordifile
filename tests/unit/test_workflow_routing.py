@@ -126,6 +126,7 @@ def test_agilent_external_fixture_is_maintainer_controlled_and_non_persistent() 
     assert "actions/cache" not in workflow
     assert "actions/upload-artifact" not in workflow
     assert "--allow-ci" in workflow
+    assert "--privacy-minimal-output" in workflow
     assert "Remove exact external fixture cache" in workflow
 
 
