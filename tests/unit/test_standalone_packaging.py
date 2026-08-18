@@ -91,8 +91,27 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "workflow_dispatch:" in trigger
     for prohibited in ("push:", "pull_request:", "schedule:", "release:"):
         assert prohibited not in trigger
-    assert "runs-on: windows-2025" in text
+    assert "runs-on: [self-hosted, Windows, X64]" in text
+    for prohibited_runner in ("windows-2025", "windows-latest", "windows-2022"):
+        assert prohibited_runner not in text
     assert "runs-on: macos-15" in text
+    assert text.count("github.repository == 'hdkim99/ordifile'") == 2
+    assert text.count("github.event_name == 'workflow_dispatch'") == 2
+    assert text.count("github.ref == 'refs/heads/main'") == 2
+    windows_job = text.split("  macos-prototype:", 1)[0]
+    assert "Mask persistent runner identifiers" in windows_job
+    assert "::add-mask::" in windows_job
+    for private_runner_value in (
+        "RUNNER_WORKSPACE",
+        "RUNNER_NAME",
+        "USERNAME",
+        "USERPROFILE",
+        "COMPUTERNAME",
+        "USERDOMAIN",
+    ):
+        assert private_runner_value in windows_job
+    assert "path: source" in windows_job
+    assert windows_job.count("working-directory: source") >= 7
     assert 'python-version: "3.14.3"' in text
     assert "--target windows-x86_64" in text
     assert "--standalone-smoke" in text
@@ -101,6 +120,15 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "standalone smoke 결과.xlsx" in text
     assert text.count("scripts/standalone/verify.py") == 2
     assert text.count("PYTHONNOUSERSITE") == 2
+    assert "run_in_venv.py create --github-runner" in text
+    assert "run_in_venv.py remove --github-runner" in text
+    assert "python -m pip install" not in windows_job
+    assert "pip install --quiet" in windows_job
+    assert windows_job.count("run_in_venv.py run --github-runner") >= 5
+    assert text.count("clean_workspace.py --workspace . --phase") == 2
+    assert text.count("if: always()") >= 3
+    assert "ordifile-standalone-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB" in text
+    assert text.count("Standalone scratch boundary is invalid.") == 2
     assert "actions/download-artifact@" not in text
     assert text.count("actions/upload-artifact@") == 2
     assert "standalone-candidate/standalone-manifest.json" in text

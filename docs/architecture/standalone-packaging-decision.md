@@ -7,9 +7,12 @@
 ## Decision
 
 Use Qt's official `pyside6-deploy` frontend with `mode = standalone` and an exact
-`Nuitka==4.1.3` build-tool pin. Produce a Windows onedir bundle ZIP and a macOS `.app`
-bundle ZIP on native GitHub-hosted runners. Keep the ordinary Python package and
-`ordifile[gui]` installation unchanged.
+`Nuitka==4.1.3` build-tool pin. Target a Windows onedir bundle ZIP through a
+repository-authorized self-hosted Windows x86-64 runner and a macOS `.app` bundle ZIP
+through GitHub-hosted `macos-15`. Keep the ordinary Python package and `ordifile[gui]`
+installation unchanged. There is no GitHub-hosted Windows fallback, and Windows
+repository assignment/availability remains an execution gate rather than a documented
+fact until confirmed through the repository inventory.
 
 The standalone entry point launches the existing `ordifile.desktop` application. It
 does not copy conversion, discovery, adapter, workbook, or privacy logic. Normal
@@ -31,17 +34,33 @@ desktop workflow.
 ## Build and evidence boundary
 
 `.github/workflows/standalone.yml` has only a manual `workflow_dispatch` trigger and
-read-only repository permission. Native Windows and macOS build jobs create unsigned
+read-only repository permission. Both jobs are restricted to the expected repository
+and reviewed `main` ref. The Windows job selects the cumulative `self-hosted`,
+`Windows`, and `X64` capability labels; those labels route work but do not replace the
+repository assignment trust boundary. The persistent job uses an isolated run-scoped
+environment, a workflow-owned nested source checkout, a unique runner-temporary
+scratch directory, runner-identifier log masks, and bounded cleanup under
+`if: always()`. macOS remains fixed to `macos-15`. Both native jobs create unsigned
 candidates, unpack the exact ZIP in runner-temporary space, clear Python import
 overrides, and run the packaged executable there. The native candidate is never
 uploaded from the public repository: only its path-free manifest, checksum inventory,
 and smoke report are retained as Actions evidence.
 
+These controls reduce exposure but do not turn a persistent public-repository runner
+into a clean or disposable security boundary. Dispatch additionally requires a
+dedicated minimally privileged host, current runner/OS patches, no private data,
+credentials, signing material, or sensitive network reachability, and a documented
+post-job compromise/reprovisioning response. Runner and service-account display names
+must be non-identifying because job setup output can precede in-job masking. A personal
+workstation is not an approved runner for this workflow.
+
 GitHub only dispatches a new manual workflow after its definition exists on the
-default branch. While this infrastructure is under review, local native evidence can
-validate a platform, but the Draft PR must not claim or check a hosted run. The
-prototype merge gate therefore remains blocked until both native hosted runs can be
-obtained through an approved bootstrap or follow-up path.
+default branch. A pre-merge 404 is therefore classified as
+`WORKFLOW_DISPATCH_REGISTRATION_LIMITATION`, not runner unavailability. While this
+infrastructure is under review, local native evidence can validate a platform, but the
+Draft PR must not claim an Actions run. The prototype merge gate remains blocked until
+the self-hosted Windows runner is visible with matching capability labels and both
+native automated runs pass through an approved registration/follow-up path.
 
 The packaged executable must prove all of the following before a prototype artifact is
 accepted:
@@ -57,10 +76,12 @@ accepted:
 - private build paths, credential markers, proprietary/native fixtures, vendor
   binaries and scientific workbooks are absent from the bundled application.
 
-The outer artifact is explicitly `publishable: false`. Prototype ZIPs remain local to
-the ephemeral builder, are not Actions artifacts, and are never attached to a GitHub
-Release by this workflow. Same-job scratch execution proves checkout-independent use,
-but it is not a substitute for a separate clean-machine test.
+The outer artifact is explicitly `publishable: false`. Prototype ZIPs are generated in
+an allowlisted source-checkout directory, copied into bounded job scratch for smoke,
+and removed from both locations after the job. They are not Actions artifacts and are
+never attached to a GitHub Release by this workflow. Same-job scratch execution proves
+checkout-independent use, but it is not a substitute for a separate clean-machine
+test.
 
 The source, exact direct toolchain versions, spec, inventory ordering and ZIP metadata
 are deterministic. Functional rebuilds are expected to be repeatable. Byte-identical

@@ -18,7 +18,7 @@
 | [Qt for Python 6.11.2 sources](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.2-src/) and [Qt 6.11.2 sources](https://download.qt.io/official_releases/qt/6.11/6.11.2/single/) | Official corresponding-source locations exist for the selected version. | Candidate source locations only; archive/hash before public release. |
 | [PyInstaller 6.22.2](https://pypi.org/project/pyinstaller/6.22.2/) and [license](https://github.com/pyinstaller/pyinstaller/blob/v6.22.2/COPYING.txt) | PyInstaller supports one-folder bundles and a permissive exception for generated applications. | Onedir fallback only; not present in the primary build lock. |
 | [Briefcase 0.4.4 metadata](https://pypi.org/pypi/briefcase/0.4.4/json) and [platform documentation](https://briefcase.readthedocs.io/en/stable/reference/platforms/) | BSD-3-Clause tool with Windows/macOS application and installer lifecycle support. | Rejected for the first slice because its templates and support packages add a second application lifecycle instead of wrapping the existing Qt entry point. |
-| [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) | Native Windows and macOS images are available; architecture is an explicit build property. | Compile and smoke on the matching host instead of cross-compiling. |
+| [Using self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow) and [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) | Self-hosted jobs require cumulative label matches; native hosted macOS images are available. Labels route jobs but do not replace repository assignment as a trust boundary. | Route Windows only to a repository-authorized self-hosted Windows x86-64 runner, keep `macos-15` for macOS, and never cross-compile a claimed target. |
 | [Apple notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [custom workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow) | Direct distribution uses Developer ID signing, hardened runtime and a secure timestamp; `notarytool` submits and `stapler` attaches the accepted ticket. | Keep signing/notarization out of the prototype and make them production gates. |
 | [Microsoft signing options](https://learn.microsoft.com/windows/apps/package-and-deploy/code-signing-options), [SHA-256 timestamping](https://learn.microsoft.com/windows/win32/seccrypto/time-stamping-authenticode-signatures), and [SmartScreen reputation](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation) | Trusted publisher identity and SHA-256 signing/timestamping are distinct from file/publisher reputation; new signed files can still warn. | Mark candidates unsigned, never promise warning-free launch, and require reviewed production signing evidence. |
 
@@ -37,11 +37,12 @@ has SHA-256
 `a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c`.
 
 A local unsigned macOS arm64 `.app` bundle was produced from the reviewed configuration
-and passed checkout-free packaged-window, generic UTF-8, generic UTF-8-BOM, YoungIn
-CP949 Result, workbook-reopen, overwrite-refusal, and scientific-sheet equivalence
-smokes. This is prototype evidence only. Windows native behavior, signed Windows trust,
-macOS notarization, and signed/hardened replacement of LGPL components are not inferred
-from that result.
+and passed checkout-free packaged-window smoke, registry inventory for all 11 built-in
+adapters, all 12 public-safe synthetic inputs, generic UTF-8 and UTF-8-BOM, YoungIn
+CP949 Result, workbook reopen, overwrite refusal, and six-sheet scientific equivalence.
+This is prototype evidence only. Windows native behavior, signed Windows trust, macOS
+notarization, and signed/hardened replacement of LGPL components are not inferred from
+that result.
 
 ## Exclusions
 

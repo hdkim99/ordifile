@@ -18,43 +18,90 @@ env:
 jobs:
   windows-prototype:
     name: Build and smoke unsigned Windows prototype
-    runs-on: windows-2025
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 75
     steps:
+      - name: Mask persistent runner identifiers
+        shell: pwsh
+        run: |
+          $values = @(
+            $env:GITHUB_WORKSPACE,
+            $env:RUNNER_TEMP,
+            $env:RUNNER_WORKSPACE,
+            $env:RUNNER_NAME,
+            $env:USERNAME,
+            $env:USERPROFILE,
+            $env:COMPUTERNAME,
+            $env:USERDOMAIN
+          ) | Where-Object { $_ }
+          foreach ($value in $values) {
+            Write-Output "::add-mask::$value"
+          }
       - name: Check out reviewed source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           clean: true
           fetch-depth: 1
+          path: source
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14.3"
+      - name: Clean persistent workspace before job
+        working-directory: source
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated Windows job environment
+        working-directory: source
+        run: python scripts/ci/run_in_venv.py create --github-runner
       - name: Install exact standalone toolchain
+        working-directory: source
         run: |
-          python -m pip install --requirement packaging/standalone/requirements-build.lock
-          python -m pip install --no-deps .
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --requirement packaging/standalone/requirements-build.lock
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --no-deps .
       - name: Create public checkout-independent smoke kit
+        working-directory: source
         run: >-
-          python scripts/standalone/smoke.py make-kit
+          python scripts/ci/run_in_venv.py run --github-runner -- scripts/standalone/smoke.py make-kit
           --output standalone-smoke-kit
           --generator-root tests/fixtures/synthetic
       - name: Build and audit native candidate
+        working-directory: source
         run: >-
-          python scripts/standalone/build.py
+          python scripts/ci/run_in_venv.py run --github-runner -- scripts/standalone/build.py
           --source .
           --output standalone-candidate
           --commit "${{ github.sha }}"
           --target windows-x86_64
       - name: Smoke immutable Windows bytes outside the checkout
         shell: pwsh
+        working-directory: source
         run: |
           $ErrorActionPreference = "Stop"
-          $candidate = Join-Path $env:GITHUB_WORKSPACE "standalone-candidate"
-          $scratch = Join-Path $env:RUNNER_TEMP "ordifile-standalone-smoke"
+          $source = Join-Path $env:GITHUB_WORKSPACE "source"
+          $candidate = Join-Path $source "standalone-candidate"
+          $scratchName = "ordifile-standalone-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB"
+          if ($scratchName -notmatch '^ordifile-standalone-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$') {
+            throw "Standalone scratch identity is invalid."
+          }
+          $trimCharacters = [char[]]@(
+            [IO.Path]::DirectorySeparatorChar,
+            [IO.Path]::AltDirectorySeparatorChar
+          )
+          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd($trimCharacters)
+          $scratch = [IO.Path]::GetFullPath((Join-Path $runnerTemp $scratchName))
+          if ([IO.Path]::GetDirectoryName($scratch).TrimEnd($trimCharacters) -ne $runnerTemp) {
+            throw "Standalone scratch boundary is invalid."
+          }
+          if (Test-Path -LiteralPath $scratch) {
+            Remove-Item -LiteralPath $scratch -Recurse -Force
+          }
           New-Item -ItemType Directory -Path $scratch | Out-Null
-          Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "standalone-smoke-kit") `
+          Copy-Item -LiteralPath (Join-Path $source "standalone-smoke-kit") `
             -Destination (Join-Path $scratch "kit") -Recurse
           $archives = @(Get-ChildItem -LiteralPath $candidate -Filter "Ordifile-*.zip" -File)
           if ($archives.Count -ne 1) { throw "Expected exactly one standalone archive." }
@@ -79,7 +126,7 @@ jobs:
           Expand-Archive -LiteralPath $archives[0].FullName -DestinationPath (Join-Path $scratch "expanded")
           $executables = @(Get-ChildItem -LiteralPath (Join-Path $scratch "expanded") -Recurse -Filter "Ordifile.exe" -File)
           if ($executables.Count -ne 1) { throw "Expected exactly one packaged Ordifile executable." }
-          python scripts/standalone/verify.py `
+          python scripts/ci/run_in_venv.py run --github-runner -- scripts/standalone/verify.py `
             --bundle $executables[0].Directory.FullName `
             --manifest (Join-Path $candidate "standalone-manifest.json") `
             --commit "${{ github.sha }}" `
@@ -104,22 +151,55 @@ jobs:
             throw "Packaged Ordifile smoke report is not PASS."
           }
           Copy-Item -LiteralPath (Join-Path $scratch "standalone smoke report.json") `
-            -Destination "standalone-smoke-report.json"
+            -Destination (Join-Path $source "standalone-smoke-report.json")
       - name: Upload path-free Windows evidence only
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ordifile-standalone-windows-evidence-${{ github.run_id }}
           path: |
-            standalone-candidate/standalone-manifest.json
-            standalone-candidate/SHA256SUMS.txt
-            standalone-smoke-report.json
+            source/standalone-candidate/standalone-manifest.json
+            source/standalone-candidate/SHA256SUMS.txt
+            source/standalone-smoke-report.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
           overwrite: false
+      - name: Remove isolated Windows job environment
+        if: always()
+        working-directory: source
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Remove bounded Windows runner scratch
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $scratchName = "ordifile-standalone-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB"
+          if ($scratchName -notmatch '^ordifile-standalone-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$') {
+            throw "Standalone scratch identity is invalid."
+          }
+          $trimCharacters = [char[]]@(
+            [IO.Path]::DirectorySeparatorChar,
+            [IO.Path]::AltDirectorySeparatorChar
+          )
+          $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd($trimCharacters)
+          $scratch = [IO.Path]::GetFullPath((Join-Path $runnerTemp $scratchName))
+          if ([IO.Path]::GetDirectoryName($scratch).TrimEnd($trimCharacters) -ne $runnerTemp) {
+            throw "Standalone scratch boundary is invalid."
+          }
+          if (Test-Path -LiteralPath $scratch) {
+            Remove-Item -LiteralPath $scratch -Recurse -Force
+          }
+      - name: Clean persistent workspace after job
+        if: always()
+        working-directory: source
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post
 
   macos-prototype:
     name: Build and smoke unsigned macOS prototype
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main'
     runs-on: macos-15
     timeout-minutes: 75
     steps:

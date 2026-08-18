@@ -20,13 +20,33 @@ publication are excluded.
 ## Run the manual workflow
 
 After the workflow definition exists on the default branch, a maintainer can dispatch
-**Standalone prototype** for a reviewed ref in GitHub Actions. GitHub does not expose a
-new branch-only manual workflow before that bootstrap condition is met. No token,
-signing secret, OIDC permission or vendor software is used. Build jobs check out
-read-only source on native Windows/macOS runners. Each job then unpacks the exact
-candidate into runner-temporary space, clears Python import overrides, and runs only the
-packaged executable for scientific and window smokes. This is checkout-independent
-artifact execution, but not a separate clean-machine result.
+**Standalone prototype** for reviewed `main` in GitHub Actions. GitHub does not expose
+a new branch-only manual workflow before that registration condition is met; the prior
+pre-merge 404 is a workflow-registration limitation, not evidence that a native runner
+does not exist. No token, signing secret, OIDC permission or vendor software is used.
+
+The Windows job has no GitHub-hosted fallback. It requires the cumulative
+`self-hosted`, `Windows`, and `X64` capability labels and runs only when that
+repository-authorized runner is assigned and online. Because its workspace persists,
+the job checks out into a workflow-owned source directory, uses a run-scoped virtual
+environment and unique runner-temporary scratch root, masks runner-local identifiers,
+and performs bounded cleanup before and after execution. The macOS job is fixed to
+GitHub-hosted `macos-15`; changing that routing requires a separate review.
+Both jobs check out read-only `main`, unpack the exact candidate into runner-temporary
+space, clear Python import overrides, and run only the packaged executable for
+scientific and window smokes. This is checkout-independent artifact execution, but not
+a separate clean-machine result.
+
+Manual/main-only routing, read-only repository permission, an isolated Python
+environment, and cleanup reduce exposure; they do not make a persistent self-hosted
+machine an isolation boundary or undo a compromised job. Before dispatch, the Windows
+runner must be a dedicated, minimally privileged build host with no private scientific
+data, signing credentials, unrelated secrets, or sensitive network access. Its runner
+and service-account display identities must be non-identifying because runner setup can
+precede in-job log masks. The runner and operating-system patch state must be reviewed,
+and the maintainer must have a post-job compromise response such as reprovisioning or
+replacement. Do not register or use a personal workstation for this public-repository
+workflow.
 
 The public Actions evidence artifact contains no native candidate. It contains only:
 
@@ -37,7 +57,10 @@ standalone-candidate/
 standalone-smoke-report.json
 ```
 
-The native ZIP and synthetic smoke-kit bytes remain inside the ephemeral build job.
+The native ZIP and synthetic smoke-kit are first generated in allowlisted directories
+inside the workflow-owned source checkout, then copied or expanded into the unique
+runner-temporary smoke root. The source outputs and scratch root are both removed after
+the job, including on failure.
 This prevents the prototype workflow from bypassing the unresolved Qt redistribution
 gates through a downloadable public Actions artifact.
 

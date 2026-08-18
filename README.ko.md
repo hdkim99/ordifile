@@ -403,10 +403,16 @@ Python 3.11–3.14를 대상으로 합니다. 필수 test, release build, wheel 
 external fixture workflow는 공유 Linux DGX self-hosted runner에서 Python 3.14로
 실행합니다. TestPyPI/PyPI publish, byte verification, attestation, GitHub Release
 publish는 GitHub-hosted Ubuntu에서 실행합니다. Core CI에는 Windows/macOS matrix가
-없으며, 유지관리자가 수동 실행하는 standalone prototype workflow만 native hosted
-builder와 checkout-independent artifact smoke step을 사용합니다. Native candidate
-binary는 올리지 않고 path-free evidence만 보존합니다. 외부
-fork workflow는 유지관리자의 승인 후 같은 장비에서 실행되며 read-only 저장소 권한만
+없습니다. 유지관리자가 수동 실행하는 standalone prototype workflow는 Windows
+x86-64를 repository-authorized self-hosted Windows runner에서만 실행하도록 하며,
+macOS는 GitHub-hosted `macos-15`를 사용합니다. Persistent Windows job은 run-scoped 환경,
+bounded pre/post cleanup, checkout-independent artifact smoke를 사용합니다. 두
+platform 모두 native candidate binary는 올리지 않고 path-free evidence만
+보존합니다. Standalone workflow는 검토된 `main` code만 실행하며 GitHub-hosted
+Windows fallback은 없습니다.
+Windows dispatch 전에는 repository assignment, capability label, online 상태를
+확인해야 하며 personal workstation에서는 실행하도록 승인하지 않습니다. 외부 fork의
+core workflow는 유지관리자의 승인 후 공유 Linux runner에서 실행되며 read-only 저장소 권한만
 받고 배포 secret이나 OIDC 권한은 받지 않습니다. Runner 가용성은 GitHub Actions에서
 확인하는 운영 상태이며, 이 설명은 구성 대상을 뜻할 뿐 현재 online 상태를 보장하지
 않습니다.
