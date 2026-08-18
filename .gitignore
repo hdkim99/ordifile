@@ -14,6 +14,9 @@ venv/
 build/
 dist/
 htmlcov/
+standalone-candidate/
+standalone-smoke-kit/
+standalone-smoke-report.json
 *.xlsx
 !tests/fixtures/synthetic/**/*.xlsx
 !tests/fixtures/redistributable/**/*.xlsx

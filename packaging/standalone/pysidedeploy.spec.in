@@ -1,0 +1,22 @@
+[app]
+title = Ordifile
+project_dir = @PROJECT_DIR@
+input_file = Ordifile.py
+exec_directory = @EXEC_DIRECTORY@
+project_file =
+icon =
+
+[python]
+python_path = @PYTHON_PATH@
+packages = Nuitka==4.1.3
+
+[qt]
+qml_files =
+excluded_qml_plugins =
+modules = Core,Gui,Widgets
+plugins = platforms
+
+[nuitka]
+macos.permissions =
+mode = standalone
+extra_args = --quiet --noinclude-qt-translations --noinclude-qt-plugins=tls

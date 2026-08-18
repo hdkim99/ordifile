@@ -112,7 +112,7 @@ def _write_sdist(path: Path, source: Path, *, legacy: bool = False, gui: bool = 
     }
     for name in release.LICENSE_FILES:
         contents[f"{root}/{name}"] = (source / name).read_bytes()
-    for name in release.SDIST_MAINTAINER_FILES:
+    for name in release._sdist_maintainer_files(source):
         contents[f"{root}/{name}"] = (source / name).read_bytes()
     if legacy:
         contents[f"{root}/src/labconvert/__init__.py"] = b""
@@ -494,6 +494,28 @@ def test_sdist_requires_release_tools_and_fixture_generator(tmp_path: Path) -> N
     with tarfile.open(complete, "r:gz") as original, tarfile.open(missing, "w:gz") as output:
         for member in original.getmembers():
             if member.name.endswith("/scripts/fetch_external_fixture.py"):
+                continue
+            extracted = original.extractfile(member) if member.isfile() else None
+            output.addfile(member, extracted)
+    with pytest.raises(release.ReleaseVerificationError, match="missing required maintainer"):
+        release.verify_sdist(missing, "0.1.0", source)
+
+
+def test_sdist_requires_exact_standalone_build_inputs_when_enabled(tmp_path: Path) -> None:
+    source = _source_tree(tmp_path / "source")
+    for name in release.STANDALONE_SDIST_FILES:
+        target = source / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"{name} fixture\n", encoding="utf-8")
+    complete = tmp_path / "ordifile-0.1.0.tar.gz"
+    _write_sdist(complete, source)
+    release.verify_sdist(complete, "0.1.0", source)
+
+    missing = tmp_path / "missing-standalone.tar.gz"
+    omitted = "/packaging/standalone/pysidedeploy.spec.in"
+    with tarfile.open(complete, "r:gz") as original, tarfile.open(missing, "w:gz") as output:
+        for member in original.getmembers():
+            if member.name.endswith(omitted):
                 continue
             extracted = original.extractfile(member) if member.isfile() else None
             output.addfile(member, extracted)

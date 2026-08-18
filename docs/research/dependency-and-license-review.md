@@ -68,7 +68,24 @@ The core and CLI are now stable enough for an optional Experimental GUI.
 required companion distribution. Neither dependency is installed by the default
 Ordifile package. The selection rationale is recorded in
 [`gui-framework-decision.md`](../architecture/gui-framework-decision.md); standalone
-redistribution remains deferred to Issue #6.
+redistribution is now an unsigned, non-publishable prototype under Issue #6. The
+separate decision and legal gates are recorded in
+[`standalone-packaging-decision.md`](../architecture/standalone-packaging-decision.md).
+
+## Standalone prototype tooling
+
+Qt's official `pyside6-deploy` frontend is selected with standalone mode and an exact
+`Nuitka==4.1.3` pin. Nuitka is AGPL-3.0 build tooling and is not distributed in the
+candidate. Its exact Runtime Library Exception applies to qualifying generated target
+code; it does not weaken the compiler license. PyInstaller 6.22.2 onedir remains a
+documented fallback and is not installed by the primary build lock.
+
+Windows and macOS candidates are native onedir/`.app` ZIPs. Onefile, MSI, DMG, signing,
+notarization and release publication are excluded. The candidate is explicitly
+non-publishable until exact Qt/PySide/shiboken corresponding source and third-party
+notices, replacement/relinking and applicable installation information, publisher
+identity, platform signing and clean-machine tests all pass. Detailed primary-source
+evidence is in [`standalone-packaging-evidence.md`](standalone-packaging-evidence.md).
 
 ## Excel constraints
 
@@ -153,9 +170,10 @@ plus the three write permissions documented by the pinned `actions/attest` relea
   project when their notice conditions are retained; none requires a vendor runtime.
 - Inference: the small pure-Python dependency set is sufficient for the verified
   vertical slice and lowers cross-platform packaging risk.
-- Unresolved: standalone GUI bundling, signing, and platform redistribution remain
-  open under Issue #6, and future adapter dependencies require their own source and
-  license review.
+- Unresolved: the unsigned standalone prototype is implemented, but public signed
+  distribution remains blocked by explicit source/relinking/install-information,
+  publisher identity, signing and notarization gates; future adapter dependencies
+  require their own source and license review.
 - Risk and impact: dependency versions and vulnerability status can change. Package
   constraints, CI installation, `pip-audit`, source review, and
   `THIRD_PARTY_NOTICES.md` must be updated together before a release.

@@ -112,8 +112,11 @@ or vendor-executable integration. It does not silently replace an existing workb
 Add buttons, visible labels, keyboard focus order, and accessible names provide a
 keyboard path equivalent to drag and drop. Forced cancellation is intentionally
 omitted until the public core can preserve workbook transaction safety during
-cancellation. Standalone `.exe`, `.app`, signing, and notarization remain tracked by
-Issue #6 and are not part of this Python-package interface.
+cancellation. Issue #6 now has a maintainer-only unsigned standalone prototype,
+documented in the [standalone runbook](docs/standalone.md). No `.exe` or `.app` is
+publicly released: publisher identity, signing, notarization, LGPL
+replacement/relinking evidence and the final redistribution gate remain blocked. The
+Python-package interface above is the supported installation path.
 
 ## Verified formats
 
@@ -409,8 +412,10 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 Ordifile targets Python 3.11–3.14. Required tests, release builds, wheel smoke tests,
 and external real-fixture workflows target Python 3.14 on a shared Linux DGX
 self-hosted runner. TestPyPI/PyPI publishing, byte verification, attestations, and
-GitHub Release publication use GitHub-hosted Ubuntu. There is no current Windows or
-macOS CI matrix.
+GitHub Release publication use GitHub-hosted Ubuntu. Core CI has no Windows or macOS
+matrix; the maintainer-triggered standalone prototype workflow uses native hosted
+builders and checkout-independent artifact smoke steps. It retains path-free evidence,
+not native candidate binaries.
 Public-fork workflows require maintainer approval before they run on that machine and
 receive read-only repository permission without publishing secrets or OIDC permission.
 Runner availability is an operational setting visible in GitHub Actions; this describes

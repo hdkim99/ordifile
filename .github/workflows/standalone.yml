@@ -1,0 +1,215 @@
+name: Standalone prototype
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ordifile-standalone-prototype-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+  PYTHONUTF8: "1"
+
+jobs:
+  windows-prototype:
+    name: Build and smoke unsigned Windows prototype
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.3"
+      - name: Install exact standalone toolchain
+        run: |
+          python -m pip install --requirement packaging/standalone/requirements-build.lock
+          python -m pip install --no-deps .
+      - name: Create public checkout-independent smoke kit
+        run: >-
+          python scripts/standalone/smoke.py make-kit
+          --output standalone-smoke-kit
+          --generator-root tests/fixtures/synthetic
+      - name: Build and audit native candidate
+        run: >-
+          python scripts/standalone/build.py
+          --source .
+          --output standalone-candidate
+          --commit "${{ github.sha }}"
+          --target windows-x86_64
+      - name: Smoke immutable Windows bytes outside the checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $candidate = Join-Path $env:GITHUB_WORKSPACE "standalone-candidate"
+          $scratch = Join-Path $env:RUNNER_TEMP "ordifile-standalone-smoke"
+          New-Item -ItemType Directory -Path $scratch | Out-Null
+          Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE "standalone-smoke-kit") `
+            -Destination (Join-Path $scratch "kit") -Recurse
+          $archives = @(Get-ChildItem -LiteralPath $candidate -Filter "Ordifile-*.zip" -File)
+          if ($archives.Count -ne 1) { throw "Expected exactly one standalone archive." }
+          $checksum = (Get-Content -LiteralPath (Join-Path $candidate "SHA256SUMS.txt") -Raw).Trim()
+          $parts = $checksum -split "\s+", 2
+          if ($parts.Count -ne 2 -or $parts[1] -ne $archives[0].Name) {
+            throw "Standalone checksum inventory is invalid."
+          }
+          if ((Get-FileHash -LiteralPath $archives[0].FullName -Algorithm SHA256).Hash.ToLower() -ne $parts[0]) {
+            throw "Standalone archive checksum mismatch."
+          }
+          $manifest = Get-Content -LiteralPath (Join-Path $candidate "standalone-manifest.json") -Raw | ConvertFrom-Json
+          if ($manifest.publishable -ne $false -or $manifest.signature_state -ne "UNSIGNED_PROTOTYPE") {
+            throw "Prototype publication/signature gate is invalid."
+          }
+          if ($manifest.outer_artifact.filename -ne $archives[0].Name -or
+              $manifest.outer_artifact.sha256 -ne $parts[0] -or
+              $manifest.outer_artifact.size -ne $archives[0].Length -or
+              $manifest.bundle_total_size -le 0) {
+            throw "Standalone manifest outer artifact identity is invalid."
+          }
+          Expand-Archive -LiteralPath $archives[0].FullName -DestinationPath (Join-Path $scratch "expanded")
+          $executables = @(Get-ChildItem -LiteralPath (Join-Path $scratch "expanded") -Recurse -Filter "Ordifile.exe" -File)
+          if ($executables.Count -ne 1) { throw "Expected exactly one packaged Ordifile executable." }
+          python scripts/standalone/verify.py `
+            --bundle $executables[0].Directory.FullName `
+            --manifest (Join-Path $candidate "standalone-manifest.json") `
+            --commit "${{ github.sha }}" `
+            --target windows-x86_64
+          $env:PYTHONPATH = ""
+          $env:PYTHONNOUSERSITE = "1"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          Push-Location $scratch
+          try {
+            & $executables[0].FullName --standalone-smoke `
+              --kit (Join-Path $scratch "kit") `
+              --output (Join-Path $scratch "standalone smoke 결과.xlsx") `
+              --report (Join-Path $scratch "standalone smoke report.json")
+            if ($LASTEXITCODE -ne 0) { throw "Packaged Ordifile smoke failed." }
+            & $executables[0].FullName --standalone-window-smoke
+            if ($LASTEXITCODE -ne 0) { throw "Packaged Ordifile window smoke failed." }
+          } finally {
+            Pop-Location
+          }
+          $report = Get-Content -LiteralPath (Join-Path $scratch "standalone smoke report.json") -Raw | ConvertFrom-Json
+          if ($report.status -ne "PASS" -or $report.existing_output_preserved -ne $true) {
+            throw "Packaged Ordifile smoke report is not PASS."
+          }
+          Copy-Item -LiteralPath (Join-Path $scratch "standalone smoke report.json") `
+            -Destination "standalone-smoke-report.json"
+      - name: Upload path-free Windows evidence only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ordifile-standalone-windows-evidence-${{ github.run_id }}
+          path: |
+            standalone-candidate/standalone-manifest.json
+            standalone-candidate/SHA256SUMS.txt
+            standalone-smoke-report.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+          overwrite: false
+
+  macos-prototype:
+    name: Build and smoke unsigned macOS prototype
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.3"
+      - name: Install exact standalone toolchain
+        run: |
+          python -m pip install --requirement packaging/standalone/requirements-build.lock
+          python -m pip install --no-deps .
+      - name: Create public checkout-independent smoke kit
+        run: >-
+          python scripts/standalone/smoke.py make-kit
+          --output standalone-smoke-kit
+          --generator-root tests/fixtures/synthetic
+      - name: Select native target
+        id: platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64) target="macos-arm64" ;;
+            x86_64) target="macos-x86_64" ;;
+            *) echo "Unsupported macOS architecture." >&2; exit 1 ;;
+          esac
+          echo "target=${target}" >> "${GITHUB_OUTPUT}"
+      - name: Build and audit native candidate
+        run: >-
+          python scripts/standalone/build.py
+          --source .
+          --output standalone-candidate
+          --commit "${{ github.sha }}"
+          --target "${{ steps.platform.outputs.target }}"
+      - name: Smoke immutable macOS bytes outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="${GITHUB_WORKSPACE}/standalone-candidate"
+          scratch="${RUNNER_TEMP}/ordifile-standalone-smoke"
+          mkdir "${scratch}"
+          cp -R "${GITHUB_WORKSPACE}/standalone-smoke-kit" "${scratch}/kit"
+          read -r checksum filename < "${candidate}/SHA256SUMS.txt"
+          archive="${candidate}/${filename}"
+          test -f "${archive}"
+          test "$(shasum -a 256 "${archive}" | awk '{print $1}')" = "${checksum}"
+          grep -q '"publishable": false' "${candidate}/standalone-manifest.json"
+          grep -Eq '"signature_state": "(UNSIGNED_PROTOTYPE|AD_HOC_NOT_NOTARIZED)"' \
+            "${candidate}/standalone-manifest.json"
+          test "$(jq -r '.outer_artifact.filename' "${candidate}/standalone-manifest.json")" = "${filename}"
+          test "$(jq -r '.outer_artifact.sha256' "${candidate}/standalone-manifest.json")" = "${checksum}"
+          test "$(jq -r '.outer_artifact.size' "${candidate}/standalone-manifest.json")" = "$(stat -f '%z' "${archive}")"
+          test "$(jq -r '.bundle_total_size' "${candidate}/standalone-manifest.json")" -gt 0
+          ditto -x -k "${archive}" "${scratch}/expanded"
+          executables="$(find "${scratch}/expanded" -type f -path '*/Contents/MacOS/Ordifile' -print)"
+          count="$(printf '%s\n' "${executables}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          test "${count}" -eq 1
+          bundle="${executables%/Contents/MacOS/Ordifile}"
+          python scripts/standalone/verify.py \
+            --bundle "${bundle}" \
+            --manifest "${candidate}/standalone-manifest.json" \
+            --commit "${{ github.sha }}" \
+            --target "${{ steps.platform.outputs.target }}"
+          cd "${scratch}"
+          unset PYTHONPATH
+          export PYTHONNOUSERSITE=1
+          export QT_QPA_PLATFORM=offscreen
+          "${executables}" --standalone-smoke \
+            --kit "${scratch}/kit" \
+            --output "${scratch}/standalone smoke 결과.xlsx" \
+            --report "${scratch}/standalone smoke report.json"
+          "${executables}" --standalone-window-smoke
+          grep -q '"status": "PASS"' "${scratch}/standalone smoke report.json"
+          grep -q '"existing_output_preserved": true' "${scratch}/standalone smoke report.json"
+          cp "${scratch}/standalone smoke report.json" "${GITHUB_WORKSPACE}/standalone-smoke-report.json"
+      - name: Upload path-free macOS evidence only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ordifile-standalone-macos-evidence-${{ github.run_id }}
+          path: |
+            standalone-candidate/standalone-manifest.json
+            standalone-candidate/SHA256SUMS.txt
+            standalone-smoke-report.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+          overwrite: false
