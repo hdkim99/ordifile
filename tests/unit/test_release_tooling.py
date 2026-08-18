@@ -24,7 +24,7 @@ def _source_tree(path: Path, version: str = "0.1.0", *, gui: bool = True) -> Pat
     (path / "src" / "ordifile").mkdir(parents=True)
     gui_contract = (
         '\nordifile-gui = "ordifile.desktop.app:main"\n'
-        '\n[project.optional-dependencies]\ngui = ["PySide6-Essentials>=6.11.2,<6.12"]\n'
+        '\n[project.optional-dependencies]\ngui = ["PySide6-Essentials==6.11.2"]\n'
         if gui
         else "\n"
     )
@@ -47,7 +47,7 @@ def _source_tree(path: Path, version: str = "0.1.0", *, gui: bool = True) -> Pat
 
 def _metadata(version: str, *, gui: bool = True) -> bytes:
     gui_metadata = (
-        "Provides-Extra: gui\nRequires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n"
+        "Provides-Extra: gui\nRequires-Dist: pyside6-essentials==6.11.2; extra == 'gui'\n"
         if gui
         else ""
     )
@@ -405,7 +405,7 @@ def test_wheel_rejects_missing_or_unconditional_gui_dependency_metadata(tmp_path
     prefix = "ordifile-0.1.0.dist-info/"
     missing_extra = tmp_path / "missing-extra.whl"
     metadata_without_extra = _metadata("0.1.0").replace(
-        b"Provides-Extra: gui\nRequires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n",
+        b"Provides-Extra: gui\nRequires-Dist: pyside6-essentials==6.11.2; extra == 'gui'\n",
         b"",
     )
     _write_wheel(
@@ -418,9 +418,9 @@ def test_wheel_rejects_missing_or_unconditional_gui_dependency_metadata(tmp_path
 
     unconditional = tmp_path / "unconditional-gui.whl"
     unconditional_metadata = _metadata("0.1.0").replace(
-        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n",
-        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n"
-        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2\n",
+        b"Requires-Dist: pyside6-essentials==6.11.2; extra == 'gui'\n",
+        b"Requires-Dist: pyside6-essentials==6.11.2; extra == 'gui'\n"
+        b"Requires-Dist: pyside6-essentials==6.11.2\n",
     )
     _write_wheel(
         unconditional,

@@ -23,7 +23,7 @@ policy, or workbook generation.
 | Accessibility | Keyboard traversal and labels; cross-platform assistive-technology coverage is not explicit | Keyboard focus plus documented MSAA, macOS Accessibility, and AT-SPI backends | Keyboard traversal; extended `wx.Accessible` support is Windows-specific |
 | Testability | Event generation, no dedicated GUI test module | QtTest, QTest, QSignalSpy, and model testing | UIActionSimulator, with platform limitations |
 | License | PSF plus permissive Tcl/Tk terms | LGPLv3/GPL/commercial | wxWindows Library Licence 3.1 |
-| Dependency size | Lowest | Highest; Essentials wheels are tens of MiB | Smaller wheels, but uneven Linux distribution |
+| Dependency size | Lowest | Highest; Essentials wheels are roughly 55–106 MiB depending on platform | Smaller wheels, but uneven Linux distribution |
 | Packaging path | Widely supported by bundlers | Official deployment tooling plus third-party bundlers | Supported by third-party bundlers |
 
 Tkinter is the lightest option, but it does not meet the required external
@@ -37,8 +37,9 @@ cross-platform deployment tooling.
 ## Dependency and license boundary
 
 - `pip install ordifile` does not install Qt.
-- `pip install ordifile[gui]` installs `PySide6-Essentials` within the reviewed
-  `6.11.x` line.
+- `pip install ordifile[gui]` installs the exact reviewed
+  `PySide6-Essentials==6.11.2` baseline. Its required `shiboken6` companion is pinned
+  transitively to the same version by that distribution.
 - The current implementation imports only QtCore, QtGui, and QtWidgets from
   Essentials. QtTest remains an available framework capability but is not currently
   imported by Ordifile.
@@ -56,6 +57,12 @@ worker that calls the synchronous public API outside the UI thread. Conversion d
 not require a network connection and has no telemetry. Forced cancellation is omitted
 until a public cooperative cancellation contract can preserve workbook transaction
 safety.
+
+Preview and conversion never maintain a GUI-owned adapter list. A synthetic YoungIn
+Result Table regression demonstrates that a newly registered Experimental adapter is
+detected through `inspect_inputs()` and produces the same scientific workbook sheets
+through the desktop service and direct public `convert()` call, without a desktop
+vendor branch.
 
 ## Evidence
 

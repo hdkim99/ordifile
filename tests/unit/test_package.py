@@ -73,7 +73,7 @@ def test_built_wheel_contains_only_ordifile_package_and_entry_points(tmp_path: P
     assert "Project-URL: Repository, https://github.com/hdkim99/ordifile" in metadata
     assert "Requires-Dist: olefile<0.48,>=0.47" in metadata
     assert "Provides-Extra: gui" in metadata
-    assert "Requires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'" in metadata
-    assert "Requires-Dist: pyside6-essentials<6.12,>=6.11.2\n" not in metadata
+    assert "Requires-Dist: pyside6-essentials==6.11.2; extra == 'gui'" in metadata
+    assert "Requires-Dist: pyside6-essentials==6.11.2\n" not in metadata
     assert "Requires-Dist: types-olefile==0.47.0.20260508; extra == 'dev'" in metadata
     assert "Requires-Dist: types-olefile==0.47.0.20260508\n" not in metadata

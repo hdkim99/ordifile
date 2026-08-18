@@ -166,11 +166,11 @@ profile with RT/start/end minutes and unresolved area/height units. The paired G
 same-run cross-validation, not broad vendor conformance. Other text exports, versions,
 instruments, detectors, channels and identified-compound shapes remain unsupported.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
-paired official export, public native reader, or reader SDK was found. One local-only
-owner archive supplies the 23 PRM files used for an exact Experimental structural
-reader. Official DataApex documentation supports a positional PRM open followed by
-`export_results` and `prm_close_discard`, so a local vendor-export bridge now provides
-an active evidence path. The accessible Windows environment has no YL-Clarity
-installation; exact OEM compatibility remains unresolved until the one-file pilot.
-These gaps continue to block broad YoungIn claims and Verified scientific semantics
-while native files and generated exports remain outside Git and release distributions.
+public native reader, or reader SDK was found. One local-only owner archive supplies
+the 23 PRM files used for an exact Experimental structural reader. Two separately
+owner-generated local Result Table exports now establish six explicit RT/Area/Height
+rows and one empty FID plus two populated TCD signal sections for a separate exact
+Experimental Result adapter. Their bytes contain no OEM/version marker, so attribution
+is external provenance and broad YoungIn/Clarity claims remain blocked. Native files
+and generated exports stay outside Git and release distributions; public tests are
+independently synthetic.

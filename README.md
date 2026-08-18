@@ -21,7 +21,7 @@ boundaries and semantics.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
 XLSX using Ordifile's documented schema. The current development source tree also
-includes six narrowly bounded Experimental proprietary readers described below; this
+includes seven narrowly bounded Experimental proprietary readers described below; this
 is not general vendor-format support. Published availability is shown by the PyPI badge.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
@@ -138,6 +138,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Stored-label channels + ordered raw binary32 records; no time axis or unit | Experimental | 23 owner-supplied local-only files |
+| YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 
 These Experimental adapters have the exact capability boundaries below. Unsupported
 profiles are rejected rather than interpreted broadly.
@@ -194,6 +195,16 @@ ordinal, not retention time. No physical scaling or unit is applied, and peaks a
 exported. Runtime sample IDs are content-derived, and no filename-derived grouping is
 exported. It does not claim other PRM generations, recovery `.RAW`, Autochro, calibrated
 chromatograms, or write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).
+
+The separate YoungIn Result adapter reads the exact CP949-compatible, tab-delimited
+Result Table grammar established by two owner-generated exports. It preserves six
+source rows with explicit RT (min), area (mV.s), height (mV), signal number/name and
+source order without requiring PRM. One observed FID section explicitly has no peaks;
+the two populated TCD sections remain independent channels. `Signal Name` is not
+promoted to detector identity, W05 is not an integration boundary, and Total,
+percentage and empty compound-table rows are not peaks. The bytes contain no OEM or
+software-version marker, so broader YL-Clarity/Clarity CSV support is not claimed. See
+the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md).
 
 ## CLI
 
@@ -303,16 +314,11 @@ Good first contributions include an additional synthetic delimiter fixture, a cl
 error-message test, a documentation translation, or a small adapter proposal backed by
 an openly redistributable fixture.
 
-**Local vendor-export bridge ready:** the Experimental YoungIn raw adapter does not
-expose a peak result table, so Result support is being pursued through the ordinary
-YL-Clarity vendor export path rather than further PRM result-table speculation. The
-maintainer bridge stages SHA-named copies of the 23 local PRM inputs and uses the
-documented positional-PRM, `export_results`, and discard-close sequence one run at a
-time. A bounded search of the accessible Windows environment found no YL-Clarity
-installation; license state was not assessed because no installation was found. Exact
-OEM command compatibility and the exported RT/area grammar therefore remain blocked
-on a one-file pilot. The bridge, not the vendor application, is public; native inputs
-and generated exports remain local-only.
+**YoungIn Result export confirmed:** two owner-generated YL-Clarity exports establish
+the exact Result Table RT/area/height grammar used by the Experimental standalone
+adapter. The maintainer bridge remains available for future local batch generation,
+but it is not a runtime or CI dependency. Native PRM inputs and actual exports remain
+local-only; public tests use independent synthetic values.
 
 On a normally licensed Windows workstation, the one-command pilot-gated batch is:
 
@@ -322,7 +328,7 @@ py scripts/local/youngin_yl_clarity_export_bridge.py <prm-or-directory-or-zip> `
   [--executable <vendor-executable>]
 ```
 
-If the pilot reports that explicit RT and Area headers are absent, enable **Result
+If a future pilot reports that explicit RT and Area headers are absent, enable **Result
 Table**, **Table Headers**, **Text File**, and preferably **In Fixed Format** once in
 YL-Clarity's **Export Data** settings, then rerun the bridge. Do not add the vendor
 application, generated exports, or native inputs to the repository.
@@ -355,8 +361,9 @@ The bridge rejects output inside a Git worktree unless it is below Ordifile's fi
 ## Limits
 
 - One input file represents one sample.
-- Text input is UTF-8 or UTF-8 with BOM. Delimiters are fixed per adapter; guessing is
-  not supported.
+- Generic delimited-text input is UTF-8 or UTF-8 with BOM. Exact proprietary text
+  adapters use only their documented fixture-backed encoding. Delimiters are fixed per
+  adapter; guessing is not supported.
 - Extension filters are normalized to lowercase dotted ASCII before discovery. At most
   32 unique filters are accepted; each has at most 32 ASCII characters after the
   leading dot, and the Manifest form is capped at 1,024 characters.

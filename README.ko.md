@@ -20,7 +20,7 @@ adapter는 각각의 exact format reader로 분리하지만, 검증된 peak row�
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
 TXT, 감사된 non-macro XLSX. 현재 개발 source tree에는 아래에 설명한 범위가 매우 좁은
-proprietary Experimental reader 여섯 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+proprietary Experimental reader 일곱 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
 않습니다. 공개된 version은 PyPI badge에서 확인할 수 있습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
@@ -135,6 +135,7 @@ signing, notarization은 Issue #6 범위이며 이번 Python package GUI에는 �
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | stored-label channel + 순서 보존 raw binary32 record, time axis/unit 없음 | Experimental | 사용자 제공 local-only 파일 23개 |
+| YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
 
 이 Experimental adapter들은 아래의 정확한 기능 경계를 가집니다. 검증되지 않은
 profile은 넓게 해석하지 않고 거부합니다.
@@ -189,6 +190,15 @@ FID/TCD grouping은 local maintainer oracle에만 남고 runtime metadata로 출
 Runtime sample ID도 파일명이 아닌 content hash로 생성됩니다. 다른 PRM generation,
 recovery `.RAW`, Autochro, calibrated chromatogram, 쓰기 기능은 지원한다고 주장하지
 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
+
+별도 YoungIn Result adapter는 사용자가 생성한 export 2개로 확정한 정확한
+CP949-compatible tab-delimited Result Table 문법만 읽습니다. PRM 없이 explicit RT(min),
+area(mV.s), height(mV), signal number/name, source order가 있는 실제 행 6개를 보존합니다.
+관측된 FID section 하나는 명시적으로 peak가 없고, peak가 있는 TCD section 두 개는
+서로 다른 channel stream으로 유지됩니다. `Signal Name`을 detector identity로 승격하지
+않으며 W05를 integration boundary로 해석하지 않고 Total/percentage/empty compound-table
+행도 peak로 만들지 않습니다. Bytes 안에는 OEM/version marker가 없으므로 더 넓은
+YL-Clarity/Clarity CSV 지원은 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md)를 확인해 주세요.
 
 ## CLI
 
@@ -295,14 +305,11 @@ validation, sorting을 수행합니다. `convert()`는 stale data를 승인하�
 처음 기여하기 좋은 작업으로는 합성 delimiter fixture 추가, 오류 메시지 테스트,
 문서 번역 개선, 공개 재배포 fixture를 사용한 소규모 adapter 제안이 있습니다.
 
-**Local vendor-export bridge 준비 완료:** Experimental YoungIn raw adapter는 peak
-result table을 노출하지 않으므로 PRM 내부 결과 구조를 더 추측하는 대신 정상
-YL-Clarity vendor export 경로로 Result 지원을 진행합니다. Maintainer bridge는 local
-PRM 23개의 SHA 기반 staging copy를 만들고 positional PRM, `export_results`, discard-close
-순서를 한 run씩 사용합니다. 현재 접근 가능한 Windows 환경을 제한적으로 탐색했으나
-YL-Clarity 설치를 찾지 못했고, 설치가 없으므로 license 상태는 평가하지 않았습니다.
-Exact OEM command 호환성과 export RT/area grammar는 한 파일 pilot 전까지 미확정입니다.
-Bridge만 공개하고 native input과 생성된 export는 local-only로 유지합니다.
+**YoungIn Result export 확정:** 사용자가 생성한 YL-Clarity export 2개로 Experimental
+standalone adapter가 사용하는 exact RT/area/height Result Table 문법을 확정했습니다.
+Maintainer bridge는 향후 local batch 생성을 위해 유지하지만 runtime/CI dependency가
+아닙니다. Native PRM과 actual export는 local-only이며 공개 test는 독립 synthetic 값을
+사용합니다.
 
 정상 라이선스된 Windows workstation에서는 다음 한 명령으로 pilot gate를 포함한
 batch를 실행합니다.
@@ -313,7 +320,7 @@ py scripts/local/youngin_yl_clarity_export_bridge.py <prm-or-directory-or-zip> `
   [--executable <vendor-executable>]
 ```
 
-Pilot에서 explicit RT와 Area header가 없다고 나오면 YL-Clarity **Export Data**에서
+향후 pilot에서 explicit RT와 Area header가 없다고 나오면 YL-Clarity **Export Data**에서
 **Result Table**, **Table Headers**, **Text File**, 가능하면 **In Fixed Format**을 한 번
 활성화한 뒤 bridge를 다시 실행합니다. Vendor application, 생성 export, native input은
 repository에 추가하지 않습니다.
@@ -346,8 +353,9 @@ Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored
 ## 제한사항
 
 - 입력 파일 하나가 시료 하나를 나타냅니다.
-- text 입력은 UTF-8 또는 UTF-8 BOM입니다. Adapter별 delimiter가 고정되며 자동 추측하지
-  않습니다.
+- 일반 delimited-text 입력은 UTF-8 또는 UTF-8 BOM입니다. Proprietary exact text
+  adapter는 fixture로 검증해 문서화한 encoding만 사용합니다. Adapter별 delimiter가
+  고정되며 자동 추측하지 않습니다.
 - Extension filter는 discovery 전에 lowercase dotted ASCII로 정규화합니다. 고유 filter는
   최대 32개이며 선행 점 뒤 ASCII suffix는 각 32자입니다. Manifest 표현은 1,024자로
   제한합니다.

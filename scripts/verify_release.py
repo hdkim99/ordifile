@@ -32,7 +32,7 @@ PROJECT_NAME = "ordifile"
 LEGACY_NAME = "labconvert"
 CONSOLE_ENTRY_POINT = "ordifile.cli.main:main"
 GUI_CONSOLE_ENTRY_POINT = "ordifile.desktop.app:main"
-GUI_EXTRA_REQUIREMENT = "pyside6-essentials<6.12,>=6.11.2; extra == 'gui'"
+GUI_EXTRA_REQUIREMENT = "pyside6-essentials==6.11.2; extra == 'gui'"
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*)\."
@@ -128,9 +128,7 @@ def _source_gui_contract(source_root: Path) -> tuple[dict[str, str], bool]:
         )
     expected = {PROJECT_NAME: CONSOLE_ENTRY_POINT}
     if has_gui_script:
-        if type(gui_dependencies) is not list or gui_dependencies != [
-            "PySide6-Essentials>=6.11.2,<6.12"
-        ]:
+        if type(gui_dependencies) is not list or gui_dependencies != ["PySide6-Essentials==6.11.2"]:
             raise ReleaseVerificationError("the source gui extra has an unexpected dependency set")
         expected[f"{PROJECT_NAME}-gui"] = GUI_CONSOLE_ENTRY_POINT
     if normalized_scripts != expected:

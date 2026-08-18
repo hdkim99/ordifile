@@ -5,8 +5,8 @@ vendor software, SDKs, DLLs, executables, or instrument files.
 
 The following packages are declared dependencies. They are installed separately by the
 Python package manager and are not copied into this source repository. Versions below
-are the versions reviewed for the initial release; the package metadata constrains the
-accepted versions.
+are the versions reviewed for the current dependency baseline; the package metadata
+constrains the accepted versions.
 
 ## Runtime dependencies
 

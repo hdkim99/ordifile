@@ -566,7 +566,7 @@ def test_relative_success_restores_path_and_only_sha_owner_probe_is_redacted(
 @pytest.mark.parametrize(
     ("adapters", "expected_code"),
     (
-        ((_RelativeMatch(), _AdapterAliasAttempt()), "FORMAT_AMBIGUOUS"),
+        ((_RelativeMatch(), _AdapterAliasAttempt()), "SOURCE_IDENTITY_TEST_WARNING"),
         ((_RelativeNonMatch(), _ShaNonMatch()), "FORMAT_NOT_DETECTED"),
         (
             (_RelativeCorrupt(), _ShaNonMatch()),
@@ -605,7 +605,7 @@ def test_any_hash_owner_hides_private_basename_on_detection_and_parse_failures(
     (
         ((_AdapterAliasAttempt(),), 0),
         ((_RelativeNonMatch(), _ShaNonMatch()), 1),
-        ((_RelativeMatch(), _AdapterAliasAttempt()), 1),
+        ((_RelativeMatch(), _AdapterAliasAttempt()), 0),
         ((_RelativeCorrupt(), _ShaNonMatch()), 1),
     ),
 )

@@ -24,6 +24,14 @@ failure retains the conservative SHA alias. SHA-aliased results use their public
 reference for deterministic sorting; successful generic relative-path ordering is
 unchanged.
 
+When a `SHA256_ALIAS` adapter makes a positive content-ownership claim, detection
+considers only positively matched SHA-policy owners for selection and ambiguity.
+This rule is independent of confidence: a broader relative-path parser cannot win a
+score comparison over a recognized but malformed private family and thereby expose
+its basename or private fields. A generic adapter still regains relative provenance
+when every privacy-sensitive owner returns no match and the generic parse, validation
+and integrity gates succeed.
+
 An adapter's `DetectionResult.reason` is untrusted text. Under an effective
 `SHA256_ALIAS` policy, the core replaces reasons from privacy-sensitive owner IDs with
 one fixed non-identifying explanation before constructing no-match or ambiguity errors
@@ -56,9 +64,10 @@ Generic results retain their original path provenance.
 
 The YoungIn YL-Clarity PRM raw adapter is the first opt-in user. Its owner-supplied
 fixtures can have privacy-bearing native basenames, while the full content hash already
-provides stable provenance. The exact Agilent Result XML and Shimadzu LabSolutions
-result ASCII adapters also opt in because their fixture evidence shows privacy-bearing
-source metadata and names. This is not a vendor-specific exception.
+provides stable provenance. The exact Agilent Result XML, Shimadzu LabSolutions result
+ASCII and YoungIn YL-Clarity Result Table CSV adapters also opt in because their
+fixture evidence shows privacy-bearing source metadata and names. This is not a
+vendor-specific exception.
 
 ## Result sources
 
@@ -67,7 +76,8 @@ A standalone vendor result adapter must bind every canonical `PeakRecord` and me
 row to the same core-owned public source reference. RT/area result consolidation
 remains manufacturer-neutral: the first exact Agilent Result XML adapter maps evidence-
 backed rows to `PeakRecord`, `Peaks`, compound `Peak_Matrix`, and the conditional
-source-order `Peak_Order_Matrix`; the exact Shimadzu result ASCII adapter maps its
-evidence-backed Peak Table rows to the same contract. Future vendor-specific parsers
-or fields remain blocked until an actual result fixture proves their boundaries and
-semantics.
+source-order `Peak_Order_Matrix`; the exact Shimadzu result ASCII and YoungIn Result
+Table CSV adapters map their evidence-backed peak rows to the same contract. YoungIn
+signal sections remain independent source-order matrix streams without inferred
+detector or compound identity. Future vendor-specific parsers or fields remain blocked
+until an actual result fixture proves their boundaries and semantics.

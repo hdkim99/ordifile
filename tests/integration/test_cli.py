@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -70,10 +71,11 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "shimadzu_labsolutions_result_ascii" in output
     assert "shimadzu_gcmssolution_qgd" in output
     assert "youngin_yl_clarity_prm_raw" in output
+    assert "youngin_yl_clarity_result_csv" in output
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 6" in output
+    assert "Experimental adapters: 7" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 
@@ -422,7 +424,10 @@ def test_convert_partial_success_returns_three(
     assert "Status: partial success" in output
     assert "Successful files: 1" in output
     assert "Failed files: 1" in output
-    assert "bad.csv [FORMAT_NOT_DETECTED]" in output
+    bad_sha256 = hashlib.sha256(bytes((0xFF, 0xFE))).hexdigest()
+    safe_source = f"source-{bad_sha256}"
+    assert f"{safe_source} [FORMAT_NOT_DETECTED]" in output
+    assert "bad.csv" not in output
     assert output_path.is_file()
 
 
@@ -535,7 +540,10 @@ def test_on_error_stop_identifies_first_failed_file(
     )
     captured = capsys.readouterr()
     assert "Error [BATCH_FILE_FAILURE]" in captured.err
-    assert "source_file=bad.csv" in captured.err
+    bad_sha256 = hashlib.sha256(bytes((0xFF, 0xFE))).hexdigest()
+    safe_source = f"source-{bad_sha256}"
+    assert f"source_file={safe_source}" in captured.err
+    assert "bad.csv" not in captured.err
     assert "error_code=FORMAT_NOT_DETECTED" in captured.err
     assert not output.exists()
 

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "manifest_distribution": "tracked_public_sanitized_evidence",
+  "source_bytes_distribution": "local_only_untracked",
+  "fixture_set_id": "owner-yl-clarity-result-table-csv-2026-08-18",
+  "source_count": 2,
+  "encoding": "CP949-compatible; exact declaration absent",
+  "delimiter": "tab",
+  "line_endings": "CRLF",
+  "producer_marker_in_bytes": false,
+  "software_version_marker_in_bytes": false,
+  "owner_provenance": "YL-Clarity export confirmed outside the runtime byte grammar",
+  "sources": [
+    {
+      "public_id": "source-d4987151cba83068b5143cf90c6b0e78f1fee6b3c9f04c38d8cb97441ddfadd7",
+      "sha256": "d4987151cba83068b5143cf90c6b0e78f1fee6b3c9f04c38d8cb97441ddfadd7",
+      "size_bytes": 1009,
+      "result_sections": 1,
+      "signal_sections": [
+        {
+          "number": 1,
+          "name": "TCD",
+          "status": "peaks_reported",
+          "peak_rows": 2
+        }
+      ],
+      "retention_time_digest": "f839fe4904fafd0688cb0d1d5777c73b7b3ad5def2e55dc7d21dd540227a33c7",
+      "area_digest": "4cc8faaee92c77199d3105716fbdc2bc61f8e7152b6e7bb1d829dcadbaa4fb61",
+      "height_digest": "1262a6109a9b3afcba063e775d1d450dd4a39271e66d43dbba9a8e249370dab0",
+      "paired_prm_sha256": "db3a838ae0c69e0b6518a44deb10204f08f98ef6367a7ea40c88e98f39fcf2be"
+    },
+    {
+      "public_id": "source-0ceb70ba51e41607a5a6ca4476c9b77e6e2bce41d56e47b865085bb3ea71f67b",
+      "sha256": "0ceb70ba51e41607a5a6ca4476c9b77e6e2bce41d56e47b865085bb3ea71f67b",
+      "size_bytes": 1802,
+      "result_sections": 2,
+      "signal_sections": [
+        {
+          "number": 1,
+          "name": "FID",
+          "status": "no_peaks_reported",
+          "peak_rows": 0
+        },
+        {
+          "number": 2,
+          "name": "TCD",
+          "status": "peaks_reported",
+          "peak_rows": 4
+        }
+      ],
+      "retention_time_digest": "c6a2f265a171e92380998c0f6862cfbf20b4f20772ae71b2c1bd38156168874e",
+      "area_digest": "7f0cd6365208bbd2e595f80dc39d16024be5e6b7440bce89ba248a23e17a115f",
+      "height_digest": "7e29b557e851bed7a9b3ab7deccb617f3f17b8171124c4b1310d74ba956aea74",
+      "paired_prm_sha256": "327fc24585b21d553967231238f1648cdd06012a592b4c3682cd31178d3c1d29"
+    }
+  ],
+  "aggregate_peak_rows": 6,
+  "retention_time_unit": "min",
+  "area_unit": "mV.s",
+  "height_unit": "mV",
+  "raw_result_pairing": "confirmed_local_owner_evidence",
+  "redistribution": "not_permitted_without_separate_owner_authorization",
+  "manifest_tracked": true,
+  "source_bytes_tracked": false,
+  "ci_eligible": false,
+  "actions_artifact_eligible": false,
+  "privacy_review": "contains_private_run_metadata; scientific allowlist only"
+}

@@ -63,6 +63,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "shimadzu_gcmssolution_qgd",
         "shimadzu_labsolutions_result_ascii",
         "youngin_yl_clarity_prm_raw",
+        "youngin_yl_clarity_result_csv",
     }
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
@@ -72,6 +73,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_labsolutions_result_ascii"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL
+    assert statuses["youngin_yl_clarity_result_csv"] is SupportStatus.EXPERIMENTAL
     assert all(
         status is SupportStatus.VERIFIED
         for adapter_id, status in statuses.items()
@@ -84,6 +86,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_labsolutions_result_ascii"] == ()
     assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
+    assert series_kinds["youngin_yl_clarity_result_csv"] == ()
     assert all(
         kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)
         for adapter_id, kinds in series_kinds.items()
@@ -91,6 +94,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     )
     identity_policies = {item.adapter_id: item.source_identity_policy for item in descriptors}
     assert identity_policies["youngin_yl_clarity_prm_raw"] is SourceIdentityPolicy.SHA256_ALIAS
+    assert identity_policies["youngin_yl_clarity_result_csv"] is SourceIdentityPolicy.SHA256_ALIAS
     assert identity_policies["agilent_chemstation_result_xml"] is SourceIdentityPolicy.SHA256_ALIAS
     assert (
         identity_policies["shimadzu_labsolutions_result_ascii"] is SourceIdentityPolicy.SHA256_ALIAS
@@ -103,6 +107,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
             "youngin_yl_clarity_prm_raw",
             "agilent_chemstation_result_xml",
             "shimadzu_labsolutions_result_ascii",
+            "youngin_yl_clarity_result_csv",
         }
     )
 

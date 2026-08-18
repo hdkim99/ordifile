@@ -83,7 +83,7 @@ def _file_reports(result: BatchResult) -> tuple[DesktopFileReport, ...]:
     for item in result.files:
         adapter_id = item.adapter_id or ""
         format_name, evidence = descriptors.get(adapter_id, ("Not detected", ""))
-        if evidence:
+        if evidence and evidence.casefold() not in format_name.casefold():
             format_name = f"{format_name} ({evidence})"
         issue = next(
             (candidate for candidate in item.issues if candidate.severity is Severity.ERROR),

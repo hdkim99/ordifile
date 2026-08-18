@@ -32,6 +32,9 @@ from ordifile.adapters.shimadzu_labsolutions_result_ascii import (
     ShimadzuLabsolutionsResultAsciiAdapter,
 )
 from ordifile.adapters.youngin_yl_clarity_prm_raw import YoungInYlClarityPrmRawAdapter
+from ordifile.adapters.youngin_yl_clarity_result_csv import (
+    YoungInYlClarityResultCsvAdapter,
+)
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import SeriesKind
 from ordifile.core.workbook_text import workbook_audit_display, workbook_text_is_exact
@@ -199,6 +202,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(ShimadzuGcmssolutionQgdAdapter())
     registry.register(ShimadzuLabsolutionsResultAsciiAdapter())
     registry.register(YoungInYlClarityPrmRawAdapter())
+    registry.register(YoungInYlClarityResultCsvAdapter())
     if include_external:
         load_external_adapters(registry)
     return registry
