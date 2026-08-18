@@ -9,7 +9,7 @@ exact observed YL-Clarity PRM profile. The purpose of this request is to obtain 
 lawful, privacy-reviewed paired material to validate scientific time, scaling, units
 and detector semantics. It is not a request for broad YOUNG IN Chromass support.
 
-## Intake status — 2026-08-17
+## Intake and export-generation status — 2026-08-18
 
 An owner-supplied, local-only archive has fulfilled the initial structural-file request.
 It contains 23 unique completed `.prm` files with the exact observed YL-Clarity
@@ -18,11 +18,17 @@ It contains 23 unique completed `.prm` files with the exact observed YL-Clarity
 stored-label channel separation are Experimental GO. Filename groups remain user
 labels, and scientific detector meaning is not independently verified.
 
-The remaining minimum request is a privacy-reviewed official `.chr`, `.txt`, or `.cdf`
-export from at least one of those exact runs, the matching detector/channel
-configuration, and the vendor procedure used to create the export. A multi-detector
-claim also requires a confirmed FID+TCD run and its complete multi-signal export. The
-local native files remain `ACCEPT_EXTERNAL_ONLY` and must not be attached to Issue #2.
+Ordifile no longer waits indefinitely for a separately supplied result fixture. A
+maintainer-only local bridge now automates the documented YL-Clarity/Clarity Result
+Table export path for these 23 PRM files. A bounded search found no YL-Clarity
+installation in the accessible Windows environment; license state was not assessed
+because no installation was found. The exact 9.0.1.19 OEM command surface and one-file
+pilot therefore remain unresolved. The operational status is
+`LOCAL_VENDOR_EXPORT_BRIDGE_READY`: once the bridge is run on a normally licensed
+YL-Clarity workstation, a successful explicit RT+Area export moves directly to exact
+adapter implementation. A multi-detector claim still requires a confirmed FID+TCD run
+and complete multi-signal export. The native files and generated exports remain
+`ACCEPT_EXTERNAL_ONLY` and must not be attached to Issue #2.
 
 ## Minimum useful set
 

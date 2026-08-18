@@ -270,10 +270,31 @@ Good first contributions include an additional synthetic delimiter fixture, a cl
 error-message test, a documentation translation, or a small adapter proposal backed by
 an openly redistributable fixture.
 
-**Under investigation:** the Experimental YoungIn raw adapter does not expose a peak
-result table. The 23 current PRM fixtures contain no proven RT+area result structure;
-a same-run `export_results` companion is required before a YoungIn result adapter is
-implemented. This does not block the separately bounded raw-record converter.
+**Local vendor-export bridge ready:** the Experimental YoungIn raw adapter does not
+expose a peak result table, so Result support is being pursued through the ordinary
+YL-Clarity vendor export path rather than further PRM result-table speculation. The
+maintainer bridge stages SHA-named copies of the 23 local PRM inputs and uses the
+documented positional-PRM, `export_results`, and discard-close sequence one run at a
+time. A bounded search of the accessible Windows environment found no YL-Clarity
+installation; license state was not assessed because no installation was found. Exact
+OEM command compatibility and the exported RT/area grammar therefore remain blocked
+on a one-file pilot. The bridge, not the vendor application, is public; native inputs
+and generated exports remain local-only.
+
+On a normally licensed Windows workstation, the one-command pilot-gated batch is:
+
+```powershell
+py scripts/local/youngin_yl_clarity_export_bridge.py <prm-or-directory-or-zip> `
+  --output <outside-git-or-ignored-local-output> --batch `
+  [--executable <vendor-executable>]
+```
+
+If the pilot reports that explicit RT and Area headers are absent, enable **Result
+Table**, **Table Headers**, **Text File**, and preferably **In Fixed Format** once in
+YL-Clarity's **Export Data** settings, then rerun the bridge. Do not add the vendor
+application, generated exports, or native inputs to the repository.
+The bridge rejects output inside a Git worktree unless it is below Ordifile's fixed
+`.external-fixtures`, `.research-downloads`, or `fixture-cache` ignored roots.
 
 ## Integrity and security boundaries
 

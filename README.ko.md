@@ -264,10 +264,30 @@ print(result.success_count, result.failure_count, result.sort.effective)
 처음 기여하기 좋은 작업으로는 합성 delimiter fixture 추가, 오류 메시지 테스트,
 문서 번역 개선, 공개 재배포 fixture를 사용한 소규모 adapter 제안이 있습니다.
 
-**조사 중:** Experimental YoungIn raw adapter는 peak result table을 노출하지 않습니다.
-현재 PRM fixture 23개에는 검증된 RT+area result 구조가 없으므로 같은 run의
-`export_results` companion을 확보하기 전에는 YoungIn result adapter를 구현하지 않습니다.
-이는 별도로 범위를 제한한 raw-record converter를 막지 않습니다.
+**Local vendor-export bridge 준비 완료:** Experimental YoungIn raw adapter는 peak
+result table을 노출하지 않으므로 PRM 내부 결과 구조를 더 추측하는 대신 정상
+YL-Clarity vendor export 경로로 Result 지원을 진행합니다. Maintainer bridge는 local
+PRM 23개의 SHA 기반 staging copy를 만들고 positional PRM, `export_results`, discard-close
+순서를 한 run씩 사용합니다. 현재 접근 가능한 Windows 환경을 제한적으로 탐색했으나
+YL-Clarity 설치를 찾지 못했고, 설치가 없으므로 license 상태는 평가하지 않았습니다.
+Exact OEM command 호환성과 export RT/area grammar는 한 파일 pilot 전까지 미확정입니다.
+Bridge만 공개하고 native input과 생성된 export는 local-only로 유지합니다.
+
+정상 라이선스된 Windows workstation에서는 다음 한 명령으로 pilot gate를 포함한
+batch를 실행합니다.
+
+```powershell
+py scripts/local/youngin_yl_clarity_export_bridge.py <prm-or-directory-or-zip> `
+  --output <outside-git-or-ignored-local-output> --batch `
+  [--executable <vendor-executable>]
+```
+
+Pilot에서 explicit RT와 Area header가 없다고 나오면 YL-Clarity **Export Data**에서
+**Result Table**, **Table Headers**, **Text File**, 가능하면 **In Fixed Format**을 한 번
+활성화한 뒤 bridge를 다시 실행합니다. Vendor application, 생성 export, native input은
+repository에 추가하지 않습니다.
+Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored root인
+`.external-fixtures`, `.research-downloads`, `fixture-cache` 아래만 예외로 허용합니다.
 
 ## 무결성과 보안 경계
 
