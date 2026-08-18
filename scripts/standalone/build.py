@@ -22,9 +22,13 @@ from pathlib import Path
 from ordifile import __version__
 
 try:
-    from .verify import build_manifest, write_manifest
+    from .verify import StandaloneVerificationError, build_manifest, write_manifest
 except ImportError:
-    from verify import build_manifest, write_manifest  # type: ignore[import-not-found,no-redef]
+    from verify import (  # type: ignore[import-not-found,no-redef]
+        StandaloneVerificationError,
+        build_manifest,
+        write_manifest,
+    )
 
 NUITKA_VERSION = "4.1.3"
 LICENSE_DISTRIBUTIONS = (
@@ -38,6 +42,9 @@ BUILD_FAILURE_STAGES = frozenset(
     {
         "archive",
         "bundle-audit",
+        "bundle-audit-network-runtime",
+        "bundle-audit-private-data",
+        "bundle-audit-prohibited-data",
         "bundle-discovery",
         "deploy",
         "license-inventory",
@@ -55,6 +62,21 @@ class StandaloneBuildStageError(RuntimeError):
         safe_stage = stage if stage in BUILD_FAILURE_STAGES else "unknown"
         super().__init__(safe_stage)
         self.stage = safe_stage
+
+
+def _bundle_audit_failure_stage(error: StandaloneVerificationError) -> str:
+    message = str(error)
+    if message == "An unneeded Qt network component is bundled.":
+        return "bundle-audit-network-runtime"
+    if message in {
+        "Private build data is embedded in a bundle path.",
+        "Private build data is embedded in a bundle symlink.",
+        "Private build data is embedded in the standalone bundle.",
+    }:
+        return "bundle-audit-private-data"
+    if message == "A prohibited scientific fixture is bundled.":
+        return "bundle-audit-prohibited-data"
+    return "bundle-audit"
 
 
 def _render_spec(template: Path, destination: Path, stage: Path, executable_dir: Path) -> None:
@@ -244,13 +266,17 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
                 if signature.returncode == 0 and "Signature=adhoc" in signature.stderr:
                     signature_state = "AD_HOC_NOT_NOTARIZED"
             build_stage = "bundle-audit"
-            manifest = build_manifest(
-                bundle,
-                commit=commit,
-                target=target,
-                signature_state=signature_state,
-                forbidden_text=_private_build_paths(source, temporary_stage),
-            )
+            try:
+                manifest = build_manifest(
+                    bundle,
+                    commit=commit,
+                    target=target,
+                    signature_state=signature_state,
+                    forbidden_text=_private_build_paths(source, temporary_stage),
+                )
+            except StandaloneVerificationError as error:
+                build_stage = _bundle_audit_failure_stage(error)
+                raise
             build_stage = "archive"
             output.mkdir(parents=True)
             archive = output / f"Ordifile-{__version__}-{target}-UNSIGNED.zip"

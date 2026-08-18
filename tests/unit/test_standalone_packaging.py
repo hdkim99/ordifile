@@ -445,6 +445,25 @@ def test_build_cli_reports_only_fixed_failure_stage(
     assert "private-stage-sentinel" not in captured.out
 
 
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("An unneeded Qt network component is bundled.", "bundle-audit-network-runtime"),
+        ("Private build data is embedded in a bundle path.", "bundle-audit-private-data"),
+        ("Private build data is embedded in a bundle symlink.", "bundle-audit-private-data"),
+        ("Private build data is embedded in the standalone bundle.", "bundle-audit-private-data"),
+        ("A prohibited scientific fixture is bundled.", "bundle-audit-prohibited-data"),
+        ("private arbitrary verification detail", "bundle-audit"),
+    ],
+)
+def test_bundle_audit_failure_stage_is_allowlisted(message: str, expected: str) -> None:
+    error = standalone_verify.StandaloneVerificationError(message)
+    stage = standalone_build._bundle_audit_failure_stage(error)
+    assert stage == expected
+    assert stage in standalone_build.BUILD_FAILURE_STAGES
+    assert "private arbitrary" not in stage
+
+
 def test_build_candidate_converts_internal_detail_to_fixed_stage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
