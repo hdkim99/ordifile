@@ -21,8 +21,44 @@ env:
   PYTHONUTF8: "1"
 
 jobs:
+  dispatch-preflight:
+    name: Validate reviewed dispatch identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reject unreviewed or mismatched dispatch
+        shell: bash
+        env:
+          DISPATCH_EVENT: ${{ github.event_name }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_REF_TYPE: ${{ github.ref_type }}
+          DISPATCH_REPOSITORY: ${{ github.repository }}
+          DISPATCH_SHA: ${{ github.sha }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${DISPATCH_REPOSITORY}" != "hdkim99/ordifile" ||
+                "${DISPATCH_EVENT}" != "workflow_dispatch" ||
+                "${DISPATCH_REF_TYPE}" != "branch" ]]; then
+            echo "Standalone dispatch identity is not authorized." >&2
+            exit 1
+          fi
+          if [[ "${DISPATCH_REF}" != "refs/heads/main" &&
+                "${DISPATCH_REF}" != "refs/heads/build/standalone-prototype" ]]; then
+            echo "Standalone dispatch ref is not authorized." >&2
+            exit 1
+          fi
+          if [[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ||
+                "${DISPATCH_SHA}" != "${EXPECTED_COMMIT}" ||
+                "${WORKFLOW_SHA}" != "${DISPATCH_SHA}" ]]; then
+            echo "Standalone dispatch commit identity is invalid." >&2
+            exit 1
+          fi
+
   windows-prototype:
     name: Build and smoke unsigned Windows prototype
+    needs: dispatch-preflight
     if: >-
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&
@@ -220,6 +256,7 @@ jobs:
 
   macos-prototype:
     name: Build and smoke unsigned macOS prototype
+    needs: dispatch-preflight
     if: >-
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&

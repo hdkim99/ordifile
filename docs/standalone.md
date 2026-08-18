@@ -24,7 +24,9 @@ After registration, a maintainer may select either reviewed `main` or the fixed
 same-repository prototype branch and must supply its exact reviewed 40-character commit
 as `expected_commit`. Both native jobs require the selected ref SHA, expected commit,
 and workflow-definition SHA to be identical, and checkout is pinned to that SHA. The
-input never selects a checkout target. GitHub does not expose a new branch-only manual
+input never selects a checkout target. A non-skippable Ubuntu preflight fails the run
+before either native job is eligible when any identity check disagrees. It performs no
+checkout, build, or artifact upload. GitHub does not expose a new branch-only manual
 workflow before default-branch registration; the prior pre-merge 404 was a workflow
 registration limitation, not runner-availability evidence. No token, signing secret,
 OIDC permission or vendor software is used.

@@ -98,6 +98,15 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     for prohibited_runner in ("windows-2025", "windows-latest", "windows-2022"):
         assert prohibited_runner not in text
     assert "runs-on: macos-15" in text
+    preflight = text.split("  windows-prototype:", 1)[0]
+    assert "dispatch-preflight:" in preflight
+    assert "runs-on: ubuntu-latest" in preflight
+    assert "actions/checkout@" not in preflight
+    assert "actions/upload-artifact@" not in preflight
+    assert "Standalone dispatch identity is not authorized." in preflight
+    assert "Standalone dispatch ref is not authorized." in preflight
+    assert "Standalone dispatch commit identity is invalid." in preflight
+    assert text.count("needs: dispatch-preflight") == 2
     assert text.count("github.repository == 'hdkim99/ordifile'") == 2
     assert text.count("github.event_name == 'workflow_dispatch'") == 2
     assert text.count("github.ref_type == 'branch'") == 2
@@ -107,8 +116,8 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert text.count("github.workflow_sha == github.sha") == 2
     assert text.count("ref: ${{ github.sha }}") == 2
     assert "ref: ${{ inputs.expected_commit }}" not in text
-    assert text.count("EXPECTED_COMMIT: ${{ inputs.expected_commit }}") == 2
-    assert text.count("^[0-9a-f]{40}$") == 2
+    assert text.count("EXPECTED_COMMIT: ${{ inputs.expected_commit }}") == 3
+    assert text.count("^[0-9a-f]{40}$") == 3
     assert text.count("git rev-parse HEAD") == 2
     windows_job = text.split("  macos-prototype:", 1)[0]
     assert "Mask persistent runner identifiers" in windows_job

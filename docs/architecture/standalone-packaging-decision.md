@@ -39,6 +39,9 @@ workflow identity. The full workflow accepts a required exact commit only as an
 identity assertion, never as a checkout selector. Both jobs are restricted to the
 expected repository, an allowlisted same-repository branch, and equality among the
 selected ref SHA, reviewed commit, workflow-definition SHA, and checked-out commit.
+An always-scheduled GitHub-hosted Ubuntu preflight rejects invalid dispatches so that
+two skipped native jobs cannot make a rejected request appear successful; it performs
+no checkout, packaging, self-hosted execution, or artifact upload.
 The Windows job selects the cumulative `self-hosted`,
 `Windows`, and `X64` capability labels; those labels route work but do not replace the
 repository assignment trust boundary. The persistent job uses an isolated run-scoped
