@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An Experimental standalone YoungIn YL-Clarity Result Table adapter for the exact
+  owner-validated CP949-compatible, tab-delimited export grammar. It preserves six
+  actual RT/area/height rows across two local-only exports, source-order signal
+  streams and explicit min, mV.s and mV units without claiming detector identity,
+  compound assignments, integration boundaries or a producer/version marker in bytes.
+- Synthetic single- and multi-signal fixtures, malformed-family/generic-CSV collision
+  coverage, a local-only full-sequence external regression, and a three-vendor actual
+  Result workbook gate for 36 Agilent + 83 Shimadzu + 6 YoungIn peaks.
 - A maintainer-only, privacy-safe Windows bridge for generating YL-Clarity Result
   Table exports from the 23 existing local PRM inputs through an ordinarily licensed
   vendor installation. It stages SHA-named temporary copies, records local source-to-
@@ -17,6 +25,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- YoungIn Result status advanced from local bridge readiness to Experimental GO for
+  the exact received Result Table grammar. Owner export/PRM pairing is external
+  evidence; runtime conversion remains standalone and requires no PRM or vendor app.
 - YoungIn Result work now actively generates same-run vendor exports instead of
   waiting indefinitely for an externally supplied companion. The generic Clarity
   automation route is documented, while exact YL-Clarity `9.0.1.19` OEM command

@@ -101,21 +101,22 @@ Result Table path and command-line `export_results` path export active-chromatog
 results; the GUI can write result tables to TXT/CSV or XLS/XLSX. DataApex's Result Table
 documentation identifies peak rows and retention-time ordering and explains that the
 visible fields and units depend on active signal, calibration and table settings. The
-current fixtures establish neither a YL-Clarity Result Table companion nor deterministic
-RT/area extraction. YoungIn raw-record conversion therefore remains GO, while result
-evidence is now generated actively through the ordinary licensed vendor application.
+PRM bytes themselves establish neither a Result Table nor deterministic RT/area
+extraction. Two separately owner-generated YL-Clarity Result Table exports now
+establish the standalone Result path while raw-record conversion remains an
+independent capability.
 The local bridge stages a temporary SHA-addressed PRM copy, never passes the original
 source to the vendor, invokes positional PRM open, `export_results` and
 `prm_close_discard`, validates explicit RT+Area headers, and records a sanitized local
-pairing manifest. No `PeakRecord` field or result adapter is introduced from marker
-names alone. The exact OEM pilot is currently blocked because a bounded search found
-no YL-Clarity installation in the accessible Windows environment; the operational
-state is `LOCAL_VENDOR_EXPORT_BRIDGE_READY`, not an indefinite fixture request.
+pairing manifest. No `PeakRecord` field was introduced from PRM marker names alone.
+The actual export bytes remain local-only; the exact Result adapter and full
+source-to-workbook comparison use their content without requiring the vendor
+application at runtime.
 
-The eventual result path is manufacturer-neutral: standalone Agilent, Shimadzu and
-YoungIn result adapters should map evidence-backed result rows into the existing
-`PeakRecord` model and common `Peaks` / `Peak_Matrix` sheets. Raw-signal extraction is
-optional and separate from the result-first consolidation path.
+The implemented result path is manufacturer-neutral: standalone Agilent, Shimadzu and
+YoungIn result adapters map evidence-backed rows into the existing `PeakRecord`,
+`Peaks`, conditional `Peak_Order_Matrix` and compound-only `Peak_Matrix` contract.
+Raw-signal extraction remains optional and separate.
 
 ## Capability decision
 
@@ -129,10 +130,11 @@ optional and separate from the result-first consolidation path.
 | Retention-time axis | Unsupported |
 | Physical/display scaling | Unsupported |
 | Physical unit | Unknown |
-| Peak table | Unsupported |
+| Peak table in PRM raw | Unsupported |
+| Standalone Result Table CSV | Experimental GO for the exact owner-validated profile |
 | Batch PRM to one workbook | Experimental GO |
 | Verified scientific chromatogram | Blocked by paired export |
-| Vendor Result export bridge | Local-only ready; exact OEM pilot not yet run |
+| Vendor Result export bridge | Local-only ready; actual Result exports received |
 
 ## Verified promotion inputs
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ordifile.adapters.base import DetectionResult, FormatAdapter
+from ordifile.adapters.base import DetectionResult, FormatAdapter, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.errors import AdapterAmbiguityError, DetectionError
 
@@ -89,6 +89,18 @@ def detect_adapter(
             "FORMAT_NOT_DETECTED",
             _bounded_no_match_message(reasons),
         )
+    private_matches = tuple(
+        (adapter_id, result)
+        for adapter_id, result in matches
+        if registry.get(adapter_id).descriptor.source_identity_policy
+        is SourceIdentityPolicy.SHA256_ALIAS
+    )
+    if private_matches:
+        # A privacy-sensitive adapter uses a positive match to claim ownership even
+        # when its exact parse will reject a malformed or unsupported profile. Never
+        # let a broader relative-path parser win only by confidence and disclose the
+        # basename or private fields that the matched owner requires us to withhold.
+        matches = list(private_matches)
     if len(matches) > 1 and matches[0][1].confidence - matches[1][1].confidence <= AMBIGUITY_MARGIN:
         claims = ", ".join(
             f"{adapter_id} (confidence={result.confidence:.2f}; reason="

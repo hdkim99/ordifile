@@ -16,6 +16,10 @@ fixture that the support table describes.
 `generate_agilent_chemstation_result_xml.py` creates invented UTF-16LE XML matching
 only the exact structural gates exercised by the Experimental Result XML adapter.
 
+`generate_youngin_yl_clarity_result_csv.py` creates invented CP949-compatible,
+tab-delimited Result Table text for the two owner-validated YoungIn section variants.
+It contains no user export bytes or values.
+
 The generator fixes workbook properties, archive member order, timestamps, ZipInfo metadata,
 and uses `ZIP_STORED` so output bytes do not depend on the host zlib implementation. Its
 expected SHA-256 is recorded below:

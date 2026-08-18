@@ -1,12 +1,10 @@
 # YoungIn YL-Clarity Result export investigation
 
 - Date: 2026-08-18
-- Status: `LOCAL_VENDOR_EXPORT_BRIDGE_READY`; exact OEM pilot blocked because a
-  bounded search found no YL-Clarity installation in the accessible Windows
-  environment. License state was not assessed because no installation was found.
+- Status: `EXPERIMENTAL_GO`; two owner-generated Result Table exports, the exact
+  adapter, full source-to-workbook comparison and three-vendor regression pass.
 - Native source: 23 owner-provided YL-Clarity 9.0.1.19 PRM files, local-only
-- Public support claim: none until an actual vendor-generated export passes the exact
-  adapter and full source-to-workbook comparison gates
+- Public support claim: Experimental only for the exact received CP949/tab grammar
 
 ## Product boundary
 
@@ -28,8 +26,9 @@ DataApex documents Young Lin's YL-Clarity as a Clarity OEM. Current Clarity comm
 documentation accepts a PRM path as a positional argument, then processes subsequent
 commands in order. It documents `export_results=PATH` for the active chromatogram and
 `prm_close_discard` for closing without saving. It does **not** document a `prm_open`
-command. The exact YL-Clarity 9.0.1.19 OEM surface must therefore be proven by a
-one-file pilot rather than inferred from generic Clarity documentation.
+command. The exact YL-Clarity 9.0.1.19 OEM command surface remains separate from the
+content evidence: two owner-generated exports now prove the Result Table grammar,
+while their bytes contain no product/version marker.
 
 The command line has a documented 126-character limit and may be recorded in the
 Audit Trail. The bridge consequently uses short SHA-derived staging names, passes no
@@ -54,9 +53,10 @@ One owner-provided archive was confirmed to contain 23 non-empty PRM members and
 pass ZIP integrity checks. It remains ignored, untracked and unmodified. An accessible
 Windows environment is available for the bridge, but bounded registry, installed-app,
 shortcut, program-directory and process discovery found no YL-Clarity, Clarity,
-YoungIn or Chromass installation. No installer was found. The OEM command surface,
-direct PRM open, export settings and Result Table contents are therefore unresolved,
-not failed.
+YoungIn or Chromass installation. No installer was found, so that environment did not
+establish the OEM command surface, direct PRM open or export settings. Separately, two
+owner-generated local exports now establish Result Table contents without making the
+vendor application a runtime dependency.
 
 ## Local bridge contract
 
@@ -102,19 +102,19 @@ To prevent an accidental `git add`, output inside any Git worktree is rejected u
 it is below Ordifile's fixed `.external-fixtures`, `.research-downloads`, or
 `fixture-cache` ignored roots. Output outside a Git worktree remains permitted.
 
-The bridge does not parse arbitrary result rows into the public API. Once an actual
-export exists, adapter implementation starts from its exact encoding, delimiter,
-producer/profile evidence, headers, signal layout and units. A bare generic TXT or CSV
-without sufficient producer evidence must not be auto-claimed as YoungIn data.
+The bridge does not parse arbitrary result rows into the public API. The exact adapter
+now uses the received encoding, delimiter, headers, signal layout and units, while
+keeping OEM attribution as external provenance because no producer/version marker is
+present in the bytes. A bare generic TXT or CSV is not auto-claimed as YoungIn data.
 
 ## Adapter gate
 
-`youngin_yl_clarity_result_export` remains unimplemented until a vendor-generated
-pilot proves explicit RT and area. The next statuses are:
+`youngin_yl_clarity_result_csv` implements the exact received Result Table grammar.
+The status progression is:
 
-- bridge present, application unavailable: `LOCAL_VENDOR_EXPORT_BRIDGE_READY`;
-- pilot export with RT and area: `RESULT_EXPORT_GENERATED`;
-- exact adapter work begun: `IMPLEMENTATION_IN_PROGRESS`;
+- bridge present: `LOCAL_VENDOR_EXPORT_BRIDGE_READY` (completed);
+- exports with RT and area: `RESULT_EXPORT_CONFIRMED` (completed);
+- exact adapter work begun: `IMPLEMENTATION_IN_PROGRESS` (completed);
 - full real comparison, synthetic collision tests, privacy/legal review and
   cross-vendor workbook validation complete: `EXPERIMENTAL_GO`.
 

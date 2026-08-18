@@ -5,7 +5,12 @@ from typing import ClassVar
 
 import pytest
 
-from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
+from ordifile.adapters.base import (
+    AdapterDescriptor,
+    DetectionResult,
+    ParseOptions,
+    SourceIdentityPolicy,
+)
 from ordifile.adapters.registry import AdapterRegistry, create_registry
 from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, detect_adapter
 from ordifile.core.errors import AdapterAmbiguityError, DetectionError
@@ -18,12 +23,27 @@ class ClaimingAdapter:
     adapter_version: ClassVar[str] = "1"
     descriptor: ClassVar[AdapterDescriptor]
 
-    def __init__(self, adapter_id: str, confidence: float) -> None:
+    def __init__(
+        self,
+        adapter_id: str,
+        confidence: float,
+        source_identity_policy: SourceIdentityPolicy = SourceIdentityPolicy.RELATIVE_PATH,
+    ) -> None:
         object.__setattr__(self, "adapter_id", adapter_id)
         object.__setattr__(
             self,
             "descriptor",
-            AdapterDescriptor(adapter_id, "1", adapter_id, (".dat",), False, False, False, True),
+            AdapterDescriptor(
+                adapter_id,
+                "1",
+                adapter_id,
+                (".dat",),
+                False,
+                False,
+                False,
+                True,
+                source_identity_policy=source_identity_policy,
+            ),
         )
         self.confidence = confidence
 
@@ -71,6 +91,30 @@ def test_similarly_confident_claims_are_ambiguous(tmp_path: Path) -> None:
     assert "second (confidence=0.88; reason=claimed data.dat)" in caught.value.message
     assert "confidence=0.900000" in caught.value.details["claim_1"]
     assert "reason=claimed data.dat" in caught.value.details["claim_1"]
+
+
+def test_private_owner_match_precedes_higher_confidence_relative_fallback(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "private-shared-extension.dat"
+    path.write_bytes(b"data")
+    registry = AdapterRegistry()
+    registry.register(ClaimingAdapter("relative_generic", 0.99))
+    registry.register(
+        ClaimingAdapter(
+            "private_exact_family",
+            0.70,
+            SourceIdentityPolicy.SHA256_ALIAS,
+        )
+    )
+
+    outcome = detect_adapter(path, registry)
+
+    assert outcome.adapter.adapter_id == "private_exact_family"
+    assert {adapter_id for adapter_id, _result in outcome.probes} == {
+        "relative_generic",
+        "private_exact_family",
+    }
 
 
 def test_forced_adapter_records_probe_failure(tmp_path: Path) -> None:

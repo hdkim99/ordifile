@@ -168,9 +168,9 @@ to the workbook layout.
     format readers, while their canonical peak rows, batch isolation, ordering,
     provenance and Excel output obey the same contract. No vendor result parser,
     canonical result field or source-order matrix is implemented before an actual
-    result fixture establishes field boundaries and semantics. The current 23 YoungIn
-    PRM files have no proven peak result table, so YoungIn RT/area remains NO-GO even
-    though structural raw conversion proceeds.
+    result fixture establishes field boundaries and semantics. The 23 YoungIn PRM
+    files still have no proven embedded peak table, but two owner-generated Result
+    Table exports independently establish the standalone YoungIn RT/area path.
 36. The first manufacturer-neutral result implementation is limited to the exact
     Agilent ChemStation Result XML `C.01.10 [201]`, single `FID1/A`, Percent/Area
     profile. Canonical rows come only from `ResultsGroup/Peak`; duplicate integration
@@ -197,10 +197,19 @@ to the workbook layout.
     invoke the documented positional-open / `export_results` /
     `prm_close_discard` sequence, and record a local sanitized pairing manifest.
     The bridge never becomes a runtime or CI dependency, never saves or reintegrates a
-    source, and never bundles vendor software. An exact Result adapter may begin only
-    after an actual YL-Clarity OEM pilot proves explicit RT and area headers. Until
-    then the operational state is `LOCAL_VENDOR_EXPORT_BRIDGE_READY`, not a broad
-    YoungIn Result support claim.
+    source, and never bundles vendor software. Exact Result implementation required
+    actual explicit RT and area headers rather than command documentation alone. Two
+    owner-generated local exports satisfied that gate on 2026-08-18; the bridge remains
+    optional maintainer tooling rather than a runtime dependency.
+39. The separate Experimental YoungIn Result adapter is limited to one owner-provenance
+    CP949-compatible, tab-delimited Result Table grammar observed in two exports. The
+    bytes contain no producer or version marker, so attribution is external provenance
+    and broader YL-Clarity/Clarity support is not claimed. Exact repeated headers,
+    signal sections, no-peak and Total rows, numeric fields, private-trailer shape and
+    the empty compound-table terminator are required. Six source peaks map to the common
+    result model with explicit min, mV.s and mV units. Signal number/name form channel
+    identity; detector, compound and integration boundaries remain unset. Actual bytes
+    remain local-only and all public fixtures are independently synthetic.
 
 ## Public boundaries
 
