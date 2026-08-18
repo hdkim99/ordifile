@@ -31,6 +31,8 @@ from xml.etree import ElementTree
 PROJECT_NAME = "ordifile"
 LEGACY_NAME = "labconvert"
 CONSOLE_ENTRY_POINT = "ordifile.cli.main:main"
+GUI_CONSOLE_ENTRY_POINT = "ordifile.desktop.app:main"
+GUI_EXTRA_REQUIREMENT = "pyside6-essentials<6.12,>=6.11.2; extra == 'gui'"
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*)\."
@@ -78,19 +80,62 @@ def require_semver(value: str, *, field: str) -> str:
     return value
 
 
-def _read_pyproject(source_root: Path) -> tuple[str, str]:
+def _read_project(source_root: Path) -> dict[str, object]:
     try:
         parsed = tomllib.loads((source_root / "pyproject.toml").read_text(encoding="utf-8"))
         project = parsed["project"]
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+        raise ReleaseVerificationError(
+            "pyproject.toml has no readable static project table"
+        ) from error
+    if type(project) is not dict:
+        raise ReleaseVerificationError("pyproject project table must be a mapping")
+    return project
+
+
+def _read_pyproject(source_root: Path) -> tuple[str, str]:
+    project = _read_project(source_root)
+    try:
         name = project["name"]
         version = project["version"]
-    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+    except KeyError as error:
         raise ReleaseVerificationError(
             "pyproject.toml has no readable static project version"
         ) from error
     if type(name) is not str or type(version) is not str:
         raise ReleaseVerificationError("pyproject project name and version must be strings")
     return name, version
+
+
+def _source_gui_contract(source_root: Path) -> tuple[dict[str, str], bool]:
+    """Read the exact CLI-only or CLI-plus-GUI entry-point contract from source."""
+    project = _read_project(source_root)
+    scripts = project.get("scripts", {})
+    optional = project.get("optional-dependencies", {})
+    if type(scripts) is not dict or type(optional) is not dict:
+        raise ReleaseVerificationError("pyproject scripts and optional dependencies must map")
+    normalized_scripts = {
+        key: value for key, value in scripts.items() if type(key) is str and type(value) is str
+    }
+    if len(normalized_scripts) != len(scripts):
+        raise ReleaseVerificationError("pyproject console scripts must map text to text")
+    gui_dependencies = optional.get("gui")
+    has_gui_script = f"{PROJECT_NAME}-gui" in normalized_scripts
+    has_gui_extra = gui_dependencies is not None
+    if has_gui_script != has_gui_extra:
+        raise ReleaseVerificationError(
+            "the GUI console script and gui extra must be declared together"
+        )
+    expected = {PROJECT_NAME: CONSOLE_ENTRY_POINT}
+    if has_gui_script:
+        if type(gui_dependencies) is not list or gui_dependencies != [
+            "PySide6-Essentials>=6.11.2,<6.12"
+        ]:
+            raise ReleaseVerificationError("the source gui extra has an unexpected dependency set")
+        expected[f"{PROJECT_NAME}-gui"] = GUI_CONSOLE_ENTRY_POINT
+    if normalized_scripts != expected:
+        raise ReleaseVerificationError("the source has unexpected Ordifile console scripts")
+    return expected, has_gui_script
 
 
 def _read_source_version(source_root: Path) -> str:
@@ -175,7 +220,7 @@ def _metadata_value(metadata: Message, key: str) -> str:
     return value
 
 
-def _verify_core_metadata(raw: bytes, expected_version: str) -> Message:
+def _verify_core_metadata(raw: bytes, expected_version: str, *, expect_gui: bool) -> Message:
     metadata = BytesParser().parsebytes(raw)
     if _metadata_value(metadata, "Name") != PROJECT_NAME:
         raise ReleaseVerificationError("artifact metadata has the wrong project name")
@@ -186,6 +231,26 @@ def _verify_core_metadata(raw: bytes, expected_version: str) -> Message:
     license_names = {PurePosixPath(value).name for value in metadata.get_all("License-File", [])}
     if not set(LICENSE_FILES).issubset(license_names):
         raise ReleaseVerificationError("artifact metadata is missing required License-File entries")
+    provided_extras = {value.casefold() for value in metadata.get_all("Provides-Extra", [])}
+    if expect_gui and "gui" not in provided_extras:
+        raise ReleaseVerificationError("artifact metadata is missing the optional gui extra")
+    requirements = [value.casefold() for value in metadata.get_all("Requires-Dist", [])]
+    if expect_gui and GUI_EXTRA_REQUIREMENT not in requirements:
+        raise ReleaseVerificationError(
+            "artifact metadata is missing the exact conditional PySide6 GUI requirement"
+        )
+    if not expect_gui and ("gui" in provided_extras or GUI_EXTRA_REQUIREMENT in requirements):
+        raise ReleaseVerificationError("artifact metadata exposes a GUI absent from source")
+    pyside_requirements = [
+        value for value in requirements if value.startswith("pyside6-essentials")
+    ]
+    if any(
+        "extra == 'gui'" not in value and "extra == 'dev'" not in value
+        for value in pyside_requirements
+    ):
+        raise ReleaseVerificationError(
+            "PySide6-Essentials must never be an unconditional runtime requirement"
+        )
     return metadata
 
 
@@ -221,6 +286,7 @@ def _verify_wheel_record(archive: zipfile.ZipFile, record_name: str) -> None:
 
 def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
     """Verify wheel identity, content, licenses, entry point, and RECORD hashes."""
+    expected_console_scripts, expect_gui = _source_gui_contract(source_root)
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
@@ -257,7 +323,9 @@ def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
             if len(dist_info) != 1:
                 raise ReleaseVerificationError("wheel must contain one Ordifile METADATA file")
             prefix = dist_info[0].removesuffix("METADATA")
-            _verify_core_metadata(archive.read(dist_info[0]), expected_version)
+            _verify_core_metadata(
+                archive.read(dist_info[0]), expected_version, expect_gui=expect_gui
+            )
             entry_name = f"{prefix}entry_points.txt"
             try:
                 entry_text = archive.read(entry_name).decode("utf-8")
@@ -270,10 +338,13 @@ def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
                 parser.read_string(entry_text)
             except configparser.Error as error:
                 raise ReleaseVerificationError("wheel entry_points.txt is malformed") from error
-            if parser.sections() != ["console_scripts"] or dict(parser["console_scripts"]) != {
-                PROJECT_NAME: CONSOLE_ENTRY_POINT
-            }:
-                raise ReleaseVerificationError("wheel must expose only the ordifile console script")
+            if (
+                parser.sections() != ["console_scripts"]
+                or dict(parser["console_scripts"]) != expected_console_scripts
+            ):
+                raise ReleaseVerificationError(
+                    "wheel must expose exactly the Ordifile CLI and optional-GUI console scripts"
+                )
             if LEGACY_NAME in entry_text.casefold():
                 raise ReleaseVerificationError("wheel exposes a legacy entry point")
             for license_name in LICENSE_FILES:
@@ -299,6 +370,7 @@ def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
 
 def verify_sdist(path: Path, expected_version: str, source_root: Path) -> None:
     """Verify sdist identity, safe regular content, licenses, and package layout."""
+    _expected_console_scripts, expect_gui = _source_gui_contract(source_root)
     try:
         with tarfile.open(path, mode="r:gz") as archive:
             members = archive.getmembers()
@@ -335,7 +407,7 @@ def verify_sdist(path: Path, expected_version: str, source_root: Path) -> None:
                     )
                 return extracted.read()
 
-            _verify_core_metadata(read_member("PKG-INFO"), expected_version)
+            _verify_core_metadata(read_member("PKG-INFO"), expected_version, expect_gui=expect_gui)
             if f"{root}/src/{PROJECT_NAME}/__init__.py" not in names:
                 raise ReleaseVerificationError("sdist is missing the Ordifile package")
             if any(f"/src/{LEGACY_NAME}/" in f"/{name.casefold()}" for name in names):
@@ -456,6 +528,53 @@ def _run_isolated_python(site: Path, cwd: Path, arguments: list[str]) -> None:
         )
 
 
+def _run_missing_gui_extra_smoke(site: Path, cwd: Path) -> None:
+    """Verify the GUI entry module fails cleanly when PySide6 is unavailable."""
+    bootstrap = f"""
+import builtins
+import pathlib
+import sys
+
+site = pathlib.Path({str(site)!r}).resolve()
+sys.path.insert(0, str(site))
+from ordifile.desktop import app
+
+module = pathlib.Path(app.__file__).resolve()
+assert module.is_relative_to(site), module
+original_import = builtins.__import__
+
+def blocked_import(name, *args, **kwargs):
+    if name == "PySide6" or name.startswith("PySide6."):
+        raise ModuleNotFoundError(name=name)
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = blocked_import
+raise SystemExit(app.main([]))
+"""
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    environment.pop("PYTHONHOME", None)
+    environment["PYTHONNOUSERSITE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", bootstrap],
+        cwd=cwd,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    expected = (
+        "Ordifile desktop requires the optional GUI package. "
+        "Install it with: pip install 'ordifile[gui]'\n"
+    )
+    if completed.returncode != 2 or completed.stdout or completed.stderr != expected:
+        raise ReleaseVerificationError(
+            "clean-wheel missing-GUI-extra smoke failed: "
+            f"code={completed.returncode}, stdout={completed.stdout[-1000:]!r}, "
+            f"stderr={completed.stderr[-1000:]!r}"
+        )
+
+
 def _verify_smoke_workbook(path: Path) -> None:
     try:
         with zipfile.ZipFile(path) as workbook:
@@ -471,7 +590,7 @@ def _verify_smoke_workbook(path: Path) -> None:
         raise ReleaseVerificationError("smoke workbook is missing mandatory sheets")
 
 
-def run_clean_wheel_smoke(wheel: Path) -> None:
+def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
     """Import only extracted wheel code from a temporary cwd and run CLI conversion."""
     with tempfile.TemporaryDirectory(prefix="ordifile-wheel-smoke-") as raw_temp:
         workspace = Path(raw_temp)
@@ -485,6 +604,8 @@ def run_clean_wheel_smoke(wheel: Path) -> None:
             "sample_id,sequence,retention_time,area,compound\nrelease_smoke,1,1.25,42,synthetic\n",
             encoding="utf-8",
         )
+        if expect_gui:
+            _run_missing_gui_extra_smoke(site, cwd)
         _run_isolated_python(site, cwd, ["--version"])
         _run_isolated_python(site, cwd, ["formats"])
         _run_isolated_python(
@@ -531,7 +652,8 @@ def verify_release(
     verify_wheel(wheels[0], expected_version, source_root)
     verify_sdist(sdists[0], expected_version, source_root)
     if smoke:
-        run_clean_wheel_smoke(wheels[0])
+        _expected_console_scripts, expect_gui = _source_gui_contract(source_root)
+        run_clean_wheel_smoke(wheels[0], expect_gui=expect_gui)
     checksum_path = (dist_dir / "SHA256SUMS") if checksums is None else checksums.resolve()
     if checksum_path in {wheels[0], sdists[0]}:
         raise ReleaseVerificationError("SHA256SUMS output must not alias a release archive")

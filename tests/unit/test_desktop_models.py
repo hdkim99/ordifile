@@ -1,0 +1,87 @@
+# Copyright 2026 hdkim99
+# SPDX-License-Identifier: Apache-2.0
+
+from pathlib import Path
+
+import pytest
+
+from ordifile.desktop.models import (
+    DesktopRequest,
+    InputSelectionModel,
+    RequestValidationError,
+    validate_request,
+)
+
+
+def test_input_selection_preserves_order_and_ignores_lexical_duplicates(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    model = InputSelectionModel()
+
+    result = model.add((first, second, first))
+
+    assert result.added == (first, second)
+    assert result.duplicates == (first,)
+    assert model.paths == (first, second)
+
+
+def test_input_selection_normalizes_relative_and_absolute_aliases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    model = InputSelectionModel()
+
+    result = model.add((Path("sample.csv"), tmp_path / "sample.csv"))
+
+    assert result.added == (Path("sample.csv"),)
+    assert result.duplicates == (tmp_path / "sample.csv",)
+
+
+def test_input_selection_remove_and_clear_preserve_remaining_order(tmp_path: Path) -> None:
+    paths = tuple(tmp_path / f"input-{index}.csv" for index in range(3))
+    model = InputSelectionModel()
+    model.add(paths)
+
+    model.remove((paths[1],))
+    assert model.paths == (paths[0], paths[2])
+
+    model.clear()
+    assert len(model.paths) == 0
+
+
+@pytest.mark.parametrize(
+    ("desktop_request", "code"),
+    [
+        (DesktopRequest((), Path("result.xlsx")), "NO_INPUTS"),
+        (DesktopRequest((Path("input.csv"),), Path("result.csv")), "OUTPUT_EXTENSION_INVALID"),
+        (
+            DesktopRequest((Path("input.csv"),), Path("missing/result.xlsx")),
+            "OUTPUT_DIRECTORY_MISSING",
+        ),
+        (
+            DesktopRequest((Path("input.csv"),), Path("result.xlsx"), "unsupported"),
+            "SORT_MODE_INVALID",
+        ),
+    ],
+)
+def test_request_validation_rejects_invalid_local_options(
+    desktop_request: DesktopRequest, code: str
+) -> None:
+    with pytest.raises(RequestValidationError) as caught:
+        validate_request(desktop_request)
+
+    assert caught.value.code == code
+
+
+def test_request_validation_accepts_every_public_sort_mode(tmp_path: Path) -> None:
+    for sort in ("auto", "acquired_at", "sequence", "filename", "input_order"):
+        validate_request(DesktopRequest((tmp_path / "input.csv",), tmp_path / "result.xlsx", sort))
+
+
+def test_request_validation_rejects_directory_output(tmp_path: Path) -> None:
+    with pytest.raises(RequestValidationError) as caught:
+        validate_request(DesktopRequest((tmp_path / "input.csv",), tmp_path))
+
+    assert caught.value.code == "OUTPUT_EXTENSION_INVALID"

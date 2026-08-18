@@ -20,10 +20,18 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 import verify_release as release  # noqa: E402
 
 
-def _source_tree(path: Path, version: str = "0.1.0") -> Path:
+def _source_tree(path: Path, version: str = "0.1.0", *, gui: bool = True) -> Path:
     (path / "src" / "ordifile").mkdir(parents=True)
+    gui_contract = (
+        '\nordifile-gui = "ordifile.desktop.app:main"\n'
+        '\n[project.optional-dependencies]\ngui = ["PySide6-Essentials>=6.11.2,<6.12"]\n'
+        if gui
+        else "\n"
+    )
     (path / "pyproject.toml").write_text(
-        f'[project]\nname = "ordifile"\nversion = "{version}"\n', encoding="utf-8"
+        f'[project]\nname = "ordifile"\nversion = "{version}"\n'
+        f'\n[project.scripts]\nordifile = "ordifile.cli.main:main"{gui_contract}',
+        encoding="utf-8",
     )
     (path / "src" / "ordifile" / "_version.py").write_text(
         f'__version__ = "{version}"\n', encoding="utf-8"
@@ -37,7 +45,12 @@ def _source_tree(path: Path, version: str = "0.1.0") -> Path:
     return path
 
 
-def _metadata(version: str) -> bytes:
+def _metadata(version: str, *, gui: bool = True) -> bytes:
+    gui_metadata = (
+        "Provides-Extra: gui\nRequires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n"
+        if gui
+        else ""
+    )
     return (
         "Metadata-Version: 2.4\n"
         "Name: ordifile\n"
@@ -45,7 +58,8 @@ def _metadata(version: str) -> bytes:
         "License-Expression: Apache-2.0\n"
         "License-File: LICENSE\n"
         "License-File: NOTICE\n"
-        "License-File: THIRD_PARTY_NOTICES.md\n\n"
+        "License-File: THIRD_PARTY_NOTICES.md\n"
+        f"{gui_metadata}\n"
     ).encode()
 
 
@@ -54,13 +68,23 @@ def _record_digest(content: bytes) -> str:
     return digest.decode("ascii")
 
 
-def _write_wheel(path: Path, source: Path, *, extra: dict[str, bytes] | None = None) -> None:
+def _write_wheel(
+    path: Path,
+    source: Path,
+    *,
+    extra: dict[str, bytes] | None = None,
+    gui: bool = True,
+) -> None:
     prefix = "ordifile-0.1.0.dist-info/"
     contents = {
         "ordifile/__init__.py": b'__version__ = "0.1.0"\n',
-        f"{prefix}METADATA": _metadata("0.1.0"),
+        f"{prefix}METADATA": _metadata("0.1.0", gui=gui),
         f"{prefix}WHEEL": b"Wheel-Version: 1.0\nTag: py3-none-any\n",
-        f"{prefix}entry_points.txt": b"[console_scripts]\nordifile = ordifile.cli.main:main\n",
+        f"{prefix}entry_points.txt": (
+            b"[console_scripts]\n"
+            b"ordifile = ordifile.cli.main:main\n"
+            + (b"ordifile-gui = ordifile.desktop.app:main\n" if gui else b"")
+        ),
     }
     for name in release.LICENSE_FILES:
         contents[f"{prefix}licenses/{name}"] = (source / name).read_bytes()
@@ -80,10 +104,10 @@ def _write_wheel(path: Path, source: Path, *, extra: dict[str, bytes] | None = N
             archive.writestr(info, content)
 
 
-def _write_sdist(path: Path, source: Path, *, legacy: bool = False) -> None:
+def _write_sdist(path: Path, source: Path, *, legacy: bool = False, gui: bool = True) -> None:
     root = "ordifile-0.1.0"
     contents = {
-        f"{root}/PKG-INFO": _metadata("0.1.0"),
+        f"{root}/PKG-INFO": _metadata("0.1.0", gui=gui),
         f"{root}/src/ordifile/__init__.py": b'__version__ = "0.1.0"\n',
     }
     for name in release.LICENSE_FILES:
@@ -136,7 +160,9 @@ def _project_wheel(path: Path, project_root: Path) -> None:
         contents[relative] = source_path.read_bytes()
     contents[f"{prefix}METADATA"] = _metadata("0.1.0")
     contents[f"{prefix}entry_points.txt"] = (
-        b"[console_scripts]\nordifile = ordifile.cli.main:main\n"
+        b"[console_scripts]\n"
+        b"ordifile = ordifile.cli.main:main\n"
+        b"ordifile-gui = ordifile.desktop.app:main\n"
     )
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
         for name, content in contents.items():
@@ -372,6 +398,64 @@ def test_wheel_rejects_wrong_entry_point_and_license(tmp_path: Path) -> None:
     )
     with pytest.raises(release.ReleaseVerificationError, match="differs from source"):
         release.verify_wheel(wrong_license, "0.1.0", source)
+
+
+def test_wheel_rejects_missing_or_unconditional_gui_dependency_metadata(tmp_path: Path) -> None:
+    source = _source_tree(tmp_path / "source")
+    prefix = "ordifile-0.1.0.dist-info/"
+    missing_extra = tmp_path / "missing-extra.whl"
+    metadata_without_extra = _metadata("0.1.0").replace(
+        b"Provides-Extra: gui\nRequires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n",
+        b"",
+    )
+    _write_wheel(
+        missing_extra,
+        source,
+        extra={f"{prefix}METADATA": metadata_without_extra},
+    )
+    with pytest.raises(release.ReleaseVerificationError, match="gui extra"):
+        release.verify_wheel(missing_extra, "0.1.0", source)
+
+    unconditional = tmp_path / "unconditional-gui.whl"
+    unconditional_metadata = _metadata("0.1.0").replace(
+        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n",
+        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2; extra == 'gui'\n"
+        b"Requires-Dist: pyside6-essentials<6.12,>=6.11.2\n",
+    )
+    _write_wheel(
+        unconditional,
+        source,
+        extra={f"{prefix}METADATA": unconditional_metadata},
+    )
+    with pytest.raises(release.ReleaseVerificationError, match="unconditional"):
+        release.verify_wheel(unconditional, "0.1.0", source)
+
+
+def test_release_verifier_preserves_historical_cli_only_artifact_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _source_tree(tmp_path / "source", gui=False)
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    wheel = dist / "ordifile-0.1.0-py3-none-any.whl"
+    sdist = dist / "ordifile-0.1.0.tar.gz"
+    _write_wheel(wheel, source, gui=False)
+    _write_sdist(sdist, source, gui=False)
+    smoke_calls: list[bool] = []
+    monkeypatch.setattr(
+        release,
+        "run_clean_wheel_smoke",
+        lambda _wheel, *, expect_gui=True: smoke_calls.append(expect_gui),
+    )
+
+    release.verify_release(
+        source_root=source,
+        dist_dir=dist,
+        expected_version="0.1.0",
+    )
+
+    assert smoke_calls == [False]
 
 
 @pytest.mark.parametrize(

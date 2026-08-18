@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An optional Experimental offline desktop interface with file and folder selection,
+  local drag and drop, detected-format preview, all five existing sort modes,
+  background conversion, per-file outcomes, and an explicit output-open action. The
+  interface calls the same public conversion API as the CLI and has no network,
+  telemetry, cloud, or vendor-application dependency.
+- A public `inspect_inputs()` batch-preview API and presentation-neutral
+  `BatchOutcome` shared by the CLI and desktop interface. Preview intentionally
+  re-reads and validates inputs during conversion rather than authorizing stale data.
 - A maintainer-only, privacy-safe Windows bridge for generating YL-Clarity Result
   Table exports from the 23 existing local PRM inputs through an ordinarily licensed
   vendor installation. It stages SHA-named temporary copies, records local source-to-
@@ -17,6 +25,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- PySide6 Qt Widgets is available only through the optional `gui` extra; the default
+  Ordifile installation and CLI do not install Qt. Standalone installers remain
+  deferred until the desktop workflow is validated independently.
 - YoungIn Result work now actively generates same-run vendor exports instead of
   waiting indefinitely for an externally supplied companion. The generic Clarity
   automation route is documented, while exact YL-Clarity `9.0.1.19` OEM command

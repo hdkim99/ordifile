@@ -115,6 +115,64 @@ def _inputs(
     return tuple(values)
 
 
+def _normalize_sort(sort: SortMode | str) -> SortMode:
+    if type(sort) not in {str, SortMode}:
+        raise OrdifileError("SORT_MODE_INVALID", "sort must be a supported text sort mode.")
+    try:
+        return SortMode(sort)
+    except ValueError as error:
+        choices = ", ".join(mode.value for mode in SortMode)
+        raise OrdifileError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
+
+
+def _normalize_extensions(extensions: Iterable[str] | None) -> tuple[str, ...] | None:
+    if extensions is None:
+        return None
+    if type(extensions) is str:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID", "extensions must be an iterable of text values, not text."
+        )
+    try:
+        normalized_extensions = tuple(extensions)
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        raise
+    except Exception as error:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID", "extensions must be an iterable of text values."
+        ) from error
+    if any(type(item) is not str for item in normalized_extensions):
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID", "extensions must contain only exact text values."
+        )
+    if len(normalized_extensions) > MAX_EXTENSION_FILTERS:
+        raise OrdifileError(
+            "EXTENSIONS_INVALID",
+            f"extensions supports at most {MAX_EXTENSION_FILTERS} stable filters.",
+        )
+    stable_extensions: list[str] = []
+    for item in normalized_extensions:
+        stable = normalize_extension_token(item)
+        if stable is None:
+            raise OrdifileError(
+                "EXTENSIONS_INVALID",
+                "Each extension must be a nonempty dotted or undotted ASCII token with at "
+                "most 32 characters after the optional leading dot, without controls or "
+                "path separators.",
+            )
+        stable_extensions.append(stable)
+    if len(set(stable_extensions)) != len(stable_extensions):
+        raise OrdifileError(
+            "EXTENSIONS_INVALID",
+            "extensions must not contain duplicate case-insensitive filters.",
+        )
+    if len("; ".join(stable_extensions)) > MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS:
+        raise OrdifileError(
+            "EXTENSIONS_INVALID",
+            "The normalized extension filter list exceeds the bounded Manifest option.",
+        )
+    return tuple(stable_extensions)
+
+
 def list_formats(*, registry: AdapterRegistry | None = None) -> tuple[AdapterDescriptor, ...]:
     """List fixture-tested adapters with explicit evidence status."""
     return tuple(
@@ -187,6 +245,67 @@ def inspect_file(
     return InspectionResult(public_file_result, public_file_result.probes)
 
 
+def inspect_inputs(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    *,
+    recursive: bool = False,
+    extensions: Iterable[str] | None = None,
+    sort: SortMode | str = SortMode.AUTO,
+    adapter: str | None = None,
+    sheet: str | None = None,
+    include_hidden_sheets: bool = False,
+    progress: Callable[[ProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+) -> BatchResult:
+    """Discover and inspect a batch without creating output artifacts.
+
+    The returned paths follow the same privacy-safe public identity policy as
+    :func:`convert`. A later conversion intentionally reads and validates the inputs
+    again so the preview cannot authorize stale or changed scientific data.
+    """
+    _require_bool("recursive", recursive)
+    _require_bool("include_hidden_sheets", include_hidden_sheets)
+    _require_optional_text("adapter", adapter)
+    _require_optional_text("sheet", sheet)
+    _require_registry(registry)
+    requested_sort = _normalize_sort(sort)
+    normalized_extensions = _normalize_extensions(extensions)
+    if progress is not None and not callable(progress):
+        raise OrdifileError("OPTION_TYPE_INVALID", "progress must be callable or None.")
+    normalized = _inputs(inputs)
+    if not normalized:
+        raise OrdifileError("NO_INPUTS", "At least one input path is required.")
+    active = create_registry() if registry is None else registry
+    result = run_pipeline(
+        normalized,
+        active,
+        recursive=recursive,
+        extensions=normalized_extensions,
+        sort=requested_sort,
+        forced_adapter=adapter,
+        parse_options=ParseOptions(sheet, include_hidden_sheets),
+        on_error="continue",
+        progress=progress,
+    )
+    if not result.files:
+        raise OrdifileError(
+            "NO_DISCOVERED_FILES", "No files remained after discovery and extension filtering."
+        )
+    return _public_api_batch_result(
+        replace(
+            result,
+            options=ConversionOptions(
+                recursive=recursive,
+                extensions=normalized_extensions or (),
+                sort=result.sort.requested,
+                adapter=adapter,
+                sheet=sheet,
+                include_hidden_sheets=include_hidden_sheets,
+            ),
+        )
+    )
+
+
 def convert(
     inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
     output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
@@ -216,63 +335,12 @@ def convert(
         raise OrdifileError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
     if type(sidecar_mode) is not str or sidecar_mode not in {"error", "csv"}:
         raise OrdifileError("SIDECAR_MODE_INVALID", "sidecar_mode must be 'error' or 'csv'.")
-    if type(sort) not in {str, SortMode}:
-        raise OrdifileError("SORT_MODE_INVALID", "sort must be a supported text sort mode.")
-    try:
-        SortMode(sort)
-    except ValueError as error:
-        choices = ", ".join(mode.value for mode in SortMode)
-        raise OrdifileError("SORT_MODE_INVALID", f"sort must be one of: {choices}.") from error
+    requested_sort = _normalize_sort(sort)
     if progress is not None and not callable(progress):
         raise OrdifileError("OPTION_TYPE_INVALID", "progress must be callable or None.")
     if not isinstance(output, (str, os.PathLike)):
         raise OrdifileError("OPTION_TYPE_INVALID", "output must be a filesystem path.")
-    if extensions is not None:
-        if type(extensions) is str:
-            raise OrdifileError(
-                "OPTION_TYPE_INVALID", "extensions must be an iterable of text values, not text."
-            )
-        try:
-            normalized_extensions = tuple(extensions)
-        except (KeyboardInterrupt, SystemExit, MemoryError):
-            raise
-        except Exception as error:
-            raise OrdifileError(
-                "OPTION_TYPE_INVALID", "extensions must be an iterable of text values."
-            ) from error
-        if any(type(item) is not str for item in normalized_extensions):
-            raise OrdifileError(
-                "OPTION_TYPE_INVALID", "extensions must contain only exact text values."
-            )
-        if len(normalized_extensions) > MAX_EXTENSION_FILTERS:
-            raise OrdifileError(
-                "EXTENSIONS_INVALID",
-                f"extensions supports at most {MAX_EXTENSION_FILTERS} stable filters.",
-            )
-        stable_extensions: list[str] = []
-        for item in normalized_extensions:
-            stable = normalize_extension_token(item)
-            if stable is None:
-                raise OrdifileError(
-                    "EXTENSIONS_INVALID",
-                    "Each extension must be a nonempty dotted or undotted ASCII token with at "
-                    "most 32 characters after the optional leading dot, without controls or "
-                    "path separators.",
-                )
-            stable_extensions.append(stable)
-        if len(set(stable_extensions)) != len(stable_extensions):
-            raise OrdifileError(
-                "EXTENSIONS_INVALID",
-                "extensions must not contain duplicate case-insensitive filters.",
-            )
-        if len("; ".join(stable_extensions)) > MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS:
-            raise OrdifileError(
-                "EXTENSIONS_INVALID",
-                "The normalized extension filter list exceeds the bounded Manifest option.",
-            )
-        normalized_extensions = tuple(stable_extensions)
-    else:
-        normalized_extensions = None
+    normalized_extensions = _normalize_extensions(extensions)
     normalized = _inputs(inputs)
     if not normalized:
         raise OrdifileError("NO_INPUTS", "At least one input path is required.")
@@ -290,7 +358,7 @@ def convert(
         active,
         recursive=recursive,
         extensions=normalized_extensions,
-        sort=sort,
+        sort=requested_sort,
         forced_adapter=adapter,
         parse_options=ParseOptions(sheet, include_hidden_sheets),
         on_error=on_error,

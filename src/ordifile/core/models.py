@@ -43,6 +43,14 @@ class FileStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+class BatchOutcome(StrEnum):
+    """Presentation-neutral outcome shared by CLI and desktop interfaces."""
+
+    SUCCESS = "success"
+    PARTIAL_SUCCESS = "partial_success"
+    FAILED = "failed"
+
+
 class SortMode(StrEnum):
     """Supported batch ordering modes."""
 
@@ -253,6 +261,15 @@ class BatchResult:
     sheets: tuple[str, ...] = ()
     sidecars: tuple[SidecarRecord, ...] = ()
     options: ConversionOptions = field(default_factory=ConversionOptions)
+
+    @property
+    def outcome(self) -> BatchOutcome:
+        """Classify a batch without duplicating presentation-specific logic."""
+        if self.success_count == 0:
+            return BatchOutcome.FAILED
+        if self.failure_count:
+            return BatchOutcome.PARTIAL_SUCCESS
+        return BatchOutcome.SUCCESS
 
     @property
     def success_count(self) -> int:

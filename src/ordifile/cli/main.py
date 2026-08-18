@@ -15,7 +15,7 @@ from typing import Never
 from ordifile import __version__
 from ordifile.adapters.base import SupportStatus
 from ordifile.api import convert, get_format_report, inspect_file
-from ordifile.core.models import SeriesKind
+from ordifile.core.models import BatchOutcome, SeriesKind
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -427,12 +427,11 @@ def _run_convert(args: argparse.Namespace) -> int:
         sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
         progress=print_progress,
     )
-    if result.success_count == 0:
-        status = "failed"
-    elif result.failure_count:
-        status = "partial success"
-    else:
-        status = "success"
+    status = {
+        BatchOutcome.SUCCESS: "success",
+        BatchOutcome.PARTIAL_SUCCESS: "partial success",
+        BatchOutcome.FAILED: "failed",
+    }[result.outcome]
     print(f"Status: {status}")
     print(f"Output: {_terminal_safe(result.output_path or args.output)}")
     print(f"Successful files: {result.success_count}")
@@ -454,9 +453,9 @@ def _run_convert(args: argparse.Namespace) -> int:
     _print_file_failures(result, verbose=args.verbose)
     if args.verbose:
         _print_batch_detection_evidence(result)
-    if result.success_count == 0:
+    if result.outcome is BatchOutcome.FAILED:
         return EXIT_FAILURE
-    if result.failure_count:
+    if result.outcome is BatchOutcome.PARTIAL_SUCCESS:
         return EXIT_PARTIAL_SUCCESS
     return EXIT_SUCCESS
 

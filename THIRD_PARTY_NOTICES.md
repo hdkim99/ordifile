@@ -18,6 +18,26 @@ accepted versions.
 | olefile | 0.47 | BSD/PIL-style | Philippe Lagadec and contributors; based in part on PIL OleFileIO by Secret Labs AB and Fredrik Lundh | [Project](https://pypi.org/project/olefile/) · [License](https://github.com/decalage2/olefile/blob/v0.47/LICENSE.txt) |
 | XlsxWriter | 3.2.9 | BSD-2-Clause | John McNamara | [Project](https://github.com/jmcnamara/XlsxWriter) · [License](https://github.com/jmcnamara/XlsxWriter/blob/RELEASE_3.2.9/LICENSE.txt) |
 
+## Optional desktop interface dependency
+
+The `gui` extra installs the following distributions separately. They are not included
+in the Ordifile wheel and are not required by the CLI or conversion API.
+
+| Package | Reviewed version | License | Copyright / owner | Source |
+|---|---:|---|---|---|
+| PySide6-Essentials | 6.11.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only, with commercial licensing available | The Qt Company and Qt contributors | [Project](https://pypi.org/project/PySide6-Essentials/6.11.2/) · [Open-source obligations](https://www.qt.io/development/open-source-lgpl-obligations) |
+| shiboken6 | 6.11.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only, with commercial licensing available | The Qt Company and Qt contributors | [Project](https://pypi.org/project/shiboken6/6.11.2/) · [Open-source obligations](https://www.qt.io/development/open-source-lgpl-obligations) |
+
+Ordifile intends to use the LGPLv3 licensing option for the optional desktop
+dependency. `PySide6-Essentials` and its required `shiboken6` distribution are
+installed separately; the Ordifile wheel and source distribution do not contain Qt
+binaries. This separation does not by itself satisfy every LGPLv3 obligation. Any
+future distribution that redistributes Qt binaries, including a standalone bundle,
+must complete a separate
+LGPL and third-party-license gate covering notices, license text,
+corresponding-source availability, applicable installation information, and user
+replacement/relinking rights.
+
 ## Build, test, quality, and documentation tools
 
 These tools are used to develop, verify, or document the project; they are not runtime imports.

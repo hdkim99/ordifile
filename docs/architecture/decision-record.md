@@ -57,8 +57,11 @@ to the workbook layout.
     and CLI smoke jobs.
 12. CLI exit codes are 0 success/warnings, 1 fatal or zero-success, 2 usage/configuration,
     3 valid workbook with file failures, and 130 interruption.
-13. GUI work and `PySide6-Essentials` adoption are deferred until a stable CLI plus an
-    LGPL/packaging/size prototype exists.
+13. After the stable CLI and v0.3.1 release, the first Experimental desktop slice uses
+    optional `PySide6-Essentials` and the same public API as the CLI. The default
+    installation remains Qt-free. Standalone bundling and its LGPL/packaging gates are
+    deferred to Issue #6; the detailed framework decision is recorded in
+    [`gui-framework-decision.md`](gui-framework-decision.md).
 14. Discovery records a streaming SHA-256 before parsing and repeats it after parsing.
     A changed file is rejected from scientific output. Files at or above 256 MiB receive
     a size warning; files above 2 GiB are still hashed but are not detected or parsed.
@@ -204,9 +207,10 @@ to the workbook layout.
 
 ## Public boundaries
 
-- `ordifile.api`: `inspect_file`, `list_formats`, `get_format_report`, `convert`
+- `ordifile.api`: `inspect_file`, `inspect_inputs`, `list_formats`,
+  `get_format_report`, `convert`
 - `ordifile.core.models`: canonical immutable values, structured issues,
-  `ProgressEvent`, and immutable `ConversionOptions`
+  `ProgressEvent`, `BatchOutcome`, and immutable `ConversionOptions`
 - `ordifile.adapters.base`: `FormatAdapter` protocol and descriptors
 - `ordifile.exporters.base`: exporter protocol
 - `ordifile.cli`: presentation and exit-code mapping only
@@ -214,7 +218,7 @@ to the workbook layout.
 ## Data flow
 
 ```text
-CLI / future GUI
+CLI / optional desktop GUI
   -> public API
   -> discover and hash read-only inputs
   -> probe adapters (no match / unique match / ambiguity)
@@ -250,7 +254,8 @@ CLI / future GUI
 - Umbrella YoungIn adapters or treating `.prm` and `.raw` as interchangeable: the
   fixture-backed Experimental adapter is limited to one exact observed PRM profile;
   brand and suffix alone are not byte-format or lifecycle boundaries.
-- GUI in the first vertical slice: delays verification of the shared core workflow.
+- GUI before the shared core and CLI were stable: rejected for the v0.1 vertical
+  slice. The later optional desktop layer now reuses that verified public workflow.
 
 ## Known risks
 
