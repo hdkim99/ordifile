@@ -455,26 +455,29 @@ def _safe_child_directory(root: Path, name: str) -> Path:
     return child
 
 
-def _stream_sha256(path: Path) -> tuple[int, str]:
+def _stream_sha256(path: Path, *, maximum_bytes: int) -> tuple[int, str]:
     digest = hashlib.sha256()
     size = 0
     with path.open("rb") as stream:
         while chunk := stream.read(STREAM_CHUNK_SIZE):
             size += len(chunk)
+            if size > maximum_bytes:
+                raise FixtureFetchError("cached archive exceeded its declared size")
             digest.update(chunk)
     return size, digest.hexdigest()
 
 
-def _verify_download(path: Path, manifest: FixtureManifest) -> None:
+def _verify_download(path: Path, manifest: FixtureManifest) -> tuple[int, str]:
     if path.is_symlink() or not path.is_file():
         raise FixtureFetchError("cached archive must be a regular file")
-    size, sha256 = _stream_sha256(path)
+    size, sha256 = _stream_sha256(path, maximum_bytes=manifest.size_bytes)
     if size != manifest.size_bytes:
         raise FixtureFetchError(
             f"download size mismatch: expected {manifest.size_bytes}, received {size}"
         )
     if sha256 != manifest.sha256:
         raise FixtureFetchError("download SHA-256 mismatch")
+    return size, sha256
 
 
 def download_fixture_archive(
@@ -831,20 +834,30 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Explicitly allow CI download only when the reviewed manifest is CI-eligible.",
     )
+    parser.add_argument(
+        "--privacy-minimal-output",
+        action="store_true",
+        help=(
+            "Limit output to the fixture ID, verified byte counts, digests, and status; "
+            "intended for public CI logs."
+        ),
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     """Maintainer-only script entry point; this is not a product console command."""
     arguments = _parser().parse_args(argv)
+    manifest: FixtureManifest | None = None
     try:
         manifest = load_manifest(arguments.manifest, allow_large=arguments.allow_large)
-        print(f"source: {manifest.source_page_url}")
-        print(f"license: {manifest.license_name} ({manifest.license_id})")
-        print(f"license URL: {manifest.license_url}")
-        print(f"attribution: {manifest.attribution}")
-        print(f"privacy review: {manifest.privacy_review}")
-        print(f"handling grade: {manifest.grade}")
+        if not arguments.privacy_minimal_output:
+            print(f"source: {manifest.source_page_url}")
+            print(f"license: {manifest.license_name} ({manifest.license_id})")
+            print(f"license URL: {manifest.license_url}")
+            print(f"attribution: {manifest.attribution}")
+            print(f"privacy review: {manifest.privacy_review}")
+            print(f"handling grade: {manifest.grade}")
         if arguments.accept_license is None:
             raise FixtureFetchError(
                 "review the displayed terms and pass --accept-license with the exact license "
@@ -857,9 +870,44 @@ def main(argv: list[str] | None = None) -> int:
             allow_large=arguments.allow_large,
             allow_ci=arguments.allow_ci,
         )
+        observed_size, observed_sha256 = _verify_download(result.archive, manifest)
+        if result.archive_type != manifest.archive_type:
+            raise FixtureFetchError("verified fixture archive type is inconsistent")
+        if manifest.tree_sha256 is not None:
+            if result.extracted is None or result.tree_sha256 != manifest.tree_sha256:
+                raise FixtureFetchError("verified fixture tree result is inconsistent")
+            observed_tree_sha256 = canonical_tree_digest(result.extracted, manifest.selected_files)
+            if observed_tree_sha256 != manifest.tree_sha256:
+                raise FixtureFetchError("verified fixture tree changed before reporting")
+        elif result.extracted is not None or result.tree_sha256 is not None:
+            raise FixtureFetchError("unexpected verified fixture tree result")
     except FixtureFetchError as error:
-        print(f"fixture fetch failed: {error}", file=sys.stderr)
+        if arguments.privacy_minimal_output:
+            if manifest is not None:
+                print(f"fixture_id={manifest.fixture_id}", file=sys.stderr)
+            print("status=failed", file=sys.stderr)
+            print("code=fixture_fetch_failed", file=sys.stderr)
+        else:
+            print(f"fixture fetch failed: {error}", file=sys.stderr)
         return 1
+    except Exception:
+        if not arguments.privacy_minimal_output:
+            raise
+        if manifest is not None:
+            print(f"fixture_id={manifest.fixture_id}", file=sys.stderr)
+        print("status=failed", file=sys.stderr)
+        print("code=fixture_fetch_failed", file=sys.stderr)
+        return 1
+    if arguments.privacy_minimal_output:
+        print(f"fixture_id={manifest.fixture_id}")
+        print(f"expected_size_bytes={manifest.size_bytes}")
+        print(f"observed_size_bytes={observed_size}")
+        print(f"sha256={observed_sha256}")
+        print(f"selected_member_count={len(manifest.selected_files)}")
+        if result.tree_sha256 is not None:
+            print(f"tree_sha256={result.tree_sha256}")
+        print("status=verified")
+        return 0
     print(f"verified archive: {result.archive}")
     if result.extracted is None:
         print(f"automatic extraction: disabled for {result.archive_type}")

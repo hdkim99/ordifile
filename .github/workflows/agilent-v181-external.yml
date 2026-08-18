@@ -44,6 +44,7 @@ jobs:
           --cache-dir "$RUNNER_TEMP/ordifile-agilent-v181-fixture"
           --accept-license BSEE-Public-Information-2026-08-16
           --allow-ci
+          --privacy-minimal-output
       - name: Run exact external fixture integration
         run: |
           export ORDIFILE_AGILENT_CH_V181_FIXTURE="$RUNNER_TEMP/ordifile-agilent-v181-fixture/downloads/bsee-g6151510-fid1a-v181/9abeb86b09d54c10e81f46648804acc0319b6e1d014cee54034eae91331f97ef/FID1A.CH"

@@ -356,6 +356,406 @@ def test_cli_displays_review_fields_before_requiring_acceptance(
     assert not (tmp_path / "cache").exists()
 
 
+def test_cli_privacy_minimal_output_omits_review_and_path_details(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = b"privacy-minimal fixture"
+    data = _manifest_data(
+        url="https://fake-host.example/fixture.bin",
+        content=content,
+        selected=(),
+        tree_sha256=None,
+        archive_type="file",
+        artifact_filename="fixture.bin",
+    )
+    data.update(
+        {
+            "allowed_hosts": ["fake-host.example"],
+            "source_page_url": "https://fake-source.example/private-review",
+            "license_name": "Synthetic license for fake-user",
+            "license_url": "https://fake-license.example/terms",
+            "attribution": "Fake attribution from /Users/fake-user/private-fixture",
+        }
+    )
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+    archive = tmp_path / "private-cache" / "fixture.bin"
+    archive.parent.mkdir()
+    archive.write_bytes(content)
+
+    def fake_fetch_fixture(
+        manifest_path: Path,
+        cache_dir: Path,
+        *,
+        accepted_license: str,
+        allow_large: bool = False,
+        allow_ci: bool = False,
+        _allow_insecure_http: bool = False,
+    ) -> fetch.FetchResult:
+        del manifest_path, cache_dir, accepted_license, allow_large, allow_ci
+        del _allow_insecure_http
+        return fetch.FetchResult(archive, None, None, "file")
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fake_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr()
+
+    assert output.err == ""
+    assert output.out.splitlines() == [
+        "fixture_id=external_fixture",
+        f"expected_size_bytes={len(content)}",
+        f"observed_size_bytes={len(content)}",
+        f"sha256={hashlib.sha256(content).hexdigest()}",
+        "selected_member_count=0",
+        "status=verified",
+    ]
+    for forbidden in (
+        str(tmp_path),
+        "fake-host",
+        "fake-source",
+        "fake-license",
+        "fake-user",
+        "private-fixture",
+        "Synthetic license",
+        "Fake attribution",
+    ):
+        assert forbidden not in output.out
+
+
+def test_cli_privacy_minimal_failure_uses_only_sanitized_code(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = b"not requested"
+    data = _manifest_data(
+        url="https://fake-host.example/fixture.bin",
+        content=content,
+        selected=(),
+        tree_sha256=None,
+        archive_type="file",
+        artifact_filename="fixture.bin",
+    )
+    data["allowed_hosts"] = ["fake-host.example"]
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+
+    def fail_fetch_fixture(*args: object, **kwargs: object) -> fetch.FetchResult:
+        del args, kwargs
+        raise fetch.FixtureFetchError(
+            "fake-host.example /Users/fake-user/private-cache secret-token"
+        )
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fail_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr()
+
+    assert output.out == ""
+    assert output.err.splitlines() == [
+        "fixture_id=external_fixture",
+        "status=failed",
+        "code=fixture_fetch_failed",
+    ]
+    for forbidden in (
+        str(tmp_path),
+        "fake-host",
+        "fake-user",
+        "private-cache",
+        "secret-token",
+    ):
+        assert forbidden not in output.err
+
+
+@pytest.mark.parametrize(
+    "error",
+    (
+        OSError("/Users/fake-user/private-cache"),
+        RuntimeError("fake-host.example secret-token"),
+    ),
+)
+def test_cli_privacy_minimal_unexpected_failure_is_sanitized(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+) -> None:
+    content = b"not requested"
+    data = _manifest_data(
+        url="https://fake-host.example/fixture.bin",
+        content=content,
+        selected=(),
+        tree_sha256=None,
+        archive_type="file",
+        artifact_filename="fixture.bin",
+    )
+    data["allowed_hosts"] = ["fake-host.example"]
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+
+    def fail_fetch_fixture(*args: object, **kwargs: object) -> fetch.FetchResult:
+        del args, kwargs
+        raise error
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fail_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr()
+
+    assert output.out == ""
+    assert output.err.splitlines() == [
+        "fixture_id=external_fixture",
+        "status=failed",
+        "code=fixture_fetch_failed",
+    ]
+    assert str(error) not in output.err
+
+
+def test_cli_privacy_minimal_rehashes_before_reporting_verified(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared = b"declared fixture bytes"
+    changed = b"changed! fixture bytes"
+    assert len(changed) == len(declared)
+    data = _manifest_data(
+        url="https://fake-host.example/fixture.bin",
+        content=declared,
+        selected=(),
+        tree_sha256=None,
+        archive_type="file",
+        artifact_filename="fixture.bin",
+    )
+    data["allowed_hosts"] = ["fake-host.example"]
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+    archive = tmp_path / "private-cache" / "fixture.bin"
+    archive.parent.mkdir()
+    archive.write_bytes(changed)
+
+    def fake_fetch_fixture(*args: object, **kwargs: object) -> fetch.FetchResult:
+        del args, kwargs
+        return fetch.FetchResult(archive, None, None, "file")
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fake_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr()
+
+    assert output.out == ""
+    assert "status=verified" not in output.err
+    assert "sha256=" not in output.err
+    assert output.err.splitlines() == [
+        "fixture_id=external_fixture",
+        "status=failed",
+        "code=fixture_fetch_failed",
+    ]
+
+
+def test_cli_privacy_minimal_invalid_manifest_does_not_print_input_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest_path = tmp_path / "fake-user-private-manifest.json"
+    manifest_path.write_text("not valid JSON", encoding="utf-8")
+
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--privacy-minimal-output",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr()
+
+    assert output.out == ""
+    assert output.err.splitlines() == [
+        "status=failed",
+        "code=fixture_fetch_failed",
+    ]
+    assert str(tmp_path) not in output.err
+    assert manifest_path.name not in output.err
+
+
+def test_cli_privacy_minimal_zip_reports_only_count_and_tree_digest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = b"synthetic ZIP bytes"
+    extracted = tmp_path / "private-extracted"
+    extracted.mkdir()
+    (extracted / "private-member.raw").write_bytes(b"synthetic member bytes")
+    tree_sha256 = fetch.canonical_tree_digest(extracted, ("private-member.raw",))
+    data = _manifest_data(
+        url="https://fake-host.example/archive.zip",
+        content=content,
+        selected=("private-member.raw",),
+        tree_sha256=tree_sha256,
+        archive_type="zip",
+        artifact_filename="private-archive.zip",
+    )
+    data["allowed_hosts"] = ["fake-host.example"]
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+    archive = tmp_path / "private-cache" / "private-archive.zip"
+    archive.parent.mkdir()
+    archive.write_bytes(content)
+
+    def fake_fetch_fixture(
+        manifest_path: Path,
+        cache_dir: Path,
+        *,
+        accepted_license: str,
+        allow_large: bool = False,
+        allow_ci: bool = False,
+        _allow_insecure_http: bool = False,
+    ) -> fetch.FetchResult:
+        del manifest_path, cache_dir, accepted_license, allow_large, allow_ci
+        del _allow_insecure_http
+        return fetch.FetchResult(archive, extracted, tree_sha256, "zip")
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fake_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr()
+
+    assert output.err == ""
+    assert output.out.splitlines() == [
+        "fixture_id=external_fixture",
+        f"expected_size_bytes={len(content)}",
+        f"observed_size_bytes={len(content)}",
+        f"sha256={hashlib.sha256(content).hexdigest()}",
+        "selected_member_count=1",
+        f"tree_sha256={tree_sha256}",
+        "status=verified",
+    ]
+    for forbidden in (
+        str(tmp_path),
+        "fake-host",
+        "private-member",
+        "private-archive",
+        "private-cache",
+        "private-extracted",
+    ):
+        assert forbidden not in output.out
+
+
+@pytest.mark.parametrize("result_mode", ("missing", "mismatched"))
+def test_cli_privacy_minimal_zip_requires_manifest_tree_identity(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    result_mode: str,
+) -> None:
+    content = b"synthetic ZIP bytes"
+    extracted = tmp_path / "private-extracted"
+    extracted.mkdir()
+    (extracted / "private-member.raw").write_bytes(b"synthetic member bytes")
+    manifest_tree_sha256 = fetch.canonical_tree_digest(extracted, ("private-member.raw",))
+    data = _manifest_data(
+        url="https://fake-host.example/archive.zip",
+        content=content,
+        selected=("private-member.raw",),
+        tree_sha256=manifest_tree_sha256,
+        archive_type="zip",
+        artifact_filename="private-archive.zip",
+    )
+    data["allowed_hosts"] = ["fake-host.example"]
+    manifest_path = _write_manifest(tmp_path / "manifest.json", data)
+    archive = tmp_path / "private-cache" / "private-archive.zip"
+    archive.parent.mkdir()
+    archive.write_bytes(content)
+
+    def fake_fetch_fixture(*args: object, **kwargs: object) -> fetch.FetchResult:
+        del args, kwargs
+        if result_mode == "missing":
+            return fetch.FetchResult(archive, None, None, "zip")
+        return fetch.FetchResult(archive, extracted, "2" * 64, "zip")
+
+    monkeypatch.setattr(fetch, "fetch_fixture", fake_fetch_fixture)
+    assert (
+        fetch.main(
+            [
+                str(manifest_path),
+                "--cache-dir",
+                str(tmp_path / "private-cache"),
+                "--accept-license",
+                "Synthetic-Test-Permission",
+                "--privacy-minimal-output",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr()
+
+    assert output.out == ""
+    assert output.err.splitlines() == [
+        "fixture_id=external_fixture",
+        "status=failed",
+        "code=fixture_fetch_failed",
+    ]
+    assert "tree_sha256=" not in output.err
+
+
 @pytest.mark.parametrize("archive_type", ("file", "7z"))
 def test_cli_reports_non_extraction_reason_for_each_download_only_type(
     tmp_path: Path,
