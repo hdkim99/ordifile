@@ -50,17 +50,18 @@ currently available version.
 python -m pip install --no-cache-dir ordifile
 ```
 
-The current development source, not the published v0.3.1 package, contains the first
-Experimental desktop interface. From a source checkout, install it separately so
-existing CLI users do not receive a Qt runtime dependency:
+The Experimental desktop interface is first included in Ordifile v0.4.0. Until the
+PyPI badge shows v0.4.0 or newer, use a source checkout. The optional extra keeps
+existing CLI installations free of a Qt runtime dependency:
 
 ```bash
 python -m pip install -e ".[gui]"
 ordifile-gui
 ```
 
-A future release may publish this `gui` extra after the Draft GUI change passes its
-review and release gates.
+After v0.4.0 is published, the same interface can be installed with
+`python -m pip install 'ordifile[gui]'`. This is a Python-package GUI, not a standalone
+`.exe` or `.app`.
 
 ## Quick start
 

@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-18
+
 ### Added
 
 - An optional Experimental offline desktop interface with file and folder selection,
@@ -34,8 +36,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - PySide6 Qt Widgets is available only through the optional `gui` extra; the default
-  Ordifile installation and CLI do not install Qt. Standalone installers remain
-  deferred until the desktop workflow is validated independently.
+  Ordifile installation and CLI do not install Qt. Standalone installers and Qt
+  redistribution remain deferred to Issue #6.
 - YoungIn Result status advanced from local bridge readiness to Experimental GO for
   the exact received Result Table grammar. Owner export/PRM pairing is external
   evidence; runtime conversion remains standalone and requires no PRM or vendor app.
@@ -43,6 +45,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   waiting indefinitely for an externally supplied companion. The generic Clarity
   automation route is documented, while exact YL-Clarity `9.0.1.19` OEM command
   compatibility remains gated by a one-file pilot on a licensed installation.
+
+### Security
+
+- Owner-generated YoungIn Result exports remain local-only and use SHA-derived public
+  identities; independently synthetic fixtures cover the public parser behavior.
+- The desktop interface performs no upload, telemetry, remote logging, browser, shell,
+  or vendor-application execution. Qt is an exact optional dependency and no Qt binary
+  is bundled in the Ordifile wheel or source distribution.
 
 ## [0.3.1] - 2026-08-18
 
