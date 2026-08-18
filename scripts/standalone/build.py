@@ -34,6 +34,27 @@ LICENSE_DISTRIBUTIONS = (
     "openpyxl",
     "XlsxWriter",
 )
+BUILD_FAILURE_STAGES = frozenset(
+    {
+        "archive",
+        "bundle-audit",
+        "bundle-discovery",
+        "deploy",
+        "license-inventory",
+        "prepare",
+        "signature-inspection",
+        "unknown",
+    }
+)
+
+
+class StandaloneBuildStageError(RuntimeError):
+    """Report only a fixed build stage while withholding private tool output."""
+
+    def __init__(self, stage: str) -> None:
+        safe_stage = stage if stage in BUILD_FAILURE_STAGES else "unknown"
+        super().__init__(safe_stage)
+        self.stage = safe_stage
 
 
 def _render_spec(template: Path, destination: Path, stage: Path, executable_dir: Path) -> None:
@@ -175,69 +196,81 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
     if not packaging.is_dir() or not scripts.is_dir():
         raise ValueError("The standalone packaging sources are incomplete.")
     with tempfile.TemporaryDirectory(prefix="ordifile-standalone-build-") as temporary:
-        stage = Path(temporary)
-        executable_dir = stage / "result"
-        executable_dir.mkdir()
-        shutil.copy2(scripts / "entry.py", stage / "Ordifile.py")
-        shutil.copy2(scripts / "smoke.py", stage / "smoke.py")
-        spec = stage / "pysidedeploy.spec"
-        _render_spec(packaging / "pysidedeploy.spec.in", spec, stage, executable_dir)
-        command = [
-            str(_deploy_executable()),
-            "-c",
-            str(spec),
-            "--force",
-            f"--nuitka-version={NUITKA_VERSION}",
-        ]
-        completed = subprocess.run(
-            command,
-            cwd=stage,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=45 * 60,
-        )
-        if completed.returncode != 0:
-            raise ValueError("pyside6-deploy failed; captured output was withheld for privacy.")
-        bundle = _bundle_candidate(executable_dir, target)
-        licenses = _license_destination(bundle, target)
-        shutil.copytree(packaging / "licenses", licenses)
-        shutil.copy2(source / "LICENSE", licenses / "LICENSE")
-        shutil.copy2(source / "NOTICE", licenses / "NOTICE")
-        shutil.copy2(source / "THIRD_PARTY_NOTICES.md", licenses / "THIRD_PARTY_NOTICES.md")
-        _copy_distribution_licenses(licenses)
-        signature_state = "UNSIGNED_PROTOTYPE"
-        if target.startswith("macos-"):
-            signature = subprocess.run(
-                ["codesign", "-dv", "--verbose=4", str(bundle)],
+        temporary_stage = Path(temporary)
+        build_stage = "prepare"
+        try:
+            executable_dir = temporary_stage / "result"
+            executable_dir.mkdir()
+            shutil.copy2(scripts / "entry.py", temporary_stage / "Ordifile.py")
+            shutil.copy2(scripts / "smoke.py", temporary_stage / "smoke.py")
+            spec = temporary_stage / "pysidedeploy.spec"
+            _render_spec(packaging / "pysidedeploy.spec.in", spec, temporary_stage, executable_dir)
+            build_stage = "deploy"
+            command = [
+                str(_deploy_executable()),
+                "-c",
+                str(spec),
+                "--force",
+                f"--nuitka-version={NUITKA_VERSION}",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=temporary_stage,
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=45 * 60,
             )
-            if signature.returncode == 0 and "Signature=adhoc" in signature.stderr:
-                signature_state = "AD_HOC_NOT_NOTARIZED"
-        manifest = build_manifest(
-            bundle,
-            commit=commit,
-            target=target,
-            signature_state=signature_state,
-            forbidden_text=_private_build_paths(source, stage),
-        )
-        output.mkdir(parents=True)
-        archive = output / f"Ordifile-{__version__}-{target}-UNSIGNED.zip"
-        _deterministic_zip(bundle, archive)
-        archive_sha256 = _sha256(archive)
-        manifest["outer_artifact"] = {
-            "filename": archive.name,
-            "size": archive.stat().st_size,
-            "sha256": archive_sha256,
-        }
-        write_manifest(output / "standalone-manifest.json", manifest)
-        (output / "SHA256SUMS.txt").write_text(
-            f"{archive_sha256}  {archive.name}\n",
-            encoding="ascii",
-            newline="\n",
-        )
+            if completed.returncode != 0:
+                raise ValueError("Deployment command failed.")
+            build_stage = "bundle-discovery"
+            bundle = _bundle_candidate(executable_dir, target)
+            build_stage = "license-inventory"
+            licenses = _license_destination(bundle, target)
+            shutil.copytree(packaging / "licenses", licenses)
+            shutil.copy2(source / "LICENSE", licenses / "LICENSE")
+            shutil.copy2(source / "NOTICE", licenses / "NOTICE")
+            shutil.copy2(source / "THIRD_PARTY_NOTICES.md", licenses / "THIRD_PARTY_NOTICES.md")
+            _copy_distribution_licenses(licenses)
+            build_stage = "signature-inspection"
+            signature_state = "UNSIGNED_PROTOTYPE"
+            if target.startswith("macos-"):
+                signature = subprocess.run(
+                    ["codesign", "-dv", "--verbose=4", str(bundle)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                if signature.returncode == 0 and "Signature=adhoc" in signature.stderr:
+                    signature_state = "AD_HOC_NOT_NOTARIZED"
+            build_stage = "bundle-audit"
+            manifest = build_manifest(
+                bundle,
+                commit=commit,
+                target=target,
+                signature_state=signature_state,
+                forbidden_text=_private_build_paths(source, temporary_stage),
+            )
+            build_stage = "archive"
+            output.mkdir(parents=True)
+            archive = output / f"Ordifile-{__version__}-{target}-UNSIGNED.zip"
+            _deterministic_zip(bundle, archive)
+            archive_sha256 = _sha256(archive)
+            manifest["outer_artifact"] = {
+                "filename": archive.name,
+                "size": archive.stat().st_size,
+                "sha256": archive_sha256,
+            }
+            write_manifest(output / "standalone-manifest.json", manifest)
+            (output / "SHA256SUMS.txt").write_text(
+                f"{archive_sha256}  {archive.name}\n",
+                encoding="ascii",
+                newline="\n",
+            )
+        except (KeyboardInterrupt, SystemExit, MemoryError):
+            raise
+        except Exception:
+            raise StandaloneBuildStageError(build_stage) from None
     return archive
 
 
@@ -258,8 +291,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         build_candidate(args.source, args.output, commit=args.commit, target=args.target)
     except (KeyboardInterrupt, SystemExit, MemoryError):
         raise
+    except StandaloneBuildStageError as error:
+        print(
+            f"Standalone candidate build failed at stage={error.stage}; "
+            "captured details were withheld."
+        )
+        return 1
     except Exception:
-        print("Standalone candidate build failed; captured details were withheld.")
+        print("Standalone candidate build failed at stage=preflight; details were withheld.")
         return 1
     print("Unsigned standalone candidate build PASS")
     return 0

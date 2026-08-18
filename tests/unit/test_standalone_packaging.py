@@ -385,6 +385,185 @@ def test_native_target_gate_accepts_only_current_host() -> None:
         standalone_build._validate_native_target(wrong)
 
 
+def test_build_cli_reports_only_fixed_failure_stage(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail_build(*args: object, **kwargs: object) -> Path:
+        del args, kwargs
+        raise standalone_build.StandaloneBuildStageError("bundle-audit")
+
+    monkeypatch.setattr(standalone_build, "build_candidate", fail_build)
+    assert (
+        standalone_build.main(
+            [
+                "--source",
+                "private-source-sentinel",
+                "--output",
+                "private-output-sentinel",
+                "--commit",
+                "0" * 40,
+                "--target",
+                "macos-arm64",
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == (
+        "Standalone candidate build failed at stage=bundle-audit; captured details were withheld.\n"
+    )
+    assert "private-source-sentinel" not in captured.out
+    assert "private-output-sentinel" not in captured.out
+
+    monkeypatch.setattr(
+        standalone_build,
+        "build_candidate",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            standalone_build.StandaloneBuildStageError("private-stage-sentinel")
+        ),
+    )
+    assert (
+        standalone_build.main(
+            [
+                "--source",
+                "private-source-sentinel",
+                "--output",
+                "private-output-sentinel",
+                "--commit",
+                "0" * 40,
+                "--target",
+                "macos-arm64",
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "Standalone candidate build failed at stage=unknown; captured details were withheld.\n"
+    )
+    assert "private-stage-sentinel" not in captured.out
+
+
+def test_build_candidate_converts_internal_detail_to_fixed_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = platform.machine().casefold()
+    current = {
+        ("darwin", "arm64"): "macos-arm64",
+        ("darwin", "x86_64"): "macos-x86_64",
+        ("win32", "amd64"): "windows-x86_64",
+        ("win32", "x86_64"): "windows-x86_64",
+    }.get((sys.platform, machine))
+    if current is None:
+        pytest.skip("Standalone native target is unavailable on this test host.")
+
+    def fail_render(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise RuntimeError("private internal path and credential sentinel")
+
+    monkeypatch.setattr(standalone_build, "_render_spec", fail_render)
+    with pytest.raises(standalone_build.StandaloneBuildStageError) as captured:
+        standalone_build.build_candidate(
+            ROOT,
+            tmp_path / "candidate",
+            commit="0" * 40,
+            target=current,
+        )
+    assert captured.value.stage == "prepare"
+    assert str(captured.value) == "prepare"
+    assert "private" not in str(captured.value)
+
+
+@pytest.mark.parametrize("exception_type", [KeyboardInterrupt, SystemExit, MemoryError])
+def test_build_candidate_preserves_nonordinary_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    exception_type: type[BaseException],
+) -> None:
+    machine = platform.machine().casefold()
+    current = {
+        ("darwin", "arm64"): "macos-arm64",
+        ("darwin", "x86_64"): "macos-x86_64",
+        ("win32", "amd64"): "windows-x86_64",
+        ("win32", "x86_64"): "windows-x86_64",
+    }.get((sys.platform, machine))
+    if current is None:
+        pytest.skip("Standalone native target is unavailable on this test host.")
+
+    def fail_render(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise exception_type()
+
+    monkeypatch.setattr(standalone_build, "_render_spec", fail_render)
+    with pytest.raises(exception_type):
+        standalone_build.build_candidate(
+            ROOT,
+            tmp_path / "candidate",
+            commit="0" * 40,
+            target=current,
+        )
+
+
+def test_build_cli_sanitizes_unclassified_preflight_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail_build(*args: object, **kwargs: object) -> Path:
+        del args, kwargs
+        raise RuntimeError("private preflight sentinel")
+
+    monkeypatch.setattr(standalone_build, "build_candidate", fail_build)
+    assert (
+        standalone_build.main(
+            [
+                "--source",
+                "private-source-sentinel",
+                "--output",
+                "private-output-sentinel",
+                "--commit",
+                "0" * 40,
+                "--target",
+                "macos-arm64",
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == (
+        "Standalone candidate build failed at stage=preflight; details were withheld.\n"
+    )
+    assert "private" not in captured.out
+
+
+def test_build_cli_preserves_success_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        standalone_build,
+        "build_candidate",
+        lambda *args, **kwargs: tmp_path / "Ordifile-0.4.0-macos-arm64-UNSIGNED.zip",
+    )
+    assert (
+        standalone_build.main(
+            [
+                "--source",
+                "source",
+                "--output",
+                "candidate",
+                "--commit",
+                "0" * 40,
+                "--target",
+                "macos-arm64",
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == "Unsigned standalone candidate build PASS\n"
+
+
 def test_entry_routes_explicit_smoke_without_launching_desktop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
