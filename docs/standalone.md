@@ -41,7 +41,11 @@ workspace persists,
 the job checks out into a workflow-owned source directory, uses a run-scoped virtual
 environment and unique runner-temporary scratch root, masks runner-local identifiers,
 and performs bounded cleanup before and after execution. The macOS job is fixed to
-GitHub-hosted `macos-15`; changing that routing requires a separate review.
+GitHub-hosted `macos-15`; changing that routing requires a separate review. Windows
+uses the exact `actions/setup-python` version selected by the workflow. macOS installs
+the byte-verified official Python 3.14.3 universal2 package; an exact-head prototype
+rejected the hosted tool-cache distribution because its runner-specific runtime prefix
+remained in final bundle bytes.
 Both jobs check out the exact reviewed same-repository SHA, unpack the exact candidate into runner-temporary
 space, clear Python import overrides, and run only the packaged executable for
 scientific and window smokes. This is checkout-independent artifact execution, but not

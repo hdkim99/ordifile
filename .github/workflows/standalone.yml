@@ -289,17 +289,34 @@ jobs:
             echo "Checked-out commit does not match the reviewed commit." >&2
             exit 1
           fi
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14.3"
+      - name: Install exact official macOS Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="${RUNNER_TEMP}/python-3.14.3-macos11.pkg"
+          trap 'rm -f "${package}"' EXIT
+          /usr/bin/curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            --output "${package}" \
+            https://www.python.org/ftp/python/3.14.3/python-3.14.3-macos11.pkg
+          printf '%s  %s\n' \
+            '50b709f72cb5ed87d5882901923face981dd657569717761832c36db3bf08238' \
+            "${package}" | /usr/bin/shasum -a 256 --check >/dev/null
+          /usr/sbin/pkgutil --check-signature "${package}" >/dev/null
+          /usr/bin/sudo -n /usr/sbin/installer -pkg "${package}" -target / >/dev/null
+          python_bin="/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14"
+          test "$("${python_bin}" -c 'import platform; print(platform.python_version())')" = "3.14.3"
+          test "$("${python_bin}" -c 'import platform; print(platform.machine())')" = "$(uname -m)"
+          test "$("${python_bin}" -c 'import sys; print(sys.base_prefix)')" = \
+            "/Library/Frameworks/Python.framework/Versions/3.14"
+          echo "/Library/Frameworks/Python.framework/Versions/3.14/bin" >> "${GITHUB_PATH}"
       - name: Install exact standalone toolchain
         run: |
-          python -m pip install --requirement packaging/standalone/requirements-build.lock
-          python -m pip install --no-deps .
+          python3.14 -m pip install --requirement packaging/standalone/requirements-build.lock
+          python3.14 -m pip install --no-deps .
       - name: Create public checkout-independent smoke kit
         run: >-
-          python scripts/standalone/smoke.py make-kit
+          python3.14 scripts/standalone/smoke.py make-kit
           --output standalone-smoke-kit
           --generator-root tests/fixtures/synthetic
       - name: Select native target
@@ -315,7 +332,7 @@ jobs:
           echo "target=${target}" >> "${GITHUB_OUTPUT}"
       - name: Build and audit native candidate
         run: >-
-          python scripts/standalone/build.py
+          python3.14 scripts/standalone/build.py
           --source .
           --output standalone-candidate
           --commit "${{ github.sha }}"
@@ -344,7 +361,7 @@ jobs:
           count="$(printf '%s\n' "${executables}" | sed '/^$/d' | wc -l | tr -d ' ')"
           test "${count}" -eq 1
           bundle="${executables%/Contents/MacOS/Ordifile}"
-          python scripts/standalone/verify.py \
+          python3.14 scripts/standalone/verify.py \
             --bundle "${bundle}" \
             --manifest "${candidate}/standalone-manifest.json" \
             --commit "${{ github.sha }}" \

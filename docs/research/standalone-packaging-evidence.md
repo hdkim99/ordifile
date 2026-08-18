@@ -11,6 +11,7 @@
 |---|---|---|
 | [Qt for Python deployment](https://doc.qt.io/qtforpython-6/deployment/index.html) | Qt documents `pyside6-deploy` as its deployment tool and identifies Nuitka as its compiler backend. | Select the Qt-maintained frontend. |
 | [`pyside6-deploy` reference](https://doc.qt.io/qtforpython-6/deployment/deployment-pyside6-deploy.html) | The tool uses a `pysidedeploy.spec`, supports `standalone` mode, and accepts a Nuitka version. | Keep a reviewable template and pin the backend exactly. |
+| [Python 3.14.3 release](https://www.python.org/downloads/release/python-3143/) and [macOS installation guidance](https://docs.python.org/3.14/using/mac.html) | The PSF publishes a universal2 macOS installer and its SHA-256; Python documents command-line installation of the official package with the macOS installer utility. | Pin and hash-check the official 3.14.3 package for the macOS native build. |
 | [Nuitka 4.1.3 package](https://pypi.org/project/Nuitka/4.1.3/) | Exact build-tool release available for supported Python platforms. | Pin `Nuitka==4.1.3`; do not bundle the compiler. |
 | [Nuitka license](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE.txt) and [runtime exception](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE-RUNTIME.txt) | Compiler is AGPL-3.0; the additional permission applies to qualifying generated target code and does not weaken compiler copyleft. | Bundle the byte-identical runtime exception; describe Nuitka as an AGPL build tool. |
 | [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) | PySide6/shiboken6 offer LGPL-3.0/GPL/commercial alternatives and include Qt modules under their applicable terms. | Select LGPL-3.0 and inventory the exact native components. |
@@ -29,6 +30,17 @@ The reviewed environment reported Python 3.14.3, `PySide6-Essentials==6.11.2`,
 `pyside6-deploy` command exposes standalone mode and an explicit Nuitka-version
 override. The generated default template named another Nuitka patch, so Ordifile does
 not trust that mutable default and supplies the reviewed exact pin.
+
+An exact-head `macos-15` prototype attempt using `actions/setup-python` reached the
+final-byte audit but was rejected because the hosted tool-cache runtime prefix was
+embedded in the bundle. Ordifile does not allowlist or redact such bytes after the
+fact. The workflow instead downloads the official Python 3.14.3 macOS package from
+`python.org`, verifies the release-page SHA-256
+`50b709f72cb5ed87d5882901923face981dd657569717761832c36db3bf08238`, and installs
+that exact framework on the disposable hosted runner before packaging.
+Python 3.14.3 is the reviewed prototype baseline, not a claim that it remains the
+latest maintenance release; a public standalone distribution must re-review the
+runtime patch level and rebuild evidence.
 
 The exact installed Nuitka 4.1.3 runtime-exception bytes have SHA-256
 `20ff0ae581adf436a7b06e50e67a6c8913aec1ea4e60dba138d0a0bee7ee520c`; the copy in

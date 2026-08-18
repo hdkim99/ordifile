@@ -53,6 +53,14 @@ overrides, and run the packaged executable there. The native candidate is never
 uploaded from the public repository: only its path-free manifest, checksum inventory,
 and smoke report are retained as Actions evidence.
 
+The macOS build installs the exact Python 3.14.3 universal2 package published by the
+Python Software Foundation and verifies its reviewed SHA-256 before installation.
+This is deliberate: an exact-head hosted run using `actions/setup-python` compiled a
+hosted tool-cache prefix into the candidate and the final-byte privacy gate rejected
+it. The official framework build avoids weakening that gate while retaining the
+reviewed Python version. Windows continues to use `actions/setup-python` inside its
+run-scoped isolated job environment.
+
 These controls reduce exposure but do not turn a persistent public-repository runner
 into a clean or disposable security boundary. Dispatch additionally requires a
 dedicated minimally privileged host, current runner/OS patches, no private data,

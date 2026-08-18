@@ -100,6 +100,7 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     for prohibited_runner in ("windows-2025", "windows-latest", "windows-2022"):
         assert prohibited_runner not in text
     assert "runs-on: macos-15" in text
+    macos_job = text.split("  macos-prototype:", 1)[1]
     preflight = text.split("  windows-prototype:", 1)[0]
     assert "dispatch-preflight:" in preflight
     assert "runs-on: ubuntu-latest" in preflight
@@ -135,7 +136,17 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
         assert private_runner_value in windows_job
     assert "path: source" in windows_job
     assert windows_job.count("working-directory: source") >= 7
-    assert 'python-version: "3.14.3"' in text
+    assert text.count('python-version: "3.14.3"') == 1
+    assert "actions/setup-python@" not in macos_job
+    assert "https://www.python.org/ftp/python/3.14.3/python-3.14.3-macos11.pkg" in macos_job
+    assert "50b709f72cb5ed87d5882901923face981dd657569717761832c36db3bf08238" in macos_job
+    assert "/usr/bin/shasum -a 256 --check >/dev/null" in macos_job
+    assert "/usr/sbin/pkgutil --check-signature" in macos_job
+    assert "/usr/bin/sudo -n /usr/sbin/installer" in macos_job
+    assert "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14" in macos_job
+    assert "print(platform.machine())" in macos_job
+    assert "print(sys.base_prefix)" in macos_job
+    assert macos_job.count("python3.14 scripts/standalone/") == 3
     assert "--target windows-x86_64" in text
     assert "--standalone-smoke" in text
     assert "--standalone-window-smoke" in text
