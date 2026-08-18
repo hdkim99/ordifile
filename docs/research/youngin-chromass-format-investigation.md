@@ -140,7 +140,7 @@ otherwise.
 | `.chr` | General Clarity | Multi-detector text export | Verified for general Clarity | DataApex export documentation | None |
 | `.cdf` | General Clarity | AIA/NetCDF chromatogram export | Verified; signal/basic description only, not full results/method/calibration/GLP | DataApex export documentation | None |
 | `.asc` | General Clarity | EZChrom ASCII export | Verified export choice | DataApex export documentation | None |
-| `.txt`, `.csv` | General Clarity Export Data | Result Table export | Verified format choices for result export; exact YL 9.0.1 schema pending a same-run file | DataApex Export Data documentation | None |
+| `.txt`, `.csv` | General Clarity Export Data | Result Table export | Verified format choices; local bridge ready, exact YL 9.0.1 OEM schema awaits its one-file pilot | DataApex Export Data documentation | None |
 | `.xls`, `.xlsx` | General Clarity Export Data | Result Table export | Verified format choices; XLS/XLSX availability is documented for the 9.0 generation | DataApex Export Data and changelog | None |
 | `.dbf` | General Clarity Export Data | Result Table export | Verified Result Table-only choice; not an initial Ordifile target | DataApex Export Data documentation | None |
 | Autochro native structure | Autochro family | Unresolved | Unresolved | No authoritative format document or file | None |
@@ -176,11 +176,15 @@ The owner archive contains only 23 PRM files. A bounded search found no companio
 result export and no deterministic internal Result Table with linked retention-time and
 area rows. Apparent peak-width and time-like properties belong to method or processing
 event structures, and empty result/calibration indicators do not establish computed
-peak rows. Therefore current scientific RT, area and height extraction is NO-GO; no
-`PeakRecord` is synthesized from these PRMs.
+peak rows. Therefore current scientific RT, area and height extraction remains
+unsupported and no `PeakRecord` is synthesized from these PRMs. A maintainer-only
+bridge now actively generates the missing evidence through the documented positional
+PRM / `export_results` / discard-close route. Its exact OEM pilot is blocked only by
+the absence of a YL-Clarity installation in the accessible Windows environment.
 
-When a same-run Result Table arrives, a standalone exact result adapter may parse it
-without requiring the PRM. YoungIn, Agilent and Shimadzu result adapters remain
+When that bridge generates a same-run Result Table with explicit RT and area, a
+standalone exact result adapter may parse it without requiring the PRM. YoungIn,
+Agilent and Shimadzu result adapters remain
 vendor-specific readers, but all verified rows map to the same `PeakRecord`, `Peaks`
 and explicit-assignment-only `Peak_Matrix` behavior. Raw-source pairing is optional
 evidence, not a runtime requirement.

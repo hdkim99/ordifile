@@ -7,6 +7,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- A maintainer-only, privacy-safe Windows bridge for generating YL-Clarity Result
+  Table exports from the 23 existing local PRM inputs through an ordinarily licensed
+  vendor installation. It stages SHA-named temporary copies, records local source-to-
+  export hashes, uses the documented positional-PRM / `export_results` /
+  `prm_close_discard` sequence, and never makes YL-Clarity a runtime or CI dependency.
+
+### Changed
+
+- YoungIn Result work now actively generates same-run vendor exports instead of
+  waiting indefinitely for an externally supplied companion. The generic Clarity
+  automation route is documented, while exact YL-Clarity `9.0.1.19` OEM command
+  compatibility remains gated by a one-file pilot on a licensed installation.
+
 ## [0.3.1] - 2026-08-18
 
 ### Fixed

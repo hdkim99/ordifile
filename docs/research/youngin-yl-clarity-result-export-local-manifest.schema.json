@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hdkim99/ordifile/blob/main/docs/research/youngin-yl-clarity-result-export-local-manifest.schema.json",
+  "title": "Ordifile local YL-Clarity Result export manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "mode",
+    "vendor_command_profile",
+    "oem_command_capability",
+    "discovered_inputs",
+    "selected_inputs",
+    "successful_exports",
+    "failed_exports",
+    "original_sources_modified",
+    "pilot_gate",
+    "executable",
+    "records"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "tool": { "const": "youngin_yl_clarity_export_bridge" },
+    "mode": { "enum": ["pilot", "batch"] },
+    "vendor_command_profile": {
+      "const": "open_prm_export_results_close_discard"
+    },
+    "oem_command_capability": { "const": "pilot_required" },
+    "discovered_inputs": { "type": "integer", "minimum": 1, "maximum": 256 },
+    "selected_inputs": { "type": "integer", "minimum": 1, "maximum": 256 },
+    "successful_exports": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "failed_exports": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "original_sources_modified": { "type": "integer", "minimum": 0, "maximum": 256 },
+    "pilot_gate": { "enum": ["passed", "failed"] },
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["found", "discovery", "product_version"],
+      "properties": {
+        "found": { "const": true },
+        "discovery": { "enum": ["explicit", "registry"] },
+        "product_version": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{1,4}(?:\\.[0-9]{1,4}){1,5}$"
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceId": {
+      "type": "string",
+      "pattern": "^source-[0-9a-f]{64}$"
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encoding",
+        "delimiter",
+        "header_line",
+        "retention_time",
+        "area",
+        "height",
+        "signal",
+        "nonempty_rows_after_header",
+        "rows_with_retention_time",
+        "rows_with_area",
+        "rows_with_height",
+        "distinct_nonempty_signal_values"
+      ],
+      "properties": {
+        "encoding": { "enum": ["utf-8-sig", "utf-16", "windows-1252"] },
+        "delimiter": { "enum": ["tab", ",", ";", "whitespace"] },
+        "header_line": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "retention_time": { "const": true },
+        "area": { "const": true },
+        "height": { "type": "boolean" },
+        "signal": { "type": "boolean" },
+        "nonempty_rows_after_header": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "rows_with_retention_time": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "rows_with_area": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "rows_with_height": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "distinct_nonempty_signal_values": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "source_sha256",
+        "source_size_bytes",
+        "status",
+        "error_code",
+        "original_hash_preserved",
+        "export_filename",
+        "export_sha256",
+        "export_size_bytes",
+        "header"
+      ],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/sourceId" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "source_size_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 536870912
+        },
+        "status": { "enum": ["success", "failed"] },
+        "error_code": { "type": ["string", "null"] },
+        "original_hash_preserved": { "type": "boolean" },
+        "export_filename": {
+          "type": ["string", "null"],
+          "pattern": "^source-[0-9a-f]{64}\\.txt$"
+        },
+        "export_sha256": {
+          "anyOf": [
+            { "$ref": "#/$defs/sha256" },
+            { "type": "null" }
+          ]
+        },
+        "export_size_bytes": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "header": {
+          "anyOf": [
+            { "$ref": "#/$defs/header" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "success" } } },
+          "then": {
+            "properties": {
+              "error_code": { "type": "null" },
+              "original_hash_preserved": { "const": true },
+              "export_filename": { "type": "string" },
+              "export_sha256": { "$ref": "#/$defs/sha256" },
+              "export_size_bytes": { "type": "integer", "minimum": 1 },
+              "header": { "$ref": "#/$defs/header" }
+            }
+          },
+          "else": {
+            "properties": {
+              "error_code": { "type": "string", "minLength": 1 },
+              "export_filename": { "type": "null" },
+              "export_sha256": { "type": "null" },
+              "export_size_bytes": { "type": "null" },
+              "header": { "type": "null" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

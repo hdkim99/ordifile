@@ -137,6 +137,8 @@ topic reviews beside this register.
 | [Export Data](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm) | DataApex | Official documentation | Accessed 2026-08-16 | Result Table export to TXT/CSV/XLS/XLSX/DBF plus separately configurable chromatogram and header content. |
 | [Result Table](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.060-results/030.060-result-table.htm) | DataApex | Official documentation | Accessed 2026-08-17 | Retention-time, area, height, compound, and peak-boundary semantics; not a PRM byte specification. |
 | [Command-line parameters](https://www.dataapex.com/documentation/Content/Help/110-technical-specifications/110.020-command-line-parameters/110.020-command-line-parameters.htm) | DataApex | Official documentation | Accessed 2026-08-17 | Separates Result Table `export_results` from curve-only `prm_export`. |
+| [Export of results](https://www.dataapex.com/documentation/Content/lims/020-workflows-in-clarity/020-070-export-results.htm) | DataApex | Official documentation | Accessed 2026-08-18 | Fixed-format guidance, active `.DSK` dependency, batch/on-demand export, and Full Format privacy fields. |
+| [All Signals Result Table](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.060-results/030.060-all-signals-results.htm) | DataApex | Official documentation | Accessed 2026-08-18 | Signal Name, multi-signal result layout and total-row behavior. |
 | [Clarity End User License Agreement](https://www.dataapex.com/downloads/26027/view) | DataApex | Official software license | 2024-01-12 | Proprietary licensing, redistribution, modification, and reverse-engineering boundary. |
 | [OpenChrom](https://www.openchrom.net/) / [converter catalogue](https://converter.openchrom.net/) | Lablicate / OpenChrom | Open-source core plus separately distributed proprietary converter service | Accessed 2026-08-17 | The catalogue lists a DataApex FID `.prm` converter, but the current converter is GUI-installed proprietary software and no public headless import path is available. It was not executed, bundled, or used as implementation evidence. |
 
@@ -158,5 +160,9 @@ instruments, detectors, channels and identified-compound shapes remain unsupport
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
 paired official export, public native reader, or reader SDK was found. One local-only
 owner archive supplies the 23 PRM files used for an exact Experimental structural
-reader. These gaps continue to block broad YoungIn claims and Verified scientific
-semantics while the input files remain outside Git and release distributions.
+reader. Official DataApex documentation supports a positional PRM open followed by
+`export_results` and `prm_close_discard`, so a local vendor-export bridge now provides
+an active evidence path. The accessible Windows environment has no YL-Clarity
+installation; exact OEM compatibility remains unresolved until the one-file pilot.
+These gaps continue to block broad YoungIn claims and Verified scientific semantics
+while native files and generated exports remain outside Git and release distributions.

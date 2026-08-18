@@ -82,7 +82,7 @@ detector-specific scaling or units.
 The current OpenChrom converter could not be run in a privacy-safe automated local
 mode. This is recorded as `Unavailable`, not as negative parser evidence.
 
-## Peak-result audit and current NO-GO
+## Peak-result audit and vendor-export bridge
 
 The 23 local PRM files were also audited specifically for an integrated peak/result
 table before any result parser or canonical-model change was considered. The current
@@ -102,10 +102,15 @@ results; the GUI can write result tables to TXT/CSV or XLS/XLSX. DataApex's Resu
 documentation identifies peak rows and retention-time ordering and explains that the
 visible fields and units depend on active signal, calibration and table settings. The
 current fixtures establish neither a YL-Clarity Result Table companion nor deterministic
-RT/area extraction. Therefore YoungIn raw-record conversion remains GO, but YoungIn
-RT+Area result parsing is NO-GO until an actual same-run result fixture is obtained. No
-`PeakRecord` field, result adapter or peak-order workbook structure is introduced from
-marker names alone.
+RT/area extraction. YoungIn raw-record conversion therefore remains GO, while result
+evidence is now generated actively through the ordinary licensed vendor application.
+The local bridge stages a temporary SHA-addressed PRM copy, never passes the original
+source to the vendor, invokes positional PRM open, `export_results` and
+`prm_close_discard`, validates explicit RT+Area headers, and records a sanitized local
+pairing manifest. No `PeakRecord` field or result adapter is introduced from marker
+names alone. The exact OEM pilot is currently blocked because a bounded search found
+no YL-Clarity installation in the accessible Windows environment; the operational
+state is `LOCAL_VENDOR_EXPORT_BRIDGE_READY`, not an indefinite fixture request.
 
 The eventual result path is manufacturer-neutral: standalone Agilent, Shimadzu and
 YoungIn result adapters should map evidence-backed result rows into the existing
@@ -127,6 +132,7 @@ optional and separate from the result-first consolidation path.
 | Peak table | Unsupported |
 | Batch PRM to one workbook | Experimental GO |
 | Verified scientific chromatogram | Blocked by paired export |
+| Vendor Result export bridge | Local-only ready; exact OEM pilot not yet run |
 
 ## Verified promotion inputs
 

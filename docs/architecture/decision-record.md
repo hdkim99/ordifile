@@ -191,6 +191,16 @@ to the workbook layout.
     Identified unsupported LabSolutions profiles fail safely instead of falling
     through to the generic semicolon reader. The primary GPL-hosted fixture remains a
     controlled external oracle only; no reader or test expressions are copied.
+38. YoungIn peak-result evidence is generated through an ordinary licensed
+    YL-Clarity vendor export rather than inferred from structural PRM records. A
+    maintainer-only Windows bridge may stage one SHA-addressed temporary PRM at a time,
+    invoke the documented positional-open / `export_results` /
+    `prm_close_discard` sequence, and record a local sanitized pairing manifest.
+    The bridge never becomes a runtime or CI dependency, never saves or reintegrates a
+    source, and never bundles vendor software. An exact Result adapter may begin only
+    after an actual YL-Clarity OEM pilot proves explicit RT and area headers. Until
+    then the operational state is `LOCAL_VENDOR_EXPORT_BRIDGE_READY`, not a broad
+    YoungIn Result support claim.
 
 ## Public boundaries
 

@@ -128,10 +128,13 @@ The 23 completed PRM files establish one exact producer/layout profile, 43 bound
 duplicate-validated raw blocks, stored FID/TCD labels and deterministic binary32
 records. `SeriesKind.DECODED_RECORDS` keeps those values separate from scientific
 signals. Retention time, detector verification, scaling, units and peaks remain
-unsupported or unresolved, and paired official export is still required for Verified
-promotion. The support matrix continues to separate YL-Clarity from Autochro,
-completed PRM from recovery RAW, and the exact observed profile from broad YoungIn
-claims.
+unsupported or unresolved. A maintainer-only local vendor-export bridge is ready to
+generate paired Result Table evidence from temporary PRM copies, but the exact OEM
+pilot cannot run until a YL-Clarity installation is available. Bridge execution is
+permitted only under a normal license. The bridge does not itself expand public
+support. The support matrix continues to separate
+YL-Clarity from Autochro, completed PRM from recovery RAW, and the exact observed
+profile from broad YoungIn claims.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because
 its paired same-run LabSolutions ASCII reference validates the sampled time and signal
