@@ -50,6 +50,18 @@ currently available version.
 python -m pip install --no-cache-dir ordifile
 ```
 
+The current development source, not the published v0.3.1 package, contains the first
+Experimental desktop interface. From a source checkout, install it separately so
+existing CLI users do not receive a Qt runtime dependency:
+
+```bash
+python -m pip install -e ".[gui]"
+ordifile-gui
+```
+
+A future release may publish this `gui` extra after the Draft GUI change passes its
+review and release gates.
+
 ## Quick start
 
 ```bash
@@ -83,6 +95,24 @@ The source files remain unchanged. Natural filename ordering keeps `sample_2` be
 `sample_10`.
 
 ![The Samples sheet read back from the generated Ordifile workbook](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-workbook.png)
+
+## Experimental desktop interface
+
+The optional desktop interface provides **Add Files**, **Add Folder**, and local
+file-manager drag and drop, followed by authoritative format inspection through the
+same public registry and pipeline used by the CLI. Choose one of the five existing
+sort modes and an `.xlsx` output, then convert in a background worker while progress
+and per-file success, warning, or failure remain visible.
+
+![The implemented Ordifile desktop interface using synthetic public-safe inputs](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-desktop.png)
+
+The interface is offline-only: it has no upload, cloud, telemetry, embedded browser,
+or vendor-executable integration. It does not silently replace an existing workbook.
+Add buttons, visible labels, keyboard focus order, and accessible names provide a
+keyboard path equivalent to drag and drop. Forced cancellation is intentionally
+omitted until the public core can preserve workbook transaction safety during
+cancellation. Standalone `.exe`, `.app`, signing, and notarization remain tracked by
+Issue #6 and are not part of this Python-package interface.
 
 ## Verified formats
 
@@ -249,9 +279,10 @@ relative path, row count, formula-escape count, and SHA-256.
 The CLI calls the same public API intended for future interfaces:
 
 ```python
-from ordifile.api import convert, inspect_file, list_formats
+from ordifile.api import convert, inspect_file, inspect_inputs, list_formats
 
 inspection = inspect_file("sample.csv")
+preview = inspect_inputs(["sample_1.csv", "sample_2.tsv"], sort="auto")
 result = convert(
     ["sample_1.csv", "sample_2.tsv"],
     "Ordifile_Result.xlsx",
@@ -259,12 +290,14 @@ result = convert(
     include_signals=False,
 )
 
-print(result.success_count, result.failure_count, result.sort.effective)
+print(preview.outcome, result.success_count, result.failure_count, result.sort.effective)
 ```
 
-`convert()` also accepts folders, recursion, extension filters, explicit adapters and
-XLSX sheets, error policy, overwrite policy, CSV sidecars, and a presentation-neutral
-progress callback.
+`inspect_inputs()` performs the same bounded discovery, detection, parsing, validation,
+and sorting without writing an artifact. `convert()` intentionally reads and validates
+the inputs again, and also accepts folders, recursion, extension filters, explicit
+adapters and XLSX sheets, error policy, overwrite policy, CSV sidecars, and a
+presentation-neutral progress callback.
 
 ## Add an adapter
 
@@ -362,8 +395,9 @@ The bridge rejects output inside a Git worktree unless it is below Ordifile's fi
   planning; batch summaries are bounded and report omitted-code counts.
 - The practical workbook cap is 512 sheets and the conservative portable output-path
   cap is 218 Unicode code points.
-- Proprietary readers are limited to the exact Experimental profiles above. No GUI is
-  included.
+- Proprietary readers are limited to the exact Experimental profiles above. The
+  optional Experimental GUI exposes only those same registry capabilities and does not
+  broaden format support.
 
 These practical bounds are Ordifile safety policies, not claims about every valid
 Excel file. See [the exact generic format contract](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabular.md) and

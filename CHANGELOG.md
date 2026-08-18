@@ -9,6 +9,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An optional Experimental offline desktop interface with file and folder selection,
+  local drag and drop, detected-format preview, all five existing sort modes,
+  background conversion, per-file outcomes, and an explicit output-open action. The
+  interface calls the same public conversion API as the CLI and has no network,
+  telemetry, cloud, or vendor-application dependency.
+- A public `inspect_inputs()` batch-preview API and presentation-neutral
+  `BatchOutcome` shared by the CLI and desktop interface. Preview intentionally
+  re-reads and validates inputs during conversion rather than authorizing stale data.
 - An Experimental standalone YoungIn YL-Clarity Result Table adapter for the exact
   owner-validated CP949-compatible, tab-delimited export grammar. It preserves six
   actual RT/area/height rows across two local-only exports, source-order signal
@@ -25,6 +33,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- PySide6 Qt Widgets is available only through the optional `gui` extra; the default
+  Ordifile installation and CLI do not install Qt. Standalone installers remain
+  deferred until the desktop workflow is validated independently.
 - YoungIn Result status advanced from local bridge readiness to Experimental GO for
   the exact received Result Table grammar. Owner export/PRM pairing is external
   evidence; runtime conversion remains standalone and requires no PRM or vendor app.

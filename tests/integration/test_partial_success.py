@@ -8,10 +8,10 @@ import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile.adapters.registry import create_registry
-from ordifile.api import convert, inspect_file
+from ordifile.api import convert, inspect_file, inspect_inputs
 from ordifile.core import discovery, pipeline
 from ordifile.core.errors import OrdifileError
-from ordifile.core.models import FileStatus, ProgressEvent
+from ordifile.core.models import BatchOutcome, FileStatus, ProgressEvent
 from ordifile.core.pipeline import run_pipeline
 from ordifile.core.workbook_text import workbook_audit_display
 
@@ -206,6 +206,50 @@ def test_inspect_rejects_directory_even_when_it_contains_one_file(tmp_path: Path
     with pytest.raises(OrdifileError) as caught:
         inspect_file(tmp_path)
     assert caught.value.code == "INSPECT_REQUIRES_FILE"
+
+
+def test_inspect_inputs_previews_folder_without_writing_and_matches_conversion(
+    tmp_path: Path,
+) -> None:
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    first = inputs / "sample_2.csv"
+    second = inputs / "sample_1.csv"
+    first.write_text("sample_id,area\ntwo,2\n", encoding="utf-8")
+    second.write_text("sample_id,area\none,1\n", encoding="utf-8")
+
+    preview = inspect_inputs(inputs, sort="filename")
+    output = tmp_path / "result.xlsx"
+    converted = convert(inputs, output, sort="filename")
+
+    assert preview.output_path is None
+    assert preview.sheets == ()
+    assert preview.sidecars == ()
+    assert preview.outcome is BatchOutcome.SUCCESS
+    assert [item.source.public_reference for item in preview.files] == [
+        item.source.public_reference for item in converted.files
+    ]
+    assert [item.adapter_id for item in preview.files] == [
+        item.adapter_id for item in converted.files
+    ]
+    assert [item.status for item in preview.files] == [item.status for item in converted.files]
+    assert preview.sort == converted.sort
+    assert output.is_file()
+
+
+def test_batch_outcome_distinguishes_success_partial_and_all_failed(tmp_path: Path) -> None:
+    good = tmp_path / "good.csv"
+    bad = tmp_path / "bad.csv"
+    good.write_text("sample_id,area\ngood,1\n", encoding="utf-8")
+    bad.write_bytes(b"\xff\xfe")
+
+    success = inspect_inputs(good)
+    partial = inspect_inputs((good, bad))
+    failed = inspect_inputs(bad)
+
+    assert success.outcome is BatchOutcome.SUCCESS
+    assert partial.outcome is BatchOutcome.PARTIAL_SUCCESS
+    assert failed.outcome is BatchOutcome.FAILED
 
 
 def test_invalid_sort_and_forced_adapter_typo_are_configuration_errors(tmp_path: Path) -> None:

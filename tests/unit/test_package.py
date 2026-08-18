@@ -32,7 +32,7 @@ def test_cli_help(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Batch-convert" in output
 
 
-def test_built_wheel_contains_only_ordifile_package_and_entry_point(tmp_path: Path) -> None:
+def test_built_wheel_contains_only_ordifile_package_and_entry_points(tmp_path: Path) -> None:
     subprocess.run(
         [
             sys.executable,
@@ -61,12 +61,19 @@ def test_built_wheel_contains_only_ordifile_package_and_entry_point(tmp_path: Pa
         metadata_name = next(name for name in members if name.endswith(".dist-info/METADATA"))
         metadata = archive.read(metadata_name).decode("utf-8")
 
-    assert "ordifile = ordifile.cli.main:main" in entry_points
+    assert entry_points.splitlines() == [
+        "[console_scripts]",
+        "ordifile = ordifile.cli.main:main",
+        "ordifile-gui = ordifile.desktop.app:main",
+    ]
     assert "labconvert" not in entry_points.casefold()
     assert "Name: ordifile\n" in metadata
     assert "Project-URL: Documentation, https://github.com/hdkim99/ordifile#readme" in metadata
     assert "Project-URL: Issues, https://github.com/hdkim99/ordifile/issues" in metadata
     assert "Project-URL: Repository, https://github.com/hdkim99/ordifile" in metadata
     assert "Requires-Dist: olefile<0.48,>=0.47" in metadata
+    assert "Provides-Extra: gui" in metadata
+    assert "Requires-Dist: pyside6-essentials==6.11.2; extra == 'gui'" in metadata
+    assert "Requires-Dist: pyside6-essentials==6.11.2\n" not in metadata
     assert "Requires-Dist: types-olefile==0.47.0.20260508; extra == 'dev'" in metadata
     assert "Requires-Dist: types-olefile==0.47.0.20260508\n" not in metadata

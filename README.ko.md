@@ -49,6 +49,18 @@ version을 확인할 수 있습니다.
 python -m pip install --no-cache-dir ordifile
 ```
 
+현재 공개된 v0.3.1 package가 아니라 개발 source에 첫 Experimental desktop interface가
+포함되어 있습니다. 기존 CLI 사용자에게 Qt runtime dependency를 추가하지 않도록 source
+checkout에서 별도 extra로 설치합니다.
+
+```bash
+python -m pip install -e ".[gui]"
+ordifile-gui
+```
+
+이 Draft GUI 변경이 review와 release gate를 통과하면 향후 release에서 `gui` extra를
+공개할 수 있습니다.
+
 ## 빠른 시작
 
 ```bash
@@ -82,6 +94,22 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 먼저 배치합니다.
 
 ![생성된 Ordifile workbook에서 다시 읽은 Samples sheet](docs/assets/ordifile-workbook.png)
+
+## Experimental desktop interface
+
+선택형 desktop interface는 **Add Files**, **Add Folder**, local file-manager drag and
+drop을 제공하며, CLI와 동일한 공개 registry와 pipeline으로 authoritative format
+inspection을 수행합니다. 기존 5개 sort mode와 `.xlsx` output을 선택하면 background
+worker가 변환하고 파일별 성공·경고·실패와 progress를 계속 표시합니다.
+
+![합성 공개 입력을 사용한 실제 Ordifile desktop interface](docs/assets/ordifile-desktop.png)
+
+이 interface는 offline-only이며 upload, cloud, telemetry, embedded browser,
+vendor-executable integration이 없습니다. 기존 workbook을 조용히 덮어쓰지 않습니다.
+Drag and drop과 동등한 keyboard 경로를 Add button, visible label, focus order,
+accessible name으로 제공합니다. 강제 Cancel은 workbook transaction safety를 보존하는
+공개 core contract가 생길 때까지 의도적으로 제외합니다. Standalone `.exe`, `.app`,
+signing, notarization은 Issue #6 범위이며 이번 Python package GUI에는 포함되지 않습니다.
 
 ## 검증된 형식
 
@@ -245,9 +273,10 @@ Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로
 CLI와 향후 인터페이스는 같은 공개 API를 사용합니다.
 
 ```python
-from ordifile.api import convert, inspect_file, list_formats
+from ordifile.api import convert, inspect_file, inspect_inputs, list_formats
 
 inspection = inspect_file("sample.csv")
+preview = inspect_inputs(["sample_1.csv", "sample_2.tsv"], sort="auto")
 result = convert(
     ["sample_1.csv", "sample_2.tsv"],
     "Ordifile_Result.xlsx",
@@ -255,10 +284,12 @@ result = convert(
     include_signals=False,
 )
 
-print(result.success_count, result.failure_count, result.sort.effective)
+print(preview.outcome, result.success_count, result.failure_count, result.sort.effective)
 ```
 
-`convert()`는 폴더, 재귀 탐색, 확장자 필터, 명시적 adapter·XLSX sheet, 오류 정책,
+`inspect_inputs()`는 output을 쓰지 않고 동일한 bounded discovery, detection, parsing,
+validation, sorting을 수행합니다. `convert()`는 stale data를 승인하지 않도록 입력을 다시
+읽고 검증하며, 폴더, 재귀 탐색, 확장자 필터, 명시적 adapter·XLSX sheet, 오류 정책,
 덮어쓰기, CSV sidecar, UI와 독립적인 progress callback도 지원합니다.
 
 ## Adapter 추가
@@ -355,7 +386,8 @@ Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored
   summary는 제한된 목록과 생략 code 수를 기록합니다.
 - 실용 workbook 제한은 512개 sheet이며 보수적 portable output path 제한은 218 Unicode
   code point입니다.
-- Proprietary reader는 위의 정확한 Experimental profile로 제한됩니다. GUI는 포함되지
+- Proprietary reader는 위의 정확한 Experimental profile로 제한됩니다. 선택형
+  Experimental GUI도 동일 registry capability만 표시하며 format 지원 범위를 넓히지
   않습니다.
 
 이 실용 한도는 Ordifile 안전 정책이며 모든 유효 Excel 파일을 지원한다는 의미가

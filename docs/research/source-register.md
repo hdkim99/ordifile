@@ -1,6 +1,6 @@
 # Source register
 
-- Research and access dates: 2026-08-15 through 2026-08-17
+- Research and access dates: 2026-08-15 through 2026-08-18
 - Search scope: names, package registries, chromatography conversion software, GC
   exports, format standards, licenses, Python support, Excel limits, GUI distribution,
   vendor trademark guidance, OOXML worksheet coordinates and cell semantics, Excel
@@ -15,6 +15,14 @@ topic reviews beside this register.
 
 | Title | Publisher / owner | Type | Date available | Claim supported |
 |---|---|---|---|---|
+| [PySide6-Essentials 6.11.2](https://pypi.org/project/PySide6-Essentials/6.11.2/) | Qt for Python / Python Software Foundation | Package registry metadata | Released and accessed 2026-08-18 | Exact optional GUI distribution, Python 3.10–3.14 and Windows/macOS/Linux wheel availability, open-source license alternatives, and required `shiboken6==6.11.2`. |
+| [shiboken6 6.11.2](https://pypi.org/project/shiboken6/6.11.2/) | Qt for Python / Python Software Foundation | Package registry metadata | Released and accessed 2026-08-18 | Exact required companion distribution, Python and platform wheel boundary, and open-source license alternatives. |
+| [Qt drag and drop](https://doc.qt.io/qt-6/dnd.html) | The Qt Company | Official framework documentation | Qt 6.11.1; accessed 2026-08-18 | Qt Widgets drag-and-drop event and MIME-data support. |
+| [Qt accessibility](https://doc.qt.io/qt-6/accessible.html) | The Qt Company | Official framework documentation | Qt 6.11; accessed 2026-08-18 | Qt accessibility architecture and platform bridge support. |
+| [Qt for Python deployment](https://doc.qt.io/qtforpython-6/deployment/index.html) | The Qt Company | Official framework documentation | Qt for Python 6.11; accessed 2026-08-18 | Available deployment paths and their platform-specific packaging implications; standalone packaging remains deferred. |
+| [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations) | The Qt Company | Official licensing guidance | Current; accessed 2026-08-18 | Notice, source, modification, replacement/relinking, and installation-information considerations for future Qt binary redistribution. |
+| [tkinter](https://docs.python.org/3/library/tkinter.html) / [tkinter.dnd](https://docs.python.org/3/library/tkinter.dnd.html) | Python Software Foundation | Standard-library documentation | Python 3.14.7; accessed 2026-08-18 | Cross-platform Tcl/Tk binding availability and the limited experimental intra-application drag-and-drop helper boundary. |
+| [wx.FileDropTarget](https://docs.wxpython.org/wx.FileDropTarget.html) / [wx.Accessible](https://docs.wxpython.org/wx.Accessible.html) | wxPython project | Official API documentation | wxPython Phoenix 4.2.3; accessed 2026-08-18 | Native file-drop and accessibility API availability; cross-platform behavior and packaging remain separate risks. |
 | [Names and normalization](https://packaging.python.org/en/latest/specifications/name-normalization/) | PyPA | Specification | Updated 2026-08-11 | Python project-name normalization. |
 | [OpenChrom](https://github.com/OpenChrom/openchrom) | OpenChrom | Repository and LICENSE | Active 2026-08 | Actual license and project scope. |
 | [OpenChrom paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC2920884/) | BMC Bioinformatics | Peer-reviewed paper | 2010 | Historical platform scope; current license comes from the repository. |

@@ -1,6 +1,6 @@
 # Dependency and license review
 
-- Research dates: 2026-08-15 through 2026-08-17
+- Research dates: 2026-08-15 through 2026-08-18
 - Scope: minimal runtime/build/test dependencies, Python/OS policy, GUI candidates,
   release actions, GC reader candidates, and redistribution implications.
 - Source details: exact titles, owners, source types, dates when available, URLs, and
@@ -58,13 +58,17 @@ Ubuntu, Windows, and macOS validation that preceded the DGX-only CI policy.
 
 | Candidate | OS and UI evidence | Drag-and-drop / accessibility | License and bundling | Decision risk |
 |---|---|---|---|---|
-| [PySide6 / Qt for Python](https://doc.qt.io/qtforpython-6/) | Windows, macOS, Linux; tables, progress and logs; official [deployment guide](https://doc.qt.io/qtforpython-6/deployment/index.html) | Native DnD and documented [Qt accessibility](https://doc.qt.io/qt-6/accessible.html) | [Qt for Python licensing](https://doc.qt.io/qtforpython-6/licenses.html) documents LGPL-3.0/GPL-3.0/commercial options; Essentials wheels remain tens of MB and require redistribution review | Provisional leader; require an installer prototype and LGPL checklist. |
+| [PySide6 / Qt for Python](https://doc.qt.io/qtforpython-6/) | Windows, macOS, Linux; tables, progress and logs; official [deployment guide](https://doc.qt.io/qtforpython-6/deployment/index.html) | Native DnD and documented [Qt accessibility](https://doc.qt.io/qt-6/accessible.html) | [Qt for Python licensing](https://doc.qt.io/qtforpython-6/licenses.html) documents LGPL-3.0/GPL-3.0/commercial options; Essentials wheels remain tens of MB and require redistribution review | Selected for the optional Experimental Python-package GUI; standalone redistribution still requires its own LGPL gate. |
 | [tkinter](https://docs.python.org/3/library/tkinter.html) + [tkinterdnd2](https://pypi.org/project/tkinterdnd2/) | Tk is cross-platform; add-on classified pre-alpha | DnD requires the add-on/native components; accessibility evidence unresolved | Tcl/Tk plus MIT add-on; PyInstaller hook required | Smaller potential package, but higher DnD/accessibility risk. |
 | [wxPython](https://pypi.org/project/wxPython/) | Windows, macOS, Linux native widgets | Native DnD; accessibility evidence unresolved | wxWindows Library License; Linux may require build/system GTK | Packaging complexity remains high. |
 | [Toga](https://toga.beeware.org/en/stable/) | Cross-platform native abstraction, beta | Required production file/folder DnD not verified in stable docs | BSD-3-Clause; backend-specific prerequisites | Evidence gap blocks selection. |
 
-GUI work is deferred until the core and CLI are stable. `PySide6-Essentials` is only a
-provisional functional leader, not a production dependency or support claim.
+The core and CLI are now stable enough for an optional Experimental GUI.
+`PySide6-Essentials` is selected only for the `gui` extra, with `shiboken6` as its exact
+required companion distribution. Neither dependency is installed by the default
+Ordifile package. The selection rationale is recorded in
+[`gui-framework-decision.md`](../architecture/gui-framework-decision.md); standalone
+redistribution remains deferred to Issue #6.
 
 ## Excel constraints
 
@@ -149,8 +153,9 @@ plus the three write permissions documented by the pinned `actions/attest` relea
   project when their notice conditions are retained; none requires a vendor runtime.
 - Inference: the small pure-Python dependency set is sufficient for the verified
   vertical slice and lowers cross-platform packaging risk.
-- Unresolved: a GUI bundling decision remains open, and future adapter dependencies
-  require their own source and license review.
+- Unresolved: standalone GUI bundling, signing, and platform redistribution remain
+  open under Issue #6, and future adapter dependencies require their own source and
+  license review.
 - Risk and impact: dependency versions and vulnerability status can change. Package
   constraints, CI installation, `pip-audit`, source review, and
   `THIRD_PARTY_NOTICES.md` must be updated together before a release.
