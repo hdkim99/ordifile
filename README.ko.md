@@ -49,17 +49,17 @@ version을 확인할 수 있습니다.
 python -m pip install --no-cache-dir ordifile
 ```
 
-현재 공개된 v0.3.1 package가 아니라 개발 source에 첫 Experimental desktop interface가
-포함되어 있습니다. 기존 CLI 사용자에게 Qt runtime dependency를 추가하지 않도록 source
-checkout에서 별도 extra로 설치합니다.
+Experimental desktop interface는 Ordifile v0.4.0에 처음 포함됩니다. PyPI badge가
+v0.4.0 이상을 표시하기 전에는 source checkout을 사용해 주세요. 기존 CLI 설치에 Qt
+runtime dependency를 추가하지 않도록 optional extra로 분리했습니다.
 
 ```bash
 python -m pip install -e ".[gui]"
 ordifile-gui
 ```
 
-이 Draft GUI 변경이 review와 release gate를 통과하면 향후 release에서 `gui` extra를
-공개할 수 있습니다.
+v0.4.0 공개 후에는 `python -m pip install 'ordifile[gui]'`로 같은 interface를 설치할 수
+있습니다. 이는 Python package GUI이며 standalone `.exe` 또는 `.app`은 아닙니다.
 
 ## 빠른 시작
 
