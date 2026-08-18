@@ -1,0 +1,17 @@
+name: Standalone prototype
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-anchor-only:
+    name: Register manual standalone workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain dispatch registration boundary
+        run: >-
+          echo "Standalone full workflow is executed from an explicitly selected reviewed ref."
