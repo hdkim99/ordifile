@@ -457,6 +457,36 @@ def test_release_workflow_closes_openpyxl_workbook_explicitly() -> None:
     assert 'shutil.which("ordifile")' not in wheel_smoke
 
 
+def test_release_workflow_resolves_every_installed_cli_without_path() -> None:
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    smoke_blocks = {
+        "wheel": workflow.split(
+            "      - name: Install and exercise the wheel outside the checkout", maxsplit=1
+        )[1].split("      - name: Remove isolated job environment", maxsplit=1)[0],
+        "testpypi": workflow.split(
+            "      - name: Download both files directly from TestPyPI and compare bytes",
+            maxsplit=1,
+        )[1].split("      - name: Remove isolated job environment", maxsplit=1)[0],
+        "pypi": workflow.split(
+            "      - name: Download both files directly from PyPI and compare bytes",
+            maxsplit=1,
+        )[1].split("      - name: Remove isolated job environment", maxsplit=1)[0],
+    }
+
+    for name, block in smoke_blocks.items():
+        assert "import sysconfig" in block, name
+        assert 'scripts = Path(sysconfig.get_path("scripts"))' in block, name
+        assert '("ordifile.exe" if os.name == "nt" else "ordifile")' in block, name
+        assert "if not executable.is_file():" in block, name
+        assert block.index('"pip", "install"') < block.index(
+            'scripts = Path(sysconfig.get_path("scripts"))'
+        ), name
+        assert 'shutil.which("ordifile")' not in block, name
+
+    assert workflow.count('scripts = Path(sysconfig.get_path("scripts"))') == 3
+    assert 'shutil.which("ordifile")' not in workflow
+
+
 def test_release_workflow_revalidates_draft_before_final_publish() -> None:
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     final_publish = workflow.split("  publish-github-release:", maxsplit=1)[1]
