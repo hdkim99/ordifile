@@ -2,6 +2,11 @@ name: Standalone prototype
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact reviewed 40-character commit
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,7 +26,11 @@ jobs:
     if: >-
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main'
+      github.ref_type == 'branch' &&
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/build/standalone-prototype') &&
+      github.sha == inputs.expected_commit &&
+      github.workflow_sha == github.sha
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 75
     steps:
@@ -48,6 +57,21 @@ jobs:
           fetch-depth: 1
           path: source
           persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify exact reviewed source
+        shell: pwsh
+        working-directory: source
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:EXPECTED_COMMIT -cnotmatch '^[0-9a-f]{40}$') {
+            throw "Expected commit identity is invalid."
+          }
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -cne $env:EXPECTED_COMMIT) {
+            throw "Checked-out commit does not match the reviewed commit."
+          }
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -199,7 +223,11 @@ jobs:
     if: >-
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main'
+      github.ref_type == 'branch' &&
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/build/standalone-prototype') &&
+      github.sha == inputs.expected_commit &&
+      github.workflow_sha == github.sha
     runs-on: macos-15
     timeout-minutes: 75
     steps:
@@ -209,6 +237,21 @@ jobs:
           clean: true
           fetch-depth: 1
           persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify exact reviewed source
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Expected commit identity is invalid." >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "${EXPECTED_COMMIT}" ]]; then
+            echo "Checked-out commit does not match the reviewed commit." >&2
+            exit 1
+          fi
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

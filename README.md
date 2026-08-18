@@ -414,11 +414,12 @@ and external real-fixture workflows target Python 3.14 on a shared Linux DGX
 self-hosted runner. TestPyPI/PyPI publishing, byte verification, attestations, and
 GitHub Release publication use GitHub-hosted Ubuntu. Core CI has no Windows or macOS
 matrix. The maintainer-triggered standalone prototype workflow targets Windows x86-64
-only through a repository-authorized self-hosted Windows runner and uses GitHub-hosted
+only through an Ordifile-eligible self-hosted Windows runner and uses GitHub-hosted
 `macos-15` for macOS. The persistent Windows job uses a run-scoped environment,
 bounded pre/post cleanup, and checkout-independent artifact smoke. Neither platform
 uploads native candidate binaries; only path-free evidence is retained. The standalone
-workflow runs reviewed `main` code only and has no GitHub-hosted Windows fallback.
+workflow runs only an allowlisted same-repository branch whose selected SHA, required
+reviewed commit, workflow SHA, and checkout all match. It has no GitHub-hosted Windows fallback.
 Repository assignment, capability labels, and online state must be confirmed before
 dispatch; the workflow is not authorized for a personal workstation.
 Public-fork core workflows require maintainer approval before they run on the shared

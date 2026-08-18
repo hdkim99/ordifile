@@ -89,6 +89,9 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     text = WORKFLOW.read_text(encoding="utf-8")
     trigger = text.split("permissions:", 1)[0]
     assert "workflow_dispatch:" in trigger
+    assert "expected_commit:" in trigger
+    assert "Exact reviewed 40-character commit" in trigger
+    assert "required: true" in trigger
     for prohibited in ("push:", "pull_request:", "schedule:", "release:"):
         assert prohibited not in trigger
     assert "runs-on: [self-hosted, Windows, X64]" in text
@@ -97,7 +100,16 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "runs-on: macos-15" in text
     assert text.count("github.repository == 'hdkim99/ordifile'") == 2
     assert text.count("github.event_name == 'workflow_dispatch'") == 2
+    assert text.count("github.ref_type == 'branch'") == 2
     assert text.count("github.ref == 'refs/heads/main'") == 2
+    assert text.count("github.ref == 'refs/heads/build/standalone-prototype'") == 2
+    assert text.count("github.sha == inputs.expected_commit") == 2
+    assert text.count("github.workflow_sha == github.sha") == 2
+    assert text.count("ref: ${{ github.sha }}") == 2
+    assert "ref: ${{ inputs.expected_commit }}" not in text
+    assert text.count("EXPECTED_COMMIT: ${{ inputs.expected_commit }}") == 2
+    assert text.count("^[0-9a-f]{40}$") == 2
+    assert text.count("git rev-parse HEAD") == 2
     windows_job = text.split("  macos-prototype:", 1)[0]
     assert "Mask persistent runner identifiers" in windows_job
     assert "::add-mask::" in windows_job

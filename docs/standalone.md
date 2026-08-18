@@ -19,25 +19,33 @@ publication are excluded.
 
 ## Run the manual workflow
 
-After the workflow definition exists on the default branch, a maintainer can dispatch
-**Standalone prototype** for reviewed `main` in GitHub Actions. GitHub does not expose
-a new branch-only manual workflow before that registration condition is met; the prior
-pre-merge 404 is a workflow-registration limitation, not evidence that a native runner
-does not exist. No token, signing secret, OIDC permission or vendor software is used.
+The default branch first registers **Standalone prototype** with a no-build anchor.
+After registration, a maintainer may select either reviewed `main` or the fixed
+same-repository prototype branch and must supply its exact reviewed 40-character commit
+as `expected_commit`. Both native jobs require the selected ref SHA, expected commit,
+and workflow-definition SHA to be identical, and checkout is pinned to that SHA. The
+input never selects a checkout target. GitHub does not expose a new branch-only manual
+workflow before default-branch registration; the prior pre-merge 404 was a workflow
+registration limitation, not runner-availability evidence. No token, signing secret,
+OIDC permission or vendor software is used.
 
 The Windows job has no GitHub-hosted fallback. It requires the cumulative
-`self-hosted`, `Windows`, and `X64` capability labels and runs only when that
-repository-authorized runner is assigned and online. Because its workspace persists,
+`self-hosted`, `Windows`, and `X64` capability labels and runs only when an eligible
+repository-level runner is assigned and online. A runner registered to another
+user-owned repository is not shared with Ordifile; do not remove or repurpose that
+installation. If the same dedicated host is approved, create a separate Ordifile
+runner instance and verify it through the Ordifile repository inventory. Because its
+workspace persists,
 the job checks out into a workflow-owned source directory, uses a run-scoped virtual
 environment and unique runner-temporary scratch root, masks runner-local identifiers,
 and performs bounded cleanup before and after execution. The macOS job is fixed to
 GitHub-hosted `macos-15`; changing that routing requires a separate review.
-Both jobs check out read-only `main`, unpack the exact candidate into runner-temporary
+Both jobs check out the exact reviewed same-repository SHA, unpack the exact candidate into runner-temporary
 space, clear Python import overrides, and run only the packaged executable for
 scientific and window smokes. This is checkout-independent artifact execution, but not
 a separate clean-machine result.
 
-Manual/main-only routing, read-only repository permission, an isolated Python
+Manual, fixed-ref, exact-commit routing, read-only repository permission, an isolated Python
 environment, and cleanup reduce exposure; they do not make a persistent self-hosted
 machine an isolation boundary or undo a compromised job. Before dispatch, the Windows
 runner must be a dedicated, minimally privileged build host with no private scientific

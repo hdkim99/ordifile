@@ -34,8 +34,12 @@ desktop workflow.
 ## Build and evidence boundary
 
 `.github/workflows/standalone.yml` has only a manual `workflow_dispatch` trigger and
-read-only repository permission. Both jobs are restricted to the expected repository
-and reviewed `main` ref. The Windows job selects the cumulative `self-hosted`,
+read-only repository permission. A no-build default-branch anchor first registers that
+workflow identity. The full workflow accepts a required exact commit only as an
+identity assertion, never as a checkout selector. Both jobs are restricted to the
+expected repository, an allowlisted same-repository branch, and equality among the
+selected ref SHA, reviewed commit, workflow-definition SHA, and checked-out commit.
+The Windows job selects the cumulative `self-hosted`,
 `Windows`, and `X64` capability labels; those labels route work but do not replace the
 repository assignment trust boundary. The persistent job uses an isolated run-scoped
 environment, a workflow-owned nested source checkout, a unique runner-temporary
@@ -55,12 +59,16 @@ must be non-identifying because job setup output can precede in-job masking. A p
 workstation is not an approved runner for this workflow.
 
 GitHub only dispatches a new manual workflow after its definition exists on the
-default branch. A pre-merge 404 is therefore classified as
+default branch. The registration-only anchor performs no checkout, build, artifact
+upload, or self-hosted execution. A pre-merge 404 is therefore classified as
 `WORKFLOW_DISPATCH_REGISTRATION_LIMITATION`, not runner unavailability. While this
 infrastructure is under review, local native evidence can validate a platform, but the
-Draft PR must not claim an Actions run. The prototype merge gate remains blocked until
-the self-hosted Windows runner is visible with matching capability labels and both
-native automated runs pass through an approved registration/follow-up path.
+Draft PR must not claim an Actions run. This user-owned repository cannot consume a
+repository-level runner assigned to another repository. Existing runner installations
+must not be moved; a separate Ordifile registration is required and must appear in the
+Ordifile runner inventory. The prototype merge gate remains blocked until that Windows
+runner is visible with matching capability labels and both native automated jobs pass
+for the exact reviewed PR head.
 
 The packaged executable must prove all of the following before a prototype artifact is
 accepted:
