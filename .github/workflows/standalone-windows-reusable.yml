@@ -58,6 +58,8 @@ jobs:
     needs: caller-preflight
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 75
+    env:
+      PSExecutionPolicyPreference: Bypass
     steps:
       - name: Mask persistent runner identifiers
         shell: pwsh
