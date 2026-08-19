@@ -154,7 +154,8 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "A bundle file-type inventory failed." in macos_job
     assert "The bundle file inventory failed." in macos_job
     assert "The bundle file inventory cleanup failed." in macos_job
-    assert "The candidate depends on the build-host Python framework." in macos_job
+    assert "A candidate dependency references the build-host Python framework." in macos_job
+    assert "A candidate load command references the build-host Python framework." in macos_job
     assert 'file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)"' in macos_job
     assert '/usr/bin/file -b "${member}" |' not in macos_job
     assert 'done < "${file_inventory}"' in macos_job

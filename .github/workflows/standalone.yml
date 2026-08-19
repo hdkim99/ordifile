@@ -389,9 +389,12 @@ jobs:
                 echo "A Mach-O load-command inventory failed." >&2
                 exit 1
               }
-              if /usr/bin/grep -Fq "${framework}" <<< "${dependencies}" ||
-                 /usr/bin/grep -Fq "${framework}" <<< "${load_commands}"; then
-                echo "The candidate depends on the build-host Python framework." >&2
+              if /usr/bin/grep -Fq "${framework}" <<< "${dependencies}"; then
+                echo "A candidate dependency references the build-host Python framework." >&2
+                exit 1
+              fi
+              if /usr/bin/grep -Fq "${framework}" <<< "${load_commands}"; then
+                echo "A candidate load command references the build-host Python framework." >&2
                 exit 1
               fi
             fi
