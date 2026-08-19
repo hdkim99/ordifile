@@ -1,8 +1,9 @@
 # Standalone packaging evidence
 
 - Review date: 2026-08-18
-- Versions evaluated: Python 3.13.15 and 3.14.3, PySide6-Essentials/shiboken6 6.11.2,
-  Nuitka 4.1.3, PyInstaller 6.22.2, Briefcase 0.4.4
+- Versions evaluated: Python 3.13.15 and 3.14.3, python-build-standalone 20260203,
+  PySide6-Essentials/shiboken6 6.11.2, Nuitka 4.1.3, PyInstaller 6.22.2,
+  Briefcase 0.4.4
 - Scope: official deployment, package metadata and license sources only
 
 ## Evidence
@@ -11,8 +12,9 @@
 |---|---|---|
 | [Qt for Python deployment](https://doc.qt.io/qtforpython-6/deployment/index.html) | Qt documents `pyside6-deploy` as its deployment tool and identifies Nuitka as its compiler backend. | Select the Qt-maintained frontend. |
 | [`pyside6-deploy` reference](https://doc.qt.io/qtforpython-6/deployment/deployment-pyside6-deploy.html) | The tool uses a `pysidedeploy.spec`, supports `standalone` mode, and accepts a Nuitka version. | Keep a reviewable template and pin the backend exactly. |
-| [Python 3.13.15 release](https://www.python.org/downloads/release/python-31315/) and [macOS installation guidance](https://docs.python.org/3.13/using/mac.html) | The PSF publishes a maintained universal2 macOS installer and its SHA-256; Python documents command-line installation of the official package with the macOS installer utility. | Pin and hash-check the official 3.13.15 package for the macOS native build. |
-| [Nuitka 4.1.3 package](https://pypi.org/project/Nuitka/4.1.3/) and [static-libpython gate](https://github.com/Nuitka/Nuitka/blob/4.1.3/nuitka/options/Options.py) | Exact build-tool release available for supported Python platforms; pinned source rejects official Python 3.14+ static linking. | Pin `Nuitka==4.1.3`, use maintained Python 3.13 for the macOS static build, and do not bundle the compiler. |
+| [Python 3.14.3 release](https://www.python.org/downloads/release/python-3143/) | Exact CPython version and license baseline for both prototype targets. | Keep the application runtime version aligned at 3.14.3. |
+| [python-build-standalone releases](https://github.com/astral-sh/python-build-standalone/releases/tag/20260203), [running guide](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst), and [license](https://github.com/astral-sh/python-build-standalone/blob/main/LICENSE) | The reviewed release publishes an arm64 macOS CPython 3.14.3 install-only archive intended for relocatable use; the build project is MPL-2.0. | Pin the exact asset URL and GitHub asset SHA-256, verify bounded archive paths, and use it only as the macOS build runtime. The build project is not bundled. |
+| [Nuitka 4.1.3 package](https://pypi.org/project/Nuitka/4.1.3/) and [static-libpython gate](https://github.com/Nuitka/Nuitka/blob/4.1.3/nuitka/options/Options.py) | Exact build-tool release available for supported Python platforms; pinned source rejects official Python 3.14+ static linking. | Pin `Nuitka==4.1.3`, use dynamic libpython from the relocatable runtime, and do not bundle the compiler. |
 | [Nuitka license](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE.txt) and [runtime exception](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE-RUNTIME.txt) | Compiler is AGPL-3.0; the additional permission applies to qualifying generated target code and does not weaken compiler copyleft. | Bundle the byte-identical runtime exception; describe Nuitka as an AGPL build tool. |
 | [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) | PySide6/shiboken6 offer LGPL-3.0/GPL/commercial alternatives and include Qt modules under their applicable terms. | Select LGPL-3.0 and inventory the exact native components. |
 | [Qt open-source obligations](https://www.qt.io/development/open-source-lgpl-obligations) | Qt's guidance calls out notice, source, modification, replacement/relinking and installation-information considerations. | Make these hard pre-publication gates. |
@@ -31,26 +33,29 @@ The reviewed environment reported Python 3.14.3, `PySide6-Essentials==6.11.2`,
 override. The generated default template named another Nuitka patch, so Ordifile does
 not trust that mutable default and supplies the reviewed exact pin.
 
-An exact-head `macos-15` prototype attempt using `actions/setup-python` reached the
-final-byte audit but was rejected because the hosted tool-cache runtime prefix was
-embedded in the bundle. Ordifile does not allowlist or redact such bytes after the
-fact. A second exact-head attempt installed official Python 3.14.3, but Nuitka 4.1.3
-left a real load dependency on that build-host framework; Nuitka's pinned source marks
-official Python 3.14+ static linking unsupported. The workflow therefore downloads the
-maintained official Python 3.13.15 macOS package from `python.org`, verifies the
-release-page SHA-256
-`3b7eaf7f29825f796e8267024435540ddf1f17fc9a97ad58095daa7a75bfdcd3`, installs that
-exact framework, and explicitly requests static libpython linking. Windows retains its
-reviewed Python 3.14.3 build. A public standalone distribution must re-review both
-runtime patch levels and rebuild evidence.
+An exact-head `macos-15` attempt using `actions/setup-python` reached the final-byte
+audit but was rejected because the hosted tool-cache prefix was embedded in the bundle.
+A second attempt using the PSF Python 3.14.3 Framework left real dynamic dependencies
+on that build-host framework. A third attempt used PSF Python 3.13.15 and a static main
+executable, but extension and shared components still referenced the framework. Ordifile
+does not allowlist those bytes or rewrite Mach-O dependencies after the fact.
 
-The fixed `/Library/Frameworks/Python.framework/Versions/3.13` installation and its
-interpreter path contain no runner identity and are not classified as private build
-paths for the exact macOS target. This exception does not establish self-containment:
-the native job separately rejects any Mach-O dependency or load command that references
-the build-host framework, moves the framework away, and only then executes the packaged
-scientific and window smokes. Source, stage, temporary, home, workspace, runner-tool-
-cache, and every non-exact runtime path remain forbidden bundle content.
+The selected macOS runtime is the exact
+`cpython-3.14.3+20260203-aarch64-apple-darwin-install_only.tar.gz` asset. Its reviewed
+GitHub asset digest is
+`5bb1ad03aa2d8afe15140f56fedaab2ba95033785ad0367775899d42ac8aeb3c`.
+The archive has one `python/` top-level tree, includes dynamic libpython, and its CPython
+license bytes match the tracked `PYTHON-PSF-LICENSE.txt`. The reviewed asset contains
+only regular files, directories, and eight exact relative symlinks; the workflow rejects
+path, member-type, or link-inventory drift before extraction and uses a fixed public
+prefix. Only that exact literal
+prefix/executable pair is exempt from the private-path scan; resolved aliases and every
+source, stage, temporary, home, workspace, tool-cache, or other runtime path remain
+forbidden. The native job then rejects Mach-O dependencies or load commands that
+reference the build runtime, moves the whole runtime away, and only then runs the
+packaged scientific and window smokes. This tests the inspected prototype paths; it is
+not a signed clean-machine result. A public distribution must independently complete
+the runtime's full third-party license inventory and all Qt redistribution gates.
 
 The exact installed Nuitka 4.1.3 runtime-exception bytes have SHA-256
 `20ff0ae581adf436a7b06e50e67a6c8913aec1ea4e60dba138d0a0bee7ee520c`; the copy in

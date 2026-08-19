@@ -53,16 +53,17 @@ overrides, and run the packaged executable there. The native candidate is never
 uploaded from the public repository: only its path-free manifest, checksum inventory,
 and smoke report are retained as Actions evidence.
 
-The macOS build installs the exact Python 3.13.15 universal2 package published by the
-Python Software Foundation, verifies its reviewed SHA-256, and explicitly requests
-Nuitka static libpython linking. This is deliberate: exact-head hosted runs first found
-a private tool-cache prefix and then found that Nuitka 4.1.3 left official Python 3.14.3
-dynamically dependent on its build-host framework; Nuitka 4.1.3 marks static linking for
-official Python 3.14+ unsupported. The maintained 3.13 line is therefore the narrow
-macOS build baseline, while Windows retains Python 3.14.3. The fixed, public macOS
-system prefix and executable are not private runner identities. Self-containment is
-still enforced by rejecting Mach-O load commands that reference the build-host Python
-framework and moving that framework out of place during packaged execution. Windows
+The macOS build uses the exact arm64 Python 3.14.3 install-only archive from the reviewed
+`python-build-standalone` release and verifies its release-asset SHA-256 before bounded
+extraction into a fixed public prefix. This follows three fail-closed exact-head results:
+the hosted tool-cache prefix was embedded in final bytes, the PSF 3.14 framework remained
+dynamically required, and a PSF 3.13 static-main build still left extension and shared
+components dependent on that framework. The selected runtime is designed to be
+relocatable, uses dynamic libpython, and keeps both native targets on Python 3.14.3.
+Its fixed prefix and executable are not private runner identities, but only those exact
+literal values receive the narrow path-audit exception. Self-containment is separately
+enforced by rejecting Mach-O dependencies or load commands that reference the build
+runtime and moving the entire runtime out of place during packaged execution. Windows
 continues to use `actions/setup-python` inside its run-scoped isolated job environment.
 
 These controls reduce exposure but do not turn a persistent public-repository runner
@@ -116,12 +117,16 @@ Ordifile selects LGPL-3.0 for the dynamically bundled Qt/PySide6/shiboken6 compo
 Ordifile does not copy or modify their source code; native deployment tooling may
 rewrite loader metadata in copied bundle binaries, so final modification and source
 obligations remain a publication gate. Each prototype includes the full LGPL-3.0 text,
-an exact component notice, the Python license, Ordifile license/notice, runtime
-dependency licenses, and the exact Nuitka Runtime Library Exception from Nuitka 4.1.3.
+an exact component notice, the Python license, Ordifile license/notice, reviewed
+application dependency licenses, and the exact Nuitka Runtime Library Exception from
+Nuitka 4.1.3.
 
 Nuitka 4.1.3 is an AGPL-3.0 build tool and is not bundled. Its Runtime Library
 Exception permits qualifying generated target code under the program's own terms; it
-does not relicense the compiler or remove the compiler's AGPL obligations.
+does not relicense the compiler or remove the compiler's AGPL obligations. The current
+prototype carries the reviewed application/package license set and the matching CPython
+license. Complete third-party inventory for the relocatable macOS runtime remains a
+mandatory public-distribution gate; it is not implied by successful prototype assembly.
 
 Before a public signed download, all of these gates remain mandatory:
 

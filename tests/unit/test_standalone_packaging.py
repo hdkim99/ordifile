@@ -139,30 +139,40 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert windows_job.count("working-directory: source") >= 7
     assert text.count('python-version: "3.14.3"') == 1
     assert "actions/setup-python@" not in macos_job
-    assert "https://www.python.org/ftp/python/3.13.15/python-3.13.15-macos11.pkg" in macos_job
-    assert "3b7eaf7f29825f796e8267024435540ddf1f17fc9a97ad58095daa7a75bfdcd3" in macos_job
+    assert "python-build-standalone/releases/download/20260203/" in macos_job
+    assert "cpython-3.14.3%2B20260203-aarch64-apple-darwin-install_only.tar.gz" in macos_job
+    assert "5bb1ad03aa2d8afe15140f56fedaab2ba95033785ad0367775899d42ac8aeb3c" in macos_job
     assert "/usr/bin/shasum -a 256 --check >/dev/null" in macos_job
-    assert "/usr/sbin/pkgutil --check-signature" in macos_job
-    assert "/usr/bin/sudo -n /usr/sbin/installer" in macos_job
-    assert "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13" in macos_job
+    assert "The Python runtime archive inventory failed." in macos_job
+    assert "The Python runtime archive path boundary is invalid." in macos_job
+    assert "The Python runtime archive type inventory failed." in macos_job
+    assert "The Python runtime archive member type is invalid." in macos_job
+    assert "The Python runtime archive link inventory is invalid." in macos_job
+    assert "python/bin/python3 -> python3.14" in macos_job
+    assert "python/lib/pkgconfig/python3.pc -> python-3.14.pc" in macos_job
+    assert "The Python runtime installation-input cleanup failed." in macos_job
+    assert "trap cleanup_runtime_install_inputs EXIT" in macos_job
+    assert "--strip-components=1" in macos_job
+    assert 'runtime="/opt/ordifile-python-3.14.3"' in macos_job
+    assert 'python_bin="${runtime}/bin/python3.14"' in macos_job
     assert "print(platform.machine())" in macos_job
     assert "print(sys.prefix)" in macos_job
     assert "print(sys.executable)" in macos_job
     assert "print(sys.base_prefix)" in macos_job
-    assert macos_job.count("python3.13 scripts/standalone/") == 3
+    assert macos_job.count("python3.14 scripts/standalone/") == 3
     assert "A Mach-O dependency inventory failed." in macos_job
     assert "A Mach-O load-command inventory failed." in macos_job
     assert "A bundle file-type inventory failed." in macos_job
     assert "The bundle file inventory failed." in macos_job
     assert "The bundle file inventory cleanup failed." in macos_job
-    assert "The main executable depends on the build-host Python framework." in macos_job
-    assert "The embedded Python runtime depends on the build-host framework." in macos_job
-    assert "An extension library depends on the build-host Python framework." in macos_job
-    assert "Another bundle component depends on the build-host Python framework." in macos_job
-    assert "The main executable has a build-host Python framework load command." in macos_job
-    assert "The embedded Python runtime has a build-host framework load command." in macos_job
-    assert "An extension library has a build-host Python framework load command." in macos_job
-    assert "Another bundle component has a build-host Python framework load command." in macos_job
+    assert "The main executable depends on the build-host Python runtime." in macos_job
+    assert "The embedded Python runtime depends on the build-host runtime." in macos_job
+    assert "An extension library depends on the build-host Python runtime." in macos_job
+    assert "Another bundle component depends on the build-host Python runtime." in macos_job
+    assert "The main executable has a build-host Python runtime load command." in macos_job
+    assert "The embedded Python runtime has a build-host runtime load command." in macos_job
+    assert "An extension library has a build-host Python runtime load command." in macos_job
+    assert "Another bundle component has a build-host Python runtime load command." in macos_job
     assert 'relative_member="${member#"${bundle}"/}"' in macos_job
     assert macos_job.count('case "${relative_member}" in') == 2
     assert 'file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)"' in macos_job
@@ -172,19 +182,19 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "/usr/bin/otool -L" in macos_job
     assert "/usr/bin/otool -l" in macos_job
     assert "/usr/bin/sudo -n /bin/mv" in macos_job
-    assert "The Python framework isolation identity is invalid." in macos_job
-    assert "The Python framework isolation root is invalid." in macos_job
-    assert "The Python framework isolation boundary is invalid." in macos_job
-    assert "The source Python framework state is invalid." in macos_job
-    assert "The Python framework isolation destination is occupied." in macos_job
-    assert "The Python framework restore state is invalid." in macos_job
-    assert "The Python framework restore operation failed." in macos_job
-    assert "The restored Python framework state is invalid." in macos_job
-    assert "The Python framework isolation operation failed." in macos_job
-    assert "The isolated Python framework state is invalid." in macos_job
+    assert "The Python runtime isolation identity is invalid." in macos_job
+    assert "The Python runtime isolation root is invalid." in macos_job
+    assert "The Python runtime isolation boundary is invalid." in macos_job
+    assert "The source Python runtime state is invalid." in macos_job
+    assert "The Python runtime isolation destination is occupied." in macos_job
+    assert "The Python runtime restore state is invalid." in macos_job
+    assert "The Python runtime restore operation failed." in macos_job
+    assert "The restored Python runtime state is invalid." in macos_job
+    assert "The Python runtime isolation operation failed." in macos_job
+    assert "The isolated Python runtime state is invalid." in macos_job
     assert macos_job.count('|| -L "${') >= 6
     assert macos_job.count(">/dev/null 2>&1") >= 2
-    assert "trap restore_python_framework EXIT" in macos_job
+    assert "trap restore_python_runtime EXIT" in macos_job
     assert "trap - EXIT" in macos_job
     assert "--target windows-x86_64" in text
     assert "--standalone-smoke" in text
@@ -419,7 +429,7 @@ def test_rendered_spec_resolves_only_known_temporary_markers(tmp_path: Path) -> 
     assert "@PYTHON_PATH@" not in text
     assert "@STATIC_LIBPYTHON@" not in text
     assert str(tmp_path / "stage") in text
-    assert "--static-libpython=yes" in text
+    assert "--static-libpython=no" in text
 
     standalone_build._render_spec(
         ROOT / "packaging" / "standalone" / "pysidedeploy.spec.in",
@@ -751,24 +761,24 @@ def test_official_macos_runtime_is_public_but_other_private_roots_remain(
 ) -> None:
     source = tmp_path / "source"
     stage = tmp_path / "stage"
-    monkeypatch.setattr(sys, "prefix", str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX))
+    monkeypatch.setattr(sys, "prefix", str(standalone_build.PINNED_MACOS_PYTHON_PREFIX))
     monkeypatch.setattr(
         sys,
         "executable",
-        str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE),
+        str(standalone_build.PINNED_MACOS_PYTHON_EXECUTABLE),
     )
 
     values = standalone_build._private_build_paths(source, stage, target="macos-arm64")
 
-    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) not in values
-    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE) not in values
+    assert str(standalone_build.PINNED_MACOS_PYTHON_PREFIX) not in values
+    assert str(standalone_build.PINNED_MACOS_PYTHON_EXECUTABLE) not in values
     assert str(source.resolve()) in values
     assert str(stage.resolve()) in values
     assert str(Path.home().resolve()) in values
 
     windows_values = standalone_build._private_build_paths(source, stage, target="windows-x86_64")
-    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) in windows_values
-    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE) in windows_values
+    assert str(standalone_build.PINNED_MACOS_PYTHON_PREFIX) in windows_values
+    assert str(standalone_build.PINNED_MACOS_PYTHON_EXECUTABLE) in windows_values
 
 
 def test_official_macos_runtime_exception_requires_both_exact_literals(
@@ -776,13 +786,13 @@ def test_official_macos_runtime_exception_requires_both_exact_literals(
 ) -> None:
     source = tmp_path / "source"
     stage = tmp_path / "stage"
-    monkeypatch.setattr(sys, "prefix", str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX))
-    near_miss = standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE.with_name("python3")
+    monkeypatch.setattr(sys, "prefix", str(standalone_build.PINNED_MACOS_PYTHON_PREFIX))
+    near_miss = standalone_build.PINNED_MACOS_PYTHON_EXECUTABLE.with_name("python3")
     monkeypatch.setattr(sys, "executable", str(near_miss))
 
     values = standalone_build._private_build_paths(source, stage, target="macos-arm64")
 
-    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) in values
+    assert str(standalone_build.PINNED_MACOS_PYTHON_PREFIX) in values
     assert str(near_miss) in values
 
 
@@ -791,13 +801,13 @@ def test_official_macos_runtime_exception_keeps_resolved_symlink_targets_private
 ) -> None:
     actual_prefix = tmp_path / "actual-runtime"
     (actual_prefix / "bin").mkdir(parents=True)
-    actual_executable = actual_prefix / "bin" / "python3.13"
+    actual_executable = actual_prefix / "bin" / "python3.14"
     actual_executable.write_bytes(b"synthetic runtime")
     public_prefix = tmp_path / "public-runtime"
     public_prefix.symlink_to(actual_prefix, target_is_directory=True)
-    public_executable = public_prefix / "bin" / "python3.13"
-    monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_PREFIX", public_prefix)
-    monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_EXECUTABLE", public_executable)
+    public_executable = public_prefix / "bin" / "python3.14"
+    monkeypatch.setattr(standalone_build, "PINNED_MACOS_PYTHON_PREFIX", public_prefix)
+    monkeypatch.setattr(standalone_build, "PINNED_MACOS_PYTHON_EXECUTABLE", public_executable)
     monkeypatch.setattr(sys, "prefix", str(public_prefix))
     monkeypatch.setattr(sys, "executable", str(public_executable))
 

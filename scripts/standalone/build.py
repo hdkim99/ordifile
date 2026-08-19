@@ -37,8 +37,8 @@ except ImportError:
     )
 
 NUITKA_VERSION = "4.1.3"
-OFFICIAL_MACOS_PYTHON_PREFIX = Path("/Library/Frameworks/Python.framework/Versions/3.13")
-OFFICIAL_MACOS_PYTHON_EXECUTABLE = OFFICIAL_MACOS_PYTHON_PREFIX / "bin" / "python3.13"
+PINNED_MACOS_PYTHON_PREFIX = Path("/opt/ordifile-python-3.14.3")
+PINNED_MACOS_PYTHON_EXECUTABLE = PINNED_MACOS_PYTHON_PREFIX / "bin" / "python3.14"
 LICENSE_DISTRIBUTIONS = (
     "defusedxml",
     "et-xmlfile",
@@ -120,12 +120,12 @@ def _private_build_path_groups(
     }
     public_macos_runtime = (
         target.startswith("macos-")
-        and configured_runtime_prefix == OFFICIAL_MACOS_PYTHON_PREFIX
-        and configured_runtime_executable == OFFICIAL_MACOS_PYTHON_EXECUTABLE
+        and configured_runtime_prefix == PINNED_MACOS_PYTHON_PREFIX
+        and configured_runtime_executable == PINNED_MACOS_PYTHON_EXECUTABLE
     )
     if public_macos_runtime:
-        runtime_prefix_values.discard(str(OFFICIAL_MACOS_PYTHON_PREFIX))
-        runtime_executable_values.discard(str(OFFICIAL_MACOS_PYTHON_EXECUTABLE))
+        runtime_prefix_values.discard(str(PINNED_MACOS_PYTHON_PREFIX))
+        runtime_executable_values.discard(str(PINNED_MACOS_PYTHON_EXECUTABLE))
     if runtime_executable_values:
         groups.append(("runtime-executable", tuple(sorted(runtime_executable_values))))
     if runtime_prefix_values:
@@ -159,9 +159,7 @@ def _render_spec(
         "@PROJECT_DIR@": stage.as_posix(),
         "@EXEC_DIRECTORY@": executable_dir.as_posix(),
         "@PYTHON_PATH@": Path(sys.executable).as_posix(),
-        "@STATIC_LIBPYTHON@": (
-            "--static-libpython=yes" if target.startswith("macos-") else "--static-libpython=no"
-        ),
+        "@STATIC_LIBPYTHON@": "--static-libpython=no",
     }
     for marker, value in replacements.items():
         text = text.replace(marker, value)
