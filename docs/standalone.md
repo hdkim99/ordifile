@@ -123,7 +123,14 @@ The reviewed automated targets are `windows-x86_64` and `macos-arm64`. The build
 retains a native `macos-x86_64` target for future exact-runtime research, but no
 automated x86-64 macOS support is claimed. It rejects a target that does not match the
 host and withholds captured deployment output on failure so local paths are not copied
-into public logs.
+into public logs. A deployment exit code is not sufficient evidence of success: before
+license injection, manifest generation, or archiving, the builder requires one real,
+non-link, non-reparse bundle root and the exact native entry point (`Ordifile.exe` on
+Windows or `Contents/MacOS/Ordifile` on macOS) to be a regular, non-empty, non-link,
+non-reparse file. It also rejects the pinned deployment frontend's caught-exception
+marker. The Windows workflow checks for a discoverable Visual Studio 2022-or-newer
+native compiler capability without installing or reconfiguring it and without exposing
+its installation path.
 
 ## What the smoke proves
 

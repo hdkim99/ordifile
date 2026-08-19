@@ -1,9 +1,10 @@
 # Source register
 
-- Research and access dates: 2026-08-15 through 2026-08-18
+- Research and access dates: 2026-08-15 through 2026-08-19
 - Search scope: names, package registries, chromatography conversion software, GC
   exports, format standards, licenses, Python support, Excel limits, GUI distribution,
-  vendor trademark guidance, OOXML worksheet coordinates and cell semantics, Excel
+  vendor trademark guidance, Windows native compiler discovery, OOXML worksheet
+  coordinates and cell semantics, Excel
   numeric/date behavior, XML/OOXML string escaping, Python package release security,
   and redistributable or external GC raw/result fixtures.
 
@@ -22,7 +23,8 @@ topic reviews beside this register.
 | [Qt for Python deployment](https://doc.qt.io/qtforpython-6/deployment/index.html) | The Qt Company | Official framework documentation | Qt for Python 6.11; accessed 2026-08-18 | Available deployment paths and their platform-specific packaging implications; public standalone redistribution remains deferred. |
 | [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations) | The Qt Company | Official licensing guidance | Current; accessed 2026-08-18 | Notice, source, modification, replacement/relinking, and installation-information considerations for future Qt binary redistribution. |
 | [`pyside6-deploy`](https://doc.qt.io/qtforpython-6/deployment/deployment-pyside6-deploy.html) | The Qt Company | Official deployment reference | Qt for Python 6.11; accessed 2026-08-18 | Standalone mode, reviewable spec file, and explicit Nuitka-version selection. |
-| [Nuitka 4.1.3](https://pypi.org/project/Nuitka/4.1.3/) / [source, license and Runtime Library Exception](https://github.com/Nuitka/Nuitka/tree/4.1.3) | Nuitka maintainers / Python Software Foundation registry | Exact package metadata, implementation gate, and license files | 4.1.3; accessed 2026-08-18 and 2026-08-19 | Exact standalone compiler pin, official Python 3.14+ static-link limitation, AGPL-3.0 build-tool boundary, and generated-target additional permission. |
+| [Nuitka 4.1.3](https://pypi.org/project/Nuitka/4.1.3/) / [README, source, license and Runtime Library Exception](https://github.com/Nuitka/Nuitka/tree/4.1.3) | Nuitka maintainers / Python Software Foundation registry | Exact package metadata, implementation gate, compiler support, and license files | 4.1.3; accessed 2026-08-18 and 2026-08-19 | Exact standalone compiler pin, Python 3.14 support, Windows Python 3.13+ exclusion of MinGW64 and Visual Studio 2022-or-newer requirement, official Python 3.14+ static-link limitation, AGPL-3.0 build-tool boundary, and generated-target additional permission. |
+| [`vswhere` Find VC](https://github.com/microsoft/vswhere/wiki/Find-VC) / [Visual Studio versions](https://github.com/microsoft/vswhere/wiki/Versions) / [Build Tools component IDs](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-build-tools) / [developer shells](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell) | Microsoft | Official discovery, version, component, and developer-shell documentation | Current; accessed 2026-08-19 | `vswhere` discovery of the x86/x64 C++ tools component, Visual Studio 2022 major-version boundary, and `VsDevCmd.bat` capability check without tool installation or runner reconfiguration. |
 | [Qt for Python 6.11.2 sources](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.2-src/) / [Qt 6.11.2 sources](https://download.qt.io/official_releases/qt/6.11/6.11.2/single/) | The Qt Company | Official source archives | 6.11.2; accessed 2026-08-18 | Corresponding-source candidates for the exact prototype runtime; final archives/hashes remain a public-release gate. |
 | [PyInstaller 6.22.2](https://pypi.org/project/pyinstaller/6.22.2/) / [license](https://github.com/pyinstaller/pyinstaller/blob/v6.22.2/COPYING.txt) | PyInstaller Development Team / Python Software Foundation registry | Exact package metadata and license | 6.22.2; accessed 2026-08-18 | One-folder fallback feasibility and generated-application exception; not selected as the primary toolchain. |
 | [Briefcase 0.4.4 metadata](https://pypi.org/pypi/briefcase/0.4.4/json) / [platform docs](https://briefcase.readthedocs.io/en/stable/reference/platforms/) | BeeWare / Python Software Foundation registry | Exact package metadata and official documentation | 0.4.4; accessed 2026-08-18 | BSD-3-Clause cross-platform application lifecycle candidate; rejected for the first prototype. |

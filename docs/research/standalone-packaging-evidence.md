@@ -12,9 +12,11 @@
 |---|---|---|
 | [Qt for Python deployment](https://doc.qt.io/qtforpython-6/deployment/index.html) | Qt documents `pyside6-deploy` as its deployment tool and identifies Nuitka as its compiler backend. | Select the Qt-maintained frontend. |
 | [`pyside6-deploy` reference](https://doc.qt.io/qtforpython-6/deployment/deployment-pyside6-deploy.html) | The tool uses a `pysidedeploy.spec`, supports `standalone` mode, and accepts a Nuitka version. | Keep a reviewable template and pin the backend exactly. |
+| [`pyside6-deploy` 6.11.2 control flow](https://github.com/pyside/pyside-setup/blob/v6.11.2/sources/pyside-tools/deploy.py) and [finalization](https://github.com/pyside/pyside-setup/blob/v6.11.2/sources/pyside-tools/deploy_lib/deploy_util.py) | The pinned frontend catches backend exceptions and still finalizes an existing partial deployment directory; its process status alone is therefore not a complete success signal. | Reject the caught-exception marker and require the exact native entry point before adding licenses or constructing evidence. |
 | [Python 3.14.3 release](https://www.python.org/downloads/release/python-3143/) | Exact CPython version and license baseline for both prototype targets. | Keep the application runtime version aligned at 3.14.3. |
 | [python-build-standalone releases](https://github.com/astral-sh/python-build-standalone/releases/tag/20260203), [running guide](https://github.com/astral-sh/python-build-standalone/blob/20260203/docs/running.rst), [distribution details](https://github.com/astral-sh/python-build-standalone/blob/20260203/docs/distributions.rst), and [license](https://github.com/astral-sh/python-build-standalone/blob/20260203/LICENSE) | The reviewed release publishes an arm64 macOS CPython 3.14.3 install-only archive; upstream describes the builds as standalone and highly redistributable, while documenting build-path quirks rather than a blanket relocatability guarantee. The build project is MPL-2.0. | Pin the exact asset URL and GitHub asset SHA-256, verify bounded archive paths, exact prefix, and final bundle self-containment, and use it only as the macOS arm64 build runtime. The build project is not bundled. |
-| [Nuitka 4.1.3 package](https://pypi.org/project/Nuitka/4.1.3/) and [static-libpython gate](https://github.com/Nuitka/Nuitka/blob/4.1.3/nuitka/options/Options.py) | Exact build-tool release available for supported Python platforms; pinned source rejects official Python 3.14+ static linking. | Pin `Nuitka==4.1.3`, use dynamic libpython from the standalone runtime, and do not bundle the compiler. |
+| [Nuitka 4.1.3 package](https://pypi.org/project/Nuitka/4.1.3/), [README](https://github.com/Nuitka/Nuitka/blob/4.1.3/README.rst), and [static-libpython gate](https://github.com/Nuitka/Nuitka/blob/4.1.3/nuitka/options/Options.py) | Exact build-tool release supports Python through 3.14; on Windows its pinned documentation excludes MinGW64 for Python 3.13+ and requires Visual Studio 2022 or newer. Pinned source also rejects official Python 3.14+ static linking. | Pin `Nuitka==4.1.3`, require a discoverable Visual Studio 2022-or-newer native compiler on Windows, use dynamic libpython from the standalone macOS runtime, and do not bundle the compiler. |
+| [`vswhere` Find VC](https://github.com/microsoft/vswhere/wiki/Find-VC), [Visual Studio versions](https://github.com/microsoft/vswhere/wiki/Versions), [Build Tools component IDs](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-build-tools), and [developer shells](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell) | Microsoft's discovery guidance uses `vswhere -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64`; Visual Studio major 17 identifies 2022, and `VsDevCmd.bat` is the supported developer-shell entry point. | Verify the required compiler capability without installing software, changing runner state, or printing the installation path. |
 | [Nuitka license](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE.txt) and [runtime exception](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE-RUNTIME.txt) | Compiler is AGPL-3.0; the additional permission applies to qualifying generated target code and does not weaken compiler copyleft. | Bundle the byte-identical runtime exception; describe Nuitka as an AGPL build tool. |
 | [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) | PySide6/shiboken6 offer LGPL-3.0/GPL/commercial alternatives and include Qt modules under their applicable terms. | Select LGPL-3.0 and inventory the exact native components. |
 | [Qt open-source obligations](https://www.qt.io/development/open-source-lgpl-obligations) | Qt's guidance calls out notice, source, modification, replacement/relinking and installation-information considerations. | Make these hard pre-publication gates. |
@@ -67,9 +69,16 @@ A local unsigned macOS arm64 `.app` bundle was produced from the reviewed config
 and passed checkout-free packaged-window smoke, registry inventory for all 11 built-in
 adapters, all 12 public-safe synthetic inputs, generic UTF-8 and UTF-8-BOM, YoungIn
 CP949 Result, workbook reopen, overwrite refusal, and six-sheet scientific equivalence.
-This is prototype evidence only. Windows native behavior, signed Windows trust, macOS
-notarization, and signed/hardened replacement of LGPL components are not inferred from
-that result.
+This is prototype evidence only. A Windows exact-head attempt reached native deployment
+but produced a partial `.dist` containing only injected licenses and no executable;
+downstream artifact-only validation rejected it. Review of the pinned PySide frontend
+and Nuitka output lifecycle showed why a backend exception can leave that state while
+the frontend exits successfully. Ordifile therefore treats process status as secondary,
+rejects the caught-exception marker, and validates the platform entry point before any
+license injection or manifest generation. The underlying Windows backend failure remains
+unresolved until a controlled rerun classifies it; it is not attributed to Python,
+Nuitka, or the runner without evidence. Signed Windows trust, macOS notarization, and
+signed/hardened replacement of LGPL components are not inferred from these results.
 
 ## Exclusions
 

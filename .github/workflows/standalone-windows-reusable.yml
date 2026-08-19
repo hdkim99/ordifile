@@ -106,6 +106,31 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14.3"
+      - name: Verify Windows native compiler capability
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
+          if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+            throw "Windows native compiler capability is unavailable."
+          }
+          $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio/Installer/vswhere.exe"
+          if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+            throw "Windows native compiler capability is unavailable."
+          }
+          $installations = @(
+            & $vswhere -latest -products * `
+              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+              -version "[17.0,)" -property installationPath 2>$null |
+              Where-Object { $_ }
+          )
+          if ($LASTEXITCODE -ne 0 -or $installations.Count -ne 1) {
+            throw "Windows native compiler capability is unavailable."
+          }
+          $developerShell = Join-Path $installations[0] "Common7/Tools/VsDevCmd.bat"
+          if (-not (Test-Path -LiteralPath $developerShell -PathType Leaf)) {
+            throw "Windows native compiler capability is unavailable."
+          }
       - name: Clean persistent workspace before job
         working-directory: source
         run: python scripts/ci/clean_workspace.py --workspace . --phase pre

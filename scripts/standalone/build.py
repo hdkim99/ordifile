@@ -37,6 +37,7 @@ except ImportError:
     )
 
 NUITKA_VERSION = "4.1.3"
+DEPLOY_EXCEPTION_MARKER = "[DEPLOY] Exception occurred:"
 PINNED_MACOS_PYTHON_PREFIX = Path("/opt/ordifile-python-3.14.3")
 PINNED_MACOS_PYTHON_EXECUTABLE = PINNED_MACOS_PYTHON_PREFIX / "bin" / "python3.14"
 LICENSE_DISTRIBUTIONS = (
@@ -61,6 +62,7 @@ BUILD_FAILURE_STAGES = frozenset(
         "bundle-audit-prohibited-data",
         "bundle-discovery",
         "deploy",
+        "deploy-output",
         "license-inventory",
         "prepare",
         "signature-inspection",
@@ -176,14 +178,89 @@ def _deploy_executable() -> Path:
     return executable
 
 
+def _deployment_failed(completed: subprocess.CompletedProcess[str]) -> bool:
+    captured = "\n".join((completed.stdout or "", completed.stderr or ""))
+    return completed.returncode != 0 or DEPLOY_EXCEPTION_MARKER in captured
+
+
+def _has_windows_reparse_attribute(metadata: object) -> bool:
+    value = getattr(metadata, "st_file_attributes", 0)
+    marker = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(value & marker)
+
+
 def _bundle_candidate(directory: Path, target: str) -> Path:
-    if target.startswith("macos-"):
-        candidates = tuple(directory.glob("*.app"))
-    else:
-        candidates = tuple(path for path in directory.glob("*.dist") if path.is_dir())
+    suffix = "*.app" if target.startswith("macos-") else "*.dist"
+    candidates = tuple(directory.glob(suffix))
     if len(candidates) != 1:
         raise ValueError("pyside6-deploy did not create exactly one standalone bundle.")
-    return candidates[0]
+    bundle = candidates[0]
+    try:
+        metadata = bundle.stat(follow_symlinks=False)
+    except OSError as error:
+        raise ValueError("The standalone bundle root is invalid.") from error
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or bundle.is_symlink()
+        or _has_windows_reparse_attribute(metadata)
+    ):
+        raise ValueError("The standalone bundle root is invalid.")
+    return bundle
+
+
+def _validate_bundle_directory_chain(bundle: Path, relative: Path) -> None:
+    try:
+        root = bundle.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("The standalone bundle directory chain is invalid.") from error
+    current = bundle
+    for part in relative.parts:
+        current /= part
+        try:
+            metadata = current.stat(follow_symlinks=False)
+        except OSError as error:
+            raise ValueError("The standalone bundle directory chain is invalid.") from error
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or current.is_symlink()
+            or _has_windows_reparse_attribute(metadata)
+        ):
+            raise ValueError("The standalone bundle directory chain is invalid.")
+    try:
+        resolved = current.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("The standalone bundle directory chain is invalid.") from error
+    if resolved != root and not resolved.is_relative_to(root):
+        raise ValueError("The standalone bundle directory chain is invalid.")
+
+
+def _validate_native_entrypoint(bundle: Path, target: str) -> Path:
+    relative = (
+        Path("Contents") / "MacOS" / "Ordifile"
+        if target.startswith("macos-")
+        else Path("Ordifile.exe")
+    )
+    _validate_bundle_directory_chain(bundle, relative.parent)
+    entrypoint = bundle / relative
+    try:
+        metadata = entrypoint.stat(follow_symlinks=False)
+    except OSError as error:
+        raise ValueError("The native standalone entry point is invalid.") from error
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_size <= 0
+        or entrypoint.is_symlink()
+        or _has_windows_reparse_attribute(metadata)
+    ):
+        raise ValueError("The native standalone entry point is invalid.")
+    try:
+        resolved = entrypoint.resolve(strict=True)
+        root = bundle.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("The native standalone entry point is invalid.") from error
+    if not resolved.is_relative_to(root):
+        raise ValueError("The native standalone entry point is invalid.")
+    return entrypoint
 
 
 def _validate_native_target(target: str) -> None:
@@ -201,9 +278,29 @@ def _validate_native_target(target: str) -> None:
 
 
 def _license_destination(bundle: Path, target: str) -> Path:
-    if target.startswith("macos-"):
-        return bundle / "Contents" / "Resources" / "licenses"
-    return bundle / "licenses"
+    relative = (
+        Path("Contents") / "Resources" / "licenses"
+        if target.startswith("macos-")
+        else Path("licenses")
+    )
+    _validate_bundle_directory_chain(bundle, relative.parent)
+    destination = bundle / relative
+    try:
+        destination.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        raise ValueError("The standalone license destination is invalid.") from error
+    else:
+        raise ValueError("The standalone license destination is invalid.")
+    try:
+        parent = destination.parent.resolve(strict=True)
+        root = bundle.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("The standalone license destination is invalid.") from error
+    if parent != root and not parent.is_relative_to(root):
+        raise ValueError("The standalone license destination is invalid.")
+    return destination
 
 
 def _copy_distribution_licenses(destination: Path) -> None:
@@ -317,10 +414,12 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
                 text=True,
                 timeout=45 * 60,
             )
-            if completed.returncode != 0:
+            if _deployment_failed(completed):
                 raise ValueError("Deployment command failed.")
             build_stage = "bundle-discovery"
             bundle = _bundle_candidate(executable_dir, target)
+            build_stage = "deploy-output"
+            _validate_native_entrypoint(bundle, target)
             build_stage = "license-inventory"
             licenses = _license_destination(bundle, target)
             shutil.copytree(packaging / "licenses", licenses)

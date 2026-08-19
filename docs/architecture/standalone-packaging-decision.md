@@ -74,6 +74,13 @@ literal values receive the narrow path-audit exception. Self-containment is sepa
 enforced by rejecting Mach-O dependencies or load commands that reference the build
 runtime and moving the entire runtime out of place during packaged execution. Windows
 continues to use `actions/setup-python` inside its run-scoped isolated job environment.
+The Windows job also verifies that a Visual Studio 2022-or-newer native C/C++ toolchain
+is discoverable without printing its installation path. The builder does not trust the
+deployment process exit code alone: before adding licenses or producing a manifest, it
+requires one real, non-link, non-reparse bundle root and the exact platform entry point
+to be a regular, non-empty, non-link, non-reparse file. It also rejects the pinned
+deployment frontend's caught-exception marker. This closes a reviewed partial-`.dist`
+state without changing the packager or installing host software.
 
 These controls reduce exposure but do not turn a persistent public-repository runner
 into a clean or disposable security boundary. Dispatch additionally requires a

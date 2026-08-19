@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import platform
 import stat
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -200,6 +202,20 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "path: source" in windows_job
     assert windows_job.count("working-directory: source") >= 7
     assert windows_job.count('python-version: "3.14.3"') == 1
+    assert "Verify Windows native compiler capability" in windows_job
+    assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in windows_job
+    assert '-version "[17.0,)"' in windows_job
+    assert "Common7/Tools/VsDevCmd.bat" in windows_job
+    assert windows_job.count("Windows native compiler capability is unavailable.") == 4
+    assert "& $developerShell" not in windows_job
+    for host_mutation in (
+        "winget install",
+        "choco install",
+        "Start-Process",
+        "Set-ItemProperty",
+        "New-ItemProperty",
+    ):
+        assert host_mutation not in windows_job
     assert "actions/setup-python@" not in macos_job
     assert "python-build-standalone/releases/download/20260203/" in macos_job
     assert "cpython-3.14.3%2B20260203-aarch64-apple-darwin-install_only.tar.gz" in macos_job
@@ -555,6 +571,226 @@ def test_native_target_gate_accepts_only_current_host() -> None:
     wrong = "windows-x86_64" if current.startswith("macos") else "macos-arm64"
     with pytest.raises(ValueError, match="not native"):
         standalone_build._validate_native_target(wrong)
+
+
+def test_deployment_failure_detects_caught_upstream_exception_without_exposing_detail() -> None:
+    success = subprocess.CompletedProcess(["pyside6-deploy"], 0, "deployment complete", "")
+    swallowed = subprocess.CompletedProcess(
+        ["pyside6-deploy"],
+        0,
+        f"{standalone_build.DEPLOY_EXCEPTION_MARKER} private path and credential detail",
+        "",
+    )
+    failed = subprocess.CompletedProcess(["pyside6-deploy"], 1, "", "private detail")
+
+    assert not standalone_build._deployment_failed(success)
+    assert standalone_build._deployment_failed(swallowed)
+    assert standalone_build._deployment_failed(failed)
+    assert "private" not in standalone_build.DEPLOY_EXCEPTION_MARKER.casefold()
+
+
+@pytest.mark.parametrize(
+    ("target", "name"),
+    [("windows-x86_64", "Ordifile.dist"), ("macos-arm64", "Ordifile.app")],
+)
+def test_bundle_candidate_requires_one_real_nonreparse_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str, name: str
+) -> None:
+    result = tmp_path / "result"
+    result.mkdir()
+    invalid_file = result / name
+    invalid_file.write_bytes(b"not a bundle directory")
+    with pytest.raises(ValueError, match="bundle root is invalid"):
+        standalone_build._bundle_candidate(result, target)
+    invalid_file.unlink()
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = result / name
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("The test host cannot create directory symlinks.")
+    with pytest.raises(ValueError, match="bundle root is invalid"):
+        standalone_build._bundle_candidate(result, target)
+    link.unlink()
+
+    bundle = result / name
+    bundle.mkdir()
+    assert standalone_build._bundle_candidate(result, target) == bundle
+    monkeypatch.setattr(standalone_build, "_has_windows_reparse_attribute", lambda metadata: True)
+    with pytest.raises(ValueError, match="bundle root is invalid"):
+        standalone_build._bundle_candidate(result, target)
+
+
+def test_build_rejects_caught_deployment_exception_with_fixed_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(standalone_build, "_validate_native_target", lambda target: None)
+    monkeypatch.setattr(standalone_build, "_deploy_executable", lambda: Path("pyside6-deploy"))
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            ["pyside6-deploy"],
+            0,
+            f"{standalone_build.DEPLOY_EXCEPTION_MARKER} private path and credential detail",
+            "",
+        ),
+    )
+
+    with pytest.raises(standalone_build.StandaloneBuildStageError) as captured:
+        standalone_build.build_candidate(
+            ROOT,
+            tmp_path / "candidate",
+            commit="0" * 40,
+            target="windows-x86_64",
+        )
+    assert captured.value.stage == "deploy"
+    assert str(captured.value) == "deploy"
+    assert "private" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("target", "relative"),
+    [
+        ("windows-x86_64", Path("Ordifile.exe")),
+        ("macos-arm64", Path("Contents/MacOS/Ordifile")),
+    ],
+)
+def test_native_entrypoint_requires_expected_regular_nonzero_file(
+    tmp_path: Path, target: str, relative: Path
+) -> None:
+    bundle = tmp_path / ("Ordifile.app" if target.startswith("macos-") else "Ordifile.dist")
+    entrypoint = bundle / relative
+    entrypoint.parent.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, target)
+
+    entrypoint.mkdir()
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, target)
+    entrypoint.rmdir()
+
+    entrypoint.write_bytes(b"")
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, target)
+
+    entrypoint.write_bytes(b"public synthetic native entry point")
+    assert standalone_build._validate_native_entrypoint(bundle, target) == entrypoint
+
+
+def test_native_entrypoint_rejects_link_and_windows_reparse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = tmp_path / "Ordifile.dist"
+    bundle.mkdir()
+    target = bundle / "target.exe"
+    target.write_bytes(b"public synthetic native entry point")
+    link = bundle / "Ordifile.exe"
+    try:
+        link.symlink_to(target.name)
+    except OSError:
+        pytest.skip("The test host cannot create symlinks.")
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, "windows-x86_64")
+
+    link.unlink()
+    link.write_bytes(b"public synthetic native entry point")
+    monkeypatch.setattr(standalone_build, "_has_windows_reparse_attribute", lambda metadata: True)
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, "windows-x86_64")
+
+
+def test_macos_entrypoint_rejects_linked_intermediate_directory(tmp_path: Path) -> None:
+    bundle = tmp_path / "Ordifile.app"
+    bundle.mkdir()
+    outside_contents = tmp_path / "outside-contents"
+    entrypoint = outside_contents / "MacOS" / "Ordifile"
+    entrypoint.parent.mkdir(parents=True)
+    entrypoint.write_bytes(b"public synthetic native entry point")
+    try:
+        (bundle / "Contents").symlink_to(outside_contents, target_is_directory=True)
+    except OSError:
+        pytest.skip("The test host cannot create directory symlinks.")
+
+    with pytest.raises(ValueError, match="directory chain is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, "macos-arm64")
+
+
+def test_license_destination_requires_real_internal_ancestors(tmp_path: Path) -> None:
+    bundle = tmp_path / "Ordifile.app"
+    contents = bundle / "Contents"
+    contents.mkdir(parents=True)
+    outside_resources = tmp_path / "outside-resources"
+    outside_resources.mkdir()
+    try:
+        (contents / "Resources").symlink_to(outside_resources, target_is_directory=True)
+    except OSError:
+        pytest.skip("The test host cannot create directory symlinks.")
+
+    with pytest.raises(ValueError, match="directory chain is invalid"):
+        standalone_build._license_destination(bundle, "macos-arm64")
+    assert not (outside_resources / "licenses").exists()
+
+    (contents / "Resources").unlink()
+    (contents / "Resources").mkdir()
+    destination = standalone_build._license_destination(bundle, "macos-arm64")
+    assert destination == contents / "Resources" / "licenses"
+    destination.mkdir()
+    with pytest.raises(ValueError, match="license destination is invalid"):
+        standalone_build._license_destination(bundle, "macos-arm64")
+    destination.rmdir()
+    destination.symlink_to(tmp_path / "missing-license-root", target_is_directory=True)
+    assert destination.is_symlink() and not destination.exists()
+    with pytest.raises(ValueError, match="license destination is invalid"):
+        standalone_build._license_destination(bundle, "macos-arm64")
+
+
+@pytest.mark.parametrize("license_only", [False, True])
+def test_build_rejects_partial_deployment_before_license_injection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, license_only: bool
+) -> None:
+    monkeypatch.setattr(standalone_build, "_validate_native_target", lambda target: None)
+    monkeypatch.setattr(standalone_build, "_deploy_executable", lambda: Path("pyside6-deploy"))
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args
+        stage = Path(str(kwargs["cwd"]))
+        bundle = stage / "result" / "Ordifile.dist"
+        bundle.mkdir()
+        if license_only:
+            licenses = bundle / "licenses"
+            licenses.mkdir()
+            (licenses / "NOTICE").write_text("partial deployment\n", encoding="utf-8")
+        return subprocess.CompletedProcess(["pyside6-deploy"], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        standalone_build,
+        "_copy_distribution_licenses",
+        lambda destination: pytest.fail("license injection must not run for a partial deployment"),
+    )
+
+    with pytest.raises(standalone_build.StandaloneBuildStageError) as captured:
+        standalone_build.build_candidate(
+            ROOT,
+            tmp_path / "candidate",
+            commit="0" * 40,
+            target="windows-x86_64",
+        )
+    assert captured.value.stage == "deploy-output"
+    assert not (tmp_path / "candidate").exists()
+
+
+def test_native_entrypoint_gate_precedes_license_and_manifest_work() -> None:
+    source = inspect.getsource(standalone_build.build_candidate)
+    entrypoint_gate = source.index("_validate_native_entrypoint(bundle, target)")
+    assert entrypoint_gate < source.index('shutil.copytree(packaging / "licenses", licenses)')
+    assert entrypoint_gate < source.index("_copy_distribution_licenses(licenses)")
+    assert entrypoint_gate < source.index("manifest = build_manifest(")
+    assert entrypoint_gate < source.index("_deterministic_zip(bundle, archive)")
 
 
 def test_build_cli_reports_only_fixed_failure_stage(
