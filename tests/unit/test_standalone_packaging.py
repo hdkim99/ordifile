@@ -641,7 +641,8 @@ def test_private_build_path_inventory_includes_environment_without_logging(
     [
         ("source", lambda source, stage: str(source.resolve())),
         ("temporary", lambda source, stage: str(stage.resolve())),
-        ("runtime", lambda source, stage: str(Path(sys.prefix).resolve())),
+        ("runtime-prefix", lambda source, stage: str(Path(sys.prefix).resolve())),
+        ("runtime-executable", lambda source, stage: str(Path(sys.executable).resolve())),
         ("home", lambda source, stage: str(Path.home().resolve())),
     ],
 )
@@ -673,7 +674,22 @@ def test_private_bundle_data_prefers_runtime_over_containing_temporary_root(
     (bundle / "bin" / "Ordifile").write_text(str(runtime), encoding="utf-8")
 
     assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
-        "bundle-audit-private-runtime"
+        "bundle-audit-private-runtime-prefix"
+    )
+
+
+def test_private_bundle_data_classifies_runner_tool_cache_without_exposing_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    stage = tmp_path / "stage"
+    tool_cache = tmp_path / "tool-cache"
+    bundle = _candidate(tmp_path / "candidate")
+    monkeypatch.setenv("RUNNER_TOOL_CACHE", str(tool_cache))
+    (bundle / "bin" / "Ordifile").write_text(str(tool_cache), encoding="utf-8")
+
+    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
+        "bundle-audit-private-runtime-tool-cache"
     )
 
 

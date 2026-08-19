@@ -51,7 +51,9 @@ BUILD_FAILURE_STAGES = frozenset(
         "bundle-audit-network-runtime",
         "bundle-audit-private-data",
         "bundle-audit-private-home",
-        "bundle-audit-private-runtime",
+        "bundle-audit-private-runtime-executable",
+        "bundle-audit-private-runtime-prefix",
+        "bundle-audit-private-runtime-tool-cache",
         "bundle-audit-private-source",
         "bundle-audit-private-temporary",
         "bundle-audit-prohibited-data",
@@ -92,29 +94,31 @@ def _bundle_audit_failure_stage(error: StandaloneVerificationError) -> str:
 def _private_build_path_groups(
     source: Path, stage: Path
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    tool_cache = os.environ.get("RUNNER_TOOL_CACHE")
+
+    source_values = {str(source.resolve())}
+    if workspace:
+        source_values.add(str(Path(workspace).resolve()))
+    temporary_values = {str(stage.resolve()), str(Path(tempfile.gettempdir()).resolve())}
+    if runner_temp:
+        temporary_values.add(str(Path(runner_temp).resolve()))
+
     groups: list[tuple[str, tuple[str, ...]]] = [
-        ("source", (str(source.resolve()),)),
-        (
-            "runtime",
-            (str(Path(sys.prefix).resolve()), str(Path(sys.executable).resolve())),
-        ),
-        ("temporary", (str(stage.resolve()), str(Path(tempfile.gettempdir()).resolve()))),
+        ("source", tuple(sorted(source_values))),
+        ("runtime-executable", (str(Path(sys.executable).resolve()),)),
+        ("runtime-prefix", (str(Path(sys.prefix).resolve()),)),
     ]
-    environment_groups = {
-        "source": ("GITHUB_WORKSPACE",),
-        "temporary": ("RUNNER_TEMP",),
-        "runtime": ("RUNNER_TOOL_CACHE",),
-    }
-    expanded: list[tuple[str, tuple[str, ...]]] = []
-    for label, values in groups:
-        candidates = set(values)
-        for name in environment_groups[label]:
-            value = os.environ.get(name)
-            if value:
-                candidates.add(str(Path(value).resolve()))
-        expanded.append((label, tuple(sorted(candidates))))
-    expanded.append(("home", (str(Path.home().resolve()),)))
-    return tuple(expanded)
+    if tool_cache:
+        groups.append(("runtime-tool-cache", (str(Path(tool_cache).resolve()),)))
+    groups.extend(
+        (
+            ("temporary", tuple(sorted(temporary_values))),
+            ("home", (str(Path.home().resolve()),)),
+        )
+    )
+    return tuple(groups)
 
 
 def _classify_private_bundle_data(bundle: Path, source: Path, stage: Path) -> str:
