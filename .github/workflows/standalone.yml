@@ -289,7 +289,7 @@ jobs:
             echo "Checked-out commit does not match the reviewed commit." >&2
             exit 1
           fi
-      - name: Install exact relocatable macOS Python
+      - name: Install exact standalone macOS Python runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -401,11 +401,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$(uname -m)" in
-            arm64) target="macos-arm64" ;;
-            x86_64) target="macos-x86_64" ;;
-            *) echo "Unsupported macOS architecture." >&2; exit 1 ;;
-          esac
+          if [[ "$(uname -m)" != "arm64" ]]; then
+            echo "Unsupported macOS architecture." >&2
+            exit 1
+          fi
+          target="macos-arm64"
           echo "target=${target}" >> "${GITHUB_OUTPUT}"
       - name: Build and audit native candidate
         run: >-

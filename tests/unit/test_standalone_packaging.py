@@ -155,6 +155,8 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "--strip-components=1" in macos_job
     assert 'runtime="/opt/ordifile-python-3.14.3"' in macos_job
     assert 'python_bin="${runtime}/bin/python3.14"' in macos_job
+    assert 'target="macos-arm64"' in macos_job
+    assert 'target="macos-x86_64"' not in macos_job
     assert "print(platform.machine())" in macos_job
     assert "print(sys.prefix)" in macos_job
     assert "print(sys.executable)" in macos_job

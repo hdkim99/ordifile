@@ -58,8 +58,10 @@ The macOS build uses the exact arm64 Python 3.14.3 install-only archive from the
 extraction into a fixed public prefix. This follows three fail-closed exact-head results:
 the hosted tool-cache prefix was embedded in final bytes, the PSF 3.14 framework remained
 dynamically required, and a PSF 3.13 static-main build still left extension and shared
-components dependent on that framework. The selected runtime is designed to be
-relocatable, uses dynamic libpython, and keeps both native targets on Python 3.14.3.
+components dependent on that framework. Upstream describes the selected install-only
+runtime as a standalone, highly redistributable build; Ordifile does not infer blanket
+relocatability and instead verifies its exact prefix and final bundle behavior. It uses
+dynamic libpython and keeps both reviewed native targets on Python 3.14.3.
 Its fixed prefix and executable are not private runner identities, but only those exact
 literal values receive the narrow path-audit exception. Self-containment is separately
 enforced by rejecting Mach-O dependencies or load commands that reference the build
@@ -125,7 +127,7 @@ Nuitka 4.1.3 is an AGPL-3.0 build tool and is not bundled. Its Runtime Library
 Exception permits qualifying generated target code under the program's own terms; it
 does not relicense the compiler or remove the compiler's AGPL obligations. The current
 prototype carries the reviewed application/package license set and the matching CPython
-license. Complete third-party inventory for the relocatable macOS runtime remains a
+license. Complete third-party inventory for the standalone macOS runtime remains a
 mandatory public-distribution gate; it is not implied by successful prototype assembly.
 
 Before a public signed download, all of these gates remain mandatory:

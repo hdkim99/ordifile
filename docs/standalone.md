@@ -7,8 +7,8 @@ bundles. It is not a public binary release and does not change the supported
 ## Scope
 
 - Windows x86-64: onedir ZIP
-- macOS native arm64 or x86-64: `.app` ZIP
-- Python 3.14.3 on both platforms; macOS uses an exact relocatable install-only runtime;
+- macOS arm64: `.app` ZIP
+- Python 3.14.3 on both platforms; macOS uses an exact standalone install-only runtime;
   PySide6-Essentials/shiboken6 6.11.2; Nuitka 4.1.3
 - unsigned or ad-hoc-signed evidence only
 - public-safe synthetic inputs for every built-in Generic, Agilent, Shimadzu and
@@ -49,7 +49,9 @@ the exact arm64 Python 3.14.3 install-only archive from the reviewed
 extracting it into a fixed public build prefix. Earlier exact-head attempts rejected
 the hosted tool-cache prefix, the official PSF 3.14 framework's dynamic linkage, and an
 official PSF 3.13 static-main build whose extension modules still loaded that framework.
-The fixed relocatable prefix is public rather than runner-identifying, so only its exact
+The selected archive is described upstream as a standalone, highly redistributable
+build; Ordifile does not treat that as a blanket relocatability guarantee. Its fixed
+prefix is public rather than runner-identifying, so only the exact
 literal prefix and executable are excluded from the private-path scan. Self-containment
 is checked separately: no Mach-O dependency or load command may reference that build
 runtime, and the entire runtime is moved out of place while the packaged smoke runs.
@@ -109,9 +111,11 @@ python scripts/standalone/build.py \
   --commit <exact-40-character-commit> --target <native-target>
 ```
 
-Valid targets are `windows-x86_64`, `macos-arm64`, and `macos-x86_64`. The builder
-rejects a target that does not match the host. It withholds captured deployment output
-on failure so local paths are not copied into public logs.
+The reviewed automated targets are `windows-x86_64` and `macos-arm64`. The builder
+retains a native `macos-x86_64` target for future exact-runtime research, but no
+automated x86-64 macOS support is claimed. It rejects a target that does not match the
+host and withholds captured deployment output on failure so local paths are not copied
+into public logs.
 
 ## What the smoke proves
 
