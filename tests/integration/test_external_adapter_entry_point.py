@@ -106,6 +106,7 @@ class BundleAdapter:
         raise_message: str | None = None,
         oversized_integer: bool = False,
         malformed: str | None = None,
+        two_dimensional: bool = False,
     ) -> None:
         self.failed = failed
         self.mutate = mutate
@@ -113,6 +114,7 @@ class BundleAdapter:
         self.raise_message = raise_message
         self.oversized_integer = oversized_integer
         self.malformed = malformed
+        self.two_dimensional = two_dimensional
 
     def probe(self, path: Path) -> DetectionResult:
         return DetectionResult(path.suffix == ".dat", 1.0, "synthetic external fixture")
@@ -298,8 +300,14 @@ class BundleAdapter:
                     "same",
                     "/private/adapter/secret.dat",
                     peak_number=scientific_integer if scientific_integer is not None else 1,
+                    retention_time=1.0 if self.two_dimensional else None,
+                    retention_time_unit="s" if self.two_dimensional else None,
                     area=2.0,
                     compound="A",
+                    observation_order=1 if self.two_dimensional else None,
+                    area_unit="AU" if self.two_dimensional else None,
+                    secondary_retention_time=0.5 if self.two_dimensional else None,
+                    secondary_retention_time_unit="s" if self.two_dimensional else None,
                 ),
             ),
             (
@@ -327,6 +335,30 @@ def _registry(adapter: BundleAdapter) -> AdapterRegistry:
     registry = AdapterRegistry()
     registry.register(adapter)
     return registry
+
+
+def test_external_adapter_api_v1_preserves_secondary_retention_coordinate(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "secondary.dat"
+    source.write_bytes(b"fixture")
+
+    result = convert(
+        source,
+        tmp_path / "secondary.xlsx",
+        registry=_registry(BundleAdapter(two_dimensional=True)),
+    )
+
+    bundle = result.files[0].bundle
+    assert bundle is not None
+    assert bundle.peaks[0].secondary_retention_time == 0.5
+    assert bundle.peaks[0].secondary_retention_time_unit == "s"
+    workbook = load_workbook(result.output_path, read_only=True, data_only=False)
+    try:
+        row = next(workbook["Peak_Order_Matrix_2D"].iter_rows(min_row=2, values_only=True))
+        assert row[8:] == (1.0, 0.5, 2.0)
+    finally:
+        workbook.close()
 
 
 def test_failed_bundle_scientific_data_is_excluded_from_workbook(tmp_path: Path) -> None:

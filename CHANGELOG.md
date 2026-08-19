@@ -7,6 +7,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- A backward-compatible optional secondary retention coordinate in `PeakRecord`, plus
+  conditional `Peaks` columns and `Peak_Order_Matrix_2D` atomic RT1/RT2/area triples.
+  Existing construction call patterns, public conversion function signatures,
+  one-dimensional `Peaks`, `Peak_Order_Matrix`, and the adapter API version remain
+  compatible.
+
 ## [0.4.0] - 2026-08-18
 
 ### Added

@@ -88,3 +88,54 @@ def test_semantic_digest_requires_all_scientific_sheets(tmp_path: Path) -> None:
     workbook.close()
     with pytest.raises(ValueError, match="missing required scientific smoke sheets"):
         semantic_digest(output)
+
+
+def test_semantic_digest_includes_conditional_two_dimensional_matrix(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
+    output = tmp_path / "two-dimensional.xlsx"
+    workbook = Workbook()
+    first = workbook.active
+    first.title = SCIENTIFIC_SHEETS[0]
+    first.append(("value",))
+    for sheet_name in SCIENTIFIC_SHEETS[1:]:
+        workbook.create_sheet(sheet_name).append(("value",))
+    two_dimensional = workbook.create_sheet("Peak_Order_Matrix_2D")
+    two_dimensional.append(("peak_1_rt1", "peak_1_rt2", "peak_1_area"))
+    two_dimensional.append((1.0, 0.1, 10.0))
+    workbook.save(output)
+    workbook.close()
+    original, _sheets = semantic_digest(output)
+
+    workbook = load_workbook(output)
+    workbook["Peak_Order_Matrix_2D"]["B2"] = 0.2
+    workbook.save(output)
+    workbook.close()
+
+    changed, _sheets = semantic_digest(output)
+    assert changed != original
+
+
+def test_semantic_digest_includes_split_two_dimensional_matrix(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
+    output = tmp_path / "split-two-dimensional.xlsx"
+    workbook = Workbook()
+    first = workbook.active
+    first.title = SCIENTIFIC_SHEETS[0]
+    first.append(("value",))
+    for sheet_name in SCIENTIFIC_SHEETS[1:]:
+        workbook.create_sheet(sheet_name).append(("value",))
+    workbook.create_sheet("Peak_Order_Matrix_2D").append(("first",))
+    workbook.create_sheet("Peak_Order_Matrix_2D_002").append(("second",))
+    workbook.save(output)
+    workbook.close()
+    original, _sheets = semantic_digest(output)
+
+    workbook = load_workbook(output)
+    workbook["Peak_Order_Matrix_2D_002"]["A1"] = "changed"
+    workbook.save(output)
+    workbook.close()
+
+    changed, _sheets = semantic_digest(output)
+    assert changed != original

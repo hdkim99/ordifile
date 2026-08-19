@@ -30,6 +30,7 @@ SCIENTIFIC_SHEETS = (
     "Metadata",
     "Import_Log",
 )
+CONDITIONAL_SCIENTIFIC_SHEETS = ("Peak_Order_Matrix_2D",)
 GENERIC_NAME = "generic.csv"
 GENERIC_BOM_NAME = "generic BOM.csv"
 GENERIC_TSV_NAME = "generic.tsv"
@@ -113,12 +114,21 @@ def semantic_digest(path: Path) -> tuple[str, tuple[str, ...]]:
         missing = tuple(sheet for sheet in SCIENTIFIC_SHEETS if sheet not in workbook.sheetnames)
         if missing:
             raise ValueError("The workbook is missing required scientific smoke sheets.")
+        conditional_sheets = tuple(
+            sheet
+            for sheet in workbook.sheetnames
+            if any(
+                sheet == logical_name or sheet.startswith(f"{logical_name}_")
+                for logical_name in CONDITIONAL_SCIENTIFIC_SHEETS
+            )
+        )
+        digest_sheets = (*SCIENTIFIC_SHEETS, *conditional_sheets)
         payload = {
             sheet: [
                 [_json_value(value) for value in row]
                 for row in workbook[sheet].iter_rows(values_only=True)
             ]
-            for sheet in SCIENTIFIC_SHEETS
+            for sheet in digest_sheets
         }
         serialized = json.dumps(
             payload, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")

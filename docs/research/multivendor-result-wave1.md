@@ -5,7 +5,8 @@
   and peak area
 - Manufacturers researched: Thermo Fisher Scientific, PerkinElmer, SCION
   Instruments, LECO, and Bruker
-- Decision: research-only; no Wave-1 adapter is implementation-ready
+- Decision: the exact LECO ChromaTOF 4.72 GCxGC profile is implementation-ready after
+  acceptance of the secondary-retention ADR; all Wave-1 1D profiles remain blocked
 
 This matrix records exact software/export profiles rather than claiming support for a
 manufacturer. A profile enters the public format list only after a lawful actual fixture,
@@ -39,7 +40,7 @@ workbook regression, and privacy/license review all pass.
 | PerkinElmer | Chromera, exact Result export profile unresolved | Unresolved | No lawful exact Result fixture found | Unresolved | Unresolved | Unresolved | Unresolved | Must remain separate from SimplicityChrom and TotalChrom | `RESEARCH_ONLY` |
 | SCION Instruments | CompassCDS, exact Print Manager Result export profile unresolved | Official material lists ASCII, Excel, and AIA conversion; encrypted `.DATA` is not an export target for this work | No lawful exact ASCII/Excel Result fixture found | Result semantics documented generally; exact field/unit unresolved | Result semantics documented generally; exact field/unit unresolved | Unresolved | Unresolved | Requires exact exported headers, delimiter/worksheet grammar, encoding, software marker, and one-run boundary | `BLOCKED_FIXTURE` |
 | LECO | Published ChromaTOF 4.50.8.0 one-dimensional peak-list grammar; two observed MSDK 1D CSV variants have no embedded version marker | Quoted comma CSV with 16- and 17-column observed variants | Two 594-row MSDK resources are externally observable, but their README identifies third-party provenance without a fixture-specific redistribution grant; neither is fetched by CI or committed | `R.T. (s)`, seconds | `Area`, unit unresolved | `Height`, unit unresolved | Not established by the observed tables | The exact 1D header families can be studied, but implementation cannot claim a lawful test fixture or assign the MSDK bytes to version 4.50.8.0 | `EXTERNAL_ORACLE_ONLY` |
-| LECO | ChromaTOF 4.72.0.0 GCxGC model-mixture result text | Tab-delimited, 7-bit ASCII-compatible, CRLF; exact RT1/RT2/Area/Height/Spectra profile | Dryad CC0 actual fixture; non-human model-mixture subset only; 100 rows, 20,040 bytes, SHA-256 `59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd` | Explicit first- and second-dimension retention times, seconds | Explicit, arbitrary units | Explicit, arbitrary units | Not established by the selected table | Current `PeakRecord` has one retention coordinate; RT2 must not be discarded, moved to metadata, or encoded as channel text | `ADR_REQUIRED` |
+| LECO | ChromaTOF 4.72.0.0 GCxGC model-mixture result text | Tab-delimited, 7-bit ASCII-compatible, CRLF; exact RT1/RT2/Area/Height/Spectra profile | Dryad CC0 actual fixture; non-human model-mixture subset only; 100 rows, 20,040 bytes, SHA-256 `59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd` | Explicit first- and second-dimension retention times, seconds | Explicit, arbitrary units | Explicit, arbitrary units | Not established by the selected table | The accepted secondary-retention ADR preserves RT2 in canonical data and a separate 2D order matrix; the adapter must still pass exact-profile implementation gates | `IMPLEMENTATION_GO` |
 | LECO | ChromaTOF Sync / Sync 2D combined peak table | Combined sample-set peak table | No exact lawful export fixture with a stable table grammar found | Present as an application concept; exact field unresolved | Relative quantitation is described; exact field/unit unresolved | Unresolved | Unresolved | Multi-sample combined tables do not fit the current one-source/one-sample adapter contract | `RESEARCH_ONLY` |
 | Bruker | Current EVOQ GC-TQ / TASQ exact Result export profile unresolved | Official material establishes a current sample-to-report software suite; exact export container and grammar unresolved | No lawful exact current Bruker GC-MS Result fixture found | Unresolved | Unresolved | Unresolved | Unresolved | Requires a current producer/software marker and exact fixture; legacy Varian/Bruker GC or GC-SQ must not be duplicated as current Bruker support | `BLOCKED_FIXTURE` |
 
@@ -127,12 +128,15 @@ The next adapter PR may start only when one exact profile satisfies all of the f
 10. no proprietary vendor code, DLL, executable, or protected-format bypass is used.
 
 The current implementation order is therefore evidence-driven, not the manufacturer
-list order. The closest candidates are bounded intake of the lawful TotalChrom PDF and
-an architecture decision for the lawful ChromaTOF 4.72 GCxGC dual-retention profile.
+list order. The lawful ChromaTOF 4.72 GCxGC dual-retention profile is first because its
+exact fixture, grammar, scientific values, privacy review, and canonical architecture
+are all established. The TotalChrom PDF remains intake evidence only; this cycle does
+not implement a PDF parser.
 
 ## Explicit non-decisions
 
-- No Thermo, PerkinElmer, SCION, LECO, or Bruker adapter is added by this research.
+- No support claim is made until the separate LECO adapter implementation and actual
+  full-row verification pass.
 - No broad manufacturer support claim is made.
 - No 2D retention coordinate is discarded or silently mapped to metadata/channel.
 - No MSDK or other reference implementation code is copied or translated.

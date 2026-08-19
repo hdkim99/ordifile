@@ -260,7 +260,8 @@ fallback합니다. 명시적 모드는 `acquired_at`, `sequence`, `filename`,
 | `Samples` | 발견된 입력별 한 행, 상태, 공개 source reference(기본 상대 경로 또는 core hash alias), adapter, peak 수, SHA-256 |
 | `Peak_Matrix` | 명시적 성분명이 있을 때만 시료별 wide format; 중복 peak는 분리 |
 | `Peak_Order_Matrix` | sample/source/manufacturer/detector/channel/unit과 source 순서 RT/area pair; Excel limit 전에 pair 단위로 분할 |
-| `Peaks` | manufacturer와 근거가 있는 unit/boundary를 포함하는 모든 명시적 peak의 long format; RT 기반 성분 추론 없음 |
+| `Peak_Order_Matrix_2D` | 2차원 stream만 RT1/RT2/area 원자적 triplet으로 보존하는 조건부 sheet; 기존 1D pair 의미는 변경하지 않음 |
+| `Peaks` | manufacturer와 근거가 있는 unit/boundary를 포함하는 모든 명시적 peak의 long format; 2D data가 있을 때만 secondary retention 열을 추가하며 RT 기반 성분 추론 없음 |
 | `Metadata` | 알 수 없는 필드, 잘못된 raw lexeme, 원래 provenance |
 | `Import_Log` | 공개 source reference, 성공·경고·실패·중복·제외 파일, sort key, hash |
 | `Signals_<channel>` | 실제 파싱되고 요청된 경우에만 원본 비보간 x/y 값 |

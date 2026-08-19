@@ -46,16 +46,14 @@ exact result profile
 8. Result-only conversion is the primary path. A raw sibling may be paired later, but
    cannot block an otherwise complete result export.
 
-## Profiles that require a separate architecture decision
-
-### Two-dimensional retention
+## Two-dimensional retention
 
 LECO ChromaTOF 4.72 evidence contains explicit first- and second-dimension retention
-times. The current `PeakRecord.retention_time` and atomic RT/Area columns in
-`Peak_Order_Matrix` preserve only one retention coordinate.
-
-Until a separate ADR defines an additive canonical second coordinate and workbook
-representation, Ordifile must not:
+times. The accepted
+[`secondary-retention-coordinate`](secondary-retention-coordinate.md) ADR preserves
+the first coordinate in `PeakRecord.retention_time`, adds an optional typed secondary
+coordinate, and places 2D streams in conditional `Peak_Order_Matrix_2D` atomic
+RT1/RT2/area triples. Ordifile still must not:
 
 - discard RT2;
 - concatenate RT1/RT2 into one text retention value;
@@ -63,9 +61,11 @@ representation, Ordifile must not:
 - reuse detector or channel as an RT2 carrier; or
 - describe the GCxGC profile as supported.
 
-Any future extension must preserve existing 1D workbook columns and public API
-compatibility, define ordering and units for both coordinates, preflight Excel limits,
-and compare every actual source row through workbook reopen.
+The canonical architecture gate is resolved. Each adapter still requires an exact
+profile, bounded detection, lawful fixture, full-row comparison through workbook
+reopen, and privacy/license review before support is claimed.
+
+## Profiles that require a separate architecture decision
 
 ### Multiple samples or runs in one export
 
