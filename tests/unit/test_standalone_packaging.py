@@ -202,67 +202,39 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "path: source" in windows_job
     assert windows_job.count("working-directory: source") >= 7
     assert windows_job.count('python-version: "3.14.3"') == 1
-    assert "Verify Windows native compiler capability" in windows_job
-    assert "Get-Command cl.exe -CommandType Application" in windows_job
-    assert "_MSC_VER < 1930" in windows_job
-    assert "!defined(_M_X64)" in windows_job
-    assert "ACTIVE_PATH_MSVC_2022_PLUS" in windows_job
-    assert "PATH_CL_VERSION_OR_ARCH_UNSUPPORTED" in windows_job
-    assert "PATH_CL_COMPILE_LINK_FAILED" in windows_job
-    assert "PATH_CL_EXECUTION_FAILED" in windows_job
-    assert "Windows native compiler probe cleanup failed." in windows_job
-    assert (
-        "              }\n            }\n            catch {\n"
-        '              $activeStatus = "PATH_CL_PROBE_FAILED"\n'
-        "            }\n            finally {"
-    ) in windows_job
-    assert (
-        "              }\n            }\n            }\n            catch {\n"
-        '              $activeStatus = "PATH_CL_PROBE_FAILED"'
-    ) not in windows_job
-    assert "function Test-ProbeRootIdentity" in windows_job
-    assert "$probeCreated = $true" in windows_job
-    assert "$probeOwned = $true" in windows_job
-    assert windows_job.count("Test-ProbeRootIdentity") >= 4
-    assert "$runnerTemp.TrimEnd($trimCharacters)" in windows_job
-    assert "Get-Item -LiteralPath $probeRoot -Force -ErrorAction SilentlyContinue" not in (
-        windows_job
+    assert "Prepare Windows native compiler environment" in windows_job
+    assert "Verify activated Windows native compiler environment" in windows_job
+    assert windows_job.count("./scripts/standalone/windows_toolchain.ps1") == 2
+    assert "-Mode prepare" in windows_job
+    assert "-EnvironmentFile $env:GITHUB_ENV" in windows_job
+    assert "-Mode verify" in windows_job
+    assert windows_job.index("-Mode prepare") < windows_job.index("-Mode verify")
+    assert windows_job.index("-Mode verify") < windows_job.index(
+        "Clean persistent workspace before job"
     )
-    assert "Get-Item -LiteralPath $probeRoot -Force -ErrorAction Stop" in windows_job
-    assert "Test-Path -LiteralPath $probeRoot -ErrorAction Stop" in windows_job
-    assert "ordifile-compiler-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB" in (
-        windows_job
-    )
-    assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in windows_job
-    assert '-version "[17.0,)"' in windows_job
-    assert "Common7/Tools/VsDevCmd.bat" in windows_job
-    for fixed_category in (
-        "PROGRAM_FILES_X86_UNAVAILABLE",
-        "VSWHERE_UNAVAILABLE",
-        "VSWHERE_QUERY_FAILED",
-        "VC_TOOLS_UNAVAILABLE",
-        "DEVELOPER_SHELL_UNAVAILABLE",
-        "PATH_CL_UNAVAILABLE",
-        "PATH_CL_PROBE_UNAVAILABLE",
-        "PATH_CL_PROBE_FAILED",
-    ):
-        assert fixed_category in windows_job
-    assert "Windows native compiler capability is unavailable;" in windows_job
-    assert "registered=NOT_EVALUATED; active=$activeStatus." in windows_job
-    assert windows_job.index("registered=NOT_EVALUATED") < windows_job.index(
-        '$registeredStatus = "PROGRAM_FILES_X86_UNAVAILABLE"'
-    )
-    assert "& $developerShell" not in windows_job
-    assert "-prerelease" not in windows_job
-    assert "GITHUB_ENV" not in windows_job
-    for host_mutation in (
-        "winget install",
-        "choco install",
-        "Start-Process",
-        "Set-ItemProperty",
-        "New-ItemProperty",
-    ):
-        assert host_mutation not in windows_job
+    smoke_section = windows_job.split("Smoke immutable Windows bytes outside the checkout", 1)[
+        1
+    ].split("Require complete Windows evidence", 1)[0]
+    cleanup_section = windows_job.split("Remove bounded Windows runner scratch", 1)[1].split(
+        "Clean persistent workspace after job", 1
+    )[0]
+    assert '"ordifile-standalone-$env:GITHUB_RUN_ID-' in smoke_section
+    assert "ordifile-msvc-" not in smoke_section
+    assert ".ordifile-standalone-owned" in smoke_section
+    assert "ORDIFILE_STANDALONE_CLEANUP_TOKEN" in smoke_section
+    assert "[IO.FileMode]::CreateNew" in smoke_section
+    assert "[IO.FileShare]::None" in smoke_section
+    assert "ReadAllText($cleanupMarker" in smoke_section
+    assert "ordifile-msvc-$identity-prepare" in windows_job
+    assert "ordifile-msvc-$identity-verify" in windows_job
+    assert "Standalone scratch ownership is invalid." in windows_job
+    assert "[System.Management.Automation.ItemNotFoundException]" in windows_job
+    assert "ordifile-msvc-$identity-prepare" in cleanup_section
+    assert "ordifile-msvc-$identity-verify" in cleanup_section
+    assert ".ordifile-msvc-owned" in cleanup_section
+    assert "ORDIFILE_MSVC_PREPARE_CLEANUP_TOKEN" in cleanup_section
+    assert "ORDIFILE_MSVC_VERIFY_CLEANUP_TOKEN" in cleanup_section
+    assert "ReadAllText($marker" in cleanup_section
     assert "actions/setup-python@" not in macos_job
     assert "python-build-standalone/releases/download/20260203/" in macos_job
     assert "cpython-3.14.3%2B20260203-aarch64-apple-darwin-install_only.tar.gz" in macos_job

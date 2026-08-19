@@ -74,17 +74,24 @@ literal values receive the narrow path-audit exception. Self-containment is sepa
 enforced by rejecting Mach-O dependencies or load commands that reference the build
 runtime and moving the entire runtime out of place during packaged execution. Windows
 continues to use `actions/setup-python` inside its run-scoped isolated job environment.
-The Windows job first accepts an already active x64 MSVC 19.30-or-newer compiler only
-after a run-scoped synthetic compile, link, and execution probe. If no active compiler
-is present, it checks for a registered Visual Studio 2022-or-newer native C/C++
-toolchain through `vswhere`; a discovered but failing active compiler cannot be bypassed.
-Neither route prints compiler or installation paths, changes the host environment, or
-installs software. The builder does not trust the
+The Windows job first accepts an already active x64 MSVC 19.30-or-newer environment only
+after a run-scoped synthetic compiler, linker, resource compiler, PE-header, `dumpbin`,
+MSBuild, SDK, and execution probe. If no active compiler is present, it discovers one
+registered Visual Studio 2022 native C/C++ toolchain through `vswhere`, activates its
+x64 developer environment in a child process, masks every imported value, and exports
+only a fixed compiler/SDK variable allowlist to the current job. A separate next step
+repeats the full probe before the build. A discovered but failing active compiler cannot
+be bypassed by the registered route. Neither route prints native-tool output or
+installation paths, changes machine- or user-level state, or installs software; the
+allowlisted environment exists only for this GitHub Actions job. The builder does not trust the
 deployment process exit code alone: before adding licenses or producing a manifest, it
 requires one real, non-link, non-reparse bundle root and the exact platform entry point
 to be a regular, non-empty, non-link, non-reparse file. It also rejects the pinned
 deployment frontend's caught-exception marker. This closes a reviewed partial-`.dist`
-state without changing the packager or installing host software.
+state without changing the packager. Installing a missing Build Tools instance is a
+separate private host-maintenance action and remains gated by an applicable Microsoft
+license, fixed installer identity, explicit minimal components, administrator authority,
+and manual handling of any reboot-required result.
 
 These controls reduce exposure but do not turn a persistent public-repository runner
 into a clean or disposable security boundary. Dispatch additionally requires a

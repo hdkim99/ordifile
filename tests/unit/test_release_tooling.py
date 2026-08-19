@@ -512,7 +512,7 @@ def test_sdist_requires_exact_standalone_build_inputs_when_enabled(tmp_path: Pat
     release.verify_sdist(complete, "0.1.0", source)
 
     missing = tmp_path / "missing-standalone.tar.gz"
-    omitted = "/packaging/standalone/pysidedeploy.spec.in"
+    omitted = "/scripts/standalone/windows_toolchain.ps1"
     with tarfile.open(complete, "r:gz") as original, tarfile.open(missing, "w:gz") as output:
         for member in original.getmembers():
             if member.name.endswith(omitted):
@@ -521,6 +521,21 @@ def test_sdist_requires_exact_standalone_build_inputs_when_enabled(tmp_path: Pat
             output.addfile(member, extracted)
     with pytest.raises(release.ReleaseVerificationError, match="missing required maintainer"):
         release.verify_sdist(missing, "0.1.0", source)
+
+    different = tmp_path / "different-standalone.tar.gz"
+    with tarfile.open(complete, "r:gz") as original, tarfile.open(different, "w:gz") as output:
+        for member in original.getmembers():
+            extracted = original.extractfile(member) if member.isfile() else None
+            if member.name.endswith(omitted):
+                replacement = b"different helper bytes\n"
+                member = tarfile.TarInfo(member.name)
+                member.size = len(replacement)
+                member.mode = 0o644
+                output.addfile(member, io.BytesIO(replacement))
+            else:
+                output.addfile(member, extracted)
+    with pytest.raises(release.ReleaseVerificationError, match="maintainer file differs"):
+        release.verify_sdist(different, "0.1.0", source)
 
 
 def test_clean_wheel_smoke_runs_real_cli_and_reopens_workbook(tmp_path: Path) -> None:

@@ -128,13 +128,21 @@ license injection, manifest generation, or archiving, the builder requires one r
 non-link, non-reparse bundle root and the exact native entry point (`Ordifile.exe` on
 Windows or `Contents/MacOS/Ordifile` on macOS) to be a regular, non-empty, non-link,
 non-reparse file. It also rejects the pinned deployment frontend's caught-exception
-marker. The Windows workflow accepts an already active x64 MSVC 19.30-or-newer compiler
-only after a run-scoped synthetic compile, link, and execution probe. If none is active,
-it checks for a registered Visual Studio 2022-or-newer native compiler through
-`vswhere`. A discovered active compiler must pass rather than being bypassed by the
-registered route, matching the pinned backend's selection order. The active probe cleans
-its bounded temporary data; neither route prints compiler output or installation paths,
-installs software, activates a developer shell, or reconfigures the host.
+marker. The Windows workflow accepts an already active x64 MSVC 19.30-or-newer
+environment only after a bounded probe exercises the compiler, linker, resource
+compiler, SDK, PE x64 output, `dumpbin`, MSBuild, and the generated executable. If no
+compiler is active, it uses `vswhere` to select one registered Visual Studio 2022
+toolchain, activates the x64 developer environment in a child process, masks its values,
+and exports only a fixed compiler/SDK variable allowlist to the current Actions job. The
+next workflow step repeats the complete probe before any packaging command. A discovered
+active compiler must pass rather than being bypassed by the registered route, matching
+the pinned backend's selection order. Successful probes and ordinary failure paths clean
+bounded temporary data; the job's final bounded cleanup also covers interrupted prepare
+and verify roots after their ownership marker and masked cleanup token are established. Neither
+route prints native-tool output or installation paths, changes machine or user
+configuration, or installs software. Provisioning a genuinely missing Build Tools
+instance is a separately reviewed private host-maintenance operation and is not part of
+the reusable build workflow.
 
 ## What the smoke proves
 
