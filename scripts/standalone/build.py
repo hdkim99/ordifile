@@ -37,8 +37,8 @@ except ImportError:
     )
 
 NUITKA_VERSION = "4.1.3"
-OFFICIAL_MACOS_PYTHON_PREFIX = Path("/Library/Frameworks/Python.framework/Versions/3.14")
-OFFICIAL_MACOS_PYTHON_EXECUTABLE = OFFICIAL_MACOS_PYTHON_PREFIX / "bin" / "python3.14"
+OFFICIAL_MACOS_PYTHON_PREFIX = Path("/Library/Frameworks/Python.framework/Versions/3.13")
+OFFICIAL_MACOS_PYTHON_EXECUTABLE = OFFICIAL_MACOS_PYTHON_PREFIX / "bin" / "python3.13"
 LICENSE_DISTRIBUTIONS = (
     "defusedxml",
     "et-xmlfile",
@@ -151,12 +151,17 @@ def _classify_private_bundle_data(bundle: Path, source: Path, stage: Path, *, ta
     return "bundle-audit-private-data"
 
 
-def _render_spec(template: Path, destination: Path, stage: Path, executable_dir: Path) -> None:
+def _render_spec(
+    template: Path, destination: Path, stage: Path, executable_dir: Path, *, target: str
+) -> None:
     text = template.read_text(encoding="utf-8")
     replacements = {
         "@PROJECT_DIR@": stage.as_posix(),
         "@EXEC_DIRECTORY@": executable_dir.as_posix(),
         "@PYTHON_PATH@": Path(sys.executable).as_posix(),
+        "@STATIC_LIBPYTHON@": (
+            "--static-libpython=yes" if target.startswith("macos-") else "--static-libpython=no"
+        ),
     }
     for marker, value in replacements.items():
         text = text.replace(marker, value)
@@ -291,7 +296,13 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
             shutil.copy2(scripts / "entry.py", temporary_stage / "Ordifile.py")
             shutil.copy2(scripts / "smoke.py", temporary_stage / "smoke.py")
             spec = temporary_stage / "pysidedeploy.spec"
-            _render_spec(packaging / "pysidedeploy.spec.in", spec, temporary_stage, executable_dir)
+            _render_spec(
+                packaging / "pysidedeploy.spec.in",
+                spec,
+                temporary_stage,
+                executable_dir,
+                target=target,
+            )
             build_stage = "deploy"
             command = [
                 str(_deploy_executable()),

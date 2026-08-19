@@ -53,16 +53,17 @@ overrides, and run the packaged executable there. The native candidate is never
 uploaded from the public repository: only its path-free manifest, checksum inventory,
 and smoke report are retained as Actions evidence.
 
-The macOS build installs the exact Python 3.14.3 universal2 package published by the
-Python Software Foundation and verifies its reviewed SHA-256 before installation.
-This is deliberate: an exact-head hosted run using `actions/setup-python` compiled a
-hosted tool-cache prefix into the candidate and the final-byte privacy gate rejected
-it. The official framework build avoids weakening that gate while retaining the
-reviewed Python version. Its fixed, public system prefix and executable are not private
-runner identities. Instead, self-containment is enforced by rejecting Mach-O load
-commands that reference the build-host Python framework and moving that framework out
-of place during packaged execution. Windows continues to use `actions/setup-python`
-inside its run-scoped isolated job environment.
+The macOS build installs the exact Python 3.13.15 universal2 package published by the
+Python Software Foundation, verifies its reviewed SHA-256, and explicitly requests
+Nuitka static libpython linking. This is deliberate: exact-head hosted runs first found
+a private tool-cache prefix and then found that Nuitka 4.1.3 left official Python 3.14.3
+dynamically dependent on its build-host framework; Nuitka 4.1.3 marks static linking for
+official Python 3.14+ unsupported. The maintained 3.13 line is therefore the narrow
+macOS build baseline, while Windows retains Python 3.14.3. The fixed, public macOS
+system prefix and executable are not private runner identities. Self-containment is
+still enforced by rejecting Mach-O load commands that reference the build-host Python
+framework and moving that framework out of place during packaged execution. Windows
+continues to use `actions/setup-python` inside its run-scoped isolated job environment.
 
 These controls reduce exposure but do not turn a persistent public-repository runner
 into a clean or disposable security boundary. Dispatch additionally requires a

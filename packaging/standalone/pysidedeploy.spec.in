@@ -19,4 +19,4 @@ plugins = platforms
 [nuitka]
 macos.permissions =
 mode = standalone
-extra_args = --quiet --noinclude-qt-translations --noinclude-qt-plugins=tls
+extra_args = --quiet --noinclude-qt-translations --noinclude-qt-plugins=tls @STATIC_LIBPYTHON@

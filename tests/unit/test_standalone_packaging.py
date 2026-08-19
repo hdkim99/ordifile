@@ -79,6 +79,7 @@ def test_build_lock_and_deployment_template_pin_primary_toolchain() -> None:
     assert "mode = standalone" in spec
     assert "input_file = Ordifile.py" in spec
     assert "--noinclude-qt-plugins=tls" in spec
+    assert "@STATIC_LIBPYTHON@" in spec
     assert "onefile" not in spec.casefold()
 
 
@@ -138,17 +139,17 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert windows_job.count("working-directory: source") >= 7
     assert text.count('python-version: "3.14.3"') == 1
     assert "actions/setup-python@" not in macos_job
-    assert "https://www.python.org/ftp/python/3.14.3/python-3.14.3-macos11.pkg" in macos_job
-    assert "50b709f72cb5ed87d5882901923face981dd657569717761832c36db3bf08238" in macos_job
+    assert "https://www.python.org/ftp/python/3.13.15/python-3.13.15-macos11.pkg" in macos_job
+    assert "3b7eaf7f29825f796e8267024435540ddf1f17fc9a97ad58095daa7a75bfdcd3" in macos_job
     assert "/usr/bin/shasum -a 256 --check >/dev/null" in macos_job
     assert "/usr/sbin/pkgutil --check-signature" in macos_job
     assert "/usr/bin/sudo -n /usr/sbin/installer" in macos_job
-    assert "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14" in macos_job
+    assert "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13" in macos_job
     assert "print(platform.machine())" in macos_job
     assert "print(sys.prefix)" in macos_job
     assert "print(sys.executable)" in macos_job
     assert "print(sys.base_prefix)" in macos_job
-    assert macos_job.count("python3.14 scripts/standalone/") == 3
+    assert macos_job.count("python3.13 scripts/standalone/") == 3
     assert "A Mach-O dependency inventory failed." in macos_job
     assert "A Mach-O load-command inventory failed." in macos_job
     assert "A bundle file-type inventory failed." in macos_job
@@ -402,12 +403,24 @@ def test_rendered_spec_resolves_only_known_temporary_markers(tmp_path: Path) -> 
         destination,
         tmp_path / "stage",
         tmp_path / "result",
+        target="macos-arm64",
     )
     text = destination.read_text(encoding="utf-8")
     assert "@PROJECT_DIR@" not in text
     assert "@EXEC_DIRECTORY@" not in text
     assert "@PYTHON_PATH@" not in text
+    assert "@STATIC_LIBPYTHON@" not in text
     assert str(tmp_path / "stage") in text
+    assert "--static-libpython=yes" in text
+
+    standalone_build._render_spec(
+        ROOT / "packaging" / "standalone" / "pysidedeploy.spec.in",
+        destination,
+        tmp_path / "stage",
+        tmp_path / "result",
+        target="windows-x86_64",
+    )
+    assert "--static-libpython=no" in destination.read_text(encoding="utf-8")
 
 
 def test_native_target_gate_accepts_only_current_host() -> None:
@@ -770,11 +783,11 @@ def test_official_macos_runtime_exception_keeps_resolved_symlink_targets_private
 ) -> None:
     actual_prefix = tmp_path / "actual-runtime"
     (actual_prefix / "bin").mkdir(parents=True)
-    actual_executable = actual_prefix / "bin" / "python3.14"
+    actual_executable = actual_prefix / "bin" / "python3.13"
     actual_executable.write_bytes(b"synthetic runtime")
     public_prefix = tmp_path / "public-runtime"
     public_prefix.symlink_to(actual_prefix, target_is_directory=True)
-    public_executable = public_prefix / "bin" / "python3.14"
+    public_executable = public_prefix / "bin" / "python3.13"
     monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_PREFIX", public_prefix)
     monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_EXECUTABLE", public_executable)
     monkeypatch.setattr(sys, "prefix", str(public_prefix))

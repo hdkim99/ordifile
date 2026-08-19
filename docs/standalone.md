@@ -8,7 +8,8 @@ bundles. It is not a public binary release and does not change the supported
 
 - Windows x86-64: onedir ZIP
 - macOS native arm64 or x86-64: `.app` ZIP
-- Python 3.14.3, PySide6-Essentials/shiboken6 6.11.2, Nuitka 4.1.3
+- Windows Python 3.14.3; macOS Python 3.13.15 with static libpython;
+  PySide6-Essentials/shiboken6 6.11.2; Nuitka 4.1.3
 - unsigned or ad-hoc-signed evidence only
 - public-safe synthetic inputs for every built-in Generic, Agilent, Shimadzu and
   YoungIn adapter, including UTF-8, UTF-8-BOM and YoungIn CP949
@@ -43,10 +44,13 @@ environment and unique runner-temporary scratch root, masks runner-local identif
 and performs bounded cleanup before and after execution. The macOS job is fixed to
 GitHub-hosted `macos-15`; changing that routing requires a separate review. Windows
 uses the exact `actions/setup-python` version selected by the workflow. macOS installs
-the byte-verified official Python 3.14.3 universal2 package; an exact-head prototype
-rejected the hosted tool-cache distribution because its runner-specific runtime prefix
-remained in final bundle bytes. The official interpreter's fixed system framework path
-is public rather than runner-identifying, so it is not treated as private build data.
+the byte-verified official Python 3.13.15 universal2 package and explicitly links its
+static libpython. Exact-head prototypes rejected both the hosted tool-cache distribution,
+whose runner-specific runtime prefix remained in final bytes, and official Python 3.14.3,
+because Nuitka 4.1.3 does not support static libpython for Python 3.14+ and left a dynamic
+dependency on the build-host framework. The official 3.13 interpreter's fixed system
+framework path is public rather than runner-identifying, so it is not treated as private
+build data.
 Self-containment is checked separately: no Mach-O load command may reference that
 framework, and the framework is moved out of place while the packaged smoke runs.
 Both jobs check out the exact reviewed same-repository SHA, unpack the exact candidate into runner-temporary
