@@ -84,7 +84,12 @@ window probe before building Ordifile.
 The direct Nuitka subprocess alone receives the reviewed Zig directory at the front of
 PATH; inherited `CC` and `CXX` are removed, stdin is closed to reject tool downloads,
 and `--zig` is mandatory. The exact built-in PE dependency scanner is forced so the
-default external legacy scanner cannot be downloaded. Its private SCons report must
+default external legacy scanner cannot be downloaded. The Windows PySide probe and full
+build also use the exact `--nofollow-import-to=PySide6.QtNetwork` boundary because the
+pinned PySide6 Windows initializer catches failure of that optional OpenSSL-related import
+and Ordifile imports only QtCore, QtGui and QtWidgets. Separate exact exclusions retain the
+offline ban on TLS and network-information plugin families. macOS keeps the reviewed spec path
+unchanged. Its private SCons report must
 prove Nuitka Zig mode, disabled
 separate Nuitka MSVC and MinGW modes, the exact compiler path, and the
 `-march=x86_64` mitigation proposed in open issue #3987. Generic and older x86-64

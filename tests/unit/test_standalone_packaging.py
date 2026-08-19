@@ -91,6 +91,7 @@ def test_build_lock_and_deployment_template_pin_primary_toolchain() -> None:
     assert "mode = standalone" in spec
     assert "input_file = Ordifile.py" in spec
     assert "--noinclude-qt-plugins=tls" in spec
+    assert "--nofollow-import-to=PySide6.QtNetwork" not in spec
     assert "@STATIC_LIBPYTHON@" in spec
     assert "onefile" not in spec.casefold()
 

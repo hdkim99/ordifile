@@ -136,14 +136,21 @@ that root. It requires `zig version`, a native x86-64 compile/link/execute probe
 Python/Nuitka standalone probe, and a minimal PySide6/Nuitka standalone-window probe
 before the full build. The full Windows command is direct
 `python -m nuitka --standalone --enable-plugin=pyside6 --zig
---experimental=force-dependencies-pefile`; only
+--experimental=force-dependencies-pefile
+--nofollow-import-to=PySide6.QtNetwork
+--noinclude-qt-plugins=tls
+--noinclude-qt-plugins=networkinformation`; only
 that subprocess receives PATH prefixed with the reviewed Zig directory, with inherited
 `CC` and `CXX` removed. `CFLAGS=-march=x86_64` applies the baseline mitigation proposed
 in open Nuitka issue #3987; it does not establish portability on generic or older
 x86-64 machines. The private SCons report must prove Nuitka Zig mode, disabled separate
 Nuitka MSVC/MinGW modes, the exact compiler path, and the baseline flag. The invocation
 forces Nuitka 4.1.3's built-in PE dependency scanner; closed standard input therefore
-cannot trigger the default external legacy dependency-tool download. The report,
+cannot trigger the default external legacy dependency-tool download. The Windows-only
+module exclusion prevents PySide6 6.11.2's caught, OpenSSL-directory-dependent
+`QtNetwork` import from expanding the reviewed offline QtCore/QtGui/QtWidgets bundle;
+TLS and network-information plugin families are separately excluded. The PySide probe
+and full bundle audit both reject any resulting network runtime. The report,
 Zig archive, compiler, caches and native candidate are never uploaded. Exact
 ownership-token cleanup removes the Zig root after ordinary failure. Visual Studio,
 Build Tools, MSVC, Windows SDK and a host MinGW toolchain are not installed; the

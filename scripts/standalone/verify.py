@@ -90,17 +90,22 @@ def _has_windows_reparse_attribute(metadata: object) -> bool:
     return bool(value & marker)
 
 
-def _reject_unneeded_network_runtime(relative: str) -> None:
+def is_unneeded_network_runtime(relative: str) -> bool:
+    """Return whether one relative bundle path violates the offline runtime contract."""
     normalized_relative = relative.casefold().replace("\\", "/")
     normalized = f"/{normalized_relative}"
     name = PurePosixPath(relative).name.casefold()
-    if (
+    return (
         "/plugins/tls/" in normalized
         or "/qt-plugins/tls/" in normalized
         or "/networkinformation/" in normalized
         or name in {"qtnetwork", "qt6network.dll"}
         or name.startswith("qtnetwork.")
-    ):
+    )
+
+
+def _reject_unneeded_network_runtime(relative: str) -> None:
+    if is_unneeded_network_runtime(relative):
         raise StandaloneVerificationError("An unneeded Qt network component is bundled.")
 
 

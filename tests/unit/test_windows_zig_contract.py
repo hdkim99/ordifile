@@ -65,6 +65,8 @@ def test_windows_direct_nuitka_contract_has_no_fallback_or_wrapper() -> None:
     assert "--static-libpython=no" in command
     assert "--noinclude-qt-translations" in command
     assert "--noinclude-qt-plugins=tls" in command
+    assert command.count("--nofollow-import-to=PySide6.QtNetwork") == 1
+    assert command.count("--noinclude-qt-plugins=networkinformation") == 1
     assert "--zig" in command
     assert "--experimental=force-dependencies-pefile" in command
     assert "--include-qt-plugins=platforms" not in command
@@ -94,7 +96,32 @@ def test_plain_and_pyside_probes_share_the_exact_noninteractive_backend() -> Non
         assert "--experimental=force-dependencies-pefile" in command
         assert "--assume-yes-for-downloads" not in command
     assert "--enable-plugin=pyside6" not in plain
+    assert "--nofollow-import-to=PySide6.QtNetwork" not in plain
+    assert "--noinclude-qt-plugins=networkinformation" not in plain
     assert "--enable-plugin=pyside6" in pyside
+    assert pyside.count("--nofollow-import-to=PySide6.QtNetwork") == 1
+    assert pyside.count("--noinclude-qt-plugins=networkinformation") == 1
+
+
+@pytest.mark.parametrize(
+    "relative",
+    (
+        Path("Qt6Network.dll"),
+        Path("PySide6/QtNetwork.pyd"),
+        Path("PySide6/qt-plugins/networkinformation/qnetworklistmanager.dll"),
+    ),
+)
+def test_pyside_probe_rejects_qt_network_runtime(tmp_path: Path, relative: Path) -> None:
+    bundle = tmp_path / "probe.dist"
+    platform = bundle / "PySide6" / "qt-plugins" / "platforms" / "qwindows.dll"
+    platform.parent.mkdir(parents=True)
+    platform.write_bytes(b"synthetic platform plugin")
+    network = bundle / relative
+    network.parent.mkdir(parents=True, exist_ok=True)
+    network.write_bytes(b"synthetic network runtime")
+
+    with pytest.raises(windows_zig.ZigStageError, match="pyside-output"):
+        windows_zig._validate_pyside_probe_bundle(bundle)
 
 
 def test_windows_nuitka_environment_is_child_only_and_has_no_compiler_override(

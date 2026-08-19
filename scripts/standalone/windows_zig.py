@@ -34,6 +34,10 @@ NUITKA_VERSION = "4.1.3"
 PYSIDE_VERSION = "6.11.2"
 WINDOWS_CPU_BASELINE_FLAG = "-march=x86_64"
 WINDOWS_NUITKA_DEPENDENCY_MODE = "--experimental=force-dependencies-pefile"
+WINDOWS_PYSIDE_NETWORK_EXCLUSIONS = (
+    "--nofollow-import-to=PySide6.QtNetwork",
+    "--noinclude-qt-plugins=networkinformation",
+)
 MARKER_NAME = ".ordifile-zig-owned"
 MAX_ARCHIVE_MEMBERS = 50_000
 MAX_ARCHIVE_UNCOMPRESSED = 2 * 1024 * 1024 * 1024
@@ -490,6 +494,7 @@ def _nuitka_probe_command(source: Path, output: Path, *, pyside: bool) -> tuple[
                 "--enable-plugin=pyside6",
                 "--noinclude-qt-translations",
                 "--noinclude-qt-plugins=tls",
+                *WINDOWS_PYSIDE_NETWORK_EXCLUSIONS,
             )
         )
     return tuple(command)
@@ -586,6 +591,13 @@ def _validate_pe_x64(executable: Path) -> None:
 
 
 def _validate_pyside_probe_bundle(bundle: Path) -> None:
+    try:
+        from .verify import is_unneeded_network_runtime
+    except ImportError:
+        from verify import (  # type: ignore[import-not-found,no-redef]
+            is_unneeded_network_runtime,
+        )
+
     if not _ordinary_directory(bundle):
         raise ZigStageError("pyside-output")
     platform_plugins: list[Path] = []
@@ -596,6 +608,8 @@ def _validate_pyside_probe_bundle(bundle: Path) -> None:
             relative = path.relative_to(bundle)
             parts = tuple(part.casefold() for part in relative.parts)
             if path.name.casefold() == "zig.exe":
+                raise ZigStageError("pyside-output")
+            if is_unneeded_network_runtime(relative.as_posix()):
                 raise ZigStageError("pyside-output")
             if (
                 _ordinary_file(path)

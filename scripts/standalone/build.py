@@ -188,10 +188,14 @@ def _deployment_failed(completed: subprocess.CompletedProcess[str]) -> bool:
 def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
     """Translate the reviewed Qt deployment contract to direct Nuitka arguments."""
     try:
-        from .windows_zig import WINDOWS_NUITKA_DEPENDENCY_MODE
+        from .windows_zig import (
+            WINDOWS_NUITKA_DEPENDENCY_MODE,
+            WINDOWS_PYSIDE_NETWORK_EXCLUSIONS,
+        )
     except ImportError:
         from windows_zig import (  # type: ignore[import-not-found,no-redef]
             WINDOWS_NUITKA_DEPENDENCY_MODE,
+            WINDOWS_PYSIDE_NETWORK_EXCLUSIONS,
         )
 
     return [
@@ -206,6 +210,7 @@ def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
         "--quiet",
         "--noinclude-qt-translations",
         "--noinclude-qt-plugins=tls",
+        *WINDOWS_PYSIDE_NETWORK_EXCLUSIONS,
         "--static-libpython=no",
         "--zig",
         WINDOWS_NUITKA_DEPENDENCY_MODE,
