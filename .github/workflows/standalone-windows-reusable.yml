@@ -162,7 +162,7 @@ jobs:
           $archives = @(Get-ChildItem -LiteralPath $candidate -Filter "Ordifile-*.zip" -File)
           if ($archives.Count -ne 1) { throw "Expected exactly one standalone archive." }
           $checksum = (Get-Content -LiteralPath (Join-Path $candidate "SHA256SUMS.txt") -Raw).Trim()
-          $parts = $checksum -split "\\s+", 2
+          $parts = $checksum -split '\s+', 2
           if ($parts.Count -ne 2 -or $parts[1] -ne $archives[0].Name) {
             throw "Standalone checksum inventory is invalid."
           }

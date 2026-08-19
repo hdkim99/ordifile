@@ -175,6 +175,8 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "needs: caller-preflight" in windows_job
     assert windows_job.count("PSExecutionPolicyPreference: Bypass") == 1
     assert "Set-ExecutionPolicy" not in windows_job
+    assert r"$checksum -split '\s+', 2" in windows_job
+    assert r'$checksum -split "\\s+", 2' not in windows_job
     assert "repository: hdkim99/ordifile" in windows_job
     assert "ref: ${{ inputs.expected_commit }}" in windows_job
     assert "secrets: inherit" not in windows_job
