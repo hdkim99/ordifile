@@ -7,12 +7,13 @@
 ## Decision
 
 Use Qt's official `pyside6-deploy` frontend with `mode = standalone` and an exact
-`Nuitka==4.1.3` build-tool pin. Target a Windows onedir bundle ZIP through a
-repository-authorized self-hosted Windows x86-64 runner and a macOS `.app` bundle ZIP
+`Nuitka==4.1.3` build-tool pin. Target a Windows onedir bundle ZIP through an
+exact-SHA reusable workflow using a maintainer-owned caller repository's existing
+self-hosted Windows x86-64 runner, and target a macOS `.app` bundle ZIP
 through GitHub-hosted `macos-15`. Keep the ordinary Python package and `ordifile[gui]`
 installation unchanged. There is no GitHub-hosted Windows fallback, and Windows
-repository assignment/availability remains an execution gate rather than a documented
-fact until confirmed through the repository inventory.
+runner registration, service, labels, and original repository assignment are not
+changed.
 
 The standalone entry point launches the existing `ordifile.desktop` application. It
 does not copy conversion, discovery, adapter, workbook, or privacy logic. Normal
@@ -36,18 +37,24 @@ desktop workflow.
 `.github/workflows/standalone.yml` has only a manual `workflow_dispatch` trigger and
 read-only repository permission. A no-build default-branch anchor first registers that
 workflow identity. The full workflow accepts a required exact commit only as an
-identity assertion, never as a checkout selector. Both jobs are restricted to the
+identity assertion, never as a checkout selector. The macOS job is restricted to the
 expected repository, an allowlisted same-repository branch, and equality among the
 selected ref SHA, reviewed commit, workflow-definition SHA, and checked-out commit.
 An always-scheduled GitHub-hosted Ubuntu preflight rejects invalid dispatches so that
-two skipped native jobs cannot make a rejected request appear successful; it performs
+the native job cannot make a rejected request appear successful; it performs
 no checkout, packaging, self-hosted execution, or artifact upload.
-The Windows job selects the cumulative `self-hosted`,
-`Windows`, and `X64` capability labels; those labels route work but do not replace the
-repository assignment trust boundary. The persistent job uses an isolated run-scoped
-environment, a workflow-owned nested source checkout, a unique runner-temporary
-scratch directory, runner-identifier log masks, and bounded cleanup under
-`if: always()`. macOS remains fixed to `macos-15`. Both native jobs create unsigned
+Windows validation is separately defined as the public
+`.github/workflows/standalone-windows-reusable.yml` reusable workflow. A thin
+maintainer-owned same-user caller pins it to an exact Ordifile commit, requires no
+secrets, and supplies the caller repository's existing runner context. The called job
+selects the cumulative `self-hosted`, `Windows`, and `X64` labels and checks the
+called workflow repository, file, ref, and SHA before it checks out the hard-coded
+Ordifile repository at that exact SHA. No runner registration, label, service, or
+repository assignment is changed, and the caller repository identity remains an
+infrastructure detail. The persistent job uses an isolated run-scoped environment, a
+workflow-owned nested source checkout, a unique runner-temporary scratch directory,
+runner-identifier log masks, and bounded cleanup under `if: always()`. macOS remains
+fixed to `macos-15`. Both native jobs create unsigned
 candidates, unpack the exact ZIP in runner-temporary space, clear Python import
 overrides, and run the packaged executable there. The native candidate is never
 uploaded from the public repository: only its path-free manifest, checksum inventory,
@@ -79,14 +86,13 @@ workstation is not an approved runner for this workflow.
 GitHub only dispatches a new manual workflow after its definition exists on the
 default branch. The registration-only anchor performs no checkout, build, artifact
 upload, or self-hosted execution. A pre-merge 404 is therefore classified as
-`WORKFLOW_DISPATCH_REGISTRATION_LIMITATION`, not runner unavailability. While this
-infrastructure is under review, local native evidence can validate a platform, but the
-Draft PR must not claim an Actions run. This user-owned repository cannot consume a
-repository-level runner assigned to another repository. Existing runner installations
-must not be moved; a separate Ordifile registration is required and must appear in the
-Ordifile runner inventory. The prototype merge gate remains blocked until that Windows
-runner is visible with matching capability labels and both native automated jobs pass
-for the exact reviewed PR head.
+`WORKFLOW_DISPATCH_REGISTRATION_LIMITATION`, not runner unavailability. GitHub
+resolves a called reusable workflow's self-hosted runner from the caller repository
+context when the caller and called repositories share the same owner. This allows the
+existing repository-level Windows runner to remain assigned where it is; Ordifile
+does not register, move, relabel, or reconfigure it. The prototype merge gate remains
+blocked until the exact-SHA caller run and the macOS automated job both pass for the
+same reviewed PR head.
 
 The packaged executable must prove all of the following before a prototype artifact is
 accepted:

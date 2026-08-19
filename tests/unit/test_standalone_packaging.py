@@ -25,6 +25,7 @@ from standalone import verify as standalone_verify  # noqa: E402
 
 LICENSES = ROOT / "packaging" / "standalone" / "licenses"
 WORKFLOW = ROOT / ".github" / "workflows" / "standalone.yml"
+WINDOWS_REUSABLE = ROOT / ".github" / "workflows" / "standalone-windows-reusable.yml"
 
 
 def _sha256(path: Path) -> str:
@@ -90,6 +91,8 @@ def test_source_distribution_includes_standalone_build_inputs() -> None:
 
 def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
+    windows_job = WINDOWS_REUSABLE.read_text(encoding="utf-8")
+    combined = text + windows_job
     trigger = text.split("permissions:", 1)[0]
     assert "workflow_dispatch:" in trigger
     assert "expected_commit:" in trigger
@@ -97,12 +100,14 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "required: true" in trigger
     for prohibited in ("push:", "pull_request:", "schedule:", "release:"):
         assert prohibited not in trigger
-    assert "runs-on: [self-hosted, Windows, X64]" in text
+    assert "windows-prototype:" not in text
+    assert "runs-on: [self-hosted, Windows, X64]" not in text
+    assert "runs-on: [self-hosted, Windows, X64]" in windows_job
     for prohibited_runner in ("windows-2025", "windows-latest", "windows-2022"):
-        assert prohibited_runner not in text
+        assert prohibited_runner not in combined
     assert "runs-on: macos-15" in text
     macos_job = text.split("  macos-prototype:", 1)[1]
-    preflight = text.split("  windows-prototype:", 1)[0]
+    preflight = text.split("  macos-prototype:", 1)[0]
     assert "dispatch-preflight:" in preflight
     assert "runs-on: ubuntu-latest" in preflight
     assert "actions/checkout@" not in preflight
@@ -110,24 +115,24 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "Standalone dispatch identity is not authorized." in preflight
     assert "Standalone dispatch ref is not authorized." in preflight
     assert "Standalone dispatch commit identity is invalid." in preflight
-    assert text.count("needs: dispatch-preflight") == 2
-    assert text.count("github.repository == 'hdkim99/ordifile'") == 2
-    assert text.count("github.event_name == 'workflow_dispatch'") == 2
-    assert text.count("github.ref_type == 'branch'") == 2
-    assert text.count("github.ref == 'refs/heads/main'") == 2
-    assert text.count("github.ref == 'refs/heads/build/standalone-prototype'") == 2
-    assert text.count("github.sha == inputs.expected_commit") == 2
-    assert text.count("github.workflow_sha == github.sha") == 2
-    assert text.count("ref: ${{ github.sha }}") == 2
-    assert "ref: ${{ inputs.expected_commit }}" not in text
-    assert text.count("EXPECTED_COMMIT: ${{ inputs.expected_commit }}") == 3
-    assert text.count("^[0-9a-f]{40}$") == 3
-    assert text.count("git rev-parse HEAD") == 2
-    windows_job = text.split("  macos-prototype:", 1)[0]
+    assert text.count("needs: dispatch-preflight") == 1
+    assert text.count("github.repository == 'hdkim99/ordifile'") == 1
+    assert text.count("github.event_name == 'workflow_dispatch'") == 1
+    assert text.count("github.ref_type == 'branch'") == 1
+    assert text.count("github.ref == 'refs/heads/main'") == 1
+    assert text.count("github.ref == 'refs/heads/build/standalone-prototype'") == 1
+    assert text.count("github.sha == inputs.expected_commit") == 1
+    assert text.count("github.workflow_sha == github.sha") == 1
+    assert text.count("ref: ${{ github.sha }}") == 1
+    assert text.count("EXPECTED_COMMIT: ${{ inputs.expected_commit }}") == 2
+    assert text.count("^[0-9a-f]{40}$") == 2
+    assert text.count("git rev-parse HEAD") == 1
     assert "Mask persistent runner identifiers" in windows_job
     assert "::add-mask::" in windows_job
     for private_runner_value in (
         "RUNNER_WORKSPACE",
+        "RUNNER_TOOL_CACHE",
+        "AGENT_TOOLSDIRECTORY",
         "RUNNER_NAME",
         "USERNAME",
         "USERPROFILE",
@@ -135,9 +140,45 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
         "USERDOMAIN",
     ):
         assert private_runner_value in windows_job
+    reusable_trigger = windows_job.split("permissions:", 1)[0]
+    assert "workflow_call:" in reusable_trigger
+    assert "expected_commit:" in reusable_trigger
+    assert "required: true" in reusable_trigger
+    assert "type: string" in reusable_trigger
+    for prohibited in (
+        "workflow_dispatch:",
+        "push:",
+        "pull_request:",
+        "pull_request_target:",
+        "schedule:",
+        "release:",
+    ):
+        assert prohibited not in reusable_trigger
+    assert "CALLER_OWNER: ${{ github.repository_owner }}" in windows_job
+    assert "CALLER_EVENT: ${{ github.event_name }}" in windows_job
+    assert "CALLER_REF: ${{ github.ref }}" in windows_job
+    assert '"$CALLER_OWNER" != "hdkim99"' in windows_job
+    assert '"$CALLER_EVENT" != "workflow_dispatch"' in windows_job
+    assert '"$CALLER_REF" != "refs/heads/main"' in windows_job
+    assert "/.github/workflows/ordifile-windows-validation.yml@refs/heads/main" in windows_job
+    assert "job.workflow_repository" in windows_job
+    assert "job.workflow_file_path" in windows_job
+    assert "job.workflow_ref" in windows_job
+    assert "job.workflow_sha" in windows_job
+    reusable_preflight = windows_job.split("  windows-prototype:", 1)[0]
+    assert "caller-preflight:" in reusable_preflight
+    assert "runs-on: ubuntu-latest" in reusable_preflight
+    assert "\n    if:" not in reusable_preflight
+    assert "Reusable Windows caller identity is invalid." in reusable_preflight
+    assert "actions/checkout@" not in reusable_preflight
+    assert "actions/upload-artifact@" not in reusable_preflight
+    assert "needs: caller-preflight" in windows_job
+    assert "repository: hdkim99/ordifile" in windows_job
+    assert "ref: ${{ inputs.expected_commit }}" in windows_job
+    assert "secrets: inherit" not in windows_job
     assert "path: source" in windows_job
     assert windows_job.count("working-directory: source") >= 7
-    assert text.count('python-version: "3.14.3"') == 1
+    assert windows_job.count('python-version: "3.14.3"') == 1
     assert "actions/setup-python@" not in macos_job
     assert "python-build-standalone/releases/download/20260203/" in macos_job
     assert "cpython-3.14.3%2B20260203-aarch64-apple-darwin-install_only.tar.gz" in macos_job
@@ -198,33 +239,36 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert macos_job.count(">/dev/null 2>&1") >= 2
     assert "trap restore_python_runtime EXIT" in macos_job
     assert "trap - EXIT" in macos_job
-    assert "--target windows-x86_64" in text
-    assert "--standalone-smoke" in text
-    assert "--standalone-window-smoke" in text
-    assert text.count("QT_QPA_PLATFORM") == 2
-    assert "standalone smoke 결과.xlsx" in text
-    assert text.count("scripts/standalone/verify.py") == 2
-    assert text.count("PYTHONNOUSERSITE") == 2
-    assert "run_in_venv.py create --github-runner" in text
-    assert "run_in_venv.py remove --github-runner" in text
+    assert "--target windows-x86_64" in windows_job
+    assert "--standalone-smoke" in combined
+    assert "--standalone-window-smoke" in combined
+    assert combined.count("QT_QPA_PLATFORM") == 2
+    assert "standalone smoke 결과.xlsx" in combined
+    assert combined.count("scripts/standalone/verify.py") == 2
+    assert combined.count("PYTHONNOUSERSITE") == 2
+    assert "run_in_venv.py create --github-runner" in windows_job
+    assert "run_in_venv.py remove --github-runner" in windows_job
     assert "python -m pip install" not in windows_job
     assert "pip install --quiet" in windows_job
     assert windows_job.count("run_in_venv.py run --github-runner") >= 5
-    assert text.count("clean_workspace.py --workspace . --phase") == 2
-    assert text.count("if: always()") >= 3
-    assert "ordifile-standalone-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB" in text
-    assert text.count("Standalone scratch boundary is invalid.") == 2
-    assert "actions/download-artifact@" not in text
-    assert text.count("actions/upload-artifact@") == 2
-    assert "standalone-candidate/standalone-manifest.json" in text
-    assert "standalone-candidate/SHA256SUMS.txt" in text
-    assert "standalone-candidate/\n" not in text
-    assert "standalone-smoke-kit/\n" not in text
-    assert "evidence only" in text
-    assert "id-token: write" not in text
-    assert "contents: write" not in text
+    assert windows_job.count("clean_workspace.py --workspace . --phase") == 2
+    assert windows_job.count("if: always()") >= 3
+    assert (
+        "ordifile-standalone-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB"
+        in windows_job
+    )
+    assert windows_job.count("Standalone scratch boundary is invalid.") == 2
+    assert "actions/download-artifact@" not in combined
+    assert combined.count("actions/upload-artifact@") == 2
+    assert "standalone-candidate/standalone-manifest.json" in combined
+    assert "standalone-candidate/SHA256SUMS.txt" in combined
+    assert "standalone-candidate/\n" not in combined
+    assert "standalone-smoke-kit/\n" not in combined
+    assert "evidence only" in combined
+    assert "id-token: write" not in combined
+    assert "contents: write" not in combined
     assert "release" not in "\n".join(
-        line.casefold() for line in text.splitlines() if line.lstrip().startswith("uses:")
+        line.casefold() for line in combined.splitlines() if line.lstrip().startswith("uses:")
     )
 
 

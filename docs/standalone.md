@@ -23,25 +23,32 @@ publication are excluded.
 The default branch first registers **Standalone prototype** with a no-build anchor.
 After registration, a maintainer may select either reviewed `main` or the fixed
 same-repository prototype branch and must supply its exact reviewed 40-character commit
-as `expected_commit`. Both native jobs require the selected ref SHA, expected commit,
+as `expected_commit`. The macOS job requires the selected ref SHA, expected commit,
 and workflow-definition SHA to be identical, and checkout is pinned to that SHA. The
 input never selects a checkout target. A non-skippable Ubuntu preflight fails the run
-before either native job is eligible when any identity check disagrees. It performs no
+before the native job is eligible when any identity check disagrees. It performs no
 checkout, build, or artifact upload. GitHub does not expose a new branch-only manual
 workflow before default-branch registration; the prior pre-merge 404 was a workflow
 registration limitation, not runner-availability evidence. No token, signing secret,
 OIDC permission or vendor software is used.
 
-The Windows job has no GitHub-hosted fallback. It requires the cumulative
-`self-hosted`, `Windows`, and `X64` capability labels and runs only when an eligible
-repository-level runner is assigned and online. A runner registered to another
-user-owned repository is not shared with Ordifile; do not remove or repurpose that
-installation. If the same dedicated host is approved, create a separate Ordifile
-runner instance and verify it through the Ordifile repository inventory. Because its
-workspace persists,
-the job checks out into a workflow-owned source directory, uses a run-scoped virtual
-environment and unique runner-temporary scratch root, masks runner-local identifiers,
-and performs bounded cleanup before and after execution. The macOS job is fixed to
+Windows is not queued by this Ordifile manual workflow. Its reusable workflow is
+invoked from a separate maintainer-owned same-user repository with an exact immutable
+Ordifile SHA pin; that caller provides the existing Windows runner context.
+
+Windows validation is defined in
+`.github/workflows/standalone-windows-reusable.yml` and has no GitHub-hosted
+fallback. A thin `workflow_dispatch` caller in a maintainer-owned repository pins
+that public reusable workflow to an exact Ordifile commit. GitHub then routes the
+called job through the caller repository's existing runner with the cumulative
+`self-hosted`, `Windows`, and `X64` capability labels. The caller repository
+identity is an infrastructure detail and is not recorded in public Ordifile evidence.
+The existing runner registration, repository assignment, labels, service, and
+installation remain unchanged. Because its workspace persists, the called job checks
+out the hard-coded Ordifile repository and exact pinned commit into a workflow-owned
+source directory, uses a run-scoped virtual environment and unique runner-temporary
+scratch root, masks runner-local identifiers, and performs bounded cleanup before and
+after execution. The macOS job remains in the manual Ordifile workflow and is fixed to
 GitHub-hosted `macos-15`; changing that routing requires a separate review. Windows
 uses the exact `actions/setup-python` version selected by the workflow. macOS downloads
 the exact arm64 Python 3.14.3 install-only archive from the reviewed
@@ -55,13 +62,14 @@ prefix is public rather than runner-identifying, so only the exact
 literal prefix and executable are excluded from the private-path scan. Self-containment
 is checked separately: no Mach-O dependency or load command may reference that build
 runtime, and the entire runtime is moved out of place while the packaged smoke runs.
-Both jobs check out the exact reviewed same-repository SHA, unpack the exact candidate into runner-temporary
-space, clear Python import overrides, and run only the packaged executable for
+Both jobs check out the exact reviewed Ordifile SHA, unpack the exact candidate into
+runner-temporary space, clear Python import overrides, and run only the packaged executable for
 scientific and window smokes. This is checkout-independent artifact execution, but not
 a separate clean-machine result.
 
-Manual, fixed-ref, exact-commit routing, read-only repository permission, an isolated Python
-environment, and cleanup reduce exposure; they do not make a persistent self-hosted
+Manual caller dispatch, immutable reusable-workflow pinning, exact-commit checkout,
+read-only repository permission, an isolated Python environment, and cleanup reduce
+exposure; they do not make a persistent self-hosted
 machine an isolation boundary or undo a compromised job. Before dispatch, the Windows
 runner must be a dedicated, minimally privileged build host with no private scientific
 data, signing credentials, unrelated secrets, or sensitive network access. Its runner
