@@ -213,6 +213,18 @@ to the workbook layout.
     result model with explicit min, mV.s and mV units. Signal number/name form channel
     identity; detector, compound and integration boundaries remain unset. Actual bytes
     remain local-only and all public fixtures are independently synthetic.
+40. Wave-1 multi-vendor Result research treats `manufacturer + software/version
+    boundary + exact export profile` as the support unit. Thermo Chromeleon,
+    PerkinElmer SimplicityChrom/TotalChrom/Chromera, SCION CompassCDS, LECO
+    ChromaTOF/Sync and current Bruker GC-MS profiles remain research-only until one
+    exact lawful fixture supplies explicit finite RT and area and passes bounded
+    detection, full-row canonical/workbook comparison, privacy and license gates. A
+    lawful ChromaTOF 4.72 GCxGC fixture proves RT1/RT2/area/height semantics, but the
+    current one-retention-coordinate model cannot preserve it; RT2 may not be dropped
+    or hidden. Multiple-run report exports likewise require a separate architecture
+    decision. The exact boundaries and current evidence states are recorded in
+    [`result-export-profile-boundaries.md`](result-export-profile-boundaries.md) and
+    [`multivendor-result-wave1.md`](../research/multivendor-result-wave1.md).
 
 ## Public boundaries
 

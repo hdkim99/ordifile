@@ -11,6 +11,12 @@ This research does **not** add a proprietary format to Ordifile v0.1.0. A format
 enter the support table only after an adapter, a reproducible fixture, capability
 documentation, and success and failure tests all exist.
 
+The later result-first Wave-1 search for Thermo Fisher, PerkinElmer, SCION, LECO and
+Bruker exact export profiles is recorded separately in
+[`multivendor-result-wave1.md`](multivendor-result-wave1.md). It found no immediately
+implementation-ready lawful 1D text RT+area fixture and therefore adds no adapter or
+support claim.
+
 ## What “normal raw” means here
 
 A candidate must be a vendor-native acquisition file or a complete acquisition
