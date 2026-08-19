@@ -214,6 +214,7 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "Bootstrap exact official job-local Zig" in windows_job
     assert "windows_zig.py bootstrap" in windows_job
     assert "windows_zig.py verify-native" in windows_job
+    assert "windows_zig.py verify-nuitka" in windows_job
     assert "windows_zig.py verify-pyside" in windows_job
     assert "windows_zig.py cleanup" in windows_job
     assert '$manifest.packaging_backend -ne "DIRECT_NUITKA_ZIG"' in windows_job
@@ -226,6 +227,9 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
         "windows_zig.py verify-native"
     )
     assert windows_job.index("windows_zig.py verify-native") < windows_job.index(
+        "windows_zig.py verify-nuitka"
+    )
+    assert windows_job.index("windows_zig.py verify-nuitka") < windows_job.index(
         "windows_zig.py verify-pyside"
     )
     assert windows_job.index("windows_zig.py verify-pyside") < windows_job.index(

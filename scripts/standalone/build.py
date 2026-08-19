@@ -187,6 +187,13 @@ def _deployment_failed(completed: subprocess.CompletedProcess[str]) -> bool:
 
 def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
     """Translate the reviewed Qt deployment contract to direct Nuitka arguments."""
+    try:
+        from .windows_zig import WINDOWS_NUITKA_DEPENDENCY_MODE
+    except ImportError:
+        from windows_zig import (  # type: ignore[import-not-found,no-redef]
+            WINDOWS_NUITKA_DEPENDENCY_MODE,
+        )
+
     return [
         sys.executable,
         "-m",
@@ -201,6 +208,7 @@ def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
         "--noinclude-qt-plugins=tls",
         "--static-libpython=no",
         "--zig",
+        WINDOWS_NUITKA_DEPENDENCY_MODE,
     ]
 
 
@@ -209,7 +217,7 @@ def _validated_windows_zig() -> Path:
     try:
         from .windows_zig import ZigStageError, _configured_zig
     except ImportError:
-        from windows_zig import (  # type: ignore[import-not-found,no-redef]
+        from windows_zig import (  # type: ignore[no-redef]
             ZigStageError,
             _configured_zig,
         )
@@ -253,11 +261,16 @@ def _validate_zig_scons_report(output: Path, stem: str, executable: Path) -> Non
             if key in values:
                 raise ValueError("The Nuitka compiler backend identity is invalid.")
             values[key] = value
+    try:
+        from .windows_zig import WINDOWS_CPU_BASELINE_FLAG
+    except ImportError:
+        from windows_zig import WINDOWS_CPU_BASELINE_FLAG  # type: ignore[no-redef]
+
     expected = {
         "zig_mode": "True",
         "msvc_mode": "False",
         "mingw_mode": "False",
-        "c_flags": "-march=x86_64",
+        "c_flags": WINDOWS_CPU_BASELINE_FLAG,
         "the_cc_name": "zig.exe",
         "the_compiler": str(executable),
     }
@@ -274,19 +287,14 @@ def _validate_zig_scons_report(output: Path, stem: str, executable: Path) -> Non
 
 def _run_windows_nuitka(entrypoint: Path, output: Path) -> None:
     zig = _validated_windows_zig()
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "PATH": f"{zig.parent}{os.pathsep}{environment.get('PATH', '')}",
-            "CFLAGS": "-march=x86_64",
-            "CCFLAGS": "",
-            "CPPFLAGS": "",
-            "CXXFLAGS": "",
-            "LDFLAGS": "",
-        }
-    )
-    environment.pop("CC", None)
-    environment.pop("CXX", None)
+    try:
+        from .windows_zig import _windows_nuitka_environment
+    except ImportError:
+        from windows_zig import (  # type: ignore[no-redef]
+            _windows_nuitka_environment,
+        )
+
+    environment = _windows_nuitka_environment(zig)
     completed = subprocess.run(
         _windows_nuitka_command(entrypoint, output),
         cwd=entrypoint.parent,

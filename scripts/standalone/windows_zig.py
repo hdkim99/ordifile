@@ -32,10 +32,13 @@ ZIG_ARCHIVE_SIZE = 97_217_739
 ZIG_ARCHIVE_SHA256 = "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e"
 NUITKA_VERSION = "4.1.3"
 PYSIDE_VERSION = "6.11.2"
+WINDOWS_CPU_BASELINE_FLAG = "-march=x86_64"
+WINDOWS_NUITKA_DEPENDENCY_MODE = "--experimental=force-dependencies-pefile"
 MARKER_NAME = ".ordifile-zig-owned"
 MAX_ARCHIVE_MEMBERS = 50_000
 MAX_ARCHIVE_UNCOMPRESSED = 2 * 1024 * 1024 * 1024
 MAX_MEMBER_SIZE = 768 * 1024 * 1024
+MAX_FAILURE_CLASSIFICATION_BYTES = 1024 * 1024
 _IDENTITY = re.compile(r"^[0-9]+-[0-9]+-[A-Za-z0-9_-]+$")
 _WINDOWS_RESERVED = {
     "aux",
@@ -449,6 +452,79 @@ def _run_quiet(
         raise ZigStageError("probe") from error
 
 
+def _windows_nuitka_environment(executable: Path) -> dict[str, str]:
+    """Build a subprocess-only environment for the exact reviewed Zig compiler."""
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{executable.parent}{os.pathsep}{environment.get('PATH', '')}",
+            "CFLAGS": WINDOWS_CPU_BASELINE_FLAG,
+            "CCFLAGS": "",
+            "CPPFLAGS": "",
+            "CXXFLAGS": "",
+            "LDFLAGS": "",
+        }
+    )
+    environment.pop("CC", None)
+    environment.pop("CXX", None)
+    return environment
+
+
+def _nuitka_probe_command(source: Path, output: Path, *, pyside: bool) -> tuple[str, ...]:
+    command = [
+        sys.executable,
+        "-m",
+        "nuitka",
+        str(source),
+        "--follow-imports",
+        f"--output-dir={output}",
+        "--standalone",
+        "--quiet",
+        "--static-libpython=no",
+        "--zig",
+        WINDOWS_NUITKA_DEPENDENCY_MODE,
+    ]
+    if pyside:
+        command.extend(
+            (
+                "--enable-plugin=pyside6",
+                "--noinclude-qt-translations",
+                "--noinclude-qt-plugins=tls",
+            )
+        )
+    return tuple(command)
+
+
+def _validate_nuitka_report(output: Path, stem: str, executable: Path) -> None:
+    try:
+        from .build import _validate_zig_scons_report
+    except ImportError:
+        from build import _validate_zig_scons_report  # type: ignore[attr-defined,no-redef]
+
+    try:
+        _validate_zig_scons_report(output, stem, executable)
+    except ValueError as error:
+        raise ZigStageError("nuitka-report") from error
+
+
+def _classify_nuitka_failure(
+    completed: subprocess.CompletedProcess[bytes],
+    *,
+    prefix: str,
+) -> str:
+    """Return one fixed category without decoding or exposing native output."""
+    if prefix not in {"nuitka", "pyside"}:
+        return "nuitka-compile-unclassified"
+    captured = (completed.stdout or b"") + (completed.stderr or b"")
+    if len(captured) > MAX_FAILURE_CLASSIFICATION_BYTES:
+        return f"{prefix}-compile-unclassified"
+
+    marker = b"failed unexpectedly in scons c backend compilation."
+    if captured.lower().count(marker) == 1:
+        return f"{prefix}-scons-backend"
+    return f"{prefix}-compile-unclassified"
+
+
 def _validate_zig_identity(executable: Path) -> None:
     completed = _run_quiet((str(executable), "version"), cwd=executable.parent, timeout=30)
     if completed.returncode != 0 or completed.stdout.strip() != ZIG_VERSION.encode("ascii"):
@@ -533,6 +609,38 @@ def _validate_pyside_probe_bundle(bundle: Path) -> None:
         raise ZigStageError("pyside-output")
 
 
+def _validate_plain_probe_bundle(bundle: Path) -> None:
+    if not _ordinary_directory(bundle):
+        raise ZigStageError("nuitka-output")
+    try:
+        for path in _walk_tree(bundle):
+            if not (_ordinary_directory(path) or _ordinary_file(path)):
+                raise ZigStageError("nuitka-output")
+            if path.name.casefold() == "zig.exe":
+                raise ZigStageError("nuitka-output")
+    except OSError as error:
+        raise ZigStageError("nuitka-output") from error
+
+
+def _run_packaged_probe(candidate: Path, probe: Path, *, stage: str) -> None:
+    environment = os.environ.copy()
+    environment.update({"PYTHONPATH": "", "PYTHONNOUSERSITE": "1", "QT_QPA_PLATFORM": "offscreen"})
+    try:
+        executed = subprocess.run(
+            (str(candidate),),
+            cwd=probe,
+            check=False,
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            timeout=60,
+            env=environment,
+        )
+    except Exception as error:
+        raise ZigStageError(stage) from error
+    if executed.returncode != 0:
+        raise ZigStageError(stage)
+
+
 def bootstrap() -> None:
     if platform.system() != "Windows" or os.environ.get(
         "PROCESSOR_ARCHITECTURE", ""
@@ -576,7 +684,16 @@ def verify_native() -> None:
         )
         output = probe / "probe.exe"
         completed = _run_quiet(
-            (str(executable), "cc", str(source), "-o", str(output)), cwd=probe, timeout=5 * 60
+            (
+                str(executable),
+                "cc",
+                WINDOWS_CPU_BASELINE_FLAG,
+                str(source),
+                "-o",
+                str(output),
+            ),
+            cwd=probe,
+            timeout=5 * 60,
         )
         if completed.returncode != 0:
             raise ZigStageError("native-compile-link")
@@ -589,6 +706,52 @@ def verify_native() -> None:
             shutil.rmtree(probe)
     _configured_zig()
     print(f"Windows Zig native probe PASS version={ZIG_VERSION} target=windows-x86_64")
+
+
+def verify_nuitka() -> None:
+    root, executable, _token = _configured_zig()
+    try:
+        nuitka_version = version("Nuitka")
+    except PackageNotFoundError as error:
+        raise ZigStageError("nuitka-environment") from error
+    if nuitka_version != NUITKA_VERSION or sys.version_info[:3] != (3, 14, 3):
+        raise ZigStageError("nuitka-environment")
+    probe = root / "probe-nuitka"
+    if probe.exists() or probe.is_symlink():
+        raise ZigStageError("nuitka-probe")
+    probe.mkdir()
+    try:
+        source = probe / "probe.py"
+        source.write_text("raise SystemExit(0)\n", encoding="ascii", newline="\n")
+        output = probe / "result"
+        output.mkdir()
+        completed = _run_quiet(
+            _nuitka_probe_command(source, output, pyside=False),
+            cwd=probe,
+            timeout=20 * 60,
+            env=_windows_nuitka_environment(executable),
+        )
+        if completed.returncode != 0:
+            raise ZigStageError(
+                _classify_nuitka_failure(
+                    completed,
+                    prefix="nuitka",
+                )
+            )
+        _validate_nuitka_report(output, source.stem, executable)
+        bundle = output / "probe.dist"
+        _validate_plain_probe_bundle(bundle)
+        candidate = bundle / "probe.exe"
+        _validate_pe_x64(candidate)
+        _run_packaged_probe(candidate, probe, stage="nuitka-execute")
+    finally:
+        if probe.exists() and _ordinary_directory(probe):
+            shutil.rmtree(probe)
+    _configured_zig()
+    print(
+        "Windows plain Nuitka Zig probe PASS "
+        f"python=3.14.3 nuitka={NUITKA_VERSION} zig={ZIG_VERSION} target=windows-x86_64"
+    )
 
 
 def verify_pyside() -> None:
@@ -625,65 +788,25 @@ def verify_pyside() -> None:
         )
         output = probe / "result"
         output.mkdir()
-        command = (
-            sys.executable,
-            "-m",
-            "nuitka",
-            str(source),
-            "--follow-imports",
-            "--enable-plugin=pyside6",
-            f"--output-dir={output}",
-            "--standalone",
-            "--quiet",
-            "--noinclude-qt-translations",
-            "--noinclude-qt-plugins=tls",
-            "--static-libpython=no",
-            "--zig",
+        completed = _run_quiet(
+            _nuitka_probe_command(source, output, pyside=True),
+            cwd=probe,
+            timeout=20 * 60,
+            env=_windows_nuitka_environment(executable),
         )
-        build_environment = os.environ.copy()
-        build_environment.update(
-            {
-                "PATH": f"{executable.parent}{os.pathsep}{build_environment.get('PATH', '')}",
-                "CFLAGS": "-march=x86_64",
-                "CCFLAGS": "",
-                "CPPFLAGS": "",
-                "CXXFLAGS": "",
-                "LDFLAGS": "",
-            }
-        )
-        build_environment.pop("CC", None)
-        build_environment.pop("CXX", None)
-        completed = _run_quiet(command, cwd=probe, timeout=20 * 60, env=build_environment)
         if completed.returncode != 0:
-            raise ZigStageError("pyside-compile")
-        try:
-            from .build import _validate_zig_scons_report
-        except ImportError:
-            from build import _validate_zig_scons_report  # type: ignore[attr-defined,no-redef]
-
-        _validate_zig_scons_report(output, source.stem, executable)
+            raise ZigStageError(
+                _classify_nuitka_failure(
+                    completed,
+                    prefix="pyside",
+                )
+            )
+        _validate_nuitka_report(output, source.stem, executable)
         bundle = output / "probe.dist"
         _validate_pyside_probe_bundle(bundle)
         candidate = bundle / "probe.exe"
         _validate_pe_x64(candidate)
-        environment = os.environ.copy()
-        environment.update(
-            {"PYTHONPATH": "", "PYTHONNOUSERSITE": "1", "QT_QPA_PLATFORM": "offscreen"}
-        )
-        try:
-            executed = subprocess.run(
-                (str(candidate),),
-                cwd=probe,
-                check=False,
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                timeout=60,
-                env=environment,
-            )
-        except Exception as error:
-            raise ZigStageError("pyside-execute") from error
-        if executed.returncode != 0:
-            raise ZigStageError("pyside-execute")
+        _run_packaged_probe(candidate, probe, stage="pyside-execute")
     finally:
         if probe.exists() and _ordinary_directory(probe):
             shutil.rmtree(probe)
@@ -713,7 +836,9 @@ def cleanup() -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage the exact job-local Windows Zig toolchain")
-    parser.add_argument("mode", choices=("bootstrap", "verify-native", "verify-pyside", "cleanup"))
+    parser.add_argument(
+        "mode", choices=("bootstrap", "verify-native", "verify-nuitka", "verify-pyside", "cleanup")
+    )
     return parser
 
 
@@ -723,6 +848,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         {
             "bootstrap": bootstrap,
             "verify-native": verify_native,
+            "verify-nuitka": verify_nuitka,
             "verify-pyside": verify_pyside,
             "cleanup": cleanup,
         }[mode]()

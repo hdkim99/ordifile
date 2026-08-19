@@ -123,6 +123,11 @@ jobs:
         run: |
           python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --requirement packaging/standalone/requirements-build.lock
           python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --no-deps .
+      - name: Prove exact plain Python and Nuitka Zig standalone path
+        working-directory: source
+        run: >-
+          python scripts/ci/run_in_venv.py run --github-runner --
+          scripts/standalone/windows_zig.py verify-nuitka
       - name: Prove exact PySide6 and Nuitka Zig standalone path
         working-directory: source
         run: >-

@@ -79,10 +79,13 @@ continues to use `actions/setup-python` inside its run-scoped isolated job envir
 The Windows job pins the official Zig 0.16.0 x86-64 archive by URL, size and SHA-256,
 performs bounded path/type/size extraction into an ownership-marked runner-temporary
 root, and verifies the exact version. It must pass a native PE x86-64 compile/link/run
-probe and a minimal extracted PySide6/Nuitka window probe before building Ordifile.
+probe, a plain Python/Nuitka standalone probe, and a minimal extracted PySide6/Nuitka
+window probe before building Ordifile.
 The direct Nuitka subprocess alone receives the reviewed Zig directory at the front of
 PATH; inherited `CC` and `CXX` are removed, stdin is closed to reject tool downloads,
-and `--zig` is mandatory. Its private SCons report must prove Nuitka Zig mode, disabled
+and `--zig` is mandatory. The exact built-in PE dependency scanner is forced so the
+default external legacy scanner cannot be downloaded. Its private SCons report must
+prove Nuitka Zig mode, disabled
 separate Nuitka MSVC and MinGW modes, the exact compiler path, and the
 `-march=x86_64` mitigation proposed in open issue #3987. Generic and older x86-64
 portability remains unresolved until physical validation.

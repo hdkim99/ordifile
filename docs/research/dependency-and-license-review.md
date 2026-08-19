@@ -78,7 +78,9 @@ Windows uses direct `Nuitka==4.1.3 --zig` with official Zig 0.16.0 x86-64 bytes 
 run-scoped build tooling. Zig's top-level license is MIT, but its Windows GNU ABI uses
 MinGW-w64/libc build inputs with their own license inventory. macOS retains Qt's
 `pyside6-deploy` frontend with standalone mode and the same exact Nuitka pin. Neither
-compiler toolchain is distributed in the candidate. Nuitka's exact Runtime Library
+compiler toolchain is distributed in the candidate. Windows forces the exact release's
+built-in MIT-licensed `pefile` dependency scanner instead of downloading the default
+legacy dependency tool. Nuitka's exact Runtime Library
 Exception applies to qualifying generated target code; it does not weaken the compiler
 license. Before any public Windows distribution, the exact linked Zig/MinGW/libc/compiler
 runtime provenance, notices and source obligations must be resolved. PyInstaller 6.22.2

@@ -66,6 +66,7 @@ def test_windows_direct_nuitka_contract_has_no_fallback_or_wrapper() -> None:
     assert "--noinclude-qt-translations" in command
     assert "--noinclude-qt-plugins=tls" in command
     assert "--zig" in command
+    assert "--experimental=force-dependencies-pefile" in command
     assert "--include-qt-plugins=platforms" not in command
     combined = " ".join(command).casefold()
     for prohibited in (
@@ -77,6 +78,93 @@ def test_windows_direct_nuitka_contract_has_no_fallback_or_wrapper() -> None:
         "--assume-yes-for-downloads",
     ):
         assert prohibited not in combined
+
+
+def test_plain_and_pyside_probes_share_the_exact_noninteractive_backend() -> None:
+    source = Path("probe.py")
+    output = Path("result")
+    plain = windows_zig._nuitka_probe_command(source, output, pyside=False)
+    pyside = windows_zig._nuitka_probe_command(source, output, pyside=True)
+
+    for command in (plain, pyside):
+        assert command[:4] == (sys.executable, "-m", "nuitka", "probe.py")
+        assert "--standalone" in command
+        assert "--static-libpython=no" in command
+        assert "--zig" in command
+        assert "--experimental=force-dependencies-pefile" in command
+        assert "--assume-yes-for-downloads" not in command
+    assert "--enable-plugin=pyside6" not in plain
+    assert "--enable-plugin=pyside6" in pyside
+
+
+def test_windows_nuitka_environment_is_child_only_and_has_no_compiler_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "zig.exe"
+    monkeypatch.setenv("CC", "foreign-compiler")
+    monkeypatch.setenv("CXX", "foreign-compiler")
+
+    environment = windows_zig._windows_nuitka_environment(executable)
+
+    assert environment["PATH"].split(os.pathsep, 1)[0] == str(tmp_path)
+    assert environment["CFLAGS"] == windows_zig.WINDOWS_CPU_BASELINE_FLAG
+    assert environment["CCFLAGS"] == ""
+    assert "CC" not in environment
+    assert "CXX" not in environment
+    assert os.environ["CC"] == "foreign-compiler"
+    assert os.environ["CXX"] == "foreign-compiler"
+
+
+@pytest.mark.parametrize("stream", ("stdout", "stderr"))
+def test_nuitka_failure_classifier_returns_only_a_fixed_scons_stage(
+    stream: str,
+) -> None:
+    private_canary = b"C:\\private\\runner\\token-secret"
+    marker = b"FATAL: Failed unexpectedly in Scons C backend compilation."
+    values = {"stdout": b"", "stderr": b""}
+    values[stream] = private_canary + b"\n" + marker
+    completed = subprocess.CompletedProcess(
+        ("private-command",), 1, values["stdout"], values["stderr"]
+    )
+    stage = windows_zig._classify_nuitka_failure(
+        completed,
+        prefix="pyside",
+    )
+
+    assert stage == "pyside-scons-backend"
+    assert private_canary.decode("ascii") not in stage
+
+
+@pytest.mark.parametrize(
+    "captured",
+    (
+        b"unrecognized private failure",
+        b"Failed unexpectedly in Scons C backend compilation.\n" * 2,
+        b"x" * (windows_zig.MAX_FAILURE_CLASSIFICATION_BYTES + 1),
+    ),
+)
+def test_nuitka_failure_classifier_falls_back_for_unknown_ambiguous_or_oversized_output(
+    captured: bytes,
+) -> None:
+    completed = subprocess.CompletedProcess(("private-command",), 1, captured, b"")
+
+    assert (
+        windows_zig._classify_nuitka_failure(
+            completed,
+            prefix="nuitka",
+        )
+        == "nuitka-compile-unclassified"
+    )
+
+
+def test_nuitka_failure_classifier_does_not_infer_stage_from_an_unrelated_failure() -> None:
+    private_canary = b"C:\\private\\runner\\post-compile-token"
+    completed = subprocess.CompletedProcess(("private-command",), 1, private_canary, b"")
+
+    stage = windows_zig._classify_nuitka_failure(completed, prefix="pyside")
+
+    assert stage == "pyside-compile-unclassified"
+    assert private_canary.decode("ascii") not in stage
 
 
 def test_direct_nuitka_uses_only_subprocess_local_zig_path_and_cpu_baseline(
@@ -120,6 +208,7 @@ def test_direct_nuitka_uses_only_subprocess_local_zig_path_and_cpu_baseline(
     captured_command = captured["command"]
     assert isinstance(captured_command, list)
     assert "--zig" in captured_command
+    assert "--experimental=force-dependencies-pefile" in captured_command
 
 
 def test_build_rejects_a_linked_zig_directory_component(
