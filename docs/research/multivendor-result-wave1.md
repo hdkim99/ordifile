@@ -5,8 +5,9 @@
   and peak area
 - Manufacturers researched: Thermo Fisher Scientific, PerkinElmer, SCION
   Instruments, LECO, and Bruker
-- Decision: the exact LECO ChromaTOF 4.72 GCxGC profile is implementation-ready after
-  acceptance of the secondary-retention ADR; all Wave-1 1D profiles remain blocked
+- Decision: the exact LECO ChromaTOF 4.72 GCxGC profile is Experimental after the
+  accepted secondary-retention ADR and full external comparison; all Wave-1 1D
+  profiles remain blocked or evidence candidates
 
 This matrix records exact software/export profiles rather than claiming support for a
 manufacturer. A profile enters the public format list only after a lawful actual fixture,
@@ -28,7 +29,7 @@ workbook regression, and privacy/license review all pass.
 - `ADR_REQUIRED`: lawful actual evidence exists, but the canonical model cannot retain
   its scientific coordinates without an explicit architecture decision.
 - `EXPERIMENTAL_GO`: an exact adapter and all evidence, scientific, privacy, and legal
-  gates pass. No new Wave-1 profile has this status yet.
+  gates pass. The exact LECO ChromaTOF 4.72.0.0 GCxGC profile has this status.
 
 ## Capability matrix
 
@@ -36,11 +37,11 @@ workbook regression, and privacy/license review all pass.
 |---|---|---|---|---|---|---|---|---|---|
 | Thermo Fisher Scientific | Chromeleon 7.3, one-injection Result Text from one fixed report template | ASCII `.txt`; report-template fields and layout are configurable | No lawful exact GC Result Text fixture found | Official report variable: Retention Time, min | Official report variable: Signal x min | Official report variable: Signal | Official report variables exist, but exact exported labels are template-dependent | Must bind an exact report template, channel, headers, delimiter, encoding, and one-run grammar; generic Chromeleon TXT detection is prohibited | `BLOCKED_FIXTURE` |
 | PerkinElmer | SimplicityChrom, one-run Data Review Result export | Export is shown by the official product material; exact container and text grammar unresolved | No lawful exact Result fixture found | Unresolved | Unresolved | Unresolved | Unresolved | Requires exact producer/profile markers and a bounded export grammar | `BLOCKED_FIXTURE` |
-| PerkinElmer | TotalChrom Navigator 6.3.2, Clarus 500 GC-FID dataset PDF report candidate; exact template/profile unresolved | PDF report | A Dryad CC0 dataset describes 1D reports with peak area and retention time; the candidate PDF bytes, table, units, and privacy have not passed bounded intake in this review | Present according to dataset metadata; exact label/unit intake pending | Present according to dataset metadata; exact label/unit intake pending | Unresolved | GC-FID provenance is external; report fields pending | PDF table/template grammar and exact one-run identity must be validated before parser design | `EVIDENCE_CANDIDATE` |
+| PerkinElmer | TotalChrom Navigator 6.3.2.0646, Clarus 500 GC-FID dataset PDF evidence candidate; exact template/profile unresolved | PDF report | Dryad CC0 calibration-standard candidate; exact selected PDF is 39,418 bytes with two finite rows, but contains privacy-bearing metadata and is not a machine-readable Result export fixture | `Time [min]`, min | `Area [uV*sec]` | `Height [uV]` | Channel `A` observed; dataset supplies instrument/software provenance | PDF supplies grammar evidence only; no PDF parser is authorized, and an exact machine-readable export is still required | `EVIDENCE_CANDIDATE` |
 | PerkinElmer | Chromera, exact Result export profile unresolved | Unresolved | No lawful exact Result fixture found | Unresolved | Unresolved | Unresolved | Unresolved | Must remain separate from SimplicityChrom and TotalChrom | `RESEARCH_ONLY` |
 | SCION Instruments | CompassCDS, exact Print Manager Result export profile unresolved | Official material lists ASCII, Excel, and AIA conversion; encrypted `.DATA` is not an export target for this work | No lawful exact ASCII/Excel Result fixture found | Result semantics documented generally; exact field/unit unresolved | Result semantics documented generally; exact field/unit unresolved | Unresolved | Unresolved | Requires exact exported headers, delimiter/worksheet grammar, encoding, software marker, and one-run boundary | `BLOCKED_FIXTURE` |
 | LECO | Published ChromaTOF 4.50.8.0 one-dimensional peak-list grammar; two observed MSDK 1D CSV variants have no embedded version marker | Quoted comma CSV with 16- and 17-column observed variants | Two 594-row MSDK resources are externally observable, but their README identifies third-party provenance without a fixture-specific redistribution grant; neither is fetched by CI or committed | `R.T. (s)`, seconds | `Area`, unit unresolved | `Height`, unit unresolved | Not established by the observed tables | The exact 1D header families can be studied, but implementation cannot claim a lawful test fixture or assign the MSDK bytes to version 4.50.8.0 | `EXTERNAL_ORACLE_ONLY` |
-| LECO | ChromaTOF 4.72.0.0 GCxGC model-mixture result text | Tab-delimited, 7-bit ASCII-compatible, CRLF; exact RT1/RT2/Area/Height/Spectra profile | Dryad CC0 actual fixture; non-human model-mixture subset only; 100 rows, 20,040 bytes, SHA-256 `59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd` | Explicit first- and second-dimension retention times, seconds | Explicit, arbitrary units | Explicit, arbitrary units | Not established by the selected table | The accepted secondary-retention ADR preserves RT2 in canonical data and a separate 2D order matrix; the adapter must still pass exact-profile implementation gates | `IMPLEMENTATION_GO` |
+| LECO | ChromaTOF 4.72.0.0 GCxGC model-mixture result text | Tab-delimited, 7-bit ASCII-compatible, CRLF; exact RT1/RT2/Area/Height/Spectra profile | Dryad CC0 actual fixture; non-human model-mixture subset only; 100 rows, 20,040 bytes, SHA-256 `59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd` | Explicit first- and second-dimension retention times, seconds | Explicit, documented arbitrary units (`AU`) | Explicit, documented arbitrary units (`AU`) | Not established by the selected table | Exact rare-header ownership, bounded nine-column parser, full-row external comparison, SHA-derived source identity, and separate 2D order matrix | `EXPERIMENTAL_GO` |
 | LECO | ChromaTOF Sync / Sync 2D combined peak table | Combined sample-set peak table | No exact lawful export fixture with a stable table grammar found | Present as an application concept; exact field unresolved | Relative quantitation is described; exact field/unit unresolved | Unresolved | Unresolved | Multi-sample combined tables do not fit the current one-source/one-sample adapter contract | `RESEARCH_ONLY` |
 | Bruker | Current EVOQ GC-TQ / TASQ exact Result export profile unresolved | Official material establishes a current sample-to-report software suite; exact export container and grammar unresolved | No lawful exact current Bruker GC-MS Result fixture found | Unresolved | Unresolved | Unresolved | Unresolved | Requires a current producer/software marker and exact fixture; legacy Varian/Bruker GC or GC-SQ must not be duplicated as current Bruker support | `BLOCKED_FIXTURE` |
 
@@ -65,10 +66,11 @@ but not a stable RT/area file grammar. SimplicityChrom, TotalChrom, and Chromera
 separate profile families.
 
 The [Dryad TotalChrom dataset](https://datadryad.org/dataset/doi%3A10.25338/B8C35T)
-is a lawful CC0 intake candidate for a TotalChrom Navigator 6.3.2 / Clarus 500 GC-FID
-PDF report. This review did not obtain and independently validate the candidate PDF
-table, units, or privacy fields, so its previously reported byte identity is not treated
-as a passing fixture gate.
+is a lawful CC0 evidence candidate for a TotalChrom Navigator 6.3.2.0646 / Clarus 500
+GC-FID PDF report. The inspected calibration-standard candidate has two finite peak
+rows with `Time [min]`, `Area [uV*sec]`, and `Height [uV]`, but also contains
+privacy-bearing metadata. It remains external-only grammar evidence. This cycle does
+not add a PDF parser; an exact lawful machine-readable export is still required.
 
 ### SCION Instruments
 
@@ -95,9 +97,11 @@ grant for the externally provided reports. They are therefore external research 
 only. No fixture bytes or implementation code are copied.
 
 The lawful [Dryad ChromaTOF 4.72 dataset](https://datadryad.org/dataset/doi%3A10.5061/dryad.k98sf7m8m)
-establishes a real tab-delimited GCxGC profile with RT1, RT2, area, and height. Only the
-non-human model-mixture subset is eligible for future fixture work. Human-derived
-subsets are excluded from this project. ChromaTOF Sync and Sync 2D are separately
+establishes a real tab-delimited GCxGC profile with RT1, RT2, area, and height. The
+exact non-human model-mixture member passes the full 100-row external comparison and
+supports the narrowly bounded Experimental adapter. Its source archive and unrelated
+human-derived subsets are excluded from Git, CI extraction, packages, workbooks, and
+artifacts. ChromaTOF Sync and Sync 2D are separately
 described by the official [Sync product page](https://www.leco.com/products/chromatof-sync/)
 and must not be conflated with the legacy single-run CSV profile.
 
@@ -135,8 +139,8 @@ not implement a PDF parser.
 
 ## Explicit non-decisions
 
-- No support claim is made until the separate LECO adapter implementation and actual
-  full-row verification pass.
+- The LECO support claim is limited to the exact adapter and selected 100-row
+  non-human external comparison; it is not a broad LECO or ChromaTOF claim.
 - No broad manufacturer support claim is made.
 - No 2D retention coordinate is discarded or silently mapped to metadata/channel.
 - No MSDK or other reference implementation code is copied or translated.

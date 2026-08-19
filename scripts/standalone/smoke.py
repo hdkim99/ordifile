@@ -41,6 +41,7 @@ AGILENT_RESULT_NAME = "agilent-result.xml"
 SHIMADZU_GCD_NAME = "shimadzu.gcd"
 SHIMADZU_QGD_NAME = "shimadzu.qgd"
 SHIMADZU_RESULT_NAME = "shimadzu-result.txt"
+LECO_GCXGC_RESULT_NAME = "leco-gcxgc-result.txt"
 YOUNGIN_RAW_NAME = "youngin.prm"
 YOUNGIN_NAME = "youngin-result.csv"
 EXPECTED_NAME = "expected.json"
@@ -75,6 +76,12 @@ GENERATED_INPUTS = (
         "generate_shimadzu_labsolutions_result_ascii.py",
         "synthetic_result_ascii_bytes",
         "shimadzu_labsolutions_result_ascii",
+    ),
+    (
+        LECO_GCXGC_RESULT_NAME,
+        "generate_leco_chromatof_472_gcgc_result_txt.py",
+        "synthetic_gcgc_result_bytes",
+        "leco_chromatof_gcxgc_result_txt",
     ),
     (
         YOUNGIN_RAW_NAME,

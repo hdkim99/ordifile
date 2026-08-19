@@ -12,8 +12,8 @@ bundles. It is not a public binary release and does not change the supported
   PySide6-Essentials/shiboken6 6.11.2; Nuitka 4.1.3; Windows uses exact build-only
   Zig 0.16.0 x86-64 bytes
 - unsigned or ad-hoc-signed evidence only
-- public-safe synthetic inputs for every built-in Generic, Agilent, Shimadzu and
-  YoungIn adapter, including UTF-8, UTF-8-BOM and YoungIn CP949
+- public-safe synthetic inputs for every built-in Generic, Agilent, Shimadzu, YoungIn
+  and LECO adapter, including UTF-8, UTF-8-BOM, YoungIn CP949 and dual-retention output
 - no Qt TLS plugins or application network feature
 
 Onefile, MSI, DMG, Linux bundles, auto-update, signing, notarization and GitHub Release

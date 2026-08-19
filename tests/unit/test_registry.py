@@ -59,6 +59,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "generic_semicolon",
         "generic_tsv",
         "generic_xlsx",
+        "leco_chromatof_gcxgc_result_txt",
         "shimadzu_gcsolution_gcd",
         "shimadzu_gcmssolution_qgd",
         "shimadzu_labsolutions_result_ascii",
@@ -72,6 +73,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_labsolutions_result_ascii"] is SupportStatus.EXPERIMENTAL
+    assert statuses["leco_chromatof_gcxgc_result_txt"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_result_csv"] is SupportStatus.EXPERIMENTAL
     assert all(
@@ -85,6 +87,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert series_kinds["shimadzu_gcsolution_gcd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_labsolutions_result_ascii"] == ()
+    assert series_kinds["leco_chromatof_gcxgc_result_txt"] == ()
     assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
     assert series_kinds["youngin_yl_clarity_result_csv"] == ()
     assert all(
@@ -99,6 +102,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert (
         identity_policies["shimadzu_labsolutions_result_ascii"] is SourceIdentityPolicy.SHA256_ALIAS
     )
+    assert identity_policies["leco_chromatof_gcxgc_result_txt"] is SourceIdentityPolicy.SHA256_ALIAS
     assert all(
         policy is SourceIdentityPolicy.RELATIVE_PATH
         for adapter_id, policy in identity_policies.items()
@@ -106,6 +110,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         not in {
             "youngin_yl_clarity_prm_raw",
             "agilent_chemstation_result_xml",
+            "leco_chromatof_gcxgc_result_txt",
             "shimadzu_labsolutions_result_ascii",
             "youngin_yl_clarity_result_csv",
         }

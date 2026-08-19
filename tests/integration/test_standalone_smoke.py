@@ -17,6 +17,7 @@ from standalone.smoke import (  # noqa: E402
     EXPECTED_NAME,
     GENERIC_BOM_NAME,
     GENERIC_NAME,
+    LECO_GCXGC_RESULT_NAME,
     SCIENTIFIC_SHEETS,
     YOUNGIN_NAME,
     create_smoke_kit,
@@ -38,6 +39,9 @@ def test_public_smoke_kit_round_trips_generic_and_cp949_youngin(tmp_path: Path) 
 
     expected = json.loads((kit / EXPECTED_NAME).read_text(encoding="ascii"))
     assert expected["inputs"][YOUNGIN_NAME]["adapter_id"] == "youngin_yl_clarity_result_csv"
+    assert expected["inputs"][LECO_GCXGC_RESULT_NAME]["adapter_id"] == (
+        "leco_chromatof_gcxgc_result_txt"
+    )
     assert {item["adapter_id"] for item in expected["inputs"].values()} == set(
         expected["adapter_ids"]
     )
@@ -54,6 +58,7 @@ def test_public_smoke_kit_round_trips_generic_and_cp949_youngin(tmp_path: Path) 
     workbook = load_workbook(output, read_only=True)
     try:
         assert set(SCIENTIFIC_SHEETS) <= set(workbook.sheetnames)
+        assert "Peak_Order_Matrix_2D" in workbook.sheetnames
     finally:
         workbook.close()
 

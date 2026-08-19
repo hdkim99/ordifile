@@ -65,9 +65,9 @@ Generic results retain their original path provenance.
 The YoungIn YL-Clarity PRM raw adapter is the first opt-in user. Its owner-supplied
 fixtures can have privacy-bearing native basenames, while the full content hash already
 provides stable provenance. The exact Agilent Result XML, Shimadzu LabSolutions result
-ASCII and YoungIn YL-Clarity Result Table CSV adapters also opt in because their
-fixture evidence shows privacy-bearing source metadata and names. This is not a
-vendor-specific exception.
+ASCII, YoungIn YL-Clarity Result Table CSV, and LECO ChromaTOF 4.72 GCxGC Result Text
+adapters also opt in because their fixture evidence shows privacy-bearing source
+metadata or names. This is not a vendor-specific exception.
 
 ## Result sources
 
@@ -77,7 +77,9 @@ row to the same core-owned public source reference. RT/area result consolidation
 remains manufacturer-neutral: the first exact Agilent Result XML adapter maps evidence-
 backed rows to `PeakRecord`, `Peaks`, compound `Peak_Matrix`, and the conditional
 source-order `Peak_Order_Matrix`; the exact Shimadzu result ASCII and YoungIn Result
-Table CSV adapters map their evidence-backed peak rows to the same contract. YoungIn
-signal sections remain independent source-order matrix streams without inferred
-detector or compound identity. Future vendor-specific parsers or fields remain blocked
-until an actual result fixture proves their boundaries and semantics.
+Table CSV adapters map their evidence-backed peak rows to the same contract. The exact
+LECO ChromaTOF 4.72 GCxGC profile maps its two retention coordinates to `PeakRecord`,
+`Peaks`, and the conditional `Peak_Order_Matrix_2D` without projecting a partial 1D
+stream. YoungIn signal sections remain independent source-order matrix streams without
+inferred detector or compound identity. Future vendor-specific parsers or fields
+remain blocked until an actual result fixture proves their boundaries and semantics.

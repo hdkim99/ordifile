@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "profile": "LECO ChromaTOF 4.72.0.0 GCxGC observed Result text",
+  "source": {
+    "doi": "10.5061/dryad.k98sf7m8m",
+    "record_url": "https://datadryad.org/dataset/doi:10.5061/dryad.k98sf7m8m",
+    "license": "CC0-1.0",
+    "archive_size_bytes": 1731916,
+    "archive_sha256": "d53ffbaf1b5b08ba797b8943687a31aa3fd8186c63e7b1e094f0c4f235e3bad2",
+    "readme_size_bytes": 10040,
+    "readme_sha256": "07e1d8becce25ed0b5c5a191e99d4f514d79c978a0b28e0a7e6198c374ef71ad"
+  },
+  "selected_member": {
+    "relative_name": "Model mixture/ModelMixture_Rxi5ms_30m_Rxi17Sil_1m.txt",
+    "non_human": true,
+    "size_bytes": 20040,
+    "sha256": "59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd",
+    "rows": 100,
+    "columns": 9,
+    "delimiter": "tab",
+    "encoding": "7-bit ASCII",
+    "line_endings": "CRLF"
+  },
+  "delivery": {
+    "mode": "maintainer_local_exact_selected_member",
+    "archive_extraction_in_ci": false,
+    "archive_or_member_committed": false,
+    "archive_or_member_uploaded": false,
+    "human_derived_members_delivered": false,
+    "public_workbook_uploaded": false
+  },
+  "redistribution_decision": "external_only",
+  "privacy": {
+    "selected_member_scan": "pass",
+    "archive_wide_intake": "prohibited",
+    "private_identifiers_in_public_evidence": 0
+  }
+}

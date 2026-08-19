@@ -59,11 +59,12 @@ RT1/RT2/area triples. Ordifile still must not:
 - concatenate RT1/RT2 into one text retention value;
 - hide RT2 in Metadata;
 - reuse detector or channel as an RT2 carrier; or
-- describe the GCxGC profile as supported.
+- describe the exact profile as broad LECO, ChromaTOF, or GCxGC support.
 
-The canonical architecture gate is resolved. Each adapter still requires an exact
-profile, bounded detection, lawful fixture, full-row comparison through workbook
-reopen, and privacy/license review before support is claimed.
+The canonical architecture gate is resolved. The exact ChromaTOF 4.72.0.0 GCxGC
+profile passed bounded detection, lawful-fixture intake, full-row comparison through
+workbook reopen, and privacy/license review, so only that profile is Experimental.
+Other profiles still require the same gates before support is claimed.
 
 ## Profiles that require a separate architecture decision
 

@@ -219,10 +219,11 @@ to the workbook layout.
     ChromaTOF/Sync and current Bruker GC-MS profiles remain research-only until one
     exact lawful fixture supplies explicit finite RT and area and passes bounded
     detection, full-row canonical/workbook comparison, privacy and license gates. A
-    lawful ChromaTOF 4.72 GCxGC fixture proves RT1/RT2/area/height semantics, but the
-    current one-retention-coordinate model cannot preserve it; RT2 may not be dropped
-    or hidden. Multiple-run report exports likewise require a separate architecture
-    decision. The exact boundaries and current evidence states are recorded in
+    lawful ChromaTOF 4.72 GCxGC fixture proves RT1/RT2/area/height semantics. Decision
+    41 preserves RT2 additively, and the exact-profile Experimental adapter maps the
+    selected non-human CC0 result without dropping or hiding either coordinate.
+    Multiple-run report exports still require a separate architecture decision. The
+    exact boundaries and current evidence states are recorded in
     [`result-export-profile-boundaries.md`](result-export-profile-boundaries.md) and
     [`multivendor-result-wave1.md`](../research/multivendor-result-wave1.md).
 41. Two-dimensional retention is represented by appending optional
