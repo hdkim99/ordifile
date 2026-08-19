@@ -72,10 +72,11 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "shimadzu_gcmssolution_qgd" in output
     assert "youngin_yl_clarity_prm_raw" in output
     assert "youngin_yl_clarity_result_csv" in output
+    assert "leco_chromatof_gcxgc_result_txt" in output
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 7" in output
+    assert "Experimental adapters: 8" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 

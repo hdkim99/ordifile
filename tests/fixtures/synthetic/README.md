@@ -20,6 +20,10 @@ only the exact structural gates exercised by the Experimental Result XML adapter
 tab-delimited Result Table text for the two owner-validated YoungIn section variants.
 It contains no user export bytes or values.
 
+`generate_leco_chromatof_472_gcgc_result_txt.py` creates invented ASCII/CRLF/tab
+records for the exact nine-column GCxGC Result grammar. It contains no Dryad, human,
+vendor, or other externally sourced scientific values.
+
 The generator fixes workbook properties, archive member order, timestamps, ZipInfo metadata,
 and uses `ZIP_STORED` so output bytes do not depend on the host zlib implementation. Its
 expected SHA-256 is recorded below:

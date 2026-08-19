@@ -26,6 +26,9 @@ from ordifile.adapters.generic_csv import GenericCsvAdapter
 from ordifile.adapters.generic_tsv import GenericTsvAdapter
 from ordifile.adapters.generic_txt import GenericSemicolonAdapter
 from ordifile.adapters.generic_xlsx import GenericXlsxAdapter
+from ordifile.adapters.leco_chromatof_472_gcgc_result_txt import (
+    LecoChromatof472GcgcResultTxtAdapter,
+)
 from ordifile.adapters.shimadzu_gcmssolution_qgd import ShimadzuGcmssolutionQgdAdapter
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
 from ordifile.adapters.shimadzu_labsolutions_result_ascii import (
@@ -198,6 +201,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(GenericTsvAdapter())
     registry.register(GenericSemicolonAdapter())
     registry.register(GenericXlsxAdapter())
+    registry.register(LecoChromatof472GcgcResultTxtAdapter())
     registry.register(ShimadzuGcsolutionGcdAdapter())
     registry.register(ShimadzuGcmssolutionQgdAdapter())
     registry.register(ShimadzuLabsolutionsResultAsciiAdapter())

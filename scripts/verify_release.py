@@ -70,6 +70,7 @@ STANDALONE_SDIST_FILES = (
     "tests/fixtures/synthetic/generate_agilent_ch_v181.py",
     "tests/fixtures/synthetic/generate_agilent_chemstation_result_xml.py",
     "tests/fixtures/synthetic/generate_cfb_v4.py",
+    "tests/fixtures/synthetic/generate_leco_chromatof_472_gcgc_result_txt.py",
     "tests/fixtures/synthetic/generate_shimadzu_gcmssolution_qgd.py",
     "tests/fixtures/synthetic/generate_shimadzu_gcsolution_gcd.py",
     "tests/fixtures/synthetic/generate_shimadzu_labsolutions_result_ascii.py",

@@ -11,17 +11,17 @@ Batch-convert and consolidate scientific instrument results into one clean, orde
 and auditable Excel workbook.
 
 Ordifile's proprietary-format direction is **result-first**: evidence-backed retention
-time and area tables from Agilent, Shimadzu and YoungIn should converge on the same
+time and area tables from Agilent, Shimadzu, YoungIn and LECO should converge on the same
 `Peaks` / `Peak_Matrix` workbook model. Raw signals are an optional, independently
 validated capability: a result export does not require its raw file to be present.
-Each Agilent, Shimadzu, or YoungIn result adapter remains a separate exact-format
+Each vendor result adapter remains a separate exact-format
 reader, but its verified peak rows behave identically after canonical conversion. No
 vendor result parser is claimed before an actual result fixture proves its field
 boundaries and semantics.
 
 **Verified stable formats:** CSV, TSV, semicolon-delimited TXT, and audited non-macro
 XLSX using Ordifile's documented schema. The current development source tree also
-includes seven narrowly bounded Experimental proprietary readers described below; this
+includes eight narrowly bounded Experimental proprietary readers described below; this
 is not general vendor-format support. Published availability is shown by the PyPI badge.
 
 ![An actual Ordifile CLI conversion of three synthetic files](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-demo.gif)
@@ -143,6 +143,7 @@ Run `ordifile formats` to see the adapters installed in the current environment.
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Stored-label channels + ordered raw binary32 records; no time axis or unit | Experimental | 23 owner-supplied local-only files |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
+| LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
 
 These Experimental adapters have the exact capability boundaries below. Unsupported
 profiles are rejected rather than interpreted broadly.
@@ -209,6 +210,17 @@ promoted to detector identity, W05 is not an integration boundary, and Total,
 percentage and empty compound-table rows are not peaks. The bytes contain no OEM or
 software-version marker, so broader YL-Clarity/Clarity CSV support is not claimed. See
 the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md).
+
+The LECO adapter reads one exact ChromaTOF 4.72.0.0 GCxGC tab-delimited Result profile
+established by a Dryad CC0 non-human model-mixture file. It preserves all 100 source
+rows, explicit first- and second-dimension retention times in seconds, area and height
+in documented arbitrary units (`AU`), source order, names, spectra text, width values,
+and retention-index lexemes. `Peak_Order_Matrix_2D` keeps atomic RT1/RT2/area triples;
+the existing one-dimensional matrix remains unchanged. Software version is external
+dataset provenance rather than an embedded byte marker, detector/channel are not
+invented, and spectra are not claimed as supported mass-spectral data. Broader LECO,
+ChromaTOF, Sync, CSV, TXT, or GCxGC support is not claimed. See the
+[exact capability and safety boundary](docs/formats/leco-chromatof-472-gcxgc-result-txt.md).
 
 ## CLI
 

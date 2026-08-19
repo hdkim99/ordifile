@@ -11,16 +11,16 @@
 Excel workbook으로 만듭니다.
 
 Ordifile의 proprietary 형식 방향은 **result-first**입니다. 근거가 확보된 Agilent,
-Shimadzu, YoungIn retention time·area result를 동일한 `Peaks` / `Peak_Matrix` workbook
+Shimadzu, YoungIn, LECO retention time·area result를 동일한 `Peaks` / `Peak_Matrix` workbook
 model로 통합하며 raw signal은 별도로 검증하는 선택 기능입니다. Result
-export만 있어도 raw file 없이 변환할 수 있습니다. Agilent·Shimadzu·YoungIn result
-adapter는 각각의 exact format reader로 분리하지만, 검증된 peak row는 canonical 변환
+export만 있어도 raw file 없이 변환할 수 있습니다. Vendor result adapter는 각각의
+exact format reader로 분리하지만, 검증된 peak row는 canonical 변환
 후 모두 동일하게 동작합니다. 실제 result fixture로 field 경계와 의미가 확인되기
 전에는 vendor result parser 지원을 주장하지 않습니다.
 
 **안정적으로 검증된 형식:** Ordifile 문서 스키마를 사용하는 CSV, TSV, 세미콜론 구분
 TXT, 감사된 non-macro XLSX. 현재 개발 source tree에는 아래에 설명한 범위가 매우 좁은
-proprietary Experimental reader 일곱 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
+proprietary Experimental reader 여덟 개도 포함되며, 이는 제조사 형식 전체 지원을 뜻하지
 않습니다. 공개된 version은 PyPI badge에서 확인할 수 있습니다.
 
 ![합성 파일 세 개를 실제 Ordifile CLI로 변환하는 모습](docs/assets/ordifile-demo.gif)
@@ -139,6 +139,7 @@ BLOCKED이며, 위 Python package GUI가 지원되는 설치 경로입니다.
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
 | YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | stored-label channel + 순서 보존 raw binary32 record, time axis/unit 없음 | Experimental | 사용자 제공 local-only 파일 23개 |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
+| LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | 과학 데이터 allowlist | source peak 행 | RT1/RT2 (s) + area/height (AU), raw signal 없음 | Experimental | 외부 Dryad CC0 non-human 파일 1개 |
 
 이 Experimental adapter들은 아래의 정확한 기능 경계를 가집니다. 검증되지 않은
 profile은 넓게 해석하지 않고 거부합니다.
@@ -202,6 +203,16 @@ area(mV.s), height(mV), signal number/name, source order가 있는 실제 행 6�
 않으며 W05를 integration boundary로 해석하지 않고 Total/percentage/empty compound-table
 행도 peak로 만들지 않습니다. Bytes 안에는 OEM/version marker가 없으므로 더 넓은
 YL-Clarity/Clarity CSV 지원은 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md)를 확인해 주세요.
+
+LECO adapter는 Dryad CC0 non-human model-mixture 파일로 확정한 정확한 ChromaTOF
+4.72.0.0 GCxGC tab-delimited Result profile 하나를 읽습니다. Source 100행의 1차·2차원
+retention time(s), area/height의 문서화된 arbitrary unit(`AU`), source order, name,
+spectra text, width 값과 retention-index lexeme를 보존합니다. `Peak_Order_Matrix_2D`는
+RT1/RT2/area atomic triple을 유지하며 기존 1D matrix는 바꾸지 않습니다. Software
+version은 bytes 내 marker가 아니라 외부 dataset provenance이고 detector/channel을
+만들지 않으며 spectra를 지원되는 mass-spectral data로 주장하지 않습니다. 더 넓은
+LECO, ChromaTOF, Sync, CSV, TXT 또는 GCxGC 지원은 주장하지 않습니다. [정확한 기능·안전
+경계](docs/formats/leco-chromatof-472-gcxgc-result-txt.md)를 확인해 주세요.
 
 ## CLI
 

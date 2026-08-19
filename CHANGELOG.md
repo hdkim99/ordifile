@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- An Experimental Result adapter for the exact externally evidenced LECO ChromaTOF
+  4.72.0.0 GCxGC tab-delimited profile. It preserves explicit RT1/RT2 seconds,
+  area/height arbitrary units, source order, compound-name evidence and row-aligned
+  Spectra/width/retention-index lexemes without requiring raw files or claiming broad
+  LECO, ChromaTOF, TXT, or mass-spectral support.
 - A backward-compatible optional secondary retention coordinate in `PeakRecord`, plus
   conditional `Peaks` columns and `Peak_Order_Matrix_2D` atomic RT1/RT2/area triples.
   Existing construction call patterns, public conversion function signatures,

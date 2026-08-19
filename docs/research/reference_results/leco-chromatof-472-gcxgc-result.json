@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "profile": "LECO ChromaTOF 4.72.0.0 GCxGC observed Result text",
+  "source_size_bytes": 20040,
+  "source_sha256": "59f336c3e4bb91df32c5111d39a7fa76759a72242a4bd5d873eb623b020af6dd",
+  "source_rows": 100,
+  "canonical_rows": 100,
+  "loss": 0,
+  "duplicates": 0,
+  "normalization": 0,
+  "interpolation": 0,
+  "units": {
+    "primary_retention_time": "s",
+    "secondary_retention_time": "s",
+    "area": "AU",
+    "height": "AU"
+  },
+  "source_sequence_sha256": {
+    "name": "4f9f49db2b690cbd13132521dd9eccdf5fbc2789872aff9cec589f77f96b8887",
+    "primary_retention_time": "98dc62b00caaf69766a273d33a5b3bfdfdaf9cd3834ad76e4b8bc2a2a1c29ec6",
+    "secondary_retention_time": "e2fa11750903d2972ac6a7e63f385c0cfc522f0f3413a8813907ea9bff6a41b5",
+    "area": "a2e7d7dc939a4a758c469561fa52d4fd1b4f4f0f6aa0f5bbc0dc24ccb82ee824",
+    "height": "9ebab4336100f385e4f7234fc9ec26251cac58cfe09acdea604e35e24a5221a2",
+    "spectra": "571592ee9e92a11a3d5974b6484d712a1da425615becce0d00a89d24d522bd06",
+    "wb1": "ddeeb15739046638c1bb26403993f4e71e4bc9d00715c8e902c3c82fc1845027",
+    "wb2": "516e4008235db926fba16027da5bc4fcc1a879d6d8eccdf28e186bd9442d6211",
+    "retention_index": "e2617090c1f4ce5cc365bf48b1a63be30c7a09a22f03352c9bcbd4ba6cf4de7c"
+  },
+  "unknown_name_sentinel_rows": 0,
+  "detector_inferred": false,
+  "channel_inferred": false,
+  "mass_spectrum_support_claimed": false
+}
