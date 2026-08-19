@@ -52,6 +52,33 @@ SDIST_MAINTAINER_FILES = (
     "scripts/render_demo_assets.swift",
     "tests/fixtures/synthetic/generate_xlsx.py",
 )
+STANDALONE_SDIST_FILES = (
+    "packaging/standalone/licenses/README.md",
+    "packaging/standalone/manifest.schema.json",
+    "packaging/standalone/pysidedeploy.spec.in",
+    "packaging/standalone/requirements-build.lock",
+    "packaging/standalone/licenses/LGPL-3.0.txt",
+    "packaging/standalone/licenses/NUITKA-RUNTIME-EXCEPTION.txt",
+    "packaging/standalone/licenses/PYTHON-PSF-LICENSE.txt",
+    "packaging/standalone/licenses/QT-PYSIDE-SHIBOKEN-NOTICE.md",
+    "scripts/standalone/__init__.py",
+    "scripts/standalone/build.py",
+    "scripts/standalone/entry.py",
+    "scripts/standalone/smoke.py",
+    "scripts/standalone/verify.py",
+    "scripts/standalone/windows_zig.py",
+    "tests/fixtures/synthetic/generate_agilent_ch_v181.py",
+    "tests/fixtures/synthetic/generate_agilent_chemstation_result_xml.py",
+    "tests/fixtures/synthetic/generate_cfb_v4.py",
+    "tests/fixtures/synthetic/generate_shimadzu_gcmssolution_qgd.py",
+    "tests/fixtures/synthetic/generate_shimadzu_gcsolution_gcd.py",
+    "tests/fixtures/synthetic/generate_shimadzu_labsolutions_result_ascii.py",
+    "tests/fixtures/synthetic/generate_youngin_yl_clarity_prm.py",
+    "tests/fixtures/synthetic/generate_youngin_yl_clarity_result_csv.py",
+    "docs/architecture/standalone-packaging-decision.md",
+    "docs/research/standalone-packaging-evidence.md",
+    "docs/standalone.md",
+)
 WHEEL_FORBIDDEN_TOP_LEVEL = frozenset({"scripts", "tests"})
 WINDOWS_RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
@@ -71,6 +98,12 @@ class ReleaseArtifacts:
     wheel: Path
     sdist: Path
     checksums: Path
+
+
+def _sdist_maintainer_files(source_root: Path) -> tuple[str, ...]:
+    if (source_root / "packaging" / "standalone").is_dir():
+        return (*SDIST_MAINTAINER_FILES, *STANDALONE_SDIST_FILES)
+    return SDIST_MAINTAINER_FILES
 
 
 def require_semver(value: str, *, field: str) -> str:
@@ -413,7 +446,7 @@ def verify_sdist(path: Path, expected_version: str, source_root: Path) -> None:
             for license_name in LICENSE_FILES:
                 if read_member(license_name) != (source_root / license_name).read_bytes():
                     raise ReleaseVerificationError(f"sdist {license_name} differs from source")
-            for relative in SDIST_MAINTAINER_FILES:
+            for relative in _sdist_maintainer_files(source_root):
                 if f"{root}/{relative}" not in names:
                     raise ReleaseVerificationError(
                         f"sdist is missing required maintainer file: {relative}"

@@ -112,8 +112,11 @@ or vendor-executable integration. It does not silently replace an existing workb
 Add buttons, visible labels, keyboard focus order, and accessible names provide a
 keyboard path equivalent to drag and drop. Forced cancellation is intentionally
 omitted until the public core can preserve workbook transaction safety during
-cancellation. Standalone `.exe`, `.app`, signing, and notarization remain tracked by
-Issue #6 and are not part of this Python-package interface.
+cancellation. Issue #6 now has a maintainer-only unsigned standalone prototype,
+documented in the [standalone runbook](docs/standalone.md). No `.exe` or `.app` is
+publicly released: publisher identity, signing, notarization, LGPL
+replacement/relinking evidence and the final redistribution gate remain blocked. The
+Python-package interface above is the supported installation path.
 
 ## Verified formats
 
@@ -409,9 +412,19 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 Ordifile targets Python 3.11–3.14. Required tests, release builds, wheel smoke tests,
 and external real-fixture workflows target Python 3.14 on a shared Linux DGX
 self-hosted runner. TestPyPI/PyPI publishing, byte verification, attestations, and
-GitHub Release publication use GitHub-hosted Ubuntu. There is no current Windows or
-macOS CI matrix.
-Public-fork workflows require maintainer approval before they run on that machine and
+GitHub Release publication use GitHub-hosted Ubuntu. Core CI has no Windows or macOS
+matrix. The maintainer-triggered standalone prototype path targets Windows x86-64
+through an exact-SHA reusable workflow called by the existing runner's same-owner
+repository and uses GitHub-hosted `macos-15` for macOS. The existing runner
+registration and assignment remain unchanged. The persistent Windows job uses a
+run-scoped environment, bounded pre/post cleanup, and checkout-independent artifact smoke. Neither platform
+uploads native candidate binaries; only path-free evidence is retained. The standalone
+workflow runs only an allowlisted same-repository branch whose selected SHA, required
+reviewed commit, workflow SHA, and checkout all match. It has no GitHub-hosted Windows fallback.
+Caller assignment, capability labels, and online state must be confirmed before
+dispatch; the workflow is not authorized for a personal workstation.
+Public-fork core workflows require maintainer approval before they run on the shared
+Linux runner and
 receive read-only repository permission without publishing secrets or OIDC permission.
 Runner availability is an operational setting visible in GitHub Actions; this describes
 the configured target, not a guarantee that the runner is currently online.

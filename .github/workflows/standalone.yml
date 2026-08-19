@@ -2,16 +2,411 @@ name: Standalone prototype
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact reviewed 40-character commit
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: ordifile-standalone-prototype-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_CACHE_DIR: "1"
+  PYTHONUTF8: "1"
+
 jobs:
-  safe-anchor-only:
-    name: Register manual standalone workflow
+  dispatch-preflight:
+    name: Validate reviewed dispatch identity
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Explain dispatch registration boundary
+      - name: Reject unreviewed or mismatched dispatch
+        shell: bash
+        env:
+          DISPATCH_EVENT: ${{ github.event_name }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_REF_TYPE: ${{ github.ref_type }}
+          DISPATCH_REPOSITORY: ${{ github.repository }}
+          DISPATCH_SHA: ${{ github.sha }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${DISPATCH_REPOSITORY}" != "hdkim99/ordifile" ||
+                "${DISPATCH_EVENT}" != "workflow_dispatch" ||
+                "${DISPATCH_REF_TYPE}" != "branch" ]]; then
+            echo "Standalone dispatch identity is not authorized." >&2
+            exit 1
+          fi
+          if [[ "${DISPATCH_REF}" != "refs/heads/main" &&
+                "${DISPATCH_REF}" != "refs/heads/build/standalone-prototype" ]]; then
+            echo "Standalone dispatch ref is not authorized." >&2
+            exit 1
+          fi
+          if [[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ||
+                "${DISPATCH_SHA}" != "${EXPECTED_COMMIT}" ||
+                "${WORKFLOW_SHA}" != "${DISPATCH_SHA}" ]]; then
+            echo "Standalone dispatch commit identity is invalid." >&2
+            exit 1
+          fi
+
+  macos-prototype:
+    name: Build and smoke unsigned macOS prototype
+    needs: dispatch-preflight
+    if: >-
+      github.repository == 'hdkim99/ordifile' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref_type == 'branch' &&
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/build/standalone-prototype') &&
+      github.sha == inputs.expected_commit &&
+      github.workflow_sha == github.sha
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify exact reviewed source
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Expected commit identity is invalid." >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "${EXPECTED_COMMIT}" ]]; then
+            echo "Checked-out commit does not match the reviewed commit." >&2
+            exit 1
+          fi
+      - name: Install exact standalone macOS Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/cpython-3.14.3-install-only.tar.gz"
+          inventory="${RUNNER_TEMP}/cpython-3.14.3-install-only.entries"
+          verbose_inventory="${RUNNER_TEMP}/cpython-3.14.3-install-only.verbose"
+          observed_links="${RUNNER_TEMP}/cpython-3.14.3-install-only.links"
+          expected_links="${RUNNER_TEMP}/cpython-3.14.3-install-only.expected-links"
+          runtime="/opt/ordifile-python-3.14.3"
+          if [[ -e "${runtime}" || -L "${runtime}" ]]; then
+            echo "The fixed Python runtime destination is occupied." >&2
+            exit 1
+          fi
+          cleanup_runtime_install_inputs() {
+            if ! /bin/rm -f \
+                 "${archive}" "${inventory}" "${verbose_inventory}" \
+                 "${observed_links}" "${expected_links}" >/dev/null 2>&1; then
+              echo "The Python runtime installation-input cleanup failed." >&2
+              exit 1
+            fi
+          }
+          trap cleanup_runtime_install_inputs EXIT
+          /usr/bin/curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/astral-sh/python-build-standalone/releases/download/20260203/cpython-3.14.3%2B20260203-aarch64-apple-darwin-install_only.tar.gz'
+          printf '%s  %s\n' \
+            '5bb1ad03aa2d8afe15140f56fedaab2ba95033785ad0367775899d42ac8aeb3c' \
+            "${archive}" | /usr/bin/shasum -a 256 --check >/dev/null
+          if ! /usr/bin/tar -tzf "${archive}" > "${inventory}" 2>/dev/null; then
+            echo "The Python runtime archive inventory failed." >&2
+            exit 1
+          fi
+          if ! /usr/bin/awk '
+            BEGIN { safe = 1 }
+            index($0, "python/") != 1 || $0 ~ /(^|\/)\.\.($|\/)/ { safe = 0 }
+            END { exit safe ? 0 : 1 }
+          ' "${inventory}"; then
+            echo "The Python runtime archive path boundary is invalid." >&2
+            exit 1
+          fi
+          if ! /usr/bin/tar -tvzf "${archive}" > "${verbose_inventory}" 2>/dev/null; then
+            echo "The Python runtime archive type inventory failed." >&2
+            exit 1
+          fi
+          if ! /usr/bin/awk '
+            {
+              kind = substr($1, 1, 1)
+              if (kind != "d" && kind != "-" && kind != "l") unsafe = 1
+              if (kind == "l") print $(NF - 2) " -> " $NF
+            }
+            END { exit unsafe ? 1 : 0 }
+          ' "${verbose_inventory}" > "${observed_links}"; then
+            echo "The Python runtime archive member type is invalid." >&2
+            exit 1
+          fi
+          /bin/cat > "${expected_links}" <<'EOF'
+          python/bin/idle3 -> idle3.14
+          python/bin/pydoc3 -> pydoc3.14
+          python/bin/python -> python3.14
+          python/bin/python3 -> python3.14
+          python/bin/python3-config -> python3.14-config
+          python/lib/pkgconfig/python3-embed.pc -> python-3.14-embed.pc
+          python/lib/pkgconfig/python3.pc -> python-3.14.pc
+          python/share/man/man1/python3.1 -> python3.14.1
+          EOF
+          if ! /usr/bin/cmp -s "${observed_links}" "${expected_links}"; then
+            echo "The Python runtime archive link inventory is invalid." >&2
+            exit 1
+          fi
+          account_id="$(/usr/bin/id -u)"
+          group_id="$(/usr/bin/id -g)"
+          if [[ ! "${account_id}" =~ ^[0-9]+$ || ! "${group_id}" =~ ^[0-9]+$ ]]; then
+            echo "The Python runtime installation identity is invalid." >&2
+            exit 1
+          fi
+          if ! /usr/bin/sudo -n /bin/mkdir "${runtime}" >/dev/null 2>&1 ||
+             ! /usr/bin/sudo -n /usr/sbin/chown "${account_id}:${group_id}" "${runtime}" \
+               >/dev/null 2>&1; then
+            echo "The Python runtime destination preparation failed." >&2
+            exit 1
+          fi
+          if ! /usr/bin/tar -xzf "${archive}" --strip-components=1 -C "${runtime}" \
+               2>/dev/null; then
+            echo "The Python runtime extraction failed." >&2
+            exit 1
+          fi
+          python_bin="${runtime}/bin/python3.14"
+          test "$("${python_bin}" -c 'import platform; print(platform.python_version())')" = "3.14.3"
+          test "$("${python_bin}" -c 'import platform; print(platform.machine())')" = "$(uname -m)"
+          test "$("${python_bin}" -c 'import sys; print(sys.prefix)')" = "${runtime}"
+          test "$("${python_bin}" -c 'import sys; print(sys.executable)')" = "${python_bin}"
+          test "$("${python_bin}" -c 'import sys; print(sys.base_prefix)')" = "${runtime}"
+          test -f "${runtime}/lib/libpython3.14.dylib"
+          echo "${runtime}/bin" >> "${GITHUB_PATH}"
+          cleanup_runtime_install_inputs
+          trap - EXIT
+      - name: Install exact standalone toolchain
+        run: |
+          python3.14 -m pip install --requirement packaging/standalone/requirements-build.lock
+          python3.14 -m pip install --no-deps .
+      - name: Create public checkout-independent smoke kit
         run: >-
-          echo "Standalone full workflow is executed from an explicitly selected reviewed ref."
+          python3.14 scripts/standalone/smoke.py make-kit
+          --output standalone-smoke-kit
+          --generator-root tests/fixtures/synthetic
+      - name: Select native target
+        id: platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$(uname -m)" != "arm64" ]]; then
+            echo "Unsupported macOS architecture." >&2
+            exit 1
+          fi
+          target="macos-arm64"
+          echo "target=${target}" >> "${GITHUB_OUTPUT}"
+      - name: Build and audit native candidate
+        run: >-
+          python3.14 scripts/standalone/build.py
+          --source .
+          --output standalone-candidate
+          --commit "${{ github.sha }}"
+          --target "${{ steps.platform.outputs.target }}"
+      - name: Smoke immutable macOS bytes outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="${GITHUB_WORKSPACE}/standalone-candidate"
+          scratch="${RUNNER_TEMP}/ordifile-standalone-smoke"
+          mkdir "${scratch}"
+          cp -R "${GITHUB_WORKSPACE}/standalone-smoke-kit" "${scratch}/kit"
+          read -r checksum filename < "${candidate}/SHA256SUMS.txt"
+          archive="${candidate}/${filename}"
+          test -f "${archive}"
+          test "$(shasum -a 256 "${archive}" | awk '{print $1}')" = "${checksum}"
+          grep -q '"publishable": false' "${candidate}/standalone-manifest.json"
+          grep -Eq '"signature_state": "(UNSIGNED_PROTOTYPE|AD_HOC_NOT_NOTARIZED)"' \
+            "${candidate}/standalone-manifest.json"
+          test "$(jq -r '.outer_artifact.filename' "${candidate}/standalone-manifest.json")" = "${filename}"
+          test "$(jq -r '.outer_artifact.sha256' "${candidate}/standalone-manifest.json")" = "${checksum}"
+          test "$(jq -r '.outer_artifact.size' "${candidate}/standalone-manifest.json")" = "$(stat -f '%z' "${archive}")"
+          test "$(jq -r '.bundle_total_size' "${candidate}/standalone-manifest.json")" -gt 0
+          ditto -x -k "${archive}" "${scratch}/expanded"
+          executables="$(find "${scratch}/expanded" -type f -path '*/Contents/MacOS/Ordifile' -print)"
+          count="$(printf '%s\n' "${executables}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          test "${count}" -eq 1
+          bundle="${executables%/Contents/MacOS/Ordifile}"
+          python3.14 scripts/standalone/verify.py \
+            --bundle "${bundle}" \
+            --manifest "${candidate}/standalone-manifest.json" \
+            --commit "${{ github.sha }}" \
+            --target "${{ steps.platform.outputs.target }}"
+          runtime="/opt/ordifile-python-3.14.3"
+          file_inventory="${scratch}/bundle-files.nul"
+          if ! /usr/bin/find "${bundle}" -type f -print0 > "${file_inventory}" 2>/dev/null; then
+            echo "The bundle file inventory failed." >&2
+            exit 1
+          fi
+          dependency_main=0
+          dependency_python=0
+          dependency_extension=0
+          dependency_other=0
+          command_main=0
+          command_python=0
+          command_extension=0
+          command_other=0
+          while IFS= read -r -d '' member; do
+            file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)" || {
+              echo "A bundle file-type inventory failed." >&2
+              exit 1
+            }
+            if /usr/bin/grep -q 'Mach-O' <<< "${file_description}"; then
+              relative_member="${member#"${bundle}"/}"
+              dependencies="$(/usr/bin/otool -L "${member}" 2>/dev/null)" || {
+                echo "A Mach-O dependency inventory failed." >&2
+                exit 1
+              }
+              load_commands="$(/usr/bin/otool -l "${member}" 2>/dev/null)" || {
+                echo "A Mach-O load-command inventory failed." >&2
+                exit 1
+              }
+              if /usr/bin/grep -Fq "${runtime}" <<< "${dependencies}"; then
+                case "${relative_member}" in
+                  Contents/MacOS/Ordifile) dependency_main=1 ;;
+                  *libpython3.14.dylib) dependency_python=1 ;;
+                  *.so | *.dylib) dependency_extension=1 ;;
+                  *) dependency_other=1 ;;
+                esac
+              fi
+              if /usr/bin/grep -Fq "${runtime}" <<< "${load_commands}"; then
+                case "${relative_member}" in
+                  Contents/MacOS/Ordifile) command_main=1 ;;
+                  *libpython3.14.dylib) command_python=1 ;;
+                  *.so | *.dylib) command_extension=1 ;;
+                  *) command_other=1 ;;
+                esac
+              fi
+            fi
+          done < "${file_inventory}"
+          if ! /bin/rm "${file_inventory}" 2>/dev/null; then
+            echo "The bundle file inventory cleanup failed." >&2
+            exit 1
+          fi
+          runtime_reference=0
+          if [[ "${dependency_main}" -eq 1 ]]; then
+            echo "The main executable depends on the build-host Python runtime." >&2
+            runtime_reference=1
+          fi
+          if [[ "${dependency_python}" -eq 1 ]]; then
+            echo "The embedded Python runtime depends on the build-host runtime." >&2
+            runtime_reference=1
+          fi
+          if [[ "${dependency_extension}" -eq 1 ]]; then
+            echo "An extension library depends on the build-host Python runtime." >&2
+            runtime_reference=1
+          fi
+          if [[ "${dependency_other}" -eq 1 ]]; then
+            echo "Another bundle component depends on the build-host Python runtime." >&2
+            runtime_reference=1
+          fi
+          if [[ "${command_main}" -eq 1 ]]; then
+            echo "The main executable has a build-host Python runtime load command." >&2
+            runtime_reference=1
+          fi
+          if [[ "${command_python}" -eq 1 ]]; then
+            echo "The embedded Python runtime has a build-host runtime load command." >&2
+            runtime_reference=1
+          fi
+          if [[ "${command_extension}" -eq 1 ]]; then
+            echo "An extension library has a build-host Python runtime load command." >&2
+            runtime_reference=1
+          fi
+          if [[ "${command_other}" -eq 1 ]]; then
+            echo "Another bundle component has a build-host Python runtime load command." >&2
+            runtime_reference=1
+          fi
+          if [[ "${runtime_reference}" -eq 1 ]]; then
+            exit 1
+          fi
+          runtime_name="ordifile-disabled-python-runtime-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ ! "${runtime_name}" =~ ^ordifile-disabled-python-runtime-[0-9]+-[0-9]+$ ]]; then
+            echo "The Python runtime isolation identity is invalid." >&2
+            exit 1
+          fi
+          runner_temp="$(cd "${RUNNER_TEMP}" 2>/dev/null && /bin/pwd -P)" || {
+            echo "The Python runtime isolation root is invalid." >&2
+            exit 1
+          }
+          disabled_runtime="${runner_temp}/${runtime_name}"
+          if [[ "$(/usr/bin/dirname "${disabled_runtime}")" != "${runner_temp}" ]]; then
+            echo "The Python runtime isolation boundary is invalid." >&2
+            exit 1
+          fi
+          if [[ ! -d "${runtime}" || -L "${runtime}" ||
+                ! -x "${runtime}/bin/python3.14" ]]; then
+            echo "The source Python runtime state is invalid." >&2
+            exit 1
+          fi
+          if [[ -e "${disabled_runtime}" || -L "${disabled_runtime}" ]]; then
+            echo "The Python runtime isolation destination is occupied." >&2
+            exit 1
+          fi
+          restore_python_runtime() {
+            if [[ ! -d "${disabled_runtime}" || -L "${disabled_runtime}" ||
+                  -e "${runtime}" || -L "${runtime}" ]]; then
+              echo "The Python runtime restore state is invalid." >&2
+              return 1
+            fi
+            if ! /usr/bin/sudo -n /bin/mv "${disabled_runtime}" "${runtime}" \
+                 >/dev/null 2>&1; then
+              echo "The Python runtime restore operation failed." >&2
+              return 1
+            fi
+            if [[ ! -d "${runtime}" || -L "${runtime}" ||
+                  ! -x "${runtime}/bin/python3.14" ||
+                  -e "${disabled_runtime}" || -L "${disabled_runtime}" ]]; then
+              echo "The restored Python runtime state is invalid." >&2
+              return 1
+            fi
+          }
+          if ! /usr/bin/sudo -n /bin/mv "${runtime}" "${disabled_runtime}" \
+               >/dev/null 2>&1; then
+            echo "The Python runtime isolation operation failed." >&2
+            exit 1
+          fi
+          trap restore_python_runtime EXIT
+          if [[ -e "${runtime}" || -L "${runtime}" ||
+                ! -d "${disabled_runtime}" || -L "${disabled_runtime}" ]]; then
+            echo "The isolated Python runtime state is invalid." >&2
+            exit 1
+          fi
+          cd "${scratch}"
+          unset PYTHONPATH
+          export PYTHONNOUSERSITE=1
+          export QT_QPA_PLATFORM=offscreen
+          "${executables}" --standalone-smoke \
+            --kit "${scratch}/kit" \
+            --output "${scratch}/standalone smoke 결과.xlsx" \
+            --report "${scratch}/standalone smoke report.json"
+          "${executables}" --standalone-window-smoke
+          grep -q '"status": "PASS"' "${scratch}/standalone smoke report.json"
+          grep -q '"existing_output_preserved": true' "${scratch}/standalone smoke report.json"
+          restore_python_runtime
+          trap - EXIT
+          cp "${scratch}/standalone smoke report.json" "${GITHUB_WORKSPACE}/standalone-smoke-report.json"
+      - name: Upload path-free macOS evidence only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ordifile-standalone-macos-evidence-${{ github.run_id }}
+          path: |
+            standalone-candidate/standalone-manifest.json
+            standalone-candidate/SHA256SUMS.txt
+            standalone-smoke-report.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+          overwrite: false

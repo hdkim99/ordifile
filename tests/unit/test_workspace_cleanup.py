@@ -30,6 +30,8 @@ def test_cleanup_removes_exact_generated_allowlist_and_is_idempotent(tmp_path: P
         "htmlcov",
         "release-artifact",
         "release-download",
+        "standalone-candidate",
+        "standalone-smoke-kit",
         ".github/.tmp",
         "src/ordifile.egg-info",
         "src/ordifile/__pycache__",
@@ -43,6 +45,7 @@ def test_cleanup_removes_exact_generated_allowlist_and_is_idempotent(tmp_path: P
         ".coverage.worker-1",
         "Ordifile_Result.xlsx",
         "Ordifile_Result_Peaks_001.csv",
+        "standalone-smoke-report.json",
         "src/ordifile/generated.pyc",
     )
     for relative in generated_files:

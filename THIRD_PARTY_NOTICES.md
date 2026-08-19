@@ -38,6 +38,30 @@ LGPL and third-party-license gate covering notices, license text,
 corresponding-source availability, applicable installation information, and user
 replacement/relinking rights.
 
+## Standalone prototype build boundary
+
+The maintainer-only unsigned prototype uses `Nuitka==4.1.3` directly with a temporary
+`Zig==0.16.0` compiler on Windows, and Qt's `pyside6-deploy` frontend with the same
+Nuitka pin on macOS. Nuitka is an AGPL-3.0 build tool and Zig's top-level source is
+MIT-licensed; neither compiler executable is shipped in the generated bundle. Zig's
+Windows GNU ABI can link MinGW-w64/libc/compiler-runtime inputs with their own license
+inventory. Exact linked provenance, notices and source obligations are therefore a
+hard gate before public Windows distribution. Nuitka's exact Runtime
+Library Exception permits qualifying generated target code to be conveyed under the
+program's own terms; it does not relicense Nuitka or remove the compiler's AGPL
+obligations.
+
+Prototype bundles dynamically include Qt/PySide6/shiboken6 components under the
+LGPL-3.0 option. Ordifile does not copy or modify their source code; native deployment
+tooling may rewrite loader metadata in copied bundle binaries, so final modification
+and source obligations remain a public-distribution gate. The artifact carries the
+full LGPL text, component notice,
+Python and Ordifile licenses, installed permissive dependency license files, the exact
+Nuitka Runtime Library Exception and this notice. That inventory does not authorize a
+public binary release. Exact corresponding-source delivery, Qt third-party notices,
+tested replacement/relinking and installation information, publisher identity,
+Windows signing, and macOS signing/notarization remain required public-release gates.
+
 ## Build, test, quality, and documentation tools
 
 These tools are used to develop, verify, or document the project; they are not runtime imports.
@@ -53,6 +77,8 @@ These tools are used to develop, verify, or document the project; they are not r
 | pip-audit | 2.10.1 | Apache-2.0 | [Project and license](https://github.com/pypa/pip-audit) |
 | types-olefile | 0.47.0.20260508 | Apache-2.0 | [Project](https://pypi.org/project/types-olefile/) · [License](https://github.com/python/typeshed/blob/main/LICENSE) |
 | Matplotlib | 3.11.1 | PSF-based | [Project](https://matplotlib.org/) · [License](https://matplotlib.org/stable/project/license.html) |
+| Nuitka | 4.1.3 | AGPL-3.0 build tool; generated target covered by the exact Nuitka Runtime Library Exception | [Project](https://pypi.org/project/Nuitka/4.1.3/) · [License and exception](https://github.com/Nuitka/Nuitka/tree/4.1.3) |
+| Zig | 0.16.0 | Top-level MIT; job-local Windows build tool only; linked MinGW-w64/libc/compiler-runtime inventory unresolved for public distribution | [Official download](https://ziglang.org/download/#release-0.16.0) · [License](https://codeberg.org/ziglang/zig/src/tag/0.16.0/LICENSE) · [MinGW-w64/libc notices](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/libc/mingw/COPYING) |
 
 Python itself is distributed under the Python Software Foundation License. GitHub
 Actions used by this repository retain their own licenses and are not included in the

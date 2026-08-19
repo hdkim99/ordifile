@@ -21,6 +21,8 @@ TOP_LEVEL_DIRECTORIES = frozenset(
         "htmlcov",
         "release-artifact",
         "release-download",
+        "standalone-candidate",
+        "standalone-smoke-kit",
     }
 )
 RELATIVE_DIRECTORIES = (Path(".github/.tmp"),)
@@ -30,6 +32,7 @@ TOP_LEVEL_FILES = frozenset(
     {
         ".coverage",
         "Ordifile_Result.xlsx",
+        "standalone-smoke-report.json",
     }
 )
 GENERATED_FILE_SUFFIXES = (".pyc", ".pyo")

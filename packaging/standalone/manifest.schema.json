@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hdkim99/ordifile/blob/main/packaging/standalone/manifest.schema.json",
+  "title": "Ordifile unsigned standalone candidate manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "publishable",
+    "signature_state",
+    "ordifile_version",
+    "commit",
+    "target",
+    "python_version",
+    "packaging_backend",
+    "toolchain",
+    "adapter_ids",
+    "bundle_total_size",
+    "files",
+    "licenses",
+    "outer_artifact"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "publishable": {"const": false},
+    "signature_state": {
+      "enum": ["UNSIGNED_PROTOTYPE", "AD_HOC_NOT_NOTARIZED"]
+    },
+    "ordifile_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "target": {
+      "enum": ["windows-x86_64", "macos-arm64", "macos-x86_64"]
+    },
+    "python_version": {"type": "string"},
+    "packaging_backend": {
+      "enum": ["DIRECT_NUITKA_ZIG", "PYSIDE6_DEPLOY_NUITKA"]
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "adapter_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "bundle_total_size": {"type": "integer", "minimum": 1},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "size", "sha256"],
+        "properties": {
+          "path": {"type": "string"},
+          "kind": {"enum": ["file", "symlink"]},
+          "size": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "licenses": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "outer_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filename", "size", "sha256"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "pattern": "^Ordifile-[0-9]+\\.[0-9]+\\.[0-9]+-(windows-x86_64|macos-arm64|macos-x86_64)-UNSIGNED\\.zip$"
+        },
+        "size": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

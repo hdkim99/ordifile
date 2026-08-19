@@ -1,0 +1,12 @@
+# Exact native-build environment reviewed 2026-08-18.
+# Install the Ordifile source separately with --no-deps after this file.
+defusedxml==0.7.1
+et-xmlfile==2.0.0
+Nuitka==4.1.3
+olefile==0.47
+openpyxl==3.1.5
+ordered-set==4.1.0
+PySide6-Essentials==6.11.2
+shiboken6==6.11.2
+XlsxWriter==3.2.9
+zstandard==0.25.0
