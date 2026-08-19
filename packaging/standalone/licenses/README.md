@@ -9,7 +9,7 @@ This directory is copied inside every unsigned Ordifile standalone prototype.
 - `NUITKA-RUNTIME-EXCEPTION.txt` is the exact Nuitka 4.1.3 runtime exception covering
   generated targets. Nuitka itself remains an AGPL-3.0 build tool and is not bundled.
 - `PYTHON-PSF-LICENSE.txt` records the Python 3.14 runtime terms used by both native
-  prototype toolchains. Its bytes match the license included in the pinned relocatable
+  prototype toolchains. Its bytes match the license included in the pinned standalone
   macOS runtime archive.
 - `LICENSE` and `NOTICE` are copied from Ordifile, and per-distribution license files
   for embedded permissive Python packages are copied under `python-packages/`.
