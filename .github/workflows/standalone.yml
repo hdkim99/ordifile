@@ -375,12 +375,21 @@ jobs:
             echo "The bundle file inventory failed." >&2
             exit 1
           fi
+          dependency_main=0
+          dependency_python=0
+          dependency_extension=0
+          dependency_other=0
+          command_main=0
+          command_python=0
+          command_extension=0
+          command_other=0
           while IFS= read -r -d '' member; do
             file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)" || {
               echo "A bundle file-type inventory failed." >&2
               exit 1
             }
             if /usr/bin/grep -q 'Mach-O' <<< "${file_description}"; then
+              relative_member="${member#"${bundle}"/}"
               dependencies="$(/usr/bin/otool -L "${member}" 2>/dev/null)" || {
                 echo "A Mach-O dependency inventory failed." >&2
                 exit 1
@@ -390,17 +399,61 @@ jobs:
                 exit 1
               }
               if /usr/bin/grep -Fq "${framework}" <<< "${dependencies}"; then
-                echo "A candidate dependency references the build-host Python framework." >&2
-                exit 1
+                case "${relative_member}" in
+                  Contents/MacOS/Ordifile) dependency_main=1 ;;
+                  *Python.framework/*/Python) dependency_python=1 ;;
+                  *.so | *.dylib) dependency_extension=1 ;;
+                  *) dependency_other=1 ;;
+                esac
               fi
               if /usr/bin/grep -Fq "${framework}" <<< "${load_commands}"; then
-                echo "A candidate load command references the build-host Python framework." >&2
-                exit 1
+                case "${relative_member}" in
+                  Contents/MacOS/Ordifile) command_main=1 ;;
+                  *Python.framework/*/Python) command_python=1 ;;
+                  *.so | *.dylib) command_extension=1 ;;
+                  *) command_other=1 ;;
+                esac
               fi
             fi
           done < "${file_inventory}"
           if ! /bin/rm "${file_inventory}" 2>/dev/null; then
             echo "The bundle file inventory cleanup failed." >&2
+            exit 1
+          fi
+          framework_reference=0
+          if [[ "${dependency_main}" -eq 1 ]]; then
+            echo "The main executable depends on the build-host Python framework." >&2
+            framework_reference=1
+          fi
+          if [[ "${dependency_python}" -eq 1 ]]; then
+            echo "The embedded Python runtime depends on the build-host framework." >&2
+            framework_reference=1
+          fi
+          if [[ "${dependency_extension}" -eq 1 ]]; then
+            echo "An extension library depends on the build-host Python framework." >&2
+            framework_reference=1
+          fi
+          if [[ "${dependency_other}" -eq 1 ]]; then
+            echo "Another bundle component depends on the build-host Python framework." >&2
+            framework_reference=1
+          fi
+          if [[ "${command_main}" -eq 1 ]]; then
+            echo "The main executable has a build-host Python framework load command." >&2
+            framework_reference=1
+          fi
+          if [[ "${command_python}" -eq 1 ]]; then
+            echo "The embedded Python runtime has a build-host framework load command." >&2
+            framework_reference=1
+          fi
+          if [[ "${command_extension}" -eq 1 ]]; then
+            echo "An extension library has a build-host Python framework load command." >&2
+            framework_reference=1
+          fi
+          if [[ "${command_other}" -eq 1 ]]; then
+            echo "Another bundle component has a build-host Python framework load command." >&2
+            framework_reference=1
+          fi
+          if [[ "${framework_reference}" -eq 1 ]]; then
             exit 1
           fi
           framework_name="ordifile-disabled-python-framework-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

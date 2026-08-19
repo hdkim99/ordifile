@@ -155,8 +155,16 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "A bundle file-type inventory failed." in macos_job
     assert "The bundle file inventory failed." in macos_job
     assert "The bundle file inventory cleanup failed." in macos_job
-    assert "A candidate dependency references the build-host Python framework." in macos_job
-    assert "A candidate load command references the build-host Python framework." in macos_job
+    assert "The main executable depends on the build-host Python framework." in macos_job
+    assert "The embedded Python runtime depends on the build-host framework." in macos_job
+    assert "An extension library depends on the build-host Python framework." in macos_job
+    assert "Another bundle component depends on the build-host Python framework." in macos_job
+    assert "The main executable has a build-host Python framework load command." in macos_job
+    assert "The embedded Python runtime has a build-host framework load command." in macos_job
+    assert "An extension library has a build-host Python framework load command." in macos_job
+    assert "Another bundle component has a build-host Python framework load command." in macos_job
+    assert 'relative_member="${member#"${bundle}"/}"' in macos_job
+    assert macos_job.count('case "${relative_member}" in') == 2
     assert 'file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)"' in macos_job
     assert '/usr/bin/file -b "${member}" |' not in macos_job
     assert 'done < "${file_inventory}"' in macos_job
