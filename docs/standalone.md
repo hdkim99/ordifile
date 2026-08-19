@@ -166,12 +166,13 @@ The artifact-only smoke checks the outer checksum and non-publishable signature 
 then runs the packaged executable with `--standalone-smoke`. It verifies:
 
 - version and registry-derived adapter inventory;
-- detection and parsing for all built-in Generic, Agilent, Shimadzu and YoungIn
-  adapters, including CP949 codec and exact synthetic YoungIn Result detection;
+- detection and parsing for all built-in Generic, Agilent, Shimadzu, YoungIn and LECO
+  adapters, including CP949 codec, exact synthetic YoungIn Result detection and the
+  exact synthetic LECO dual-retention profile;
 - independent plain UTF-8 and UTF-8-BOM generic input handling;
 - conversion using the same public API as CLI/GUI;
 - workbook reopen plus ordered equivalence for `Samples`, `Peak_Matrix`, `Peaks`,
-  `Peak_Order_Matrix`, `Metadata` and `Import_Log`;
+  `Peak_Order_Matrix`, conditional `Peak_Order_Matrix_2D`, `Metadata` and `Import_Log`;
 - non-ASCII/space output paths and existing-output refusal without byte changes;
 - an offscreen launch of the packaged existing `QApplication`/`MainWindow` path.
 
