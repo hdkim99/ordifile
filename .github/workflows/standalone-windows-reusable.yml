@@ -238,15 +238,33 @@ jobs:
           }
           Copy-Item -LiteralPath (Join-Path $scratch "standalone smoke report.json") `
             -Destination (Join-Path $source "standalone-smoke-report.json")
+      - name: Require complete Windows evidence after a successful smoke
+        if: success()
+        shell: pwsh
+        working-directory: source
+        run: |
+          $ErrorActionPreference = "Stop"
+          $evidence = @(
+            "standalone-candidate/standalone-manifest.json",
+            "standalone-candidate/SHA256SUMS.txt",
+            "standalone-smoke-report.json"
+          )
+          $missing = @($evidence | Where-Object {
+            -not (Test-Path -LiteralPath $_ -PathType Leaf)
+          })
+          if ($missing.Count -ne 0) {
+            throw "Standalone Windows evidence inventory is incomplete."
+          }
       - name: Upload path-free Windows evidence only
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ordifile-standalone-windows-evidence-${{ github.run_id }}
+          name: ordifile-standalone-windows-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             source/standalone-candidate/standalone-manifest.json
             source/standalone-candidate/SHA256SUMS.txt
             source/standalone-smoke-report.json
-          if-no-files-found: error
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           compression-level: 0
           retention-days: 7
           overwrite: false

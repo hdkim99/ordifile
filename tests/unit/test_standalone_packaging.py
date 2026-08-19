@@ -281,6 +281,37 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert windows_job.count("Standalone scratch boundary is invalid.") == 2
     assert "actions/download-artifact@" not in combined
     assert combined.count("actions/upload-artifact@") == 2
+    windows_evidence = windows_job.split("      - name: Upload path-free Windows evidence only", 1)[
+        1
+    ].split("      - name: Remove isolated Windows job environment", 1)[0]
+    evidence_gate = windows_job.split(
+        "      - name: Require complete Windows evidence after a successful smoke", 1
+    )[1].split("      - name: Upload path-free Windows evidence only", 1)[0]
+    assert "        if: success()" in evidence_gate
+    assert evidence_gate.count("Test-Path -LiteralPath $_ -PathType Leaf") == 1
+    assert "Standalone Windows evidence inventory is incomplete." in evidence_gate
+    assert evidence_gate.count("standalone-manifest.json") == 1
+    assert evidence_gate.count("SHA256SUMS.txt") == 1
+    assert evidence_gate.count("standalone-smoke-report.json") == 1
+    assert "        if: always()" in windows_evidence
+    assert (
+        "          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}"
+        in windows_evidence
+    )
+    assert (
+        "          name: ordifile-standalone-windows-evidence-"
+        "${{ github.run_id }}-${{ github.run_attempt }}" in windows_evidence
+    )
+    evidence_paths = windows_evidence.split("          path: |\n", 1)[1].split(
+        "          if-no-files-found:", 1
+    )[0]
+    assert [line.strip() for line in evidence_paths.splitlines() if line.strip()] == [
+        "source/standalone-candidate/standalone-manifest.json",
+        "source/standalone-candidate/SHA256SUMS.txt",
+        "source/standalone-smoke-report.json",
+    ]
+    assert "continue-on-error" not in windows_evidence
+    assert "          overwrite: false" in windows_evidence
     assert "standalone-candidate/standalone-manifest.json" in combined
     assert "standalone-candidate/SHA256SUMS.txt" in combined
     assert "standalone-candidate/\n" not in combined
