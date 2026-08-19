@@ -203,11 +203,58 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert windows_job.count("working-directory: source") >= 7
     assert windows_job.count('python-version: "3.14.3"') == 1
     assert "Verify Windows native compiler capability" in windows_job
+    assert "Get-Command cl.exe -CommandType Application" in windows_job
+    assert "_MSC_VER < 1930" in windows_job
+    assert "!defined(_M_X64)" in windows_job
+    assert "ACTIVE_PATH_MSVC_2022_PLUS" in windows_job
+    assert "PATH_CL_VERSION_OR_ARCH_UNSUPPORTED" in windows_job
+    assert "PATH_CL_COMPILE_LINK_FAILED" in windows_job
+    assert "PATH_CL_EXECUTION_FAILED" in windows_job
+    assert "Windows native compiler probe cleanup failed." in windows_job
+    assert (
+        "              }\n            }\n            catch {\n"
+        '              $activeStatus = "PATH_CL_PROBE_FAILED"\n'
+        "            }\n            finally {"
+    ) in windows_job
+    assert (
+        "              }\n            }\n            }\n            catch {\n"
+        '              $activeStatus = "PATH_CL_PROBE_FAILED"'
+    ) not in windows_job
+    assert "function Test-ProbeRootIdentity" in windows_job
+    assert "$probeCreated = $true" in windows_job
+    assert "$probeOwned = $true" in windows_job
+    assert windows_job.count("Test-ProbeRootIdentity") >= 4
+    assert "$runnerTemp.TrimEnd($trimCharacters)" in windows_job
+    assert "Get-Item -LiteralPath $probeRoot -Force -ErrorAction SilentlyContinue" not in (
+        windows_job
+    )
+    assert "Get-Item -LiteralPath $probeRoot -Force -ErrorAction Stop" in windows_job
+    assert "Test-Path -LiteralPath $probeRoot -ErrorAction Stop" in windows_job
+    assert "ordifile-compiler-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB" in (
+        windows_job
+    )
     assert "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" in windows_job
     assert '-version "[17.0,)"' in windows_job
     assert "Common7/Tools/VsDevCmd.bat" in windows_job
-    assert windows_job.count("Windows native compiler capability is unavailable.") == 4
+    for fixed_category in (
+        "PROGRAM_FILES_X86_UNAVAILABLE",
+        "VSWHERE_UNAVAILABLE",
+        "VSWHERE_QUERY_FAILED",
+        "VC_TOOLS_UNAVAILABLE",
+        "DEVELOPER_SHELL_UNAVAILABLE",
+        "PATH_CL_UNAVAILABLE",
+        "PATH_CL_PROBE_UNAVAILABLE",
+        "PATH_CL_PROBE_FAILED",
+    ):
+        assert fixed_category in windows_job
+    assert "Windows native compiler capability is unavailable;" in windows_job
+    assert "registered=NOT_EVALUATED; active=$activeStatus." in windows_job
+    assert windows_job.index("registered=NOT_EVALUATED") < windows_job.index(
+        '$registeredStatus = "PROGRAM_FILES_X86_UNAVAILABLE"'
+    )
     assert "& $developerShell" not in windows_job
+    assert "-prerelease" not in windows_job
+    assert "GITHUB_ENV" not in windows_job
     for host_mutation in (
         "winget install",
         "choco install",

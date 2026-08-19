@@ -110,27 +110,211 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
-          if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
-            throw "Windows native compiler capability is unavailable."
+          function Test-ProbeRootIdentity {
+            param(
+              [object]$Item,
+              [string]$ExpectedPath,
+              [string]$ExpectedParent
+            )
+            try {
+              if (
+                $null -eq $Item -or
+                -not ($Item -is [System.IO.DirectoryInfo]) -or
+                -not $Item.PSIsContainer -or
+                ($Item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+              ) {
+                return $false
+              }
+              $itemPath = [IO.Path]::GetFullPath($Item.FullName)
+              $parentPath = [IO.Path]::GetFullPath($Item.Parent.FullName)
+              return (
+                $itemPath.Equals($ExpectedPath, [StringComparison]::OrdinalIgnoreCase) -and
+                $parentPath.Equals($ExpectedParent, [StringComparison]::OrdinalIgnoreCase)
+              )
+            }
+            catch {
+              return $false
+            }
           }
-          $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio/Installer/vswhere.exe"
-          if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
-            throw "Windows native compiler capability is unavailable."
+
+          $activeStatus = "PATH_CL_UNAVAILABLE"
+          try {
+            $activeCompiler =
+              Get-Command cl.exe -CommandType Application -ErrorAction SilentlyContinue
           }
-          $installations = @(
-            & $vswhere -latest -products * `
-              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-              -version "[17.0,)" -property installationPath 2>$null |
-              Where-Object { $_ }
+          catch {
+            throw (
+              "Windows native compiler capability is unavailable; " +
+                "registered=NOT_EVALUATED; active=PATH_CL_DISCOVERY_FAILED."
+            )
+          }
+          if ($null -ne $activeCompiler) {
+            $activeStatus = "PATH_CL_PROBE_UNAVAILABLE"
+            $probeCreated = $false
+            $probeOwned = $false
+            $cleanupFailed = $false
+            try {
+              $compilerItem =
+                Get-Item -LiteralPath $activeCompiler.Source -Force -ErrorAction Stop
+              $identityValid =
+                $env:GITHUB_RUN_ID -match '^[0-9]+$' -and
+                $env:GITHUB_RUN_ATTEMPT -match '^[0-9]+$' -and
+                $env:GITHUB_JOB -eq "windows-prototype"
+              if (
+                $compilerItem.PSIsContainer -or
+                ($compilerItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+                -not $identityValid -or
+                [string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)
+              ) {
+                throw "fixed-category"
+              }
+              $probeName =
+                "ordifile-compiler-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB"
+              $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+              $probeRoot = [IO.Path]::GetFullPath((Join-Path $runnerTemp $probeName))
+              $trimCharacters = [char[]]@(
+                [IO.Path]::DirectorySeparatorChar,
+                [IO.Path]::AltDirectorySeparatorChar
+              )
+              $probeBoundary =
+                $runnerTemp.TrimEnd($trimCharacters) + [IO.Path]::DirectorySeparatorChar
+              if (-not $probeRoot.StartsWith(
+                $probeBoundary,
+                [StringComparison]::OrdinalIgnoreCase
+              )) {
+                throw "fixed-category"
+              }
+              if (Test-Path -LiteralPath $probeRoot -ErrorAction Stop) {
+                $activeStatus = "PATH_CL_PROBE_ROOT_OCCUPIED"
+              }
+              else {
+                $createdProbe =
+                  New-Item -ItemType Directory -Path $probeRoot -ErrorAction Stop
+                $probeCreated = $true
+                if (-not (Test-ProbeRootIdentity $createdProbe $probeRoot $runnerTemp)) {
+                  throw "fixed-category"
+                }
+                $probeOwned = $true
+                $currentProbe = Get-Item -LiteralPath $probeRoot -Force -ErrorAction Stop
+                if (-not (Test-ProbeRootIdentity $currentProbe $probeRoot $runnerTemp)) {
+                  throw "fixed-category"
+                }
+                $source = Join-Path $probeRoot "probe.c"
+                $object = Join-Path $probeRoot "probe.obj"
+                $executable = Join-Path $probeRoot "probe.exe"
+                [IO.File]::WriteAllText(
+                  $source,
+                  "#if !defined(_MSC_VER) || _MSC_VER < 1930`n" +
+                    "#error unsupported compiler`n#endif`n" +
+                    "#if !defined(_M_X64)`n#error unsupported architecture`n#endif`n" +
+                    "int main(void) { return 0; }`n",
+                  [Text.UTF8Encoding]::new($false)
+                )
+                & $activeCompiler.Source /nologo /EP /TC $source *> $null
+                if ($LASTEXITCODE -ne 0) {
+                  $activeStatus = "PATH_CL_VERSION_OR_ARCH_UNSUPPORTED"
+                }
+                else {
+                  & $activeCompiler.Source /nologo /TC $source "/Fo$object" "/Fe$executable" `
+                    *> $null
+                  if (
+                    $LASTEXITCODE -ne 0 -or
+                    -not (Test-Path -LiteralPath $executable -PathType Leaf -ErrorAction Stop)
+                  ) {
+                    $activeStatus = "PATH_CL_COMPILE_LINK_FAILED"
+                  }
+                  else {
+                    & $executable *> $null
+                    if ($LASTEXITCODE -eq 0) {
+                      $activeStatus = "ACTIVE_PATH_MSVC_2022_PLUS"
+                    }
+                    else {
+                      $activeStatus = "PATH_CL_EXECUTION_FAILED"
+                    }
+                  }
+                }
+              }
+            }
+            catch {
+              $activeStatus = "PATH_CL_PROBE_FAILED"
+            }
+            finally {
+              if ($probeCreated -and -not $probeOwned) {
+                $cleanupFailed = $true
+              }
+              elseif ($probeOwned) {
+                try {
+                  $cleanupProbe = Get-Item -LiteralPath $probeRoot -Force -ErrorAction Stop
+                  if (-not (Test-ProbeRootIdentity $cleanupProbe $probeRoot $runnerTemp)) {
+                    throw "fixed-category"
+                  }
+                  Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction Stop *> $null
+                  if (Test-Path -LiteralPath $probeRoot -ErrorAction Stop) {
+                    throw "fixed-category"
+                  }
+                }
+                catch {
+                  $cleanupFailed = $true
+                }
+              }
+            }
+            if ($cleanupFailed) {
+              throw "Windows native compiler probe cleanup failed."
+            }
+            if ($activeStatus -eq "ACTIVE_PATH_MSVC_2022_PLUS") {
+              exit 0
+            }
+            throw (
+              "Windows native compiler capability is unavailable; " +
+                "registered=NOT_EVALUATED; active=$activeStatus."
+            )
+          }
+
+          $registeredStatus = "PROGRAM_FILES_X86_UNAVAILABLE"
+          try {
+            $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
+            if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
+              $registeredStatus = "VSWHERE_UNAVAILABLE"
+              $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio/Installer/vswhere.exe"
+              $vswhereItem = Get-Item -LiteralPath $vswhere -Force -ErrorAction SilentlyContinue
+              if (
+                $null -ne $vswhereItem -and
+                -not $vswhereItem.PSIsContainer -and
+                -not ($vswhereItem.Attributes -band [IO.FileAttributes]::ReparsePoint)
+              ) {
+                $registeredStatus = "VSWHERE_QUERY_FAILED"
+                $installations = @(
+                  & $vswhere -latest -products * `
+                    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+                    -version "[17.0,)" -property installationPath 2>$null |
+                    Where-Object { $_ }
+                )
+                if ($LASTEXITCODE -eq 0) {
+                  $registeredStatus = "VC_TOOLS_UNAVAILABLE"
+                  if ($installations.Count -eq 1) {
+                    $registeredStatus = "DEVELOPER_SHELL_UNAVAILABLE"
+                    $developerShell = Join-Path $installations[0] "Common7/Tools/VsDevCmd.bat"
+                    $developerShellItem =
+                      Get-Item -LiteralPath $developerShell -Force -ErrorAction SilentlyContinue
+                    if (
+                      $null -ne $developerShellItem -and
+                      -not $developerShellItem.PSIsContainer -and
+                      -not ($developerShellItem.Attributes -band [IO.FileAttributes]::ReparsePoint)
+                    ) {
+                      exit 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+          catch {
+            $registeredStatus = "VSWHERE_QUERY_FAILED"
+          }
+          throw (
+            "Windows native compiler capability is unavailable; " +
+              "registered=$registeredStatus; active=$activeStatus."
           )
-          if ($LASTEXITCODE -ne 0 -or $installations.Count -ne 1) {
-            throw "Windows native compiler capability is unavailable."
-          }
-          $developerShell = Join-Path $installations[0] "Common7/Tools/VsDevCmd.bat"
-          if (-not (Test-Path -LiteralPath $developerShell -PathType Leaf)) {
-            throw "Windows native compiler capability is unavailable."
-          }
       - name: Clean persistent workspace before job
         working-directory: source
         run: python scripts/ci/clean_workspace.py --workspace . --phase pre
