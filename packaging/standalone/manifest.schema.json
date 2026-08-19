@@ -12,6 +12,7 @@
     "commit",
     "target",
     "python_version",
+    "packaging_backend",
     "toolchain",
     "adapter_ids",
     "bundle_total_size",
@@ -31,6 +32,9 @@
       "enum": ["windows-x86_64", "macos-arm64", "macos-x86_64"]
     },
     "python_version": {"type": "string"},
+    "packaging_backend": {
+      "enum": ["DIRECT_NUITKA_ZIG", "PYSIDE6_DEPLOY_NUITKA"]
+    },
     "toolchain": {
       "type": "object",
       "additionalProperties": {"type": "string"}

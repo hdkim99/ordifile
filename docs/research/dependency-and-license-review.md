@@ -74,11 +74,15 @@ separate decision and legal gates are recorded in
 
 ## Standalone prototype tooling
 
-Qt's official `pyside6-deploy` frontend is selected with standalone mode and an exact
-`Nuitka==4.1.3` pin. Nuitka is AGPL-3.0 build tooling and is not distributed in the
-candidate. Its exact Runtime Library Exception applies to qualifying generated target
-code; it does not weaken the compiler license. PyInstaller 6.22.2 onedir remains a
-documented fallback and is not installed by the primary build lock.
+Windows uses direct `Nuitka==4.1.3 --zig` with official Zig 0.16.0 x86-64 bytes as
+run-scoped build tooling. Zig's top-level license is MIT, but its Windows GNU ABI uses
+MinGW-w64/libc build inputs with their own license inventory. macOS retains Qt's
+`pyside6-deploy` frontend with standalone mode and the same exact Nuitka pin. Neither
+compiler toolchain is distributed in the candidate. Nuitka's exact Runtime Library
+Exception applies to qualifying generated target code; it does not weaken the compiler
+license. Before any public Windows distribution, the exact linked Zig/MinGW/libc/compiler
+runtime provenance, notices and source obligations must be resolved. PyInstaller 6.22.2
+onedir remains a documented fallback and is not installed by the primary build lock.
 
 Windows and macOS candidates are native onedir/`.app` ZIPs. Onefile, MSI, DMG, signing,
 notarization and release publication are excluded. The candidate is explicitly

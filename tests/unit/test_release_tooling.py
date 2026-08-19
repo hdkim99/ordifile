@@ -512,7 +512,7 @@ def test_sdist_requires_exact_standalone_build_inputs_when_enabled(tmp_path: Pat
     release.verify_sdist(complete, "0.1.0", source)
 
     missing = tmp_path / "missing-standalone.tar.gz"
-    omitted = "/scripts/standalone/windows_toolchain.ps1"
+    omitted = "/scripts/standalone/windows_zig.py"
     with tarfile.open(complete, "r:gz") as original, tarfile.open(missing, "w:gz") as output:
         for member in original.getmembers():
             if member.name.endswith(omitted):

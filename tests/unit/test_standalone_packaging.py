@@ -45,6 +45,15 @@ def _candidate(tmp_path: Path) -> Path:
     return root
 
 
+def _pe_x64_bytes() -> bytes:
+    content = bytearray(0x46)
+    content[:2] = b"MZ"
+    content[0x3C:0x40] = (0x40).to_bytes(4, "little")
+    content[0x40:0x44] = b"PE\0\0"
+    content[0x44:0x46] = b"\x64\x86"
+    return bytes(content)
+
+
 @pytest.fixture(autouse=True)
 def _pinned_manifest_toolchain(monkeypatch: pytest.MonkeyPatch) -> None:
     versions = {
@@ -202,20 +211,30 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "path: source" in windows_job
     assert windows_job.count("working-directory: source") >= 7
     assert windows_job.count('python-version: "3.14.3"') == 1
-    assert "Prepare Windows native compiler environment" in windows_job
-    assert "Verify activated Windows native compiler environment" in windows_job
-    assert windows_job.count("./scripts/standalone/windows_toolchain.ps1") == 2
-    assert "-Mode prepare" in windows_job
-    assert "-EnvironmentFile $env:GITHUB_ENV" in windows_job
-    assert "-Mode verify" in windows_job
-    assert windows_job.index("-Mode prepare") < windows_job.index("-Mode verify")
-    assert windows_job.index("-Mode verify") < windows_job.index(
-        "Clean persistent workspace before job"
+    assert "Bootstrap exact official job-local Zig" in windows_job
+    assert "windows_zig.py bootstrap" in windows_job
+    assert "windows_zig.py verify-native" in windows_job
+    assert "windows_zig.py verify-pyside" in windows_job
+    assert "windows_zig.py cleanup" in windows_job
+    assert '$manifest.packaging_backend -ne "DIRECT_NUITKA_ZIG"' in windows_job
+    assert '$manifest.toolchain.Zig -ne "0.16.0"' in windows_job
+    assert "windows_toolchain.ps1" not in windows_job
+    assert "ordifile-msvc-" not in windows_job
+    assert "--mingw64" not in windows_job
+    assert "--msvc" not in windows_job
+    assert windows_job.index("windows_zig.py bootstrap") < windows_job.index(
+        "windows_zig.py verify-native"
+    )
+    assert windows_job.index("windows_zig.py verify-native") < windows_job.index(
+        "windows_zig.py verify-pyside"
+    )
+    assert windows_job.index("windows_zig.py verify-pyside") < windows_job.index(
+        "Build and audit native candidate"
     )
     smoke_section = windows_job.split("Smoke immutable Windows bytes outside the checkout", 1)[
         1
     ].split("Require complete Windows evidence", 1)[0]
-    cleanup_section = windows_job.split("Remove bounded Windows runner scratch", 1)[1].split(
+    cleanup_section = windows_job.split("Remove bounded Windows standalone scratch", 1)[1].split(
         "Clean persistent workspace after job", 1
     )[0]
     assert '"ordifile-standalone-$env:GITHUB_RUN_ID-' in smoke_section
@@ -225,15 +244,11 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "[IO.FileMode]::CreateNew" in smoke_section
     assert "[IO.FileShare]::None" in smoke_section
     assert "ReadAllText($cleanupMarker" in smoke_section
-    assert "ordifile-msvc-$identity-prepare" in windows_job
-    assert "ordifile-msvc-$identity-verify" in windows_job
     assert "Standalone scratch ownership is invalid." in windows_job
     assert "[System.Management.Automation.ItemNotFoundException]" in windows_job
-    assert "ordifile-msvc-$identity-prepare" in cleanup_section
-    assert "ordifile-msvc-$identity-verify" in cleanup_section
-    assert ".ordifile-msvc-owned" in cleanup_section
-    assert "ORDIFILE_MSVC_PREPARE_CLEANUP_TOKEN" in cleanup_section
-    assert "ORDIFILE_MSVC_VERIFY_CLEANUP_TOKEN" in cleanup_section
+    assert '"ordifile-standalone-$identity"' in cleanup_section
+    assert ".ordifile-standalone-owned" in cleanup_section
+    assert "ORDIFILE_STANDALONE_CLEANUP_TOKEN" in cleanup_section
     assert "ReadAllText($marker" in cleanup_section
     assert "actions/setup-python@" not in macos_job
     assert "python-build-standalone/releases/download/20260203/" in macos_job
@@ -369,12 +384,17 @@ def test_manifest_schema_keeps_prototypes_non_publishable() -> None:
         "AD_HOC_NOT_NOTARIZED",
     }
     assert {
+        "packaging_backend",
         "files",
         "licenses",
         "adapter_ids",
         "bundle_total_size",
         "outer_artifact",
     } <= set(schema["required"])
+    assert set(schema["properties"]["packaging_backend"]["enum"]) == {
+        "DIRECT_NUITKA_ZIG",
+        "PYSIDE6_DEPLOY_NUITKA",
+    }
     assert schema["properties"]["outer_artifact"]["required"] == [
         "filename",
         "size",
@@ -525,6 +545,16 @@ def test_inventory_rejects_unneeded_qt_network_runtime(tmp_path: Path, relative:
         standalone_verify.inventory_bundle(root)
 
 
+def test_inventory_rejects_job_local_zig_compiler_bytes(tmp_path: Path) -> None:
+    root = _candidate(tmp_path)
+    (root / "bin" / "zig.exe").write_bytes(b"synthetic build tool")
+    with pytest.raises(
+        standalone_verify.StandaloneVerificationError,
+        match="build tool is bundled",
+    ):
+        standalone_verify.inventory_bundle(root)
+
+
 def test_deterministic_archive_preserves_relative_symlink(tmp_path: Path) -> None:
     source = tmp_path / "Ordifile.app"
     source.mkdir()
@@ -663,7 +693,7 @@ def test_build_rejects_caught_deployment_exception_with_fixed_stage(
             ROOT,
             tmp_path / "candidate",
             commit="0" * 40,
-            target="windows-x86_64",
+            target="macos-arm64",
         )
     assert captured.value.stage == "deploy"
     assert str(captured.value) == "deploy"
@@ -696,8 +726,22 @@ def test_native_entrypoint_requires_expected_regular_nonzero_file(
     with pytest.raises(ValueError, match="entry point is invalid"):
         standalone_build._validate_native_entrypoint(bundle, target)
 
-    entrypoint.write_bytes(b"public synthetic native entry point")
+    entrypoint.write_bytes(
+        _pe_x64_bytes() if target == "windows-x86_64" else b"public synthetic native entry point"
+    )
     assert standalone_build._validate_native_entrypoint(bundle, target) == entrypoint
+
+
+def test_windows_native_entrypoint_rejects_non_x64_pe(tmp_path: Path) -> None:
+    bundle = tmp_path / "Ordifile.dist"
+    bundle.mkdir()
+    entrypoint = bundle / "Ordifile.exe"
+    content = bytearray(_pe_x64_bytes())
+    content[0x44:0x46] = b"\x4c\x01"
+    entrypoint.write_bytes(content)
+
+    with pytest.raises(ValueError, match="entry point is invalid"):
+        standalone_build._validate_native_entrypoint(bundle, "windows-x86_64")
 
 
 def test_native_entrypoint_rejects_link_and_windows_reparse(
@@ -777,8 +821,8 @@ def test_build_rejects_partial_deployment_before_license_injection(
     def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         del args
         stage = Path(str(kwargs["cwd"]))
-        bundle = stage / "result" / "Ordifile.dist"
-        bundle.mkdir()
+        bundle = stage / "result" / "Ordifile.app"
+        bundle.mkdir(parents=True)
         if license_only:
             licenses = bundle / "licenses"
             licenses.mkdir()
@@ -797,7 +841,7 @@ def test_build_rejects_partial_deployment_before_license_injection(
             ROOT,
             tmp_path / "candidate",
             commit="0" * 40,
-            target="windows-x86_64",
+            target="macos-arm64",
         )
     assert captured.value.stage == "deploy-output"
     assert not (tmp_path / "candidate").exists()
@@ -1222,3 +1266,34 @@ def test_extracted_candidate_must_equal_manifest_and_expected_commit(tmp_path: P
             commit="d" * 40,
             target="macos-arm64",
         )
+
+
+def test_manifest_records_the_os_specific_packaging_backend(tmp_path: Path) -> None:
+    root = _candidate(tmp_path)
+    platform_plugin = root / "PySide6" / "plugins" / "platforms" / "qwindows.dll"
+    platform_plugin.parent.mkdir(parents=True)
+    platform_plugin.write_bytes(b"public synthetic Qt platform plugin")
+    windows = standalone_verify.build_manifest(
+        root,
+        commit="a" * 40,
+        target="windows-x86_64",
+        signature_state="UNSIGNED_PROTOTYPE",
+    )
+    macos = standalone_verify.build_manifest(
+        root,
+        commit="a" * 40,
+        target="macos-arm64",
+        signature_state="AD_HOC_NOT_NOTARIZED",
+    )
+
+    assert windows["packaging_backend"] == "DIRECT_NUITKA_ZIG"
+    assert windows["toolchain"] == {
+        "PySide6-Essentials": "6.11.2",
+        "shiboken6": "6.11.2",
+        "Nuitka": "4.1.3",
+        "Zig": "0.16.0",
+    }
+    assert macos["packaging_backend"] == "PYSIDE6_DEPLOY_NUITKA"
+    macos_toolchain = macos["toolchain"]
+    assert isinstance(macos_toolchain, dict)
+    assert "Zig" not in macos_toolchain

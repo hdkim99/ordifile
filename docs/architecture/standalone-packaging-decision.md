@@ -6,8 +6,9 @@
 
 ## Decision
 
-Use Qt's official `pyside6-deploy` frontend with `mode = standalone` and an exact
-`Nuitka==4.1.3` build-tool pin. Target a Windows onedir bundle ZIP through an
+Use direct `Nuitka==4.1.3` with its `--zig` backend and an exact job-local official
+Zig 0.16.0 archive for Windows. Retain Qt's `pyside6-deploy` frontend with
+`mode = standalone` and the same exact Nuitka pin for macOS. Target a Windows onedir bundle ZIP through an
 exact-SHA reusable workflow using a maintainer-owned caller repository's existing
 self-hosted Windows x86-64 runner, and target a macOS `.app` bundle ZIP
 through GitHub-hosted `macos-15`. Keep the ordinary Python package and `ordifile[gui]`
@@ -26,7 +27,8 @@ desktop workflow.
 
 | Path | Fit | Decision |
 |---|---|---|
-| `pyside6-deploy` + Nuitka standalone | Qt-maintained deployment frontend, native Qt plugin handling, onedir output and inspectable shared libraries | Primary |
+| Direct Nuitka + job-local Zig, Windows | Avoids permanent Visual Studio/MSVC/SDK host provisioning; exact x86-64 compiler asset and native probes | Primary on Windows |
+| `pyside6-deploy` + Nuitka standalone, macOS | Existing exact-head Qt-maintained frontend path and `.app` behavior | Primary on macOS |
 | PyInstaller 6.22.2 onedir | Mature cross-platform fallback with Qt hooks; a second spec/toolchain would add drift | Documented fallback only |
 | Briefcase 0.4.4 | Cross-platform BSD-3-Clause application/installer lifecycle, but introduces templates, support-package and installer policy beyond this existing Qt GUI wrapper | Rejected for the first prototype |
 | Nuitka/PyInstaller onefile | Extraction and LGPL replacement/relinking behavior are less transparent | Excluded |
@@ -74,24 +76,26 @@ literal values receive the narrow path-audit exception. Self-containment is sepa
 enforced by rejecting Mach-O dependencies or load commands that reference the build
 runtime and moving the entire runtime out of place during packaged execution. Windows
 continues to use `actions/setup-python` inside its run-scoped isolated job environment.
-The Windows job first accepts an already active x64 MSVC 19.30-or-newer environment only
-after a run-scoped synthetic compiler, linker, resource compiler, PE-header, `dumpbin`,
-MSBuild, SDK, and execution probe. If no active compiler is present, it discovers one
-registered Visual Studio 2022 native C/C++ toolchain through `vswhere`, activates its
-x64 developer environment in a child process, masks every imported value, and exports
-only a fixed compiler/SDK variable allowlist to the current job. A separate next step
-repeats the full probe before the build. A discovered but failing active compiler cannot
-be bypassed by the registered route. Neither route prints native-tool output or
-installation paths, changes machine- or user-level state, or installs software; the
-allowlisted environment exists only for this GitHub Actions job. The builder does not trust the
-deployment process exit code alone: before adding licenses or producing a manifest, it
+The Windows job pins the official Zig 0.16.0 x86-64 archive by URL, size and SHA-256,
+performs bounded path/type/size extraction into an ownership-marked runner-temporary
+root, and verifies the exact version. It must pass a native PE x86-64 compile/link/run
+probe and a minimal extracted PySide6/Nuitka window probe before building Ordifile.
+The direct Nuitka subprocess alone receives the reviewed Zig directory at the front of
+PATH; inherited `CC` and `CXX` are removed, stdin is closed to reject tool downloads,
+and `--zig` is mandatory. Its private SCons report must prove Nuitka Zig mode, disabled
+separate Nuitka MSVC and MinGW modes, the exact compiler path, and the
+`-march=x86_64` mitigation proposed in open issue #3987. Generic and older x86-64
+portability remains unresolved until physical validation.
+The builder does not trust the deployment process exit code alone: before adding licenses or producing a manifest, it
 requires one real, non-link, non-reparse bundle root and the exact platform entry point
 to be a regular, non-empty, non-link, non-reparse file. It also rejects the pinned
-deployment frontend's caught-exception marker. This closes a reviewed partial-`.dist`
-state without changing the packager. Installing a missing Build Tools instance is a
-separate private host-maintenance action and remains gated by an applicable Microsoft
-license, fixed installer identity, explicit minimal components, administrator authority,
-and manual handling of any reboot-required result.
+deployment frontend's caught-exception marker on macOS. This closes a reviewed partial
+bundle state. The Zig toolchain, caches and compiler report remain build-only and are
+removed by exact marker/token cleanup. Visual Studio, Build Tools, MSVC, Windows SDK and
+a host MinGW toolchain are not installed, and Nuitka's separate `--mingw64` fallback is
+not selected. Zig's Windows GNU ABI uses MinGW-w64/libc build inputs, whose exact linked
+runtime provenance and license obligations remain a public-distribution gate. macOS
+continues to use the existing deployment frontend.
 
 These controls reduce exposure but do not turn a persistent public-repository runner
 into a clean or disposable security boundary. Dispatch additionally requires a

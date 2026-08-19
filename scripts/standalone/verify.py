@@ -104,6 +104,25 @@ def _reject_unneeded_network_runtime(relative: str) -> None:
         raise StandaloneVerificationError("An unneeded Qt network component is bundled.")
 
 
+def _reject_build_tool(relative: str) -> None:
+    if PurePosixPath(relative).name.casefold() == "zig.exe":
+        raise StandaloneVerificationError("A build tool is bundled in the standalone candidate.")
+
+
+def _validate_target_runtime(files: tuple[dict[str, object], ...], target: str) -> None:
+    if target != "windows-x86_64":
+        return
+    windows_platforms = [
+        item
+        for item in files
+        if item["kind"] == "file"
+        and PurePosixPath(str(item["path"])).name.casefold() == "qwindows.dll"
+        and "platforms" in (part.casefold() for part in PurePosixPath(str(item["path"])).parts)
+    ]
+    if len(windows_platforms) != 1:
+        raise StandaloneVerificationError("The Windows Qt platform runtime is incomplete.")
+
+
 def inventory_bundle(
     root: Path, *, forbidden_text: Iterable[str] = ()
 ) -> tuple[tuple[dict[str, object], ...], tuple[str, ...]]:
@@ -144,6 +163,7 @@ def inventory_bundle(
             if path.suffix.casefold() in FORBIDDEN_FIXTURE_SUFFIXES:
                 raise StandaloneVerificationError("A prohibited scientific fixture is bundled.")
             _reject_unneeded_network_runtime(relative)
+            _reject_build_tool(relative)
             if _text_contains(relative, needles):
                 raise StandaloneVerificationError(
                     "Private build data is embedded in a bundle path."
@@ -231,6 +251,7 @@ def build_manifest(
     if signature_state not in {"UNSIGNED_PROTOTYPE", "AD_HOC_NOT_NOTARIZED"}:
         raise StandaloneVerificationError("The candidate signature state is unsupported.")
     files, licenses = inventory_bundle(root, forbidden_text=forbidden_text)
+    _validate_target_runtime(files, target)
 
     def installed(distribution: str) -> str:
         try:
@@ -243,11 +264,17 @@ def build_manifest(
         "shiboken6": installed("shiboken6"),
         "Nuitka": installed("Nuitka"),
     }
-    if toolchain != {
+    expected_toolchain = {
         "PySide6-Essentials": "6.11.2",
         "shiboken6": "6.11.2",
         "Nuitka": "4.1.3",
-    }:
+    }
+    packaging_backend = "PYSIDE6_DEPLOY_NUITKA"
+    if target == "windows-x86_64":
+        toolchain["Zig"] = "0.16.0"
+        expected_toolchain["Zig"] = "0.16.0"
+        packaging_backend = "DIRECT_NUITKA_ZIG"
+    if toolchain != expected_toolchain:
         raise StandaloneVerificationError("The standalone toolchain versions are not pinned.")
     bundle_total_size = 0
     for item in files:
@@ -263,6 +290,7 @@ def build_manifest(
         "commit": commit,
         "target": target,
         "python_version": platform.python_version(),
+        "packaging_backend": packaging_backend,
         "toolchain": toolchain,
         "adapter_ids": [item.adapter_id for item in list_formats()],
         "bundle_total_size": bundle_total_size,

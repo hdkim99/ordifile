@@ -66,7 +66,7 @@ STANDALONE_SDIST_FILES = (
     "scripts/standalone/entry.py",
     "scripts/standalone/smoke.py",
     "scripts/standalone/verify.py",
-    "scripts/standalone/windows_toolchain.ps1",
+    "scripts/standalone/windows_zig.py",
     "tests/fixtures/synthetic/generate_agilent_ch_v181.py",
     "tests/fixtures/synthetic/generate_agilent_chemstation_result_xml.py",
     "tests/fixtures/synthetic/generate_cfb_v4.py",

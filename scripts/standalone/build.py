@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Build one native unsigned Ordifile candidate with official pyside6-deploy."""
+"""Build one audited native unsigned Ordifile candidate."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import hashlib
 import os
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import sysconfig
@@ -37,6 +38,7 @@ except ImportError:
     )
 
 NUITKA_VERSION = "4.1.3"
+ZIG_VERSION = "0.16.0"
 DEPLOY_EXCEPTION_MARKER = "[DEPLOY] Exception occurred:"
 PINNED_MACOS_PYTHON_PREFIX = Path("/opt/ordifile-python-3.14.3")
 PINNED_MACOS_PYTHON_EXECUTABLE = PINNED_MACOS_PYTHON_PREFIX / "bin" / "python3.14"
@@ -183,6 +185,145 @@ def _deployment_failed(completed: subprocess.CompletedProcess[str]) -> bool:
     return completed.returncode != 0 or DEPLOY_EXCEPTION_MARKER in captured
 
 
+def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
+    """Translate the reviewed Qt deployment contract to direct Nuitka arguments."""
+    return [
+        sys.executable,
+        "-m",
+        "nuitka",
+        str(entrypoint),
+        "--follow-imports",
+        "--enable-plugin=pyside6",
+        f"--output-dir={output}",
+        "--standalone",
+        "--quiet",
+        "--noinclude-qt-translations",
+        "--noinclude-qt-plugins=tls",
+        "--static-libpython=no",
+        "--zig",
+    ]
+
+
+def _validated_windows_zig() -> Path:
+    """Require the exact job-local Zig selected by the reviewed bootstrap."""
+    try:
+        from .windows_zig import ZigStageError, _configured_zig
+    except ImportError:
+        from windows_zig import (  # type: ignore[import-not-found,no-redef]
+            ZigStageError,
+            _configured_zig,
+        )
+    try:
+        _root, executable, _token = _configured_zig()
+    except ZigStageError as error:
+        raise ValueError("The reviewed job-local Zig compiler is invalid.") from error
+    return executable
+
+
+def _validate_zig_scons_report(output: Path, stem: str, executable: Path) -> None:
+    """Confirm that the direct Nuitka build actually selected its Zig backend."""
+    report = output / f"{stem}.build" / "scons-report.txt"
+    try:
+        metadata = report.stat(follow_symlinks=False)
+        resolved = report.resolve(strict=True)
+        output_root = output.resolve(strict=True)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_size <= 0
+            or metadata.st_size > 16 * 1024 * 1024
+            or report.is_symlink()
+            or _has_windows_reparse_attribute(metadata)
+            or not resolved.is_relative_to(output_root)
+        ):
+            raise ValueError("The Nuitka compiler report is unavailable.")
+        content = report.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ValueError("The Nuitka compiler report is unavailable.") from error
+    values: dict[str, str] = {}
+    for line in content.splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key in {
+            "zig_mode",
+            "msvc_mode",
+            "mingw_mode",
+            "c_flags",
+            "the_cc_name",
+            "the_compiler",
+        }:
+            if key in values:
+                raise ValueError("The Nuitka compiler backend identity is invalid.")
+            values[key] = value
+    expected = {
+        "zig_mode": "True",
+        "msvc_mode": "False",
+        "mingw_mode": "False",
+        "c_flags": "-march=x86_64",
+        "the_cc_name": "zig.exe",
+        "the_compiler": str(executable),
+    }
+    if values != expected:
+        raise ValueError("The Nuitka compiler backend identity is invalid.")
+    try:
+        if not executable.resolve(strict=True).is_file() or Path(values["the_compiler"]).resolve(
+            strict=True
+        ) != executable.resolve(strict=True):
+            raise ValueError("The Nuitka compiler backend identity is invalid.")
+    except OSError as error:
+        raise ValueError("The Nuitka compiler backend identity is invalid.") from error
+
+
+def _run_windows_nuitka(entrypoint: Path, output: Path) -> None:
+    zig = _validated_windows_zig()
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{zig.parent}{os.pathsep}{environment.get('PATH', '')}",
+            "CFLAGS": "-march=x86_64",
+            "CCFLAGS": "",
+            "CPPFLAGS": "",
+            "CXXFLAGS": "",
+            "LDFLAGS": "",
+        }
+    )
+    environment.pop("CC", None)
+    environment.pop("CXX", None)
+    completed = subprocess.run(
+        _windows_nuitka_command(entrypoint, output),
+        cwd=entrypoint.parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=45 * 60,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+    )
+    if completed.returncode != 0:
+        raise ValueError("Direct Nuitka deployment failed.")
+    validated_after = _validated_windows_zig()
+    if validated_after != zig:
+        raise ValueError("The reviewed job-local Zig compiler is invalid.")
+    _validate_zig_scons_report(output, entrypoint.stem, zig)
+
+
+def _run_macos_deploy(spec: Path, stage: Path) -> None:
+    completed = subprocess.run(
+        [
+            str(_deploy_executable()),
+            "-c",
+            str(spec),
+            "--force",
+            f"--nuitka-version={NUITKA_VERSION}",
+        ],
+        cwd=stage,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=45 * 60,
+    )
+    if _deployment_failed(completed):
+        raise ValueError("Deployment command failed.")
+
+
 def _has_windows_reparse_attribute(metadata: object) -> bool:
     value = getattr(metadata, "st_file_attributes", 0)
     marker = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
@@ -193,7 +334,7 @@ def _bundle_candidate(directory: Path, target: str) -> Path:
     suffix = "*.app" if target.startswith("macos-") else "*.dist"
     candidates = tuple(directory.glob(suffix))
     if len(candidates) != 1:
-        raise ValueError("pyside6-deploy did not create exactly one standalone bundle.")
+        raise ValueError("The packaging backend did not create exactly one standalone bundle.")
     bundle = candidates[0]
     try:
         metadata = bundle.stat(follow_symlinks=False)
@@ -260,6 +401,20 @@ def _validate_native_entrypoint(bundle: Path, target: str) -> Path:
         raise ValueError("The native standalone entry point is invalid.") from error
     if not resolved.is_relative_to(root):
         raise ValueError("The native standalone entry point is invalid.")
+    if target == "windows-x86_64":
+        try:
+            with entrypoint.open("rb") as stream:
+                if stream.read(2) != b"MZ":
+                    raise ValueError("The native standalone entry point is invalid.")
+                stream.seek(0x3C)
+                offset = stream.read(4)
+                if len(offset) != 4:
+                    raise ValueError("The native standalone entry point is invalid.")
+                stream.seek(struct.unpack("<I", offset)[0])
+                if stream.read(4) != b"PE\0\0" or stream.read(2) != b"\x64\x86":
+                    raise ValueError("The native standalone entry point is invalid.")
+        except OSError as error:
+            raise ValueError("The native standalone entry point is invalid.") from error
     return entrypoint
 
 
@@ -390,32 +545,20 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
             executable_dir.mkdir()
             shutil.copy2(scripts / "entry.py", temporary_stage / "Ordifile.py")
             shutil.copy2(scripts / "smoke.py", temporary_stage / "smoke.py")
-            spec = temporary_stage / "pysidedeploy.spec"
-            _render_spec(
-                packaging / "pysidedeploy.spec.in",
-                spec,
-                temporary_stage,
-                executable_dir,
-                target=target,
-            )
-            build_stage = "deploy"
-            command = [
-                str(_deploy_executable()),
-                "-c",
-                str(spec),
-                "--force",
-                f"--nuitka-version={NUITKA_VERSION}",
-            ]
-            completed = subprocess.run(
-                command,
-                cwd=temporary_stage,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=45 * 60,
-            )
-            if _deployment_failed(completed):
-                raise ValueError("Deployment command failed.")
+            if target == "windows-x86_64":
+                build_stage = "deploy"
+                _run_windows_nuitka(temporary_stage / "Ordifile.py", executable_dir)
+            else:
+                spec = temporary_stage / "pysidedeploy.spec"
+                _render_spec(
+                    packaging / "pysidedeploy.spec.in",
+                    spec,
+                    temporary_stage,
+                    executable_dir,
+                    target=target,
+                )
+                build_stage = "deploy"
+                _run_macos_deploy(spec, temporary_stage)
             build_stage = "bundle-discovery"
             bundle = _bundle_candidate(executable_dir, target)
             build_stage = "deploy-output"

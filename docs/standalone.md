@@ -9,7 +9,8 @@ bundles. It is not a public binary release and does not change the supported
 - Windows x86-64: onedir ZIP
 - macOS arm64: `.app` ZIP
 - Python 3.14.3 on both platforms; macOS uses an exact standalone install-only runtime;
-  PySide6-Essentials/shiboken6 6.11.2; Nuitka 4.1.3
+  PySide6-Essentials/shiboken6 6.11.2; Nuitka 4.1.3; Windows uses exact build-only
+  Zig 0.16.0 x86-64 bytes
 - unsigned or ad-hoc-signed evidence only
 - public-safe synthetic inputs for every built-in Generic, Agilent, Shimadzu and
   YoungIn adapter, including UTF-8, UTF-8-BOM and YoungIn CP949
@@ -95,8 +96,8 @@ the job, including on failure.
 This prevents the prototype workflow from bypassing the unresolved Qt redistribution
 gates through a downloadable public Actions artifact.
 
-The manifest is deterministic and path-safe. It records the source commit, Ordifile
-and toolchain versions, target, signature state, dynamic adapter registry, every inner
+The manifest is deterministic and path-safe. It records the source commit, Ordifile,
+backend and toolchain versions, target, signature state, dynamic adapter registry, every inner
 file hash, bundle total size, outer ZIP filename/size/SHA-256 and the license inventory.
 `publishable` is always `false`.
 
@@ -128,21 +129,25 @@ license injection, manifest generation, or archiving, the builder requires one r
 non-link, non-reparse bundle root and the exact native entry point (`Ordifile.exe` on
 Windows or `Contents/MacOS/Ordifile` on macOS) to be a regular, non-empty, non-link,
 non-reparse file. It also rejects the pinned deployment frontend's caught-exception
-marker. The Windows workflow accepts an already active x64 MSVC 19.30-or-newer
-environment only after a bounded probe exercises the compiler, linker, resource
-compiler, SDK, PE x64 output, `dumpbin`, MSBuild, and the generated executable. If no
-compiler is active, it uses `vswhere` to select one registered Visual Studio 2022
-toolchain, activates the x64 developer environment in a child process, masks its values,
-and exports only a fixed compiler/SDK variable allowlist to the current Actions job. The
-next workflow step repeats the complete probe before any packaging command. A discovered
-active compiler must pass rather than being bypassed by the registered route, matching
-the pinned backend's selection order. Successful probes and ordinary failure paths clean
-bounded temporary data; the job's final bounded cleanup also covers interrupted prepare
-and verify roots after their ownership marker and masked cleanup token are established. Neither
-route prints native-tool output or installation paths, changes machine or user
-configuration, or installs software. Provisioning a genuinely missing Build Tools
-instance is a separately reviewed private host-maintenance operation and is not part of
-the reusable build workflow.
+marker on macOS. Windows does not invoke `pyside6-deploy`. The reusable job downloads
+the official Zig 0.16.0 x86-64 ZIP to an ownership-marked `RUNNER_TEMP` child, checks
+its exact public size and SHA-256, rejects unsafe ZIP members, and extracts only into
+that root. It requires `zig version`, a native x86-64 compile/link/execute probe, and a
+minimal PySide6/Nuitka standalone-window probe before the full build. The full Windows
+command is direct `python -m nuitka --standalone --enable-plugin=pyside6 --zig`; only
+that subprocess receives PATH prefixed with the reviewed Zig directory, with inherited
+`CC` and `CXX` removed. `CFLAGS=-march=x86_64` applies the baseline mitigation proposed
+in open Nuitka issue #3987; it does not establish portability on generic or older
+x86-64 machines. The private SCons report must prove Nuitka Zig mode, disabled separate
+Nuitka MSVC/MinGW modes, the exact compiler path, and the baseline flag. The report,
+Zig archive, compiler, caches and native candidate are never uploaded. Exact
+ownership-token cleanup removes the Zig root after ordinary failure. Visual Studio,
+Build Tools, MSVC, Windows SDK and a host MinGW toolchain are not installed; the
+workflow never selects Nuitka's `--mingw64` fallback, and it does not change the runner
+service, registration, labels or machine PATH. Zig's Windows GNU ABI nevertheless uses
+MinGW-w64/libc build inputs, so exact linked-runtime provenance, notices and source
+obligations remain a hard public-distribution gate. macOS retains the reviewed
+`pyside6-deploy` path.
 
 ## What the smoke proves
 

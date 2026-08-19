@@ -57,7 +57,7 @@ jobs:
     name: Build and smoke unsigned Windows prototype
     needs: caller-preflight
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 75
+    timeout-minutes: 120
     env:
       PSExecutionPolicyPreference: Bypass
     steps:
@@ -106,23 +106,15 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14.3"
-      - name: Prepare Windows native compiler environment
-        shell: pwsh
-        working-directory: source
-        run: >-
-          ./scripts/standalone/windows_toolchain.ps1
-          -Mode prepare
-          -EnvironmentFile $env:GITHUB_ENV
-      - name: Verify activated Windows native compiler environment
-        shell: pwsh
-        working-directory: source
-        run: >-
-          ./scripts/standalone/windows_toolchain.ps1
-          -Mode verify
-          -EnvironmentFile $env:GITHUB_ENV
       - name: Clean persistent workspace before job
         working-directory: source
         run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Bootstrap exact official job-local Zig
+        working-directory: source
+        run: python scripts/standalone/windows_zig.py bootstrap
+      - name: Prove job-local Zig native compile and link
+        working-directory: source
+        run: python scripts/standalone/windows_zig.py verify-native
       - name: Create isolated Windows job environment
         working-directory: source
         run: python scripts/ci/run_in_venv.py create --github-runner
@@ -131,6 +123,11 @@ jobs:
         run: |
           python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --requirement packaging/standalone/requirements-build.lock
           python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --quiet --no-deps .
+      - name: Prove exact PySide6 and Nuitka Zig standalone path
+        working-directory: source
+        run: >-
+          python scripts/ci/run_in_venv.py run --github-runner --
+          scripts/standalone/windows_zig.py verify-pyside
       - name: Create public checkout-independent smoke kit
         working-directory: source
         run: >-
@@ -223,7 +220,11 @@ jobs:
             throw "Standalone archive checksum mismatch."
           }
           $manifest = Get-Content -LiteralPath (Join-Path $candidate "standalone-manifest.json") -Raw | ConvertFrom-Json
-          if ($manifest.publishable -ne $false -or $manifest.signature_state -ne "UNSIGNED_PROTOTYPE") {
+          if ($manifest.publishable -ne $false -or
+              $manifest.signature_state -ne "UNSIGNED_PROTOTYPE" -or
+              $manifest.packaging_backend -ne "DIRECT_NUITKA_ZIG" -or
+              $manifest.toolchain.Zig -ne "0.16.0" -or
+              $manifest.toolchain.Nuitka -ne "4.1.3") {
             throw "Prototype publication/signature gate is invalid."
           }
           if ($manifest.outer_artifact.filename -ne $archives[0].Name -or
@@ -325,7 +326,7 @@ jobs:
         if: always()
         working-directory: source
         run: python scripts/ci/run_in_venv.py remove --github-runner
-      - name: Remove bounded Windows runner scratch
+      - name: Remove bounded Windows standalone scratch
         if: always()
         shell: pwsh
         run: |
@@ -339,80 +340,50 @@ jobs:
             [IO.Path]::AltDirectorySeparatorChar
           )
           $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd($trimCharacters)
-          $cleanupTargets = @(
-            [PSCustomObject]@{
-              Name = "ordifile-standalone-$identity"
-              Marker = ".ordifile-standalone-owned"
-              Token = $env:ORDIFILE_STANDALONE_CLEANUP_TOKEN
-            },
-            [PSCustomObject]@{
-              Name = "ordifile-msvc-$identity-prepare"
-              Marker = ".ordifile-msvc-owned"
-              Token = $env:ORDIFILE_MSVC_PREPARE_CLEANUP_TOKEN
-            },
-            [PSCustomObject]@{
-              Name = "ordifile-msvc-$identity-verify"
-              Marker = ".ordifile-msvc-owned"
-              Token = $env:ORDIFILE_MSVC_VERIFY_CLEANUP_TOKEN
-            }
+          $scratch = [IO.Path]::GetFullPath(
+            (Join-Path $runnerTemp "ordifile-standalone-$identity")
           )
-          $cleanupFailed = $false
-          foreach ($target in $cleanupTargets) {
-            $scratch = [IO.Path]::GetFullPath((Join-Path $runnerTemp $target.Name))
-            $parent = [IO.Path]::GetDirectoryName($scratch).TrimEnd($trimCharacters)
-            if (-not $parent.Equals($runnerTemp, [StringComparison]::OrdinalIgnoreCase)) {
-              throw "Standalone scratch boundary is invalid."
-            }
-            $scratchItem = $null
-            try {
-              $scratchItem = Get-Item -LiteralPath $scratch -Force -ErrorAction Stop
-            }
-            catch [System.Management.Automation.ItemNotFoundException] {
-              continue
-            }
-            catch {
-              $cleanupFailed = $true
-              continue
-            }
-            if (
-              -not ($scratchItem -is [System.IO.DirectoryInfo]) -or
-              -not $scratchItem.PSIsContainer -or
-              ($scratchItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-              -not ([IO.Path]::GetFullPath($scratchItem.FullName)).Equals(
-                $scratch,
-                [StringComparison]::OrdinalIgnoreCase
-              )
-            ) {
-              $cleanupFailed = $true
-              continue
-            }
-            $marker = Join-Path $scratch $target.Marker
-            $markerItem = $null
-            try {
-              $markerItem = Get-Item -LiteralPath $marker -Force -ErrorAction Stop
-            }
-            catch {
-              $cleanupFailed = $true
-              continue
-            }
-            if (
-              [string]::IsNullOrWhiteSpace($target.Token) -or
-              -not ($markerItem -is [System.IO.FileInfo]) -or
-              $markerItem.PSIsContainer -or
-              ($markerItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-              [IO.File]::ReadAllText($marker, [Text.Encoding]::UTF8) -cne $target.Token
-            ) {
-              $cleanupFailed = $true
-              continue
-            }
-            Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction Stop *> $null
-            if (Test-Path -LiteralPath $scratch -ErrorAction Stop) {
-              $cleanupFailed = $true
-            }
+          $parent = [IO.Path]::GetDirectoryName($scratch).TrimEnd($trimCharacters)
+          if (-not $parent.Equals($runnerTemp, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Standalone scratch boundary is invalid."
           }
-          if ($cleanupFailed) {
+          try {
+            $scratchItem = Get-Item -LiteralPath $scratch -Force -ErrorAction Stop
+          }
+          catch [System.Management.Automation.ItemNotFoundException] {
+            exit 0
+          }
+          if (
+            -not ($scratchItem -is [System.IO.DirectoryInfo]) -or
+            -not $scratchItem.PSIsContainer -or
+            ($scratchItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            -not ([IO.Path]::GetFullPath($scratchItem.FullName)).Equals(
+              $scratch,
+              [StringComparison]::OrdinalIgnoreCase
+            )
+          ) {
             throw "Standalone scratch cleanup failed."
           }
+          $marker = Join-Path $scratch ".ordifile-standalone-owned"
+          $markerItem = Get-Item -LiteralPath $marker -Force -ErrorAction Stop
+          if (
+            [string]::IsNullOrWhiteSpace($env:ORDIFILE_STANDALONE_CLEANUP_TOKEN) -or
+            -not ($markerItem -is [System.IO.FileInfo]) -or
+            $markerItem.PSIsContainer -or
+            ($markerItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            [IO.File]::ReadAllText($marker, [Text.Encoding]::UTF8) -cne
+              $env:ORDIFILE_STANDALONE_CLEANUP_TOKEN
+          ) {
+            throw "Standalone scratch cleanup failed."
+          }
+          Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction Stop *> $null
+          if (Test-Path -LiteralPath $scratch -ErrorAction Stop) {
+            throw "Standalone scratch cleanup failed."
+          }
+      - name: Remove bounded job-local Zig toolchain
+        if: always()
+        working-directory: source
+        run: python scripts/standalone/windows_zig.py cleanup
       - name: Clean persistent workspace after job
         if: always()
         working-directory: source
