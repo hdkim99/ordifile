@@ -45,7 +45,10 @@ GitHub-hosted `macos-15`; changing that routing requires a separate review. Wind
 uses the exact `actions/setup-python` version selected by the workflow. macOS installs
 the byte-verified official Python 3.14.3 universal2 package; an exact-head prototype
 rejected the hosted tool-cache distribution because its runner-specific runtime prefix
-remained in final bundle bytes.
+remained in final bundle bytes. The official interpreter's fixed system framework path
+is public rather than runner-identifying, so it is not treated as private build data.
+Self-containment is checked separately: no Mach-O load command may reference that
+framework, and the framework is moved out of place while the packaged smoke runs.
 Both jobs check out the exact reviewed same-repository SHA, unpack the exact candidate into runner-temporary
 space, clear Python import overrides, and run only the packaged executable for
 scientific and window smokes. This is checkout-independent artifact execution, but not

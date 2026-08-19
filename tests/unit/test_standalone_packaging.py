@@ -145,8 +145,37 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "/usr/bin/sudo -n /usr/sbin/installer" in macos_job
     assert "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14" in macos_job
     assert "print(platform.machine())" in macos_job
+    assert "print(sys.prefix)" in macos_job
+    assert "print(sys.executable)" in macos_job
     assert "print(sys.base_prefix)" in macos_job
     assert macos_job.count("python3.14 scripts/standalone/") == 3
+    assert "A Mach-O dependency inventory failed." in macos_job
+    assert "A Mach-O load-command inventory failed." in macos_job
+    assert "A bundle file-type inventory failed." in macos_job
+    assert "The bundle file inventory failed." in macos_job
+    assert "The bundle file inventory cleanup failed." in macos_job
+    assert "The candidate depends on the build-host Python framework." in macos_job
+    assert 'file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)"' in macos_job
+    assert '/usr/bin/file -b "${member}" |' not in macos_job
+    assert 'done < "${file_inventory}"' in macos_job
+    assert "done < <(/usr/bin/find" not in macos_job
+    assert "/usr/bin/otool -L" in macos_job
+    assert "/usr/bin/otool -l" in macos_job
+    assert "/usr/bin/sudo -n /bin/mv" in macos_job
+    assert "The Python framework isolation identity is invalid." in macos_job
+    assert "The Python framework isolation root is invalid." in macos_job
+    assert "The Python framework isolation boundary is invalid." in macos_job
+    assert "The source Python framework state is invalid." in macos_job
+    assert "The Python framework isolation destination is occupied." in macos_job
+    assert "The Python framework restore state is invalid." in macos_job
+    assert "The Python framework restore operation failed." in macos_job
+    assert "The restored Python framework state is invalid." in macos_job
+    assert "The Python framework isolation operation failed." in macos_job
+    assert "The isolated Python framework state is invalid." in macos_job
+    assert macos_job.count('|| -L "${') >= 6
+    assert macos_job.count(">/dev/null 2>&1") >= 2
+    assert "trap restore_python_framework EXIT" in macos_job
+    assert "trap - EXIT" in macos_job
     assert "--target windows-x86_64" in text
     assert "--standalone-smoke" in text
     assert "--standalone-window-smoke" in text
@@ -630,7 +659,9 @@ def test_private_build_path_inventory_includes_environment_without_logging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
-    values = standalone_build._private_build_paths(ROOT, tmp_path / "stage")
+    values = standalone_build._private_build_paths(
+        ROOT, tmp_path / "stage", target="windows-x86_64"
+    )
     assert str((tmp_path / "runner").resolve()) in values
     assert str(Path.home().resolve()) in values
     assert str(Path(os.path.realpath(sys.prefix))) in values
@@ -656,9 +687,9 @@ def test_private_bundle_data_classification_is_category_only(
     bundle = _candidate(tmp_path / category)
     value = value_factory(source, stage)
     (bundle / "bin" / "Ordifile").write_text(value, encoding="utf-8")
-    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
-        f"bundle-audit-private-{category}"
-    )
+    assert standalone_build._classify_private_bundle_data(
+        bundle, source, stage, target="windows-x86_64"
+    ) == (f"bundle-audit-private-{category}")
 
 
 def test_private_bundle_data_prefers_runtime_over_containing_temporary_root(
@@ -673,9 +704,9 @@ def test_private_bundle_data_prefers_runtime_over_containing_temporary_root(
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     (bundle / "bin" / "Ordifile").write_text(str(runtime), encoding="utf-8")
 
-    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
-        "bundle-audit-private-runtime-prefix"
-    )
+    assert standalone_build._classify_private_bundle_data(
+        bundle, source, stage, target="windows-x86_64"
+    ) == ("bundle-audit-private-runtime-prefix")
 
 
 def test_private_bundle_data_classifies_runner_tool_cache_without_exposing_it(
@@ -688,9 +719,74 @@ def test_private_bundle_data_classifies_runner_tool_cache_without_exposing_it(
     monkeypatch.setenv("RUNNER_TOOL_CACHE", str(tool_cache))
     (bundle / "bin" / "Ordifile").write_text(str(tool_cache), encoding="utf-8")
 
-    assert standalone_build._classify_private_bundle_data(bundle, source, stage) == (
-        "bundle-audit-private-runtime-tool-cache"
+    assert standalone_build._classify_private_bundle_data(
+        bundle, source, stage, target="windows-x86_64"
+    ) == ("bundle-audit-private-runtime-tool-cache")
+
+
+def test_official_macos_runtime_is_public_but_other_private_roots_remain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    stage = tmp_path / "stage"
+    monkeypatch.setattr(sys, "prefix", str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX))
+    monkeypatch.setattr(
+        sys,
+        "executable",
+        str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE),
     )
+
+    values = standalone_build._private_build_paths(source, stage, target="macos-arm64")
+
+    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) not in values
+    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE) not in values
+    assert str(source.resolve()) in values
+    assert str(stage.resolve()) in values
+    assert str(Path.home().resolve()) in values
+
+    windows_values = standalone_build._private_build_paths(source, stage, target="windows-x86_64")
+    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) in windows_values
+    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE) in windows_values
+
+
+def test_official_macos_runtime_exception_requires_both_exact_literals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    stage = tmp_path / "stage"
+    monkeypatch.setattr(sys, "prefix", str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX))
+    near_miss = standalone_build.OFFICIAL_MACOS_PYTHON_EXECUTABLE.with_name("python3")
+    monkeypatch.setattr(sys, "executable", str(near_miss))
+
+    values = standalone_build._private_build_paths(source, stage, target="macos-arm64")
+
+    assert str(standalone_build.OFFICIAL_MACOS_PYTHON_PREFIX) in values
+    assert str(near_miss) in values
+
+
+def test_official_macos_runtime_exception_keeps_resolved_symlink_targets_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    actual_prefix = tmp_path / "actual-runtime"
+    (actual_prefix / "bin").mkdir(parents=True)
+    actual_executable = actual_prefix / "bin" / "python3.14"
+    actual_executable.write_bytes(b"synthetic runtime")
+    public_prefix = tmp_path / "public-runtime"
+    public_prefix.symlink_to(actual_prefix, target_is_directory=True)
+    public_executable = public_prefix / "bin" / "python3.14"
+    monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_PREFIX", public_prefix)
+    monkeypatch.setattr(standalone_build, "OFFICIAL_MACOS_PYTHON_EXECUTABLE", public_executable)
+    monkeypatch.setattr(sys, "prefix", str(public_prefix))
+    monkeypatch.setattr(sys, "executable", str(public_executable))
+
+    values = standalone_build._private_build_paths(
+        tmp_path / "source", tmp_path / "stage", target="macos-arm64"
+    )
+
+    assert str(public_prefix) not in values
+    assert str(public_executable) not in values
+    assert str(actual_prefix.resolve()) in values
+    assert str(actual_executable.resolve()) in values
 
 
 def test_extracted_candidate_must_equal_manifest_and_expected_commit(tmp_path: Path) -> None:

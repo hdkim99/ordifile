@@ -307,6 +307,9 @@ jobs:
           python_bin="/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14"
           test "$("${python_bin}" -c 'import platform; print(platform.python_version())')" = "3.14.3"
           test "$("${python_bin}" -c 'import platform; print(platform.machine())')" = "$(uname -m)"
+          test "$("${python_bin}" -c 'import sys; print(sys.prefix)')" = \
+            "/Library/Frameworks/Python.framework/Versions/3.14"
+          test "$("${python_bin}" -c 'import sys; print(sys.executable)')" = "${python_bin}"
           test "$("${python_bin}" -c 'import sys; print(sys.base_prefix)')" = \
             "/Library/Frameworks/Python.framework/Versions/3.14"
           echo "/Library/Frameworks/Python.framework/Versions/3.14/bin" >> "${GITHUB_PATH}"
@@ -366,6 +369,89 @@ jobs:
             --manifest "${candidate}/standalone-manifest.json" \
             --commit "${{ github.sha }}" \
             --target "${{ steps.platform.outputs.target }}"
+          framework="/Library/Frameworks/Python.framework/Versions/3.14"
+          file_inventory="${scratch}/bundle-files.nul"
+          if ! /usr/bin/find "${bundle}" -type f -print0 > "${file_inventory}" 2>/dev/null; then
+            echo "The bundle file inventory failed." >&2
+            exit 1
+          fi
+          while IFS= read -r -d '' member; do
+            file_description="$(/usr/bin/file -b "${member}" 2>/dev/null)" || {
+              echo "A bundle file-type inventory failed." >&2
+              exit 1
+            }
+            if /usr/bin/grep -q 'Mach-O' <<< "${file_description}"; then
+              dependencies="$(/usr/bin/otool -L "${member}" 2>/dev/null)" || {
+                echo "A Mach-O dependency inventory failed." >&2
+                exit 1
+              }
+              load_commands="$(/usr/bin/otool -l "${member}" 2>/dev/null)" || {
+                echo "A Mach-O load-command inventory failed." >&2
+                exit 1
+              }
+              if /usr/bin/grep -Fq "${framework}" <<< "${dependencies}" ||
+                 /usr/bin/grep -Fq "${framework}" <<< "${load_commands}"; then
+                echo "The candidate depends on the build-host Python framework." >&2
+                exit 1
+              fi
+            fi
+          done < "${file_inventory}"
+          if ! /bin/rm "${file_inventory}" 2>/dev/null; then
+            echo "The bundle file inventory cleanup failed." >&2
+            exit 1
+          fi
+          framework_name="ordifile-disabled-python-framework-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ ! "${framework_name}" =~ ^ordifile-disabled-python-framework-[0-9]+-[0-9]+$ ]]; then
+            echo "The Python framework isolation identity is invalid." >&2
+            exit 1
+          fi
+          runner_temp="$(cd "${RUNNER_TEMP}" 2>/dev/null && /bin/pwd -P)" || {
+            echo "The Python framework isolation root is invalid." >&2
+            exit 1
+          }
+          disabled_framework="${runner_temp}/${framework_name}"
+          if [[ "$(/usr/bin/dirname "${disabled_framework}")" != "${runner_temp}" ]]; then
+            echo "The Python framework isolation boundary is invalid." >&2
+            exit 1
+          fi
+          if [[ ! -d "${framework}" || -L "${framework}" ||
+                ! -x "${framework}/bin/python3.14" ]]; then
+            echo "The source Python framework state is invalid." >&2
+            exit 1
+          fi
+          if [[ -e "${disabled_framework}" || -L "${disabled_framework}" ]]; then
+            echo "The Python framework isolation destination is occupied." >&2
+            exit 1
+          fi
+          restore_python_framework() {
+            if [[ ! -d "${disabled_framework}" || -L "${disabled_framework}" ||
+                  -e "${framework}" || -L "${framework}" ]]; then
+              echo "The Python framework restore state is invalid." >&2
+              return 1
+            fi
+            if ! /usr/bin/sudo -n /bin/mv "${disabled_framework}" "${framework}" \
+                 >/dev/null 2>&1; then
+              echo "The Python framework restore operation failed." >&2
+              return 1
+            fi
+            if [[ ! -d "${framework}" || -L "${framework}" ||
+                  ! -x "${framework}/bin/python3.14" ||
+                  -e "${disabled_framework}" || -L "${disabled_framework}" ]]; then
+              echo "The restored Python framework state is invalid." >&2
+              return 1
+            fi
+          }
+          if ! /usr/bin/sudo -n /bin/mv "${framework}" "${disabled_framework}" \
+               >/dev/null 2>&1; then
+            echo "The Python framework isolation operation failed." >&2
+            exit 1
+          fi
+          trap restore_python_framework EXIT
+          if [[ -e "${framework}" || -L "${framework}" ||
+                ! -d "${disabled_framework}" || -L "${disabled_framework}" ]]; then
+            echo "The isolated Python framework state is invalid." >&2
+            exit 1
+          fi
           cd "${scratch}"
           unset PYTHONPATH
           export PYTHONNOUSERSITE=1
@@ -377,6 +463,8 @@ jobs:
           "${executables}" --standalone-window-smoke
           grep -q '"status": "PASS"' "${scratch}/standalone smoke report.json"
           grep -q '"existing_output_preserved": true' "${scratch}/standalone smoke report.json"
+          restore_python_framework
+          trap - EXIT
           cp "${scratch}/standalone smoke report.json" "${GITHUB_WORKSPACE}/standalone-smoke-report.json"
       - name: Upload path-free macOS evidence only
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

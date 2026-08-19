@@ -37,6 +37,8 @@ except ImportError:
     )
 
 NUITKA_VERSION = "4.1.3"
+OFFICIAL_MACOS_PYTHON_PREFIX = Path("/Library/Frameworks/Python.framework/Versions/3.14")
+OFFICIAL_MACOS_PYTHON_EXECUTABLE = OFFICIAL_MACOS_PYTHON_PREFIX / "bin" / "python3.14"
 LICENSE_DISTRIBUTIONS = (
     "defusedxml",
     "et-xmlfile",
@@ -92,7 +94,7 @@ def _bundle_audit_failure_stage(error: StandaloneVerificationError) -> str:
 
 
 def _private_build_path_groups(
-    source: Path, stage: Path
+    source: Path, stage: Path, *, target: str
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
     workspace = os.environ.get("GITHUB_WORKSPACE")
     runner_temp = os.environ.get("RUNNER_TEMP")
@@ -105,11 +107,29 @@ def _private_build_path_groups(
     if runner_temp:
         temporary_values.add(str(Path(runner_temp).resolve()))
 
-    groups: list[tuple[str, tuple[str, ...]]] = [
-        ("source", tuple(sorted(source_values))),
-        ("runtime-executable", (str(Path(sys.executable).resolve()),)),
-        ("runtime-prefix", (str(Path(sys.prefix).resolve()),)),
-    ]
+    groups: list[tuple[str, tuple[str, ...]]] = [("source", tuple(sorted(source_values)))]
+    configured_runtime_prefix = Path(sys.prefix)
+    configured_runtime_executable = Path(sys.executable)
+    runtime_prefix_values = {
+        str(configured_runtime_prefix),
+        str(configured_runtime_prefix.resolve()),
+    }
+    runtime_executable_values = {
+        str(configured_runtime_executable),
+        str(configured_runtime_executable.resolve()),
+    }
+    public_macos_runtime = (
+        target.startswith("macos-")
+        and configured_runtime_prefix == OFFICIAL_MACOS_PYTHON_PREFIX
+        and configured_runtime_executable == OFFICIAL_MACOS_PYTHON_EXECUTABLE
+    )
+    if public_macos_runtime:
+        runtime_prefix_values.discard(str(OFFICIAL_MACOS_PYTHON_PREFIX))
+        runtime_executable_values.discard(str(OFFICIAL_MACOS_PYTHON_EXECUTABLE))
+    if runtime_executable_values:
+        groups.append(("runtime-executable", tuple(sorted(runtime_executable_values))))
+    if runtime_prefix_values:
+        groups.append(("runtime-prefix", tuple(sorted(runtime_prefix_values))))
     if tool_cache:
         groups.append(("runtime-tool-cache", (str(Path(tool_cache).resolve()),)))
     groups.extend(
@@ -121,8 +141,8 @@ def _private_build_path_groups(
     return tuple(groups)
 
 
-def _classify_private_bundle_data(bundle: Path, source: Path, stage: Path) -> str:
-    for label, values in _private_build_path_groups(source, stage):
+def _classify_private_bundle_data(bundle: Path, source: Path, stage: Path, *, target: str) -> str:
+    for label, values in _private_build_path_groups(source, stage, target=target):
         try:
             inventory_bundle(bundle, forbidden_text=values)
         except StandaloneVerificationError as error:
@@ -244,9 +264,11 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _private_build_paths(source: Path, stage: Path) -> tuple[str, ...]:
+def _private_build_paths(source: Path, stage: Path, *, target: str) -> tuple[str, ...]:
     candidates = {
-        value for _, values in _private_build_path_groups(source, stage) for value in values
+        value
+        for _, values in _private_build_path_groups(source, stage, target=target)
+        for value in values
     }
     return tuple(sorted(candidates))
 
@@ -315,12 +337,14 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
                     commit=commit,
                     target=target,
                     signature_state=signature_state,
-                    forbidden_text=_private_build_paths(source, temporary_stage),
+                    forbidden_text=_private_build_paths(source, temporary_stage, target=target),
                 )
             except StandaloneVerificationError as error:
                 build_stage = _bundle_audit_failure_stage(error)
                 if build_stage == "bundle-audit-private-data":
-                    build_stage = _classify_private_bundle_data(bundle, source, temporary_stage)
+                    build_stage = _classify_private_bundle_data(
+                        bundle, source, temporary_stage, target=target
+                    )
                 raise
             build_stage = "archive"
             output.mkdir(parents=True)

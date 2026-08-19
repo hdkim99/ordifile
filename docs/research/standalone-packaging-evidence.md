@@ -42,6 +42,14 @@ Python 3.14.3 is the reviewed prototype baseline, not a claim that it remains th
 latest maintenance release; a public standalone distribution must re-review the
 runtime patch level and rebuild evidence.
 
+The fixed `/Library/Frameworks/Python.framework/Versions/3.14` installation and its
+interpreter path contain no runner identity and are not classified as private build
+paths for the exact macOS target. This exception does not establish self-containment:
+the native job separately rejects any Mach-O dependency or load command that references
+the build-host framework, moves the framework away, and only then executes the packaged
+scientific and window smokes. Source, stage, temporary, home, workspace, runner-tool-
+cache, and every non-exact runtime path remain forbidden bundle content.
+
 The exact installed Nuitka 4.1.3 runtime-exception bytes have SHA-256
 `20ff0ae581adf436a7b06e50e67a6c8913aec1ea4e60dba138d0a0bee7ee520c`; the copy in
 `packaging/standalone/licenses/` must remain byte-identical. The included LGPL-3.0 text
