@@ -429,6 +429,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             "channel",
             "detector",
             "retention_time_unit",
+            "secondary_retention_time_unit",
             "compound",
             "compound_source",
             "area_unit",
@@ -477,7 +478,14 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 "peak.observation_order",
                 peak.source_file,
             )
-        for field in ("retention_time", "area", "height", "start_time", "end_time"):
+        for field in (
+            "retention_time",
+            "secondary_retention_time",
+            "area",
+            "height",
+            "start_time",
+            "end_time",
+        ):
             value = getattr(peak, field)
             if value is not None and (type(value) not in {int, float}):
                 issues.append(
@@ -490,6 +498,42 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 )
             else:
                 validate_integer(value, f"peak.{field}", peak.source_file)
+        secondary_retention_time = peak.secondary_retention_time
+        secondary_retention_time_unit = peak.secondary_retention_time_unit
+        if (secondary_retention_time is None) != (secondary_retention_time_unit is None):
+            issues.append(
+                Issue(
+                    "PEAK_SECONDARY_RETENTION_PARTIAL",
+                    "A secondary retention coordinate requires both a value and a unit.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
+        if secondary_retention_time is not None and (
+            type(secondary_retention_time) not in {int, float}
+            or type(secondary_retention_time) is float
+            and not math.isfinite(secondary_retention_time)
+        ):
+            issues.append(
+                Issue(
+                    "PEAK_SECONDARY_RETENTION_VALUE_INVALID",
+                    "peak.secondary_retention_time must be finite numeric data or None.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
+        if secondary_retention_time_unit is not None and (
+            type(secondary_retention_time_unit) is not str
+            or not secondary_retention_time_unit.strip()
+        ):
+            issues.append(
+                Issue(
+                    "PEAK_SECONDARY_RETENTION_UNIT_INVALID",
+                    "peak.secondary_retention_time_unit must be a nonempty string or None.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
         start_time = peak.start_time
         retention_time = peak.retention_time
         end_time = peak.end_time
@@ -510,21 +554,61 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                 )
             )
     for stream in ordered_peak_streams.values():
-        has_observation_order = [peak.observation_order is not None for peak in stream]
-        if not any(has_observation_order):
-            continue
         source_file = stream[0].source_file
-        if not all(has_observation_order):
+        has_secondary_retention = [
+            peak.secondary_retention_time is not None
+            or peak.secondary_retention_time_unit is not None
+            for peak in stream
+        ]
+        if any(has_secondary_retention) and not all(has_secondary_retention):
             issues.append(
                 Issue(
-                    "PEAK_OBSERVATION_ORDER_PARTIAL",
-                    "A peak stream must provide observation_order for every row or no rows.",
+                    "PEAK_RETENTION_DIMENSION_MIXED",
+                    "A peak stream cannot mix one- and two-dimensional retention records.",
                     Severity.ERROR,
                     source_file,
                 )
             )
+        is_two_dimensional = all(has_secondary_retention)
+        if is_two_dimensional:
+            secondary_units = tuple(peak.secondary_retention_time_unit for peak in stream)
+            if (
+                any(type(unit) is not str or not unit.strip() for unit in secondary_units)
+                or len(set(secondary_units)) != 1
+            ):
+                issues.append(
+                    Issue(
+                        "PEAK_SECONDARY_RETENTION_UNIT_INCONSISTENT",
+                        "A two-dimensional peak stream requires one consistent nonempty "
+                        "secondary_retention_time_unit.",
+                        Severity.ERROR,
+                        source_file,
+                    )
+                )
+        has_observation_order = [peak.observation_order is not None for peak in stream]
+        if not any(has_observation_order) and not is_two_dimensional:
             continue
-        if tuple(peak.observation_order for peak in stream) != tuple(range(1, len(stream) + 1)):
+        if not all(has_observation_order):
+            issues.append(
+                Issue(
+                    (
+                        "PEAK_SECONDARY_RETENTION_ORDER_REQUIRED"
+                        if is_two_dimensional
+                        else "PEAK_OBSERVATION_ORDER_PARTIAL"
+                    ),
+                    (
+                        "A two-dimensional peak stream requires observation_order for every row."
+                        if is_two_dimensional
+                        else "A peak stream must provide observation_order for every row or "
+                        "no rows."
+                    ),
+                    Severity.ERROR,
+                    source_file,
+                )
+            )
+            if not is_two_dimensional:
+                continue
+        elif tuple(peak.observation_order for peak in stream) != tuple(range(1, len(stream) + 1)):
             issues.append(
                 Issue(
                     "PEAK_OBSERVATION_ORDER_INVALID",
@@ -536,7 +620,8 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
         for field in ("retention_time", "area"):
             if any(
                 type(getattr(peak, field)) not in {int, float}
-                or not math.isfinite(getattr(peak, field))
+                or type(getattr(peak, field)) is float
+                and not math.isfinite(getattr(peak, field))
                 for peak in stream
             ):
                 issues.append(

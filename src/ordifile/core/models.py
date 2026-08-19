@@ -173,6 +173,8 @@ class PeakRecord:
     end_time: float | None = None
     area_unit: str | None = None
     height_unit: str | None = None
+    secondary_retention_time: float | None = None
+    secondary_retention_time_unit: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

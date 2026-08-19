@@ -225,6 +225,16 @@ to the workbook layout.
     decision. The exact boundaries and current evidence states are recorded in
     [`result-export-profile-boundaries.md`](result-export-profile-boundaries.md) and
     [`multivendor-result-wave1.md`](../research/multivendor-result-wave1.md).
+41. Two-dimensional retention is represented by appending optional
+    `secondary_retention_time` and `secondary_retention_time_unit` fields to
+    `PeakRecord`; the existing retention fields remain the primary coordinate.
+    One-dimensional-only `Peaks` and `Peak_Order_Matrix` contracts remain unchanged.
+    Two-dimensional batches append the secondary fields to `Peaks` and place only 2D
+    streams in conditional `Peak_Order_Matrix_2D` rows with atomic RT1/RT2/area
+    triples. Metadata, compound names, detector/channel fields, duplicate peak rows,
+    and concatenated strings are not retention-coordinate carriers. The complete
+    rationale and migration boundary are in
+    [`secondary-retention-coordinate.md`](secondary-retention-coordinate.md).
 
 ## Public boundaries
 

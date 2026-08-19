@@ -267,7 +267,8 @@ workbook.
 | `Samples` | One row per discovered input, status, public source reference (relative path by default or core hash alias), adapter facts, peak count, and SHA-256 |
 | `Peak_Matrix` | One row per sample only for explicit compound names; duplicate peaks remain separate |
 | `Peak_Order_Matrix` | Conditional source-order RT/area pairs with sample, source, manufacturer, detector, channel and units; pairs split atomically before Excel limits |
-| `Peaks` | All explicit peaks in long form, including manufacturer and evidence-backed units/boundaries, without retention-time identity inference |
+| `Peak_Order_Matrix_2D` | Conditional two-dimensional streams with atomic source-order RT1/RT2/area triples; existing 1D pairs are not redefined |
+| `Peaks` | All explicit peaks in long form, including manufacturer and evidence-backed units/boundaries; secondary retention columns appear only for 2D data, without retention-time identity inference |
 | `Metadata` | Unknown fields, invalid raw lexemes, and provenance without invented semantics |
 | `Import_Log` | Every public source reference, success, warning, failure, duplicate, skipped artifact, sort key, and hash |
 | `Signals_<channel>` | Original uninterpolated x/y values, only when requested and actually parsed |

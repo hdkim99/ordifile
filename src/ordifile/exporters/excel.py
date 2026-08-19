@@ -211,7 +211,7 @@ def _samples_data(result: BatchResult) -> _SheetData:
 
 
 def _peaks_data(result: BatchResult) -> _SheetData:
-    headers = (
+    base_headers = (
         "sample_id",
         "source_file",
         "channel",
@@ -231,6 +231,24 @@ def _peaks_data(result: BatchResult) -> _SheetData:
         "area_unit",
         "height_unit",
     )
+    peak_entries = tuple(
+        (item.bundle.samples[0].instrument.vendor, peak)
+        for item in result.files
+        if _successful(item) and item.bundle is not None and item.bundle.samples
+        for peak in item.bundle.peaks
+    )
+    include_secondary_retention = any(
+        peak.secondary_retention_time is not None or peak.secondary_retention_time_unit is not None
+        for _manufacturer, peak in peak_entries
+    )
+    headers = (
+        *base_headers,
+        *(
+            ("secondary_retention_time", "secondary_retention_time_unit")
+            if include_secondary_retention
+            else ()
+        ),
+    )
     rows = tuple(
         (
             peak.sample_id,
@@ -245,16 +263,19 @@ def _peaks_data(result: BatchResult) -> _SheetData:
             peak.compound,
             peak.compound_source,
             peak.status,
-            item.bundle.samples[0].instrument.vendor,
+            manufacturer,
             peak.observation_order,
             peak.start_time,
             peak.end_time,
             peak.area_unit,
             peak.height_unit,
+            *(
+                (peak.secondary_retention_time, peak.secondary_retention_time_unit)
+                if include_secondary_retention
+                else ()
+            ),
         )
-        for item in result.files
-        if _successful(item) and item.bundle is not None and item.bundle.samples
-        for peak in item.bundle.peaks
+        for manufacturer, peak in peak_entries
     )
     return _SheetData("Peaks", headers, rows)
 
@@ -355,7 +376,7 @@ def _peak_order_matrix_data(result: BatchResult) -> _SheetData | None:
             list[PeakRecord],
         ] = {}
         for peak in item.bundle.peaks:
-            if peak.observation_order is None:
+            if peak.observation_order is None or peak.secondary_retention_time is not None:
                 continue
             identity = (
                 peak.sample_id,
@@ -386,6 +407,80 @@ def _peak_order_matrix_data(result: BatchResult) -> _SheetData | None:
         for identity, peaks in rows_with_peaks
     )
     return _SheetData("Peak_Order_Matrix", (*fixed_headers, *dynamic_headers), rows)
+
+
+def _peak_order_matrix_2d_data(result: BatchResult) -> _SheetData | None:
+    """Preserve two-dimensional source order as atomic RT1/RT2/area triples."""
+    fixed_headers = (
+        "sample_id",
+        "source_file",
+        "manufacturer",
+        "detector",
+        "channel",
+        "retention_time_unit",
+        "secondary_retention_time_unit",
+        "area_unit",
+    )
+    rows_with_peaks: list[tuple[tuple[Any, ...], list[PeakRecord]]] = []
+    maximum_peaks = 0
+    for item in result.files:
+        if not _successful(item) or item.bundle is None or not item.bundle.samples:
+            continue
+        sample = item.bundle.samples[0]
+        grouped: dict[
+            tuple[
+                str,
+                str,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+                str | None,
+            ],
+            list[PeakRecord],
+        ] = {}
+        for peak in item.bundle.peaks:
+            if peak.observation_order is None or peak.secondary_retention_time is None:
+                continue
+            identity = (
+                peak.sample_id,
+                peak.source_file,
+                sample.instrument.vendor,
+                peak.detector,
+                peak.channel,
+                peak.retention_time_unit,
+                peak.secondary_retention_time_unit,
+                peak.area_unit,
+            )
+            grouped.setdefault(identity, []).append(peak)
+        for identity, peaks in grouped.items():
+            maximum_peaks = max(maximum_peaks, len(peaks))
+            rows_with_peaks.append((identity, peaks))
+    if not rows_with_peaks:
+        return None
+    dynamic_headers = tuple(
+        header
+        for index in range(1, maximum_peaks + 1)
+        for header in (f"peak_{index}_rt1", f"peak_{index}_rt2", f"peak_{index}_area")
+    )
+    rows = tuple(
+        (
+            *identity,
+            *(
+                value
+                for peak in peaks
+                for value in (
+                    peak.retention_time,
+                    peak.secondary_retention_time,
+                    peak.area,
+                )
+            ),
+            *(None for _ in range(3 * (maximum_peaks - len(peaks)))),
+        )
+        for identity, peaks in rows_with_peaks
+    )
+    return _SheetData("Peak_Order_Matrix_2D", (*fixed_headers, *dynamic_headers), rows)
 
 
 def _metadata_data(result: BatchResult) -> _SheetData:
@@ -505,17 +600,21 @@ def _signal_rows(signal: SignalSeries) -> list[tuple[Any, ...]]:
 def _column_segments(sheet: _SheetData) -> tuple[_SheetData, ...]:
     if len(sheet.headers) <= MAX_EXCEL_COLUMNS:
         return (sheet,)
-    if sheet.logical_name not in {"Peak_Matrix", "Peak_Order_Matrix"}:
+    column_groups = {
+        "Peak_Matrix": (1, 1),
+        "Peak_Order_Matrix": (7, 2),
+        "Peak_Order_Matrix_2D": (8, 3),
+    }
+    if sheet.logical_name not in column_groups:
         raise ExportLimitError(
             "EXCEL_COLUMN_LIMIT",
             f"Sheet {sheet.logical_name!r} requires {len(sheet.headers)} columns.",
         )
-    fixed_columns = 7 if sheet.logical_name == "Peak_Order_Matrix" else 1
-    if MAX_EXCEL_COLUMNS < fixed_columns + (2 if fixed_columns == 7 else 1):
+    fixed_columns, atomic_columns = column_groups[sheet.logical_name]
+    if MAX_EXCEL_COLUMNS < fixed_columns + atomic_columns:
         raise ExportLimitError("EXCEL_COLUMN_LIMIT", "Excel column capacity is too small.")
     capacity = MAX_EXCEL_COLUMNS - fixed_columns
-    if fixed_columns == 7:
-        capacity -= capacity % 2
+    capacity -= capacity % atomic_columns
     segments = []
     fixed_headers = sheet.headers[:fixed_columns]
     data_headers = sheet.headers[fixed_columns:]
@@ -845,6 +944,7 @@ def _sidecar_eligible(dataset: _SheetData) -> bool:
     return dataset.logical_name in {
         "Peak_Matrix",
         "Peak_Order_Matrix",
+        "Peak_Order_Matrix_2D",
         "Peaks",
         "Metadata",
     } or dataset.logical_name.startswith("Signals_")
@@ -858,13 +958,21 @@ def _datasets_for_workbook(
     for dataset in datasets:
         if id(dataset) not in offloaded:
             workbook_datasets.append(dataset)
-        elif dataset.logical_name in {"Peak_Matrix", "Peak_Order_Matrix", "Peaks", "Metadata"}:
+        elif dataset.logical_name in {
+            "Peak_Matrix",
+            "Peak_Order_Matrix",
+            "Peak_Order_Matrix_2D",
+            "Peaks",
+            "Metadata",
+        }:
             headers = dataset.headers
             if dataset.logical_name == "Peak_Matrix":
                 # Dynamic compound names can themselves exceed Excel's cell limit.
                 headers = ("sample_id", "sidecar_status")
             elif dataset.logical_name == "Peak_Order_Matrix":
                 headers = (*dataset.headers[:7], "sidecar_status")
+            elif dataset.logical_name == "Peak_Order_Matrix_2D":
+                headers = (*dataset.headers[:8], "sidecar_status")
             workbook_datasets.append(_SheetData(dataset.logical_name, headers, ()))
     return tuple(workbook_datasets)
 
@@ -989,10 +1097,12 @@ class ExcelExporter:
             )
 
         peak_order_matrix = _peak_order_matrix_data(result)
+        peak_order_matrix_2d = _peak_order_matrix_2d_data(result)
         base_datasets = (
             _samples_data(result),
             _peak_matrix_data(result),
             *((peak_order_matrix,) if peak_order_matrix is not None else ()),
+            *((peak_order_matrix_2d,) if peak_order_matrix_2d is not None else ()),
             _peaks_data(result),
             _metadata_data(result),
             _import_log_data(result),

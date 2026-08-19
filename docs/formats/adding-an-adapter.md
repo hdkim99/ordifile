@@ -93,6 +93,15 @@ Populate only the capabilities supported by evidence:
 - `Issue` for warnings and errors with stable codes and actionable messages;
 - `DatasetBundle` as the adapter result.
 
+For evidence-backed two-dimensional chromatography, keep the first coordinate in
+`PeakRecord.retention_time` and provide both
+`PeakRecord.secondary_retention_time` and
+`PeakRecord.secondary_retention_time_unit`. Never drop RT2, concatenate coordinates,
+or reuse metadata, detector, channel, or compound fields as a coordinate carrier. A
+stream must be wholly 1D or wholly 2D. See the
+[`secondary-retention-coordinate`](../architecture/secondary-retention-coordinate.md)
+ADR for workbook and validation requirements.
+
 Use `SeriesKind.DECODED_RECORDS` when byte-level records do not yet have verified
 scientific signal semantics. Such records must not be presented as calibrated or
 time-based data. In the descriptor, `signals=True` means that the adapter returns a
