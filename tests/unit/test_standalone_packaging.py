@@ -177,6 +177,23 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert "Set-ExecutionPolicy" not in windows_job
     assert r"$checksum -split '\s+', 2" in windows_job
     assert r'$checksum -split "\\s+", 2' not in windows_job
+    assert "$manifest.files | Where-Object" in windows_job
+    assert '$_.kind -eq "file"' in windows_job
+    assert "Standalone archive root inventory is invalid." in windows_job
+    assert "Standalone manifest executable inventory is invalid." in windows_job
+    assert windows_job.count("Standalone manifest executable path is invalid.") == 2
+    assert '-Recurse -Filter "Ordifile.exe"' not in windows_job
+    assert "$expandedEntries.Count -ne 1" in windows_job
+    assert "-not $expandedEntries[0].PSIsContainer" in windows_job
+    assert "[IO.FileAttributes]::ReparsePoint" in windows_job
+    assert "[IO.Path]::IsPathRooted($relativeExecutable)" in windows_job
+    assert (
+        "$executablePath.StartsWith($bundleBoundary, "
+        "[StringComparison]::OrdinalIgnoreCase)" in windows_job
+    )
+    assert "Test-Path -LiteralPath $executablePath -PathType Leaf" in windows_job
+    assert "--bundle $bundleRoot" in windows_job
+    assert windows_job.index("--bundle $bundleRoot") < windows_job.index("--standalone-smoke")
     assert "repository: hdkim99/ordifile" in windows_job
     assert "ref: ${{ inputs.expected_commit }}" in windows_job
     assert "secrets: inherit" not in windows_job

@@ -180,10 +180,40 @@ jobs:
             throw "Standalone manifest outer artifact identity is invalid."
           }
           Expand-Archive -LiteralPath $archives[0].FullName -DestinationPath (Join-Path $scratch "expanded")
-          $executables = @(Get-ChildItem -LiteralPath (Join-Path $scratch "expanded") -Recurse -Filter "Ordifile.exe" -File)
-          if ($executables.Count -ne 1) { throw "Expected exactly one packaged Ordifile executable." }
+          $expandedRoot = [IO.Path]::GetFullPath((Join-Path $scratch "expanded")).TrimEnd($trimCharacters)
+          $expandedEntries = @(Get-ChildItem -LiteralPath $expandedRoot -Force)
+          if ($expandedEntries.Count -ne 1 -or
+              -not $expandedEntries[0].PSIsContainer -or
+              ($expandedEntries[0].Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Standalone archive root inventory is invalid."
+          }
+          $bundleRoot = [IO.Path]::GetFullPath($expandedEntries[0].FullName).TrimEnd($trimCharacters)
+          $bundleBoundary = "$bundleRoot$([IO.Path]::DirectorySeparatorChar)"
+          $executableEntries = @(
+            $manifest.files | Where-Object {
+              $relativePath = [string]$_.path
+              $normalizedPath = $relativePath.Replace("/", [IO.Path]::DirectorySeparatorChar)
+              $_.kind -eq "file" -and
+                [IO.Path]::GetFileName($normalizedPath) -ieq "Ordifile.exe"
+            }
+          )
+          if ($executableEntries.Count -ne 1) {
+            throw "Standalone manifest executable inventory is invalid."
+          }
+          $relativeExecutable = [string]$executableEntries[0].path
+          if ([IO.Path]::IsPathRooted($relativeExecutable)) {
+            throw "Standalone manifest executable path is invalid."
+          }
+          $executablePath = [IO.Path]::GetFullPath(
+            (Join-Path $bundleRoot $relativeExecutable.Replace("/", [IO.Path]::DirectorySeparatorChar))
+          )
+          if (-not $executablePath.StartsWith($bundleBoundary, [StringComparison]::OrdinalIgnoreCase) -or
+              -not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
+            throw "Standalone manifest executable path is invalid."
+          }
+          $executables = @((Get-Item -LiteralPath $executablePath))
           python scripts/ci/run_in_venv.py run --github-runner -- scripts/standalone/verify.py `
-            --bundle $executables[0].Directory.FullName `
+            --bundle $bundleRoot `
             --manifest (Join-Path $candidate "standalone-manifest.json") `
             --commit $env:EXPECTED_COMMIT `
             --target windows-x86_64
