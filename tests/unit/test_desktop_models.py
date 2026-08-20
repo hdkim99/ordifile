@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
 from ordifile.desktop.models import (
     DesktopRequest,
     InputSelectionModel,
@@ -85,3 +86,20 @@ def test_request_validation_rejects_directory_output(tmp_path: Path) -> None:
         validate_request(DesktopRequest((tmp_path / "input.csv",), tmp_path))
 
     assert caught.value.code == "OUTPUT_EXTENSION_INVALID"
+
+
+def test_desktop_request_preserves_optional_frozen_peak_mapping(tmp_path: Path) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+
+    request = DesktopRequest(
+        (tmp_path / "input.csv",),
+        tmp_path / "result.xlsx",
+        peak_table_mapping=mapping,
+    )
+
+    assert request.peak_table_mapping is mapping

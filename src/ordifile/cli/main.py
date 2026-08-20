@@ -16,6 +16,7 @@ from ordifile import __version__
 from ordifile.adapters.base import SupportStatus
 from ordifile.api import convert, get_format_report, inspect_file
 from ordifile.core.models import BatchOutcome, SeriesKind
+from ordifile.core.peak_mapping import load_peak_table_mapping
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -32,6 +33,9 @@ _CONFIGURATION_ERROR_CODES = frozenset(
         "OUTPUT_IS_DIRECTORY",
         "OUTPUT_IS_INPUT",
         "OUTPUT_PATH_TOO_LONG",
+        "PEAK_MAPPING_ADAPTER_CONFLICT",
+        "PEAK_MAPPING_INVALID",
+        "PEAK_MAPPING_SHEET_INVALID",
         "SIDECAR_IS_INPUT",
         "SIDECAR_MODE_INVALID",
         "SORT_MODE_INVALID",
@@ -106,6 +110,11 @@ def _add_parse_options(parser: argparse.ArgumentParser) -> None:
         "--include-hidden-sheets",
         action="store_true",
         help="Include hidden XLSX sheets when detecting a compatible sheet.",
+    )
+    parser.add_argument(
+        "--peak-mapping",
+        type=Path,
+        help="Apply a strict user-supplied peak-table mapping JSON to generic inputs.",
     )
     parser.add_argument(
         "--verbose",
@@ -290,11 +299,13 @@ def _print_issues(result: object, *, verbose: bool) -> None:
 
 
 def _run_inspect(args: argparse.Namespace) -> int:
+    mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
     inspected = inspect_file(
         args.file,
         adapter=args.adapter,
         sheet=args.sheet,
         include_hidden_sheets=args.include_hidden_sheets,
+        peak_table_mapping=mapping,
     )
     result = inspected.file
     bundle = result.bundle
@@ -394,6 +405,7 @@ def _print_batch_detection_evidence(result: object) -> None:
 
 def _run_convert(args: argparse.Namespace) -> int:
     print(f"Input paths: {len(args.inputs)}")
+    mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
 
     def print_progress(event: object) -> None:
         stage = getattr(event, "stage", None)
@@ -422,6 +434,7 @@ def _run_convert(args: argparse.Namespace) -> int:
         adapter=args.adapter,
         sheet=args.sheet,
         include_hidden_sheets=args.include_hidden_sheets,
+        peak_table_mapping=mapping,
         on_error=args.on_error,
         overwrite=args.overwrite,
         sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",

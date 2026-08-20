@@ -251,6 +251,9 @@ class ConversionOptions:
     overwrite: bool = False
     sidecar_mode: str = "error"
     output_name: str | None = None
+    peak_table_mapping_sha256: str | None = None
+    peak_table_mapping_schema_version: int | None = None
+    peak_table_source_format: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

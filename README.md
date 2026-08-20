@@ -132,6 +132,23 @@ schema](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabul
 An extension is supporting evidence only; Ordifile also checks content and schema.
 Run `ordifile formats` to see the adapters installed in the current environment.
 
+### Map an unsupported peak table explicitly
+
+If a clean CSV, TSV, semicolon-TXT, or audited XLSX Result table has explicit RT and
+Area columns but no exact-profile adapter, choose those columns with **Map Peak
+Columns** in the desktop interface or reuse a mapping JSON in the CLI:
+
+```console
+ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
+```
+
+The mapping must classify every header, declare the RT unit, and confirm the Area-unit
+state. Ordifile preserves source row order and uses the same `PeakRecord` → `Peaks` →
+ordered-matrix → workbook path as built-in Result adapters. It does not infer RT, Area,
+units, compounds, or vendors. Manufacturer/software values are user-supplied provenance,
+not verified compatibility, and this workflow does not add a vendor to the support table.
+See the [explicit mapping contract](docs/formats/explicit-peak-table-mapping.md).
+
 ## Experimental proprietary adapters
 
 | Format boundary | Metadata | Peaks | Output | Status | Real fixture |
@@ -248,6 +265,8 @@ Important behavior:
 - `--on-error continue` preserves valid files and reports partial success;
 - `--on-error stop` stops after the first file failure and writes no workbook;
 - `--adapter` forces one installed adapter; `--sheet` selects one XLSX worksheet;
+- `--peak-mapping FILE.json` applies one strict, local, user-confirmed mapping to
+  matching generic tables in the batch;
 - signals are parsed when present but written only with `--include-signals`;
 - `--verbose` adds detection evidence and detailed structured diagnostics.
 
@@ -324,6 +343,9 @@ write worksheets or duplicate CLI logic. A new format needs bounded detection, f
 evidence, structured errors, a redistributable or synthetic fixture, capability-specific
 tests, and license review.
 
+Actual Result exports should follow the [privacy-first fixture intake
+guide](docs/contributing/result-fixture-intake.md).
+
 Start with [Adding a format adapter](https://github.com/hdkim99/ordifile/blob/main/docs/formats/adding-an-adapter.md). Installed
 third-party adapters execute Python code and must be treated as trusted software.
 
@@ -384,7 +406,8 @@ The bridge rejects output inside a Git worktree unless it is below Ordifile's fi
 - Extension filters are normalized to lowercase dotted ASCII before discovery. At most
   32 unique filters are accepted; each has at most 32 ASCII characters after the
   leading dot, and the Manifest form is capped at 1,024 characters.
-- Only exact documented headers are mapped. Units are copied, not converted.
+- Automatic generic ingestion uses only documented headers. Explicit peak mapping uses
+  exact user-selected label-plus-position selectors. Units are copied, not converted.
 - Compound identity is never inferred from retention time. RT-tolerance matching and
   duplicate-compound aggregation are not enabled.
 - XLSX support is limited to an audited transitional, non-macro `.xlsx` workbook with

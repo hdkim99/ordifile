@@ -17,6 +17,7 @@ from openpyxl.utils.exceptions import InvalidFileException  # type: ignore[impor
 from ordifile.adapters._tabular import (
     MAPPED_TEXT_FIELDS,
     is_compatible_header,
+    parse_mapped_peak_rows,
     parse_rows,
     semantic_headers,
 )
@@ -34,8 +35,19 @@ from ordifile.adapters.base import (
     ParseOptions,
     SupportStatus,
 )
-from ordifile.core.errors import AdapterAmbiguityError, ParseError
+from ordifile.core.errors import AdapterAmbiguityError, OrdifileError, ParseError
 from ordifile.core.models import DatasetBundle, Issue, MetadataEntry, Severity
+from ordifile.core.peak_mapping import (
+    MAX_PEAK_PREVIEW_CELL_CHARACTERS,
+    MAX_PEAK_PREVIEW_CELLS,
+    MAX_PEAK_PREVIEW_COLUMNS,
+    MAX_PEAK_PREVIEW_ROWS,
+    MAX_PEAK_PREVIEW_TOTAL_CHARACTERS,
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTablePreview,
+    peak_preview_display,
+)
 
 MAX_XLSX_MEMBERS = 10_000
 MAX_XLSX_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
@@ -50,11 +62,20 @@ _NUMERIC_FIELDS = frozenset(
         "retention_time",
         "area",
         "height",
+        "start_time",
+        "end_time",
+        "secondary_retention_time",
         "time",
         "signal",
     }
 )
-_TEXT_FIELDS = frozenset(MAPPED_TEXT_FIELDS)
+_TEXT_FIELDS = frozenset(
+    {
+        *MAPPED_TEXT_FIELDS,
+        "peak_name",
+        "run_id",
+    }
+)
 _STRING_CELL_TYPES = frozenset({"s", "str", "inlineStr"})
 
 
@@ -88,6 +109,152 @@ def _cell_metadata_key(column: int, header: Sequence[object], mapped: Sequence[s
 
 def _formula_literal(cell: RawCell) -> str:
     return "=" + (cell.formula or "")
+
+
+def preview_xlsx_peak_table(
+    path: Path,
+    *,
+    sheet: str | None = None,
+    row_limit: int = 5,
+) -> PeakTablePreview:
+    """Return one bounded worksheet preview after the existing OOXML audit."""
+    if type(row_limit) is not int or row_limit < 1 or row_limit > MAX_PEAK_PREVIEW_ROWS:
+        raise ParseError(
+            "PEAK_MAPPING_PREVIEW_LIMIT_INVALID",
+            f"row_limit must be from 1 to {MAX_PEAK_PREVIEW_ROWS}.",
+        )
+    package = preflight_xlsx(path)
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=False, keep_links=False)
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        raise
+    except Exception as error:
+        raise ParseError("XLSX_OPEN_FAILED", "Could not open audited XLSX workbook.") from error
+    try:
+        if len(workbook.worksheets) != len(package.sheets) or any(
+            str(worksheet.title) != part.title
+            for worksheet, part in zip(workbook.worksheets, package.sheets, strict=False)
+        ):
+            raise ParseError(
+                "XLSX_WORKBOOK_MAP_MISMATCH",
+                "The worksheet map does not match the audited package.",
+            )
+        indexed = list(zip(workbook.worksheets, package.sheets, strict=True))
+        if sheet is not None:
+            indexed = [item for item in indexed if str(item[0].title) == sheet]
+            if not indexed:
+                raise ParseError("XLSX_SHEET_NOT_FOUND", "The selected sheet does not exist.")
+        else:
+            indexed = [item for item in indexed if item[1].state == "visible"]
+        if len(indexed) != 1:
+            raise AdapterAmbiguityError(
+                "XLSX_SHEET_AMBIGUOUS",
+                "Choose one worksheet explicitly before mapping XLSX columns.",
+            )
+        worksheet, part = indexed[0]
+        if part.worksheet.actual_max_column > MAX_PEAK_PREVIEW_COLUMNS:
+            raise ParseError(
+                "PEAK_MAPPING_PREVIEW_COLUMN_LIMIT",
+                f"Peak-table preview supports at most {MAX_PEAK_PREVIEW_COLUMNS} columns.",
+            )
+        captured = capture_worksheet_cells(
+            path,
+            package,
+            part,
+            capture_max_row=row_limit + 1,
+        )
+        raw_cells = {(cell.row, cell.column): cell for cell in captured.raw_cells}
+        worksheet.reset_dimensions()
+        header_cells = next(
+            worksheet.iter_rows(
+                min_row=1,
+                max_row=1,
+                min_col=1,
+                max_col=captured.actual_max_column,
+            ),
+            (),
+        )
+        header = _trimmed_header([cell.value for cell in header_cells])
+        for column_number in range(1, len(header) + 1):
+            raw_header = raw_cells.get((1, column_number))
+            if raw_header is None:
+                continue
+            if raw_header.formula_present:
+                raise ParseError(
+                    "PEAK_MAPPING_HEADER_FORMULA_UNSUPPORTED",
+                    "Mapped XLSX headers must be literal values, not formulas.",
+                )
+            if raw_header.cell_type not in _STRING_CELL_TYPES:
+                raise ParseError(
+                    "PEAK_MAPPING_HEADER_TYPE_UNSUPPORTED",
+                    "Mapped XLSX headers must be literal text cells.",
+                )
+            if raw_header.cell_type == "inlineStr":
+                header[column_number - 1] = raw_header.inline_text
+            elif raw_header.cell_type == "s":
+                header[column_number - 1] = raw_header.shared_text
+        if not header:
+            raise ParseError("MISSING_HEADER", "The mapped worksheet has no header row.")
+        try:
+            tuple(ColumnSelector(str(value), index) for index, value in enumerate(header, start=1))
+        except OrdifileError as error:
+            raise ParseError(
+                "PEAK_MAPPING_PREVIEW_HEADER_INVALID",
+                "Preview headers must be nonempty exact text without controls or "
+                "directional formatting.",
+            ) from error
+        total_cells = len(header)
+        total_characters = sum(len(str(value)) for value in header)
+        if any(len(str(value)) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in header):
+            raise ParseError(
+                "PEAK_MAPPING_PREVIEW_CELL_LIMIT",
+                "A preview header exceeds the bounded cell-text limit.",
+            )
+        if (
+            total_cells > MAX_PEAK_PREVIEW_CELLS
+            or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
+        ):
+            raise ParseError(
+                "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
+                "The bounded preview exceeds its cell or rendered-text limit.",
+            )
+        rows: list[tuple[str, ...]] = []
+        for row in worksheet.iter_rows(
+            min_row=2,
+            max_row=min(captured.actual_max_row, row_limit + 1),
+            min_col=1,
+            max_col=len(header),
+        ):
+            if all(cell.value is None or str(cell.value) == "" for cell in row):
+                continue
+            values = tuple(
+                "<formula>"
+                if getattr(cell, "data_type", None) == "f"
+                else peak_preview_display("" if cell.value is None else str(cell.value))
+                for cell in row
+            )
+            total_cells += len(values)
+            total_characters += sum(len(value) for value in values)
+            if (
+                total_cells > MAX_PEAK_PREVIEW_CELLS
+                or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
+                or any(len(value) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in values)
+            ):
+                raise ParseError(
+                    "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
+                    "The bounded preview exceeds its cell or rendered-text limit.",
+                )
+            rows.append(values)
+            if len(rows) == row_limit:
+                break
+        return PeakTablePreview(
+            PeakTableFormat.XLSX,
+            tuple("" if value is None else str(value) for value in header),
+            tuple(rows),
+            str(part.title),
+        )
+    finally:
+        workbook.close()
 
 
 class GenericXlsxAdapter:
@@ -188,8 +355,17 @@ class GenericXlsxAdapter:
                     )
                     header = _trimmed_header([cell.value for cell in header_cells])
                 try:
-                    schema_is_compatible = is_compatible_header(header)
-                    semantic_headers(header)
+                    if options.peak_table_mapping is None:
+                        schema_is_compatible = is_compatible_header(header)
+                        semantic_headers(header)
+                    else:
+                        if options.peak_table_mapping.source_format is not PeakTableFormat.XLSX:
+                            raise ParseError(
+                                "PEAK_MAPPING_FORMAT_MISMATCH",
+                                "The mapping source format does not match the XLSX reader.",
+                            )
+                        options.peak_table_mapping.semantic_headers(header)
+                        schema_is_compatible = True
                 except ParseError as error:
                     invalid_schemas.append(error)
                     continue
@@ -228,18 +404,37 @@ class GenericXlsxAdapter:
             for column_number in range(1, len(audited_header) + 1):
                 raw_header = raw_cells.get((1, column_number))
                 if raw_header is None:
+                    if options.peak_table_mapping is not None:
+                        raise ParseError(
+                            "PEAK_MAPPING_HEADER_TYPE_UNSUPPORTED",
+                            "Mapped XLSX headers must be literal text cells.",
+                        )
                     continue
+                if options.peak_table_mapping is not None:
+                    if raw_header.formula_present:
+                        raise ParseError(
+                            "PEAK_MAPPING_HEADER_FORMULA_UNSUPPORTED",
+                            "Mapped XLSX headers must be literal values, not formulas.",
+                        )
+                    if raw_header.cell_type not in _STRING_CELL_TYPES:
+                        raise ParseError(
+                            "PEAK_MAPPING_HEADER_TYPE_UNSUPPORTED",
+                            "Mapped XLSX headers must be literal text cells.",
+                        )
                 if raw_header.cell_type == "inlineStr":
                     audited_header[column_number - 1] = raw_header.inline_text
                 elif raw_header.cell_type == "s":
                     audited_header[column_number - 1] = raw_header.shared_text
             header = _trimmed_header(audited_header)
-            if not is_compatible_header(header):
-                raise ParseError(
-                    "XLSX_AUDITED_HEADER_MISMATCH",
-                    "The audited raw string header does not match the documented schema.",
-                )
-            mapped = semantic_headers(header)
+            if options.peak_table_mapping is None:
+                if not is_compatible_header(header):
+                    raise ParseError(
+                        "XLSX_AUDITED_HEADER_MISMATCH",
+                        "The audited raw string header does not match the documented schema.",
+                    )
+                mapped = semantic_headers(header)
+            else:
+                mapped = options.peak_table_mapping.semantic_headers(header)
             formula_cells = {
                 (cell.row, cell.column) for cell in captured.raw_cells if cell.formula_present
             }
@@ -269,16 +464,37 @@ class GenericXlsxAdapter:
                         if raw is None:
                             values.append(None)
                         elif raw.formula_present:
+                            if options.peak_table_mapping is not None and (
+                                semantic is not None or column_number > len(mapped)
+                            ):
+                                raise ParseError(
+                                    "PEAK_MAPPING_FORMULA_UNSUPPORTED",
+                                    "Mapped scientific fields must contain literal values, "
+                                    "not formulas.",
+                                )
                             values.append(None)
                         elif semantic in _TEXT_FIELDS and raw.cell_type not in _STRING_CELL_TYPES:
+                            if options.peak_table_mapping is not None:
+                                raise ParseError(
+                                    "PEAK_MAPPING_XLSX_CELL_TYPE_UNSUPPORTED",
+                                    "Mapped text fields must contain literal text cells.",
+                                )
                             typed_mismatches.append((raw, semantic))
                             if raw.cell_type == "d":
                                 iso_date_cells.append((raw, semantic))
                             values.append(None)
-                        elif semantic in _NUMERIC_FIELDS and raw.cell_type not in {
-                            *_STRING_CELL_TYPES,
-                            "n",
-                        }:
+                        elif semantic in _NUMERIC_FIELDS and (
+                            raw.cell_type not in {*_STRING_CELL_TYPES, "n"}
+                            or options.peak_table_mapping is not None
+                            and raw.cell_type == "n"
+                            and bool(cell.is_date)
+                        ):
+                            if options.peak_table_mapping is not None:
+                                raise ParseError(
+                                    "PEAK_MAPPING_XLSX_CELL_TYPE_UNSUPPORTED",
+                                    "Mapped numeric fields must contain literal text or "
+                                    "non-date numeric cells.",
+                                )
                             typed_mismatches.append((raw, semantic))
                             if raw.cell_type == "d":
                                 iso_date_cells.append((raw, semantic))
@@ -289,6 +505,12 @@ class GenericXlsxAdapter:
                             or raw.cell_type == "n"
                             and bool(cell.is_date)
                         ):
+                            if options.peak_table_mapping is not None:
+                                raise ParseError(
+                                    "PEAK_MAPPING_XLSX_CELL_TYPE_UNSUPPORTED",
+                                    "Mapped acquisition times must contain literal text or "
+                                    "audited date cells.",
+                                )
                             typed_mismatches.append((raw, semantic))
                             values.append(None)
                         elif raw.cell_type == "inlineStr":
@@ -319,14 +541,23 @@ class GenericXlsxAdapter:
                             values.append(cell.value)
                     yield values
 
-            bundle = parse_rows(
-                path,
-                selected_rows(),
-                namespace=f"adapter:{self.adapter_id}:sheet:{part.title}",
-                source_label=str(part.title),
-                formula_cells=formula_cells,
-                cell_sources=cell_sources,
-            )
+            if options.peak_table_mapping is None:
+                bundle = parse_rows(
+                    path,
+                    selected_rows(),
+                    namespace=f"adapter:{self.adapter_id}:sheet:{part.title}",
+                    source_label=str(part.title),
+                    formula_cells=formula_cells,
+                    cell_sources=cell_sources,
+                )
+            else:
+                bundle = parse_mapped_peak_rows(
+                    path,
+                    selected_rows(),
+                    options.peak_table_mapping,
+                    namespace=f"adapter:{self.adapter_id}:sheet:{part.index}:user_mapping",
+                )
+                return bundle
             sample_id = bundle.samples[0].sample_id
             namespace = f"adapter:{self.adapter_id}:sheet:{part.title}"
             extra_metadata: list[MetadataEntry] = []

@@ -9,12 +9,17 @@ import unicodedata
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+import ordifile
+from ordifile import PeakTableFormat, PeakTableMapping
 from ordifile import api as _ordifile_api
 from ordifile.core.models import BatchOutcome, BatchResult, FileStatus, ProgressEvent, Severity
+from ordifile.core.peak_mapping import peak_preview_display
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopFileReport,
     DesktopInputStatus,
+    DesktopPeakTablePreview,
+    DesktopPeakTablePreviewReport,
     DesktopRequest,
     validate_request,
 )
@@ -50,6 +55,16 @@ def _structured_error(error: Exception) -> tuple[str, str]:
     if type(code) is str and type(message) is str:
         return _safe_text(code, limit=100) or "ORDIFILE_ERROR", _safe_text(message)
     return "UNEXPECTED_ERROR", "Unexpected internal error; no files were changed."
+
+
+def presentation_error(error: Exception) -> tuple[str, str]:
+    """Return structured, control-safe error text for local interface operations."""
+    return _structured_error(error)
+
+
+def safe_preview_text(value: str) -> str:
+    """Return a bounded, visibly escaped local preview label."""
+    return peak_preview_display(value)
 
 
 def _interrupted_report() -> DesktopBatchReport:
@@ -121,11 +136,17 @@ def inspect_selection(
     inputs: tuple[Path, ...],
     *,
     sort: str,
+    peak_table_mapping: PeakTableMapping | None = None,
     progress: ProgressCallback | None = None,
 ) -> DesktopBatchReport:
     """Discover and detect selected inputs without writing an artifact."""
     try:
-        result = _ordifile_api.inspect_inputs(inputs, sort=sort, progress=progress)
+        result = _ordifile_api.inspect_inputs(
+            inputs,
+            sort=sort,
+            peak_table_mapping=peak_table_mapping,
+            progress=progress,
+        )
     except (KeyboardInterrupt, SystemExit, MemoryError):
         return _interrupted_report()
     except Exception as error:
@@ -148,6 +169,7 @@ def convert_selection(
             sort=request.sort,
             on_error="continue",
             overwrite=False,
+            peak_table_mapping=request.peak_table_mapping,
             progress=progress,
         )
     except (KeyboardInterrupt, SystemExit, MemoryError):
@@ -156,6 +178,43 @@ def convert_selection(
         code, message = _structured_error(error)
         return DesktopBatchReport(BatchOutcome.FAILED, error_code=code, error_message=message)
     return _report(result)
+
+
+def preview_peak_table(
+    path: Path,
+    source_format: PeakTableFormat,
+    *,
+    sheet: str | None = None,
+) -> DesktopPeakTablePreviewReport:
+    """Read a bounded preview through the public API without parsing in the GUI."""
+    try:
+        preview = _ordifile_api.preview_peak_table(path, source_format, sheet=sheet)
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        return DesktopPeakTablePreviewReport(
+            error_code="OPERATION_INTERRUPTED",
+            error_message="The preview operation was interrupted.",
+        )
+    except Exception as error:
+        code, message = _structured_error(error)
+        return DesktopPeakTablePreviewReport(error_code=code, error_message=message)
+    return DesktopPeakTablePreviewReport(
+        preview=DesktopPeakTablePreview(
+            preview.source_format,
+            tuple(preview.headers),
+            tuple(tuple(str(cell) for cell in row) for row in preview.rows),
+            preview.sheet,
+        )
+    )
+
+
+def load_mapping(path: Path) -> PeakTableMapping:
+    """Load a data-only mapping through the public package interface."""
+    return ordifile.load_peak_table_mapping(path)
+
+
+def save_mapping(mapping: PeakTableMapping, path: Path, *, overwrite: bool = False) -> None:
+    """Save a data-only mapping through the public package interface."""
+    ordifile.save_peak_table_mapping(mapping, path, overwrite=overwrite)
 
 
 def details_text(report: DesktopBatchReport) -> str:

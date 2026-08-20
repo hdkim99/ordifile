@@ -908,6 +908,32 @@ def _manifest_data(
         ),
         ("exact_integer_literal_count", exact_integer_literals, None, None, None),
     ]
+    if result.options.peak_table_mapping_sha256 is not None:
+        rows.extend(
+            (
+                (
+                    "option_peak_table_mapping_sha256",
+                    result.options.peak_table_mapping_sha256,
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "option_peak_table_mapping_schema_version",
+                    result.options.peak_table_mapping_schema_version,
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "option_peak_table_source_format",
+                    result.options.peak_table_source_format,
+                    None,
+                    None,
+                    None,
+                ),
+            )
+        )
     rows.extend(
         (
             "sidecar",

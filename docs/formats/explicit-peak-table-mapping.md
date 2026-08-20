@@ -1,0 +1,133 @@
+# Explicit peak-table mapping
+
+Explicit peak-table mapping is a local, user-confirmed import mode for clean result
+tables whose vendor/software profile does not have a built-in Ordifile adapter. It
+does not detect or verify a vendor format.
+
+The initial contract reuses only Ordifile's existing audited generic containers:
+
+- comma-delimited UTF-8 or UTF-8-BOM `.csv`;
+- tab-delimited UTF-8 or UTF-8-BOM `.tsv`, or `.txt` when the mapping declares TSV;
+- semicolon-delimited UTF-8 or UTF-8-BOM `.txt`;
+- Transitional, non-macro `.xlsx`, with one worksheet or an explicit sheet selection.
+
+The desktop mapping dialog currently accepts an XLSX workbook only when exactly one visible
+worksheet is available. The CLI and Python API can select one worksheet explicitly with
+`--sheet`/`sheet=`. The selected title is used locally to read the workbook but is represented
+in conversion results and the Manifest only by the fixed `USER_SELECTED` marker.
+
+Legacy `.xls`, PDF, arbitrary encodings or delimiters, formulas as scientific values,
+preamble/header guessing, and multiple runs in one table are outside this contract.
+
+## Workflow
+
+1. Select a structured result file.
+2. Select the exact source columns for retention time and area.
+3. Declare the retention-time unit and confirm the area-unit state.
+4. Optionally map height, compound, peak number, detector, channel, sample, run,
+   acquisition time, integration boundaries, or a secondary retention coordinate.
+5. Explicitly ignore every source column that is not mapped.
+6. Save the data-only JSON mapping and reuse it for files from the same table template.
+7. Convert through the ordinary `PeakRecord` and Excel exporter pipeline.
+
+The CLI form is:
+
+```console
+ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
+```
+
+For a neutral synthetic table with headers `Peak No.`, `Retention Time`, `Area`,
+`Height`, and `Compound`, a minimal mapping can be saved as:
+
+```json
+{
+  "schema_version": 1,
+  "source_format": "csv",
+  "retention_time_column": {"label": "Retention Time", "index": 2},
+  "area_column": {"label": "Area", "index": 3},
+  "retention_time_unit": "min",
+  "area_unit": null,
+  "height_column": {"label": "Height", "index": 4},
+  "height_unit": null,
+  "compound_name_column": {"label": "Compound", "index": 5},
+  "peak_index_column": {"label": "Peak No.", "index": 1}
+}
+```
+
+Missing optional properties mean “not mapped.” The serializer writes a normalized form
+with every optional property present, including exact mapped and ignored header selectors,
+units, and optional user-supplied manufacturer/software. It stores no source data rows or
+source paths. Its path-independent semantic SHA-256 is stored in conversion provenance.
+
+The desktop interface provides the same mapping model. Preview and conversion receive
+the same immutable mapping value; the UI does not contain a second CSV or XLSX parser.
+The preview is bounded to 1,024 columns, ten rows through the public API (five in the
+desktop dialog), 11,264 cells including headers, and 1,000,000 rendered characters. Text
+preview also bounds each physical line to 256 KiB and the read prefix to 2 MiB. Unsafe
+control and directional-format characters are rejected in headers and visibly escaped in
+local preview values.
+
+## Mapping semantics
+
+`retention_time_column`, `area_column`, `retention_time_unit`, and `source_format` are
+required. A column selector contains its exact decoded label and one-based position,
+so duplicate labels can be disambiguated without fuzzy matching. Every header position
+must appear exactly once as a mapped role or in `ignored_columns`.
+
+Each nonblank data row becomes one `PeakRecord`. Retention time and area must be explicit,
+finite decimal values that round-trip exactly through the canonical float. Invalid mapped
+data fails that file; it is never skipped, downgraded to Metadata, or replaced by another
+field. Source row order becomes contiguous `observation_order` within each detector/channel
+stream. Peak number remains separate from observation order.
+
+One-dimensional mappings populate `Peaks` and `Peak_Order_Matrix`. A mapping with an
+explicit secondary retention column and independent unit also populates
+`Peak_Order_Matrix_2D`. Explicit compounds can populate the existing `Peak_Matrix`;
+retention-time matching and compound inference are never performed.
+
+Units are copied from the mapping and are not converted. An absent area or height unit is
+canonical `None`, not a guessed `Unknown` unit. Height is never substituted for area, raw
+signals are not integrated, and values are not normalized, interpolated, rounded, summed,
+or deduplicated.
+
+## Provenance and privacy
+
+The local GUI preview displays the source basename, selected worksheet name, headers, and
+up to five decoded, visibly escaped preview rows; the public local preview API permits a
+bounded one-to-ten-row request.
+Treat the preview, its screenshots, and the mapping JSON as
+privacy-bearing local data: exact header labels and optional manufacturer/software are part
+of the JSON. They are not public evidence artifacts.
+
+Mapped inputs always use `source-<full SHA-256>` public identities. If no sample column is
+mapped, that source alias is also the deterministic sample identity. The workbook records
+mapping mode `USER_SUPPLIED`, schema version, semantic mapping SHA-256, canonical roles,
+unit provenance, converted row count, ignored-column count, and manufacturer/software
+verification status. It also contains every explicitly mapped canonical value and optional
+user-supplied manufacturer/software; mapping a sensitive sample, run, compound, peak-name,
+detector, channel, or acquisition field therefore writes that value to the local workbook.
+Ordifile does not record the source path/basename, mapping path/filename, complete JSON,
+unselected header labels, or ignored cell values in workbook provenance.
+
+Manufacturer and software strings in a mapping are user-supplied provenance. They do not
+establish compatibility, do not change adapter detection, and do not add an entry to the
+vendor support matrix. Vendor and software names are factual compatibility identification
+only; Ordifile is not affiliated with or endorsed by those vendors.
+
+Exact-profile adapters retain automatic ownership. If a mapping is supplied for a batch
+that also contains an exact-profile input, Ordifile parses that file with its exact adapter
+and records the fixed `PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE` warning for that file. The
+mapping remains applicable to matching generic inputs in the same batch.
+
+Mapping JSON is bounded, strict UTF-8 data. Duplicate or unknown keys, unsupported schema
+versions, non-standard JSON numbers, duplicate selectors, expressions, regular-expression
+programs, imports, commands, templates, and external file references are rejected. Mapping
+files are processed locally and are never uploaded by Ordifile.
+
+## Exact-profile promotion
+
+A successful user mapping is not evidence for built-in vendor support. Promotion to an
+Experimental exact-profile adapter still requires a lawful vendor-generated fixture,
+privacy and license review, bounded detection anchors, full source-to-canonical RT/area
+comparison, generic-collision tests, and an independent implementation review. See the
+[result fixture intake guide](../contributing/result-fixture-intake.md).

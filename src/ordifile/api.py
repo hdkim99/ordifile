@@ -10,7 +10,9 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from ordifile.adapters._delimited import preview_delimited_peak_table
 from ordifile.adapters.base import AdapterDescriptor, ParseOptions
+from ordifile.adapters.generic_xlsx import preview_xlsx_peak_table
 from ordifile.adapters.registry import (
     MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS,
     MAX_EXTENSION_FILTERS,
@@ -30,6 +32,12 @@ from ordifile.core.models import (
     Severity,
     SortMode,
     SourceFile,
+)
+from ordifile.core.peak_mapping import (
+    MAPPED_XLSX_SHEET_MARKER,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTablePreview,
 )
 from ordifile.core.pipeline import run_pipeline
 from ordifile.exporters.excel import ExcelExporter
@@ -105,6 +113,38 @@ def _require_optional_text(name: str, value: object) -> None:
 def _require_registry(registry: object) -> None:
     if registry is not None and type(registry) is not AdapterRegistry:
         raise OrdifileError("OPTION_TYPE_INVALID", "registry must be an AdapterRegistry or None.")
+
+
+def _require_peak_mapping(value: object) -> None:
+    if value is not None and type(value) is not PeakTableMapping:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID",
+            "peak_table_mapping must be a PeakTableMapping or None.",
+        )
+
+
+def _validate_peak_mapping_options(
+    mapping: PeakTableMapping | None,
+    *,
+    sheet: str | None,
+) -> None:
+    """Reject XLSX-only options for mapped text before discovery begins."""
+    if (
+        mapping is not None
+        and mapping.source_format is not PeakTableFormat.XLSX
+        and sheet is not None
+    ):
+        raise OrdifileError(
+            "PEAK_MAPPING_SHEET_INVALID",
+            "sheet is available only for XLSX peak-table mappings.",
+        )
+
+
+def _public_sheet_option(mapping: PeakTableMapping | None, sheet: str | None) -> str | None:
+    """Return a fixed marker instead of a private mapped worksheet title."""
+    if mapping is not None and sheet is not None:
+        return MAPPED_XLSX_SHEET_MARKER
+    return sheet
 
 
 def _inputs(
@@ -189,12 +229,49 @@ def get_format_report(*, registry: AdapterRegistry | None = None) -> FormatRepor
     return FormatReport(active.descriptors(), active.load_errors)
 
 
+def preview_peak_table(
+    path: str | os.PathLike[str],
+    source_format: PeakTableFormat,
+    *,
+    sheet: str | None = None,
+    row_limit: int = 5,
+) -> PeakTablePreview:
+    """Read a bounded local header/row preview through existing generic readers."""
+    if type(source_format) is not PeakTableFormat:
+        raise OrdifileError("OPTION_TYPE_INVALID", "source_format must be a PeakTableFormat value.")
+    _require_optional_text("sheet", sheet)
+    candidate = Path(path)
+    if candidate.is_symlink():
+        raise OrdifileError("SYMLINK_REJECTED", "Peak-table preview does not follow symlinks.")
+    if not candidate.is_file():
+        raise OrdifileError("INSPECT_REQUIRES_FILE", "Peak-table preview requires one file.")
+    suffixes = {
+        PeakTableFormat.CSV: frozenset((".csv",)),
+        PeakTableFormat.TSV: frozenset((".tsv", ".txt")),
+        PeakTableFormat.SEMICOLON: frozenset((".txt",)),
+        PeakTableFormat.XLSX: frozenset((".xlsx",)),
+    }
+    if candidate.suffix.casefold() not in suffixes[source_format]:
+        raise OrdifileError(
+            "PEAK_MAPPING_FORMAT_MISMATCH",
+            "The input extension does not match the selected audited source format.",
+        )
+    if source_format is PeakTableFormat.XLSX:
+        return preview_xlsx_peak_table(candidate, sheet=sheet, row_limit=row_limit)
+    if sheet is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_SHEET_INVALID", "sheet is available only for XLSX mappings."
+        )
+    return preview_delimited_peak_table(candidate, source_format, row_limit=row_limit)
+
+
 def inspect_file(
     path: str | os.PathLike[str],
     *,
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
     registry: AdapterRegistry | None = None,
 ) -> InspectionResult:
     """Detect, parse, and validate one file without writing an output."""
@@ -202,6 +279,13 @@ def inspect_file(
     _require_optional_text("adapter", adapter)
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
+    _require_peak_mapping(peak_table_mapping)
+    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
+    if adapter is not None and peak_table_mapping is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_ADAPTER_CONFLICT",
+            "adapter and peak_table_mapping cannot be selected together.",
+        )
     candidate = Path(path)
     if candidate.is_symlink():
         raise OrdifileError(
@@ -219,7 +303,11 @@ def inspect_file(
         (path,),
         active,
         forced_adapter=adapter,
-        parse_options=ParseOptions(sheet, include_hidden_sheets),
+        parse_options=ParseOptions(
+            sheet=sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=peak_table_mapping,
+        ),
     )
     if len(result.files) != 1:
         raise OrdifileError("INSPECT_REQUIRES_FILE", "inspect_file requires one regular file.")
@@ -254,6 +342,7 @@ def inspect_inputs(
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
     progress: Callable[[ProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
 ) -> BatchResult:
@@ -268,6 +357,13 @@ def inspect_inputs(
     _require_optional_text("adapter", adapter)
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
+    _require_peak_mapping(peak_table_mapping)
+    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
+    if adapter is not None and peak_table_mapping is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_ADAPTER_CONFLICT",
+            "adapter and peak_table_mapping cannot be selected together.",
+        )
     requested_sort = _normalize_sort(sort)
     normalized_extensions = _normalize_extensions(extensions)
     if progress is not None and not callable(progress):
@@ -283,7 +379,11 @@ def inspect_inputs(
         extensions=normalized_extensions,
         sort=requested_sort,
         forced_adapter=adapter,
-        parse_options=ParseOptions(sheet, include_hidden_sheets),
+        parse_options=ParseOptions(
+            sheet=sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=peak_table_mapping,
+        ),
         on_error="continue",
         progress=progress,
     )
@@ -299,8 +399,19 @@ def inspect_inputs(
                 extensions=normalized_extensions or (),
                 sort=result.sort.requested,
                 adapter=adapter,
-                sheet=sheet,
+                sheet=_public_sheet_option(peak_table_mapping, sheet),
                 include_hidden_sheets=include_hidden_sheets,
+                peak_table_mapping_sha256=(
+                    peak_table_mapping.semantic_sha256 if peak_table_mapping is not None else None
+                ),
+                peak_table_mapping_schema_version=(
+                    peak_table_mapping.schema_version if peak_table_mapping is not None else None
+                ),
+                peak_table_source_format=(
+                    peak_table_mapping.source_format.value
+                    if peak_table_mapping is not None
+                    else None
+                ),
             ),
         )
     )
@@ -317,6 +428,7 @@ def convert(
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
     on_error: str = "continue",
     overwrite: bool = False,
     sidecar_mode: str = "error",
@@ -331,6 +443,13 @@ def convert(
     _require_optional_text("adapter", adapter)
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
+    _require_peak_mapping(peak_table_mapping)
+    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
+    if adapter is not None and peak_table_mapping is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_ADAPTER_CONFLICT",
+            "adapter and peak_table_mapping cannot be selected together.",
+        )
     if type(on_error) is not str or on_error not in {"continue", "stop"}:
         raise OrdifileError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
     if type(sidecar_mode) is not str or sidecar_mode not in {"error", "csv"}:
@@ -360,7 +479,11 @@ def convert(
         extensions=normalized_extensions,
         sort=requested_sort,
         forced_adapter=adapter,
-        parse_options=ParseOptions(sheet, include_hidden_sheets),
+        parse_options=ParseOptions(
+            sheet=sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=peak_table_mapping,
+        ),
         on_error=on_error,
         progress=progress,
         artifact_output=output_path,
@@ -399,12 +522,21 @@ def convert(
             sort=result.sort.requested,
             include_signals=include_signals,
             adapter=adapter,
-            sheet=sheet,
+            sheet=_public_sheet_option(peak_table_mapping, sheet),
             include_hidden_sheets=include_hidden_sheets,
             on_error=on_error,
             overwrite=overwrite,
             sidecar_mode=sidecar_mode,
             output_name=output_path.name,
+            peak_table_mapping_sha256=(
+                peak_table_mapping.semantic_sha256 if peak_table_mapping is not None else None
+            ),
+            peak_table_mapping_schema_version=(
+                peak_table_mapping.schema_version if peak_table_mapping is not None else None
+            ),
+            peak_table_source_format=(
+                peak_table_mapping.source_format.value if peak_table_mapping is not None else None
+            ),
         ),
     )
     if progress is not None:

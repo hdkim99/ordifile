@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
 from ordifile import api as public_api
 from ordifile.core.models import (
     BatchOutcome,
@@ -81,7 +82,12 @@ def test_inspect_selection_uses_public_batch_api_and_forwards_progress(
 
     report = services.inspect_selection(inputs, sort="filename", progress=events.append)
 
-    assert calls == {"inputs": inputs, "sort": "filename", "progress": events.append}
+    assert calls == {
+        "inputs": inputs,
+        "sort": "filename",
+        "peak_table_mapping": None,
+        "progress": events.append,
+    }
     assert report.outcome is BatchOutcome.SUCCESS
     assert report.files[0].format_name == "Generic CSV (Verified)"
     assert report.files[0].status is DesktopInputStatus.SUCCESS
@@ -110,10 +116,72 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
         "sort": "sequence",
         "on_error": "continue",
         "overwrite": False,
+        "peak_table_mapping": None,
         "progress": None,
     }
     assert report.output_path == output
     assert report.outcome is BatchOutcome.SUCCESS
+
+
+def test_desktop_services_forward_one_frozen_mapping_to_preview_and_conversion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    calls: list[PeakTableMapping | None] = []
+    output = tmp_path / "result.xlsx"
+
+    def inspect(*_args: object, **kwargs: object) -> BatchResult:
+        value = kwargs.get("peak_table_mapping")
+        assert value is None or isinstance(value, PeakTableMapping)
+        calls.append(value)
+        return _batch(FileStatus.SUCCESS)
+
+    def convert(*_args: object, **kwargs: object) -> BatchResult:
+        value = kwargs.get("peak_table_mapping")
+        assert value is None or isinstance(value, PeakTableMapping)
+        calls.append(value)
+        return _batch(FileStatus.SUCCESS, output=output)
+
+    monkeypatch.setattr(public_api, "inspect_inputs", inspect)
+    monkeypatch.setattr(public_api, "convert", convert)
+
+    services.inspect_selection((tmp_path / "input.csv",), sort="auto", peak_table_mapping=mapping)
+    services.convert_selection(
+        DesktopRequest((tmp_path / "input.csv",), output, peak_table_mapping=mapping)
+    )
+
+    assert calls == [mapping, mapping]
+
+
+def test_preview_peak_table_uses_public_bounded_preview_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "input.csv"
+    expected = SimpleNamespace(
+        source_format=PeakTableFormat.CSV,
+        headers=("RT", "Area"),
+        rows=(("1.2", "10"),),
+        sheet=None,
+    )
+    calls: list[tuple[object, ...]] = []
+
+    def preview(*args: object, **kwargs: object) -> object:
+        calls.append((*args, kwargs))
+        return expected
+
+    monkeypatch.setattr(public_api, "preview_peak_table", preview)
+
+    report = services.preview_peak_table(source, PeakTableFormat.CSV)
+
+    assert calls == [(source, PeakTableFormat.CSV, {"sheet": None})]
+    assert report.preview is not None
+    assert report.preview.headers == ("RT", "Area")
+    assert report.preview.rows == (("1.2", "10"),)
 
 
 def test_convert_selection_distinguishes_partial_success(
@@ -223,6 +291,10 @@ def test_safe_display_name_removes_controls_and_bidi(tmp_path: Path) -> None:
     assert "\n" not in rendered
     assert "\u202e" not in rendered
     assert rendered == "line bad name.csv"
+
+
+def test_safe_preview_text_visibly_escapes_controls_and_bidi() -> None:
+    assert services.safe_preview_text("line\nbad\u202evalue") == ("line\\u000Abad\\u202Evalue")
 
 
 def test_diagnostic_text_is_single_line_per_file_and_control_safe(

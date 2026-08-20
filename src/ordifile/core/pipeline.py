@@ -14,11 +14,11 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-from ordifile.adapters.base import ParseOptions, SourceIdentityPolicy
+from ordifile.adapters.base import DetectionResult, ParseOptions, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
-from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, detect_adapter
+from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, DetectionOutcome, detect_adapter
 from ordifile.core.discovery import discover_files, sha256_file
-from ordifile.core.errors import OrdifileError
+from ordifile.core.errors import DetectionError, OrdifileError
 from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
@@ -33,6 +33,7 @@ from ordifile.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
+from ordifile.core.peak_mapping import MAPPED_XLSX_SHEET_MARKER, PeakTableFormat
 from ordifile.core.privacy import contains_machine_local_path, scrub_machine_local_paths
 from ordifile.core.sorting import sort_file_results
 from ordifile.core.validation import validate_bundle, validate_bundle_structure
@@ -290,6 +291,35 @@ def _bind_source(bundle: DatasetBundle, source: SourceFile) -> DatasetBundle:
     )
 
 
+def _bind_mapped_fallback_sample(bundle: DatasetBundle, source: SourceFile) -> DatasetBundle:
+    """Replace the non-identifying parser placeholder with the SHA-derived source alias."""
+    new_id = workbook_audit_display(source.public_reference)
+    return replace(
+        bundle,
+        samples=(replace(bundle.samples[0], sample_id=new_id),),
+        peaks=tuple(replace(peak, sample_id=new_id) for peak in bundle.peaks),
+        metadata=tuple(replace(entry, sample_id=new_id) for entry in bundle.metadata),
+    )
+
+
+def _mapped_adapter_id(path: Path, source_format: PeakTableFormat) -> str:
+    """Select one existing audited generic reader without content inference."""
+    suffix = path.suffix.casefold()
+    contracts = {
+        PeakTableFormat.CSV: ("generic_csv", frozenset((".csv",))),
+        PeakTableFormat.TSV: ("generic_tsv", frozenset((".tsv", ".txt"))),
+        PeakTableFormat.SEMICOLON: ("generic_semicolon", frozenset((".txt",))),
+        PeakTableFormat.XLSX: ("generic_xlsx", frozenset((".xlsx",))),
+    }
+    adapter_id, extensions = contracts[source_format]
+    if suffix not in extensions:
+        raise DetectionError(
+            "PEAK_MAPPING_FORMAT_MISMATCH",
+            "The input extension does not match the mapping's audited source format.",
+        )
+    return adapter_id
+
+
 def _adapter_source_integrity_issue(bundle: DatasetBundle, source: SourceFile) -> Issue | None:
     """Reject a bounded adapter read that does not match discovery provenance."""
     if len(bundle.sources) != 1:
@@ -456,6 +486,11 @@ def run_pipeline(
     if forced_adapter is not None:
         registry.get(forced_adapter)
     options = ParseOptions() if parse_options is None else parse_options
+    if forced_adapter is not None and options.peak_table_mapping is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_ADAPTER_CONFLICT",
+            "adapter and peak_table_mapping cannot be selected together.",
+        )
     normalized_extensions = None if extensions is None else tuple(extensions)
     processed: list[FileResult] = []
     stopped = False
@@ -487,8 +522,12 @@ def run_pipeline(
         sha256_alias_owner_ids = _sha256_alias_owner_ids_before_detection(
             discovered.source.path, registry, forced_adapter
         )
-        initial_policy = _source_identity_policy_before_detection(
-            discovered.source.path, registry, forced_adapter
+        initial_policy = (
+            SourceIdentityPolicy.SHA256_ALIAS
+            if options.peak_table_mapping is not None
+            else _source_identity_policy_before_detection(
+                discovered.source.path, registry, forced_adapter
+            )
         )
         source = _apply_source_identity(discovered.source, initial_policy)
         artifact_excluded = any(
@@ -551,16 +590,61 @@ def run_pipeline(
         selected_adapter_version: str | None = None
         probes: tuple[tuple[str, float, str], ...] = ()
         try:
-            detection = detect_adapter(
-                source.path,
-                registry,
-                forced_adapter=forced_adapter,
-                redact_adapter_ids=sha256_alias_owner_ids,
-                redact_error_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
-            )
+            mapping_applied = False
+            parse_for_adapter = options
+            if options.peak_table_mapping is None:
+                detection = detect_adapter(
+                    source.path,
+                    registry,
+                    forced_adapter=forced_adapter,
+                    redact_adapter_ids=sha256_alias_owner_ids,
+                    redact_error_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
+                )
+            else:
+                try:
+                    automatic = detect_adapter(
+                        source.path,
+                        registry,
+                        redact_adapter_ids=sha256_alias_owner_ids,
+                        redact_error_reasons=True,
+                    )
+                except DetectionError as error:
+                    if error.code != "FORMAT_NOT_DETECTED":
+                        raise
+                    automatic = None
+                generic_ids = {
+                    "generic_csv",
+                    "generic_tsv",
+                    "generic_semicolon",
+                    "generic_xlsx",
+                }
+                if automatic is not None and automatic.adapter.adapter_id not in generic_ids:
+                    detection = automatic
+                    parse_for_adapter = replace(options, peak_table_mapping=None)
+                else:
+                    mapped_id = _mapped_adapter_id(
+                        source.path, options.peak_table_mapping.source_format
+                    )
+                    mapped_adapter = registry.get(mapped_id)
+                    detection = DetectionOutcome(
+                        mapped_adapter,
+                        (
+                            (
+                                mapped_id,
+                                DetectionResult(
+                                    True,
+                                    1.0,
+                                    "Explicit user mapping selected an audited generic container.",
+                                ),
+                            ),
+                        ),
+                    )
+                    mapping_applied = True
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
             selected_adapter_policy = detection.adapter.descriptor.source_identity_policy
+            if mapping_applied:
+                selected_adapter_policy = SourceIdentityPolicy.SHA256_ALIAS
             selected_policy = selected_adapter_policy
             if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
                 selected_policy = SourceIdentityPolicy.SHA256_ALIAS
@@ -580,7 +664,18 @@ def run_pipeline(
             )
             discovery_issues = _rebind_issue_sources(discovery_issues, source)
             display_source = workbook_audit_display(source.public_reference)
-            parsed_bundle = detection.adapter.parse(source.path, options)
+            if options.peak_table_mapping is not None and not mapping_applied:
+                discovery_issues = (
+                    *discovery_issues,
+                    Issue(
+                        "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE",
+                        "The explicit mapping was not applied because an exact-profile adapter "
+                        "owned this input.",
+                        Severity.WARNING,
+                        display_source,
+                    ),
+                )
+            parsed_bundle = detection.adapter.parse(source.path, parse_for_adapter)
             structure_issues = validate_bundle_structure(parsed_bundle)
             if not structure_issues:
                 adapter_integrity_issue = _adapter_source_integrity_issue(parsed_bundle, source)
@@ -598,6 +693,13 @@ def run_pipeline(
                 )
             structure_issues = _rebind_issue_sources(structure_issues, source)
             bundle = None if structure_issues else _bind_source(parsed_bundle, source)
+            if (
+                bundle is not None
+                and mapping_applied
+                and options.peak_table_mapping is not None
+                and options.peak_table_mapping.sample_id_column is None
+            ):
+                bundle = _bind_mapped_fallback_sample(bundle, source)
             datetime_issues: tuple[Issue, ...] = ()
             if bundle is not None and len(bundle.samples) == 1:
                 bundle, datetime_issues = _normalize_datetimes(bundle, display_source)
@@ -746,8 +848,27 @@ def run_pipeline(
             extensions=tuple(str(item) for item in normalized_extensions or ()),
             sort=requested_sort,
             adapter=forced_adapter,
-            sheet=options.sheet,
+            sheet=(
+                MAPPED_XLSX_SHEET_MARKER
+                if options.peak_table_mapping is not None and options.sheet is not None
+                else options.sheet
+            ),
             include_hidden_sheets=options.include_hidden_sheets,
             on_error=on_error,
+            peak_table_mapping_sha256=(
+                options.peak_table_mapping.semantic_sha256
+                if options.peak_table_mapping is not None
+                else None
+            ),
+            peak_table_mapping_schema_version=(
+                options.peak_table_mapping.schema_version
+                if options.peak_table_mapping is not None
+                else None
+            ),
+            peak_table_source_format=(
+                options.peak_table_mapping.source_format.value
+                if options.peak_table_mapping is not None
+                else None
+            ),
         ),
     )

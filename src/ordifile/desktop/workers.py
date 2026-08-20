@@ -9,9 +9,14 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from ordifile import PeakTableFormat, PeakTableMapping
 from ordifile.core.models import BatchOutcome, ProgressEvent
-from ordifile.desktop.models import DesktopBatchReport, DesktopRequest
-from ordifile.desktop.services import convert_selection, inspect_selection
+from ordifile.desktop.models import (
+    DesktopBatchReport,
+    DesktopPeakTablePreviewReport,
+    DesktopRequest,
+)
+from ordifile.desktop.services import convert_selection, inspect_selection, preview_peak_table
 
 
 def _unexpected_worker_failure() -> DesktopBatchReport:
@@ -30,10 +35,16 @@ class PreviewWorker(QObject):
     completed = Signal(object)
     finished = Signal()
 
-    def __init__(self, inputs: tuple[Path, ...], sort: str) -> None:
+    def __init__(
+        self,
+        inputs: tuple[Path, ...],
+        sort: str,
+        peak_table_mapping: PeakTableMapping | None = None,
+    ) -> None:
         super().__init__()
         self._inputs = inputs
         self._sort = sort
+        self._peak_table_mapping = peak_table_mapping
 
     def _emit_progress(self, event: ProgressEvent) -> None:
         self.progress.emit(event)
@@ -43,10 +54,42 @@ class PreviewWorker(QObject):
         """Inspect the immutable request and always release the worker thread."""
         try:
             self.completed.emit(
-                inspect_selection(self._inputs, sort=self._sort, progress=self._emit_progress)
+                inspect_selection(
+                    self._inputs,
+                    sort=self._sort,
+                    peak_table_mapping=self._peak_table_mapping,
+                    progress=self._emit_progress,
+                )
             )
         except BaseException:
             self.completed.emit(_unexpected_worker_failure())
+        finally:
+            self.finished.emit()
+
+
+class PeakTablePreviewWorker(QObject):
+    """Read one bounded generic-table preview outside the UI thread."""
+
+    completed = Signal(object)
+    finished = Signal()
+
+    def __init__(self, path: Path, source_format: PeakTableFormat) -> None:
+        super().__init__()
+        self._path = path
+        self._source_format = source_format
+
+    @Slot()
+    def run(self) -> None:
+        """Call the public preview service and always release the worker thread."""
+        try:
+            self.completed.emit(preview_peak_table(self._path, self._source_format))
+        except BaseException:
+            self.completed.emit(
+                DesktopPeakTablePreviewReport(
+                    error_code="DESKTOP_WORKER_FAILED",
+                    error_message="The background preview stopped unexpectedly.",
+                )
+            )
         finally:
             self.finished.emit()
 

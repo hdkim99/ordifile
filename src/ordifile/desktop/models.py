@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from ordifile import PeakTableFormat, PeakTableMapping
 from ordifile.core.models import BatchOutcome
 
 
@@ -40,6 +41,31 @@ class DesktopRequest:
     inputs: tuple[Path, ...]
     output: Path
     sort: str = "auto"
+    peak_table_mapping: PeakTableMapping | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopPeakTablePreview:
+    """Bounded table preview safe to pass from a worker to the UI thread."""
+
+    source_format: PeakTableFormat
+    headers: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+    sheet: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopPeakTablePreviewReport:
+    """Successful bounded preview or one structured presentation-safe failure."""
+
+    preview: DesktopPeakTablePreview | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+    @property
+    def is_error(self) -> bool:
+        """Return whether the preview could not be produced."""
+        return self.error_code is not None
 
 
 @dataclass(frozen=True, slots=True)

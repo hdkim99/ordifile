@@ -128,6 +128,23 @@ BLOCKED이며, 위 Python package GUI가 지원되는 설치 경로입니다.
 뿐이며 내용과 schema도 함께 확인합니다. 현재 환경의 adapter는
 `ordifile formats`로 확인할 수 있습니다.
 
+### 미지원 Peak Table 열을 직접 mapping
+
+정확한 profile adapter가 없어도 정돈된 CSV, TSV, semicolon-TXT 또는 audited XLSX
+Result 표에 RT와 Area 열이 명시되어 있다면 desktop의 **Map Peak Columns** 또는 CLI
+mapping JSON을 사용할 수 있습니다.
+
+```console
+ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
+```
+
+Mapping은 모든 header를 분류하고 RT unit과 Area unit 상태를 사용자가 확인해야 합니다.
+Ordifile은 source 행 순서를 보존하며 내장 Result adapter와 같은 `PeakRecord` → `Peaks` →
+ordered matrix → workbook 경로를 사용합니다. RT, Area, unit, compound, vendor를 자동
+추론하지 않습니다. Manufacturer/software 값은 사용자 제공 provenance일 뿐 검증된
+호환성이 아니며 vendor 지원 표에 추가되지 않습니다. [명시적 mapping
+계약](docs/formats/explicit-peak-table-mapping.md)을 참고해 주세요.
+
 ## Experimental proprietary adapter
 
 | 형식 경계 | Metadata | Peaks | 출력 | 상태 | 실제 fixture |
@@ -240,6 +257,8 @@ ordifile convert ./exports --extension .csv --extension .xlsx \
 - `--on-error continue`는 정상 파일을 보존하고 부분 성공을 보고합니다.
 - `--on-error stop`은 첫 파일 실패 후 중단하며 workbook을 쓰지 않습니다.
 - `--adapter`는 adapter를 강제하고 `--sheet`는 XLSX worksheet를 선택합니다.
+- `--peak-mapping FILE.json`은 batch의 일치하는 generic 표에 하나의 엄격한 local
+  사용자 확인 mapping을 적용합니다.
 - signal이 있어도 `--include-signals`를 지정해야 workbook에 기록합니다.
 - `--verbose`는 검출 근거와 상세 구조화 진단을 표시합니다.
 
@@ -314,6 +333,9 @@ validation, sorting을 수행합니다. `convert()`는 stale data를 승인하�
 구현하지 않습니다. 새 형식에는 bounded detection, 기술 근거, 구조화 오류,
 재배포 가능한 또는 합성 fixture, 기능별 테스트, 라이선스 검토가 필요합니다.
 
+실제 Result export 제공은 [privacy-first fixture intake
+guide](docs/contributing/result-fixture-intake.md)를 따라 주세요.
+
 [Adapter 추가 가이드](docs/formats/adding-an-adapter.md)를 먼저 읽어 주세요. 설치된
 외부 adapter는 Python 코드를 실행하므로 신뢰할 수 있는 software로 취급해야 합니다.
 
@@ -374,7 +396,8 @@ Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored
 - Extension filter는 discovery 전에 lowercase dotted ASCII로 정규화합니다. 고유 filter는
   최대 32개이며 선행 점 뒤 ASCII suffix는 각 32자입니다. Manifest 표현은 1,024자로
   제한합니다.
-- 문서화된 header만 mapping합니다. 단위는 복사하며 변환하지 않습니다.
+- 자동 generic ingestion은 문서화된 header만 사용합니다. 명시적 peak mapping은 사용자가
+  선택한 정확한 label과 위치를 함께 사용합니다. 단위는 복사하며 변환하지 않습니다.
 - retention time에서 성분을 추론하지 않습니다. RT tolerance matching과 중복 성분
   aggregation은 기본 기능이 아닙니다.
 - XLSX는 explicit uppercase row/cell 좌표를 가진 감사된 transitional non-macro `.xlsx`

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -28,7 +30,8 @@ from ordifile.core.models import (
     SignalSeries,
     SourceFile,
 )
-from ordifile.core.workbook_text import workbook_audit_display
+from ordifile.core.peak_mapping import PeakTableMapping
+from ordifile.core.workbook_text import workbook_audit_display, workbook_cell_text_is_exact
 
 _HEADER_SPACE = re.compile(r"[\s\-]+")
 HEADER_ALIASES: dict[str, str] = {
@@ -330,6 +333,399 @@ def _timestamp(value: Any, row_number: int, issues: list[Issue]) -> tuple[dateti
             )
         )
     return parsed, reliable
+
+
+def _mapped_text(value: Any, *, field: str, row_number: int, required: bool = False) -> str | None:
+    """Read one user-selected text cell without trimming or exposing its contents."""
+    if value is None or str(value) == "":
+        if required:
+            raise ParseError(
+                "PEAK_MAPPING_VALUE_MISSING",
+                f"Row {row_number} mapped field {field} is empty.",
+            )
+        return None
+    result = str(value)
+    if not workbook_cell_text_is_exact(result):
+        raise ParseError(
+            "PEAK_MAPPING_TEXT_INVALID",
+            f"Row {row_number} mapped field {field} cannot be represented exactly.",
+        )
+    if any(
+        unicodedata.category(character) in {"Cc", "Cf", "Cs", "Zl", "Zp"} for character in result
+    ):
+        raise ParseError(
+            "PEAK_MAPPING_TEXT_INVALID",
+            f"Row {row_number} mapped field {field} contains unsafe text formatting.",
+        )
+    return result
+
+
+def _mapped_float(value: Any, *, field: str, row_number: int, required: bool) -> float | None:
+    """Parse one explicit decimal value without silent loss or non-finite acceptance."""
+    text = _mapped_text(value, field=field, row_number=row_number, required=required)
+    if text is None:
+        return None
+    if text != text.strip():
+        raise ParseError(
+            "PEAK_MAPPING_NUMBER_INVALID",
+            f"Row {row_number} mapped field {field} contains surrounding whitespace.",
+        )
+    try:
+        decimal_value = Decimal(text)
+        float_value = float(text)
+    except (InvalidOperation, TypeError, ValueError, OverflowError) as error:
+        raise ParseError(
+            "PEAK_MAPPING_NUMBER_INVALID",
+            f"Row {row_number} mapped field {field} is not a supported decimal number.",
+        ) from error
+    if not decimal_value.is_finite() or not math.isfinite(float_value):
+        raise ParseError(
+            "PEAK_MAPPING_NUMBER_NONFINITE",
+            f"Row {row_number} mapped field {field} must be finite.",
+        )
+    if Decimal(str(float_value)) != decimal_value:
+        raise ParseError(
+            "PEAK_MAPPING_NUMBER_LOSSY",
+            f"Row {row_number} mapped field {field} is not exactly representable.",
+        )
+    return float_value
+
+
+def _mapped_integer(value: Any, *, field: str, row_number: int) -> int | None:
+    text = _mapped_text(value, field=field, row_number=row_number)
+    if text is None:
+        return None
+    if len(text) > MAX_CANONICAL_INTEGER_LEXEME_CHARACTERS or text != text.strip():
+        raise ParseError(
+            "PEAK_MAPPING_INTEGER_INVALID",
+            f"Row {row_number} mapped field {field} is not a bounded integer.",
+        )
+    try:
+        number = Decimal(text)
+    except InvalidOperation as error:
+        raise ParseError(
+            "PEAK_MAPPING_INTEGER_INVALID",
+            f"Row {row_number} mapped field {field} is not an integer.",
+        ) from error
+    if (
+        not number.is_finite()
+        or number != number.to_integral_value()
+        or number.adjusted() >= MAX_CANONICAL_INTEGER_DECIMAL_DIGITS
+    ):
+        raise ParseError(
+            "PEAK_MAPPING_INTEGER_INVALID",
+            f"Row {row_number} mapped field {field} is not a bounded integer.",
+        )
+    return int(number)
+
+
+def parse_mapped_peak_rows(
+    path: Path,
+    rows: Iterable[Sequence[Any]],
+    mapping: PeakTableMapping,
+    *,
+    namespace: str,
+) -> DatasetBundle:
+    """Transform one clean table using only user-confirmed semantic selectors."""
+    iterator = iter(rows)
+    try:
+        raw_header = next(iterator)
+    except StopIteration as error:
+        raise ParseError("MISSING_HEADER", "The mapped table is empty.") from error
+    header = ["" if value is None else str(value) for value in raw_header]
+    while header and header[-1] == "":
+        header.pop()
+    if not header:
+        raise ParseError("MISSING_HEADER", "The mapped table has no header row.")
+    mapped = mapping.semantic_headers(cast(list[object], header))
+    source = _source(path)
+    sample_id = "mapped-sample"
+    first_values: dict[str, str] = {}
+    acquired_at: datetime | None = None
+    acquired_reliable = False
+    stream_orders: dict[tuple[str | None, str | None], int] = {}
+    peaks: list[PeakRecord] = []
+    row_metadata: list[MetadataEntry] = []
+
+    def require_constant(field: str, value: str | None, row_number: int) -> str | None:
+        if value is None:
+            return first_values.get(field)
+        previous = first_values.setdefault(field, value)
+        if previous != value:
+            raise ParseError(
+                "PEAK_MAPPING_FILE_FIELD_INCONSISTENT",
+                f"Row {row_number} mapped field {field} conflicts within this one-run input.",
+            )
+        return previous
+
+    for row_number, raw_row in enumerate(iterator, start=2):
+        values = list(raw_row)
+        if len(values) > len(header) and any(
+            value is not None and str(value) != "" for value in values[len(header) :]
+        ):
+            raise ParseError(
+                "PEAK_MAPPING_EXTRA_CELLS",
+                f"Row {row_number} contains data beyond the mapped header.",
+            )
+        values.extend([None] * max(0, len(header) - len(values)))
+        values = values[: len(header)]
+        if all(value is None or str(value) == "" for value in values):
+            continue
+        by_role = {role: values[index] for index, role in enumerate(mapped) if role is not None}
+        current_sample = _mapped_text(
+            by_role.get("sample_id"),
+            field="sample_id",
+            row_number=row_number,
+            required=mapping.sample_id_column is not None,
+        )
+        stable_sample = require_constant("sample_id", current_sample, row_number)
+        if stable_sample is not None:
+            sample_id = stable_sample
+        run_id = require_constant(
+            "run_id",
+            _mapped_text(
+                by_role.get("run_id"),
+                field="run_id",
+                row_number=row_number,
+                required=mapping.run_id_column is not None,
+            ),
+            row_number,
+        )
+        acquired_text = require_constant(
+            "acquired_at",
+            _mapped_text(
+                by_role.get("acquired_at"),
+                field="acquired_at",
+                row_number=row_number,
+                required=mapping.acquisition_time_column is not None,
+            ),
+            row_number,
+        )
+        if acquired_text is not None and acquired_at is None:
+            try:
+                acquired_at = datetime.fromisoformat(acquired_text.replace("Z", "+00:00"))
+                acquired_reliable = (
+                    acquired_at.tzinfo is not None and acquired_at.utcoffset() is not None
+                )
+            except ValueError as error:
+                raise ParseError(
+                    "PEAK_MAPPING_TIMESTAMP_INVALID",
+                    "The mapped acquisition time must be an ISO 8601 timestamp.",
+                ) from error
+
+        detector = _mapped_text(by_role.get("detector"), field="detector", row_number=row_number)
+        channel = _mapped_text(by_role.get("channel"), field="channel", row_number=row_number)
+        stream = (detector, channel)
+        order = stream_orders.get(stream, 0) + 1
+        stream_orders[stream] = order
+        compound = _mapped_text(by_role.get("compound"), field="compound", row_number=row_number)
+        peak_name = _mapped_text(by_role.get("peak_name"), field="peak_name", row_number=row_number)
+        peak = PeakRecord(
+            sample_id=sample_id,
+            source_file=source.name,
+            channel=channel,
+            detector=detector,
+            peak_number=_mapped_integer(
+                by_role.get("peak_number"), field="peak_number", row_number=row_number
+            ),
+            retention_time=_mapped_float(
+                by_role.get("retention_time"),
+                field="retention_time",
+                row_number=row_number,
+                required=True,
+            ),
+            retention_time_unit=mapping.retention_time_unit,
+            area=_mapped_float(
+                by_role.get("area"), field="area", row_number=row_number, required=True
+            ),
+            height=_mapped_float(
+                by_role.get("height"), field="height", row_number=row_number, required=False
+            ),
+            compound=compound,
+            compound_source="user_supplied_mapping:compound" if compound is not None else None,
+            status="user_supplied_mapping",
+            observation_order=order,
+            start_time=_mapped_float(
+                by_role.get("start_time"),
+                field="start_time",
+                row_number=row_number,
+                required=False,
+            ),
+            end_time=_mapped_float(
+                by_role.get("end_time"),
+                field="end_time",
+                row_number=row_number,
+                required=False,
+            ),
+            area_unit=mapping.area_unit,
+            height_unit=mapping.height_unit if mapping.height_column is not None else None,
+            secondary_retention_time=_mapped_float(
+                by_role.get("secondary_retention_time"),
+                field="secondary_retention_time",
+                row_number=row_number,
+                required=mapping.secondary_retention_time_column is not None,
+            ),
+            secondary_retention_time_unit=mapping.secondary_retention_time_unit,
+        )
+        peaks.append(peak)
+        if peak_name is not None:
+            row_metadata.append(
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    f"peak:{len(peaks):06d}:peak_name",
+                    peak_name,
+                    source="canonical:user_supplied_mapping.peak_name",
+                )
+            )
+        if run_id is not None and len(peaks) == 1:
+            row_metadata.append(
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "run_id",
+                    run_id,
+                    source="canonical:user_supplied_mapping.run_id",
+                )
+            )
+
+    if not peaks:
+        raise ParseError("PEAK_MAPPING_EMPTY_TABLE", "The mapped table contains no peak rows.")
+    metadata = [
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "mapping_mode",
+            "USER_SUPPLIED",
+            source="canonical:user_supplied_mapping.mode",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "mapping_schema_version",
+            mapping.schema_version,
+            source="canonical:user_supplied_mapping.schema_version",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "mapping_sha256",
+            mapping.semantic_sha256,
+            source="canonical:user_supplied_mapping.sha256",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "mapped_roles",
+            ";".join(mapping.mapped_roles),
+            source="canonical:user_supplied_mapping.roles",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "ignored_column_count",
+            len(mapping.ignored_columns),
+            source="canonical:user_supplied_mapping.ignored_count",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "retention_time_unit_source",
+            "USER_SUPPLIED",
+            source="canonical:user_supplied_mapping.rt_unit_source",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "area_unit_source",
+            "USER_SUPPLIED",
+            source="canonical:user_supplied_mapping.area_unit_source",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "converted_peak_row_count",
+            len(peaks),
+            source="canonical:user_supplied_mapping.row_count",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "manufacturer_verification_status",
+            "USER_SUPPLIED" if mapping.manufacturer is not None else "UNRESOLVED",
+            source="canonical:user_supplied_mapping.manufacturer_status",
+        ),
+        MetadataEntry(
+            sample_id,
+            source.name,
+            namespace,
+            "software_verification_status",
+            "USER_SUPPLIED" if mapping.software is not None else "UNRESOLVED",
+            source="canonical:user_supplied_mapping.software_status",
+        ),
+    ]
+    if mapping.manufacturer is not None:
+        metadata.append(
+            MetadataEntry(
+                sample_id,
+                source.name,
+                namespace,
+                "manufacturer_source",
+                "USER_SUPPLIED",
+                source="canonical:user_supplied_mapping.manufacturer_source",
+            )
+        )
+    if mapping.software is not None:
+        metadata.extend(
+            (
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "software",
+                    mapping.software,
+                    source="canonical:user_supplied_mapping.software",
+                ),
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "software_source",
+                    "USER_SUPPLIED",
+                    source="canonical:user_supplied_mapping.software_source",
+                ),
+            )
+        )
+    metadata.extend(row_metadata)
+    sample = SampleRecord(
+        sample_id=sample_id,
+        source=source,
+        acquired_at=acquired_at,
+        acquired_at_reliable=acquired_reliable,
+        instrument=InstrumentMetadata(vendor=mapping.manufacturer),
+        channels=tuple(dict.fromkeys(peak.channel for peak in peaks if peak.channel is not None)),
+        detectors=tuple(
+            dict.fromkeys(peak.detector for peak in peaks if peak.detector is not None)
+        ),
+        status=FileStatus.SUCCESS,
+    )
+    return DatasetBundle(
+        sources=(source,),
+        samples=(sample,),
+        peaks=tuple(peaks),
+        metadata=tuple(metadata),
+    )
 
 
 def parse_rows(
@@ -715,23 +1111,7 @@ def parse_rows(
         )
         for entry in metadata
     ]
-    peaks = [
-        PeakRecord(
-            sample_id,
-            peak.source_file,
-            peak.channel,
-            peak.detector,
-            peak.peak_number,
-            peak.retention_time,
-            peak.retention_time_unit,
-            peak.area,
-            peak.height,
-            peak.compound,
-            peak.compound_source,
-            peak.status,
-        )
-        for peak in peaks
-    ]
+    peaks = [replace(peak, sample_id=sample_id) for peak in peaks]
     signals = tuple(
         SignalSeries(
             sample_id,

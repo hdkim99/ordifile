@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- A strict, reproducible Explicit Peak Table Mapping workflow for user-selected RT and
+  Area columns in the existing CSV, TSV, semicolon-TXT, and audited XLSX containers.
+  The shared API, CLI, desktop UI, canonical `PeakRecord` path, ordered matrices, and
+  workbook provenance distinguish user declarations from verified vendor support.
+- A privacy-first Result fixture intake guide with exact requests for the currently
+  blocked Thermo, PerkinElmer, SCION, LECO 1D, and Bruker profiles.
 - An Experimental Result adapter for the exact externally evidenced LECO ChromaTOF
   4.72.0.0 GCxGC tab-delimited profile. It preserves explicit RT1/RT2 seconds,
   area/height arbitrary units, source order, compound-name evidence and row-aligned
