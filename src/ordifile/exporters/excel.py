@@ -523,7 +523,13 @@ def _import_log_data(result: BatchResult) -> _SheetData:
     headers = (
         *base_headers,
         *(
-            ("conversion_route", "mapping_profile_id", "structure_fingerprint")
+            (
+                "conversion_route",
+                "mapping_profile_id",
+                "structure_fingerprint",
+                "mapping_diagnostic_candidates",
+                "mapping_diagnostic_categories",
+            )
             if has_profile_routes
             else ()
         ),
@@ -550,6 +556,16 @@ def _import_log_data(result: BatchResult) -> _SheetData:
                 item.mapping_route,
                 item.mapping_profile_id,
                 item.mapping_structure_fingerprint,
+                len(item.mapping_diagnostics),
+                ";".join(
+                    sorted(
+                        {
+                            category.value
+                            for diagnostic in item.mapping_diagnostics
+                            for category in diagnostic.categories
+                        }
+                    )
+                ),
             )
         rows.append(row)
     return _SheetData("Import_Log", headers, tuple(rows))

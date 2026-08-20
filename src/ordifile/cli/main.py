@@ -340,6 +340,20 @@ def _run_inspect(args: argparse.Namespace) -> int:
     print(f"Scientific signals: {scientific_signals}")
     print(f"Decoded record series: {decoded_record_series}")
     print(f"Metadata entries: {len(bundle.metadata) if bundle is not None else 0}")
+    mapping_route = getattr(result, "mapping_route", None)
+    diagnostics = getattr(result, "mapping_diagnostics", ())
+    print(f"Mapping route: {_terminal_safe(mapping_route or 'none')}")
+    if diagnostics:
+        print(f"Schema drift candidates: {len(diagnostics)}")
+        for diagnostic in diagnostics:
+            categories = ",".join(category.value for category in diagnostic.categories)
+            print(
+                "- profile="
+                f"{_terminal_safe(diagnostic.profile_id)}; "
+                f"format={_terminal_safe(diagnostic.source_format.value)}; "
+                f"changes={diagnostic.total_difference_count}; "
+                f"categories={_terminal_safe(categories)}"
+            )
     _print_issues(result, verbose=args.verbose)
     if args.verbose:
         print("Detection evidence:")
@@ -477,9 +491,16 @@ def _run_convert(args: argparse.Namespace) -> int:
             if item.mapping_route == "USER_MAPPING_PROFILE" and item.mapping_profile_id is not None
         }
         unmapped_count = sum(item.mapping_route == "NO_MAPPING_MATCH" for item in result.files)
+        drifted_count = sum(item.mapping_route == "SCHEMA_DRIFT_CANDIDATE" for item in result.files)
+        ambiguous_count = sum(
+            item.mapping_route in {"AMBIGUOUS_MAPPING_PROFILE", "AMBIGUOUS_WORKSHEET"}
+            for item in result.files
+        )
         print(f"Exact adapter routes: {exact_count}")
         print(f"Mapping profiles used: {len(used_profiles)}")
         print(f"Unmapped generic tables: {unmapped_count}")
+        print(f"Schema drift candidates: {drifted_count}")
+        print(f"Ambiguous mapped tables: {ambiguous_count}")
     if result.sidecars:
         print("Sidecars:")
         for sidecar in result.sidecars:

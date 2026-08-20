@@ -16,10 +16,12 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from ordifile import (
     ColumnSelector,
+    PeakMappingDriftCategory,
+    PeakMappingDriftDiagnostic,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
@@ -56,6 +58,29 @@ def _mapping_set(
     label: str = "Daily CSV",
 ) -> PeakTableMappingSet:
     return PeakTableMappingSet((PeakTableMappingProfile(mapping or _mapping(), label),))
+
+
+def _drift_diagnostic(
+    profile: PeakTableMappingProfile,
+    *,
+    unresolved_required_roles: tuple[str, ...] = ("area",),
+) -> PeakMappingDriftDiagnostic:
+    return PeakMappingDriftDiagnostic(
+        profile_id=profile.profile_id,
+        profile_structural_fingerprint=profile.structural_fingerprint_sha256,
+        source_format=profile.mapping.source_format,
+        categories=(PeakMappingDriftCategory.HEADER_CHANGED_UNRESOLVED,),
+        expected_column_count=2,
+        observed_column_count=2,
+        exact_position_matches=1,
+        changed_column_count=1,
+        added_column_count=0,
+        removed_column_count=0,
+        moved_column_count=0,
+        total_difference_count=1,
+        unresolved_required_roles=unresolved_required_roles,
+        unresolved_optional_roles=(),
+    )
 
 
 def _next_expected_widget(current: QWidget, expected: set[QWidget]) -> QWidget:
@@ -195,6 +220,8 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.map_peaks_button.accessibleName() == "Map selected file peak columns"
     assert window.mapping_set_combo.accessibleName() == "Reusable peak mapping profiles"
     assert window.use_mapping_set_checkbox.accessibleName() == ("Use reusable peak mapping set")
+    assert window.drift_candidate_combo.accessibleName() == "Mapping schema drift candidates"
+    assert window.review_mapping_button.accessibleName() == ("Review selected schema drift mapping")
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -221,6 +248,11 @@ def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplic
         window.rename_mapping_profile_button,
         window.remove_mapping_profile_button,
         window.remove_button,
+        window.clear_button,
+        window.input_table,
+        window.drift_candidate_combo,
+        window.review_mapping_button,
+        window.sort_combo,
     )
     expected = set(expected_order)
 
@@ -459,6 +491,342 @@ def test_window_route_display_uses_public_route_and_local_profile_label(
     window.close()
 
 
+def test_window_requires_explicit_drift_candidate_selection(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    first = PeakTableMappingProfile(
+        _mapping(),
+        "First",
+        profile_id="profile-11111111111111111111111111111111",
+    )
+    second = PeakTableMappingProfile(
+        _mapping(unit="s"),
+        "Second",
+        profile_id="profile-22222222222222222222222222222222",
+    )
+    mapping_set = PeakTableMappingSet((first, second))
+    diagnostics = (_drift_diagnostic(first), _drift_diagnostic(second))
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=diagnostics,
+        review_input_index=0,
+    )
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.add_paths((source,))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+
+    window.input_table.selectRow(0)
+
+    route = window.input_table.item(0, 3)
+    assert route is not None and route.text() == "Schema changed — review required"
+    assert window.drift_candidate_combo.count() == 3
+    assert window.drift_candidate_combo.currentData() is None
+    assert not window.review_mapping_button.isEnabled()
+    assert "Choose one" in window.mapping_drift_label.text()
+
+    window.drift_candidate_combo.setCurrentIndex(2)
+
+    assert window.review_mapping_button.isEnabled()
+    assert "Unresolved required roles: area" in window.mapping_drift_label.text()
+    window.close()
+
+
+def test_window_review_saves_a_new_profile_without_replacing_candidate(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    mapping_set = _mapping_set(label="Original")
+    original = mapping_set.profiles[0]
+    diagnostic = _drift_diagnostic(original)
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=(diagnostic,),
+        review_input_index=0,
+        source_sha256="1" * 64,
+    )
+    repaired_mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Peak Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    dialog_calls: list[dict[str, object]] = []
+
+    class AcceptedReviewDialog:
+        mapping = repaired_mapping
+        preview_worksheet_title = None
+        preview_source_sha256 = "1" * 64
+
+        def __init__(self, _source: Path, **kwargs: object) -> None:
+            dialog_calls.append(kwargs)
+
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Accepted
+
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr("ordifile.desktop.window.PeakMappingDialog", AcceptedReviewDialog)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Repaired", True),
+    )
+    window.add_paths((source,))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    window.input_table.selectRow(0)
+    window.drift_candidate_combo.setCurrentIndex(1)
+
+    window._review_mapping()
+
+    updated = window.peak_table_mapping_set
+    assert updated is not None
+    assert updated.set_id == mapping_set.set_id
+    assert len(updated.profiles) == 2
+    assert updated.profiles[0] is original
+    assert updated.profiles[1].profile_id != original.profile_id
+    assert updated.profiles[1].mapping == repaired_mapping
+    assert updated.profiles[1].display_label == "Repaired"
+    assert dialog_calls[0]["mapping"] is original.mapping
+    assert dialog_calls[0]["review_mode"] is True
+    assert "new profile" in window.status_label.text()
+    window.close()
+
+
+def test_window_repaired_xlsx_profile_uses_reviewed_worksheet_title(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.xlsx"
+    source.write_bytes(b"local test placeholder")
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.XLSX,
+    )
+    original = PeakTableMappingProfile(mapping, "Workbook", worksheet_title="Old Sheet")
+    mapping_set = PeakTableMappingSet((original,))
+    diagnostic = _drift_diagnostic(original)
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=(diagnostic,),
+        review_input_index=0,
+        source_sha256="2" * 64,
+    )
+    reviewed_mapping = mapping
+    dialog_calls: list[dict[str, object]] = []
+
+    class AcceptedXlsxReviewDialog:
+        mapping = reviewed_mapping
+        preview_worksheet_title = "Reviewed Sheet"
+        preview_source_sha256 = "2" * 64
+
+        def __init__(self, _source: Path, **kwargs: object) -> None:
+            dialog_calls.append(kwargs)
+
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Accepted
+
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.PeakMappingDialog",
+        AcceptedXlsxReviewDialog,
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Repaired workbook", True),
+    )
+    window.add_paths((source,))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    window.input_table.selectRow(0)
+    window.drift_candidate_combo.setCurrentIndex(1)
+
+    window._review_mapping()
+
+    updated = window.peak_table_mapping_set
+    assert updated is not None
+    assert updated.profiles[-1].worksheet_title == "Reviewed Sheet"
+    assert dialog_calls[0]["sheet"] == "Old Sheet"
+    window.close()
+
+
+def test_window_repair_rejects_a_source_changed_after_inspection(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    mapping_set = _mapping_set()
+    original = mapping_set.profiles[0]
+    diagnostic = _drift_diagnostic(original)
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=(diagnostic,),
+        review_input_index=0,
+        source_sha256="1" * 64,
+    )
+
+    class ChangedSourceReviewDialog:
+        mapping = PeakTableMapping(
+            ColumnSelector("RT", 1),
+            ColumnSelector("Peak Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+        )
+        preview_worksheet_title = None
+        preview_source_sha256 = "2" * 64
+
+        def __init__(self, _source: Path, **_kwargs: object) -> None:
+            pass
+
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Accepted
+
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.PeakMappingDialog",
+        ChangedSourceReviewDialog,
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Repaired", True),
+    )
+    window.add_paths((source,))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    window.input_table.selectRow(0)
+    window.drift_candidate_combo.setCurrentIndex(1)
+
+    window._review_mapping()
+
+    assert window.peak_table_mapping_set is mapping_set
+    assert "source changed" in window.status_label.text().casefold()
+    window.close()
+
+
+def test_window_review_cancel_does_not_mutate_mapping_set(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    mapping_set = _mapping_set()
+    diagnostic = _drift_diagnostic(mapping_set.profiles[0])
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=(diagnostic,),
+        review_input_index=0,
+    )
+
+    class CancelledReviewDialog:
+        mapping = None
+
+        def __init__(self, _source: Path, **_kwargs: object) -> None:
+            pass
+
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Rejected
+
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr("ordifile.desktop.window.PeakMappingDialog", CancelledReviewDialog)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Unused repaired label", True),
+    )
+    window.add_paths((source,))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    window.input_table.selectRow(0)
+    window.drift_candidate_combo.setCurrentIndex(1)
+
+    window._review_mapping()
+
+    assert window.peak_table_mapping_set is mapping_set
+    window.close()
+
+
+def test_window_stale_mapping_set_disables_drift_review(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    first = _mapping_set(label="First")
+    second = _mapping_set(_mapping(unit="s"), label="Second")
+    diagnostic = _drift_diagnostic(first.profiles[0])
+    report_file = DesktopFileReport(
+        "source-public",
+        "Not detected",
+        "—",
+        DesktopInputStatus.FAILED,
+        mapping_route="SCHEMA_DRIFT_CANDIDATE",
+        mapping_diagnostics=(diagnostic,),
+        review_input_index=0,
+    )
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.add_paths((source,))
+    window._set_peak_mapping_set(first, activate=True)
+    window._displayed_files = (report_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = first
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    window.input_table.selectRow(0)
+    window._peak_table_mapping_set = second
+
+    window._mapping_drift_row_changed()
+
+    assert not window.drift_candidate_combo.isEnabled()
+    assert not window.review_mapping_button.isEnabled()
+    window.close()
+
+
 def test_window_mapping_combo_distinguishes_duplicate_local_labels(
     app: QApplication, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -688,6 +1056,8 @@ def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
     assert not window.add_mapping_profile_button.isEnabled()
     assert not window.rename_mapping_profile_button.isEnabled()
     assert not window.remove_mapping_profile_button.isEnabled()
+    assert not window.drift_candidate_combo.isEnabled()
+    assert not window.review_mapping_button.isEnabled()
     window.close()
 
 

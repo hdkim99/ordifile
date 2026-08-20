@@ -137,6 +137,48 @@ def test_cli_mapping_set_routes_batch_and_reports_privacy_safe_summary(
     assert mapping_set_path.name not in rendered
 
 
+def test_cli_inspect_reports_privacy_safe_schema_drift_without_raw_headers(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "private-drift-source.csv"
+    source.write_text("Private Header Canary,Declared Area\n1.5,20\n", encoding="utf-8")
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("Declared RT", 1),
+            ColumnSelector("Declared Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+        ),
+        "Private Profile Label",
+        profile_id="profile-11111111111111111111111111111111",
+    )
+    mapping_set_path = tmp_path / "private-set.json"
+    save_peak_table_mapping_set(PeakTableMappingSet((profile,)), mapping_set_path)
+
+    assert (
+        main(
+            [
+                "inspect",
+                str(source),
+                "--peak-mapping-set",
+                str(mapping_set_path),
+                "--verbose",
+            ]
+        )
+        == 1
+    )
+    rendered = capsys.readouterr().out
+
+    assert "Mapping route: SCHEMA_DRIFT_CANDIDATE" in rendered
+    assert "Schema drift candidates: 1" in rendered
+    assert "HEADER_CHANGED_UNRESOLVED" in rendered
+    assert "Private Header Canary" not in rendered
+    assert "Declared RT" not in rendered
+    assert "Private Profile Label" not in rendered
+    assert source.name not in rendered
+    assert mapping_set_path.name not in rendered
+
+
 def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

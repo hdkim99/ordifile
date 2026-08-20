@@ -35,7 +35,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ordifile import PeakTableMapping, PeakTableMappingProfile, PeakTableMappingSet
+from ordifile import (
+    PeakMappingDriftCategory,
+    PeakMappingDriftDiagnostic,
+    PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
+    PeakTablePreview,
+    clone_peak_table_mapping_profile,
+)
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
@@ -96,6 +104,9 @@ class MainWindow(QMainWindow):
         self._last_output: Path | None = None
         self._peak_table_mapping: PeakTableMapping | None = None
         self._peak_table_mapping_set: PeakTableMappingSet | None = None
+        self._displayed_files: tuple[DesktopFileReport, ...] = ()
+        self._displayed_inputs: tuple[Path, ...] = ()
+        self._displayed_mapping_set: PeakTableMappingSet | None = None
 
         central = QWidget(self)
         root = QVBoxLayout(central)
@@ -224,6 +235,28 @@ class MainWindow(QMainWindow):
         root.addWidget(detected_label)
         root.addWidget(self.input_table, stretch=1)
 
+        drift_group = QGroupBox("Mapping schema drift review")
+        drift_layout = QGridLayout(drift_group)
+        drift_candidate_label = QLabel("Drift &candidate:")
+        self.drift_candidate_combo = QComboBox()
+        self.drift_candidate_combo.setAccessibleName("Mapping schema drift candidates")
+        self.drift_candidate_combo.addItem("Choose a candidate…", None)
+        self.drift_candidate_combo.setEnabled(False)
+        drift_candidate_label.setBuddy(self.drift_candidate_combo)
+        self.review_mapping_button = QPushButton("Re&view Mapping…")
+        self.review_mapping_button.setAccessibleName("Review selected schema drift mapping")
+        self.review_mapping_button.setEnabled(False)
+        drift_layout.addWidget(drift_candidate_label, 0, 0)
+        drift_layout.addWidget(self.drift_candidate_combo, 0, 1)
+        drift_layout.addWidget(self.review_mapping_button, 0, 2)
+        self.mapping_drift_label = QLabel(
+            "Select one schema-drift row to review public-safe structural diagnostics."
+        )
+        self.mapping_drift_label.setAccessibleName("Mapping schema drift diagnostic details")
+        self.mapping_drift_label.setWordWrap(True)
+        drift_layout.addWidget(self.mapping_drift_label, 1, 0, 1, 3)
+        root.addWidget(drift_group)
+
         options = QGroupBox("Conversion options")
         option_grid = QGridLayout(options)
         sort_label = QLabel("&Sort:")
@@ -294,6 +327,9 @@ class MainWindow(QMainWindow):
         self.rename_mapping_profile_button.clicked.connect(self._rename_mapping_profile)
         self.remove_mapping_profile_button.clicked.connect(self._remove_mapping_profile)
         self.selection_list.itemSelectionChanged.connect(self._update_mapping_controls)
+        self.input_table.itemSelectionChanged.connect(self._mapping_drift_row_changed)
+        self.drift_candidate_combo.currentIndexChanged.connect(self._update_drift_candidate_detail)
+        self.review_mapping_button.clicked.connect(self._review_mapping)
         self.output_button.clicked.connect(self._choose_output)
         self.convert_button.clicked.connect(self._start_conversion)
         self.open_output_button.clicked.connect(self._open_output)
@@ -315,7 +351,9 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.remove_mapping_profile_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.input_table)
-        self.setTabOrder(self.input_table, self.sort_combo)
+        self.setTabOrder(self.input_table, self.drift_candidate_combo)
+        self.setTabOrder(self.drift_candidate_combo, self.review_mapping_button)
+        self.setTabOrder(self.review_mapping_button, self.sort_combo)
         self.setTabOrder(self.sort_combo, self.output_edit)
         self.setTabOrder(self.output_edit, self.output_button)
         self.setTabOrder(self.output_button, self.convert_button)
@@ -466,6 +504,253 @@ class MainWindow(QMainWindow):
         return next(
             (profile for profile in mapping_set.profiles if profile.profile_id == profile_id),
             None,
+        )
+
+    def _clear_mapping_drift_ui(self, message: str) -> None:
+        self.drift_candidate_combo.blockSignals(True)
+        self.drift_candidate_combo.clear()
+        self.drift_candidate_combo.addItem("Choose a candidate…", None)
+        self.drift_candidate_combo.setCurrentIndex(0)
+        self.drift_candidate_combo.blockSignals(False)
+        self.drift_candidate_combo.setEnabled(False)
+        self.review_mapping_button.setEnabled(False)
+        self.mapping_drift_label.setText(message)
+
+    def _invalidate_mapping_drift_review(self) -> None:
+        self._displayed_files = ()
+        self._displayed_inputs = ()
+        self._displayed_mapping_set = None
+        self._clear_mapping_drift_ui(
+            "Inspection is required before a schema-drift mapping can be reviewed."
+        )
+
+    def _selected_displayed_file(self) -> DesktopFileReport | None:
+        rows = sorted({index.row() for index in self.input_table.selectedIndexes()})
+        if len(rows) != 1 or rows[0] >= len(self._displayed_files):
+            return None
+        return self._displayed_files[rows[0]]
+
+    def _mapping_drift_snapshot_is_current(self) -> bool:
+        return (
+            self._preview_thread is None
+            and self._conversion_thread is None
+            and self.mapping_set_active
+            and self._displayed_inputs == self._selection.paths
+            and self._displayed_mapping_set is not None
+            and self._displayed_mapping_set == self._peak_table_mapping_set
+        )
+
+    def _profile_for_diagnostic(
+        self,
+        diagnostic: PeakMappingDriftDiagnostic,
+    ) -> PeakTableMappingProfile | None:
+        mapping_set = self._peak_table_mapping_set
+        if mapping_set is None:
+            return None
+        return next(
+            (
+                profile
+                for profile in mapping_set.profiles
+                if profile.profile_id == diagnostic.profile_id
+                and profile.structural_fingerprint_sha256
+                == diagnostic.profile_structural_fingerprint
+            ),
+            None,
+        )
+
+    def _mapping_drift_row_changed(self) -> None:
+        self._clear_mapping_drift_ui(
+            "Select one schema-drift row to review public-safe structural diagnostics."
+        )
+        if not self._mapping_drift_snapshot_is_current():
+            return
+        item = self._selected_displayed_file()
+        if (
+            item is None
+            or item.mapping_route != "SCHEMA_DRIFT_CANDIDATE"
+            or not item.mapping_diagnostics
+        ):
+            return
+        available = tuple(
+            diagnostic
+            for diagnostic in item.mapping_diagnostics
+            if self._profile_for_diagnostic(diagnostic) is not None
+        )
+        if not available:
+            self.mapping_drift_label.setText(
+                "The reported candidates are no longer present in the active mapping set."
+            )
+            return
+        self.drift_candidate_combo.blockSignals(True)
+        for diagnostic in available:
+            profile = self._profile_for_diagnostic(diagnostic)
+            assert profile is not None
+            label = safe_preview_text(profile.display_label)
+            suffix = profile.profile_id.rsplit("-", maxsplit=1)[-1][-6:]
+            self.drift_candidate_combo.addItem(
+                f"{label} [{suffix}] — {diagnostic.total_difference_count} difference(s)",
+                diagnostic.profile_id,
+            )
+        self.drift_candidate_combo.setCurrentIndex(0)
+        self.drift_candidate_combo.blockSignals(False)
+        self.drift_candidate_combo.setEnabled(True)
+        self.mapping_drift_label.setText(
+            f"{len(available)} bounded candidate(s) reported. Choose one explicitly; "
+            "no mapping has been applied."
+        )
+
+    def _selected_drift_diagnostic(self) -> PeakMappingDriftDiagnostic | None:
+        item = self._selected_displayed_file()
+        profile_id = self.drift_candidate_combo.currentData()
+        if item is None or not isinstance(profile_id, str):
+            return None
+        return next(
+            (
+                diagnostic
+                for diagnostic in item.mapping_diagnostics
+                if diagnostic.profile_id == profile_id
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _role_summary(roles: tuple[str, ...]) -> str:
+        return ", ".join(role.replace("_", " ") for role in roles) or "none"
+
+    def _update_drift_candidate_detail(self, *_unused: object) -> None:
+        diagnostic = self._selected_drift_diagnostic()
+        item = self._selected_displayed_file()
+        review_source = (
+            self._review_source(item, diagnostic)
+            if item is not None and diagnostic is not None
+            else None
+        )
+        enabled = (
+            self._mapping_drift_snapshot_is_current()
+            and diagnostic is not None
+            and review_source is not None
+        )
+        self.review_mapping_button.setEnabled(enabled)
+        if diagnostic is None:
+            if self.drift_candidate_combo.count() > 1:
+                self.mapping_drift_label.setText(
+                    "Choose one candidate explicitly; no mapping has been applied."
+                )
+            return
+        categories = ", ".join(
+            category.value.replace("_", " ").title() for category in diagnostic.categories
+        )
+        direct_file_note = (
+            " Add this file directly to the input list to open the mapping reviewer."
+            if review_source is None
+            else ""
+        )
+        self.mapping_drift_label.setText(
+            f"{categories}. Expected {diagnostic.expected_column_count} column(s), observed "
+            f"{diagnostic.observed_column_count}; exact positions "
+            f"{diagnostic.exact_position_matches}, changed {diagnostic.changed_column_count}, "
+            f"added {diagnostic.added_column_count}, removed {diagnostic.removed_column_count}, "
+            f"moved {diagnostic.moved_column_count}. Unresolved required roles: "
+            f"{self._role_summary(diagnostic.unresolved_required_roles)}. Unresolved optional "
+            f"roles: {self._role_summary(diagnostic.unresolved_optional_roles)}."
+            f"{direct_file_note}"
+        )
+
+    def _review_source(
+        self,
+        item: DesktopFileReport,
+        diagnostic: PeakMappingDriftDiagnostic,
+    ) -> Path | None:
+        index = item.review_input_index
+        if index is None or index >= len(self._selection.paths):
+            return None
+        source = self._selection.paths[index]
+        if source.is_symlink() or not source.is_file():
+            return None
+        if diagnostic.source_format not in formats_for_path(source):
+            return None
+        return source
+
+    def _review_mapping(self) -> None:
+        if not self._mapping_drift_snapshot_is_current():
+            self.status_label.setText("Run inspection again before reviewing this mapping.")
+            return
+        item = self._selected_displayed_file()
+        diagnostic = self._selected_drift_diagnostic()
+        if item is None or diagnostic is None:
+            return
+        profile = self._profile_for_diagnostic(diagnostic)
+        source = self._review_source(item, diagnostic)
+        original_set = self._peak_table_mapping_set
+        if profile is None or source is None or original_set is None:
+            self.status_label.setText(
+                "This drift candidate cannot be joined to a current direct-file selection."
+            )
+            return
+        label, accepted = QInputDialog.getText(
+            self,
+            "Save repaired mapping as new profile",
+            "Local profile name:",
+            QLineEdit.EchoMode.Normal,
+            f"{profile.display_label} (repaired)",
+        )
+        if not accepted:
+            return
+        review_sheet = (
+            profile.worksheet_title
+            if PeakMappingDriftCategory.WORKSHEET_IDENTITY_CHANGED_UNRESOLVED
+            not in diagnostic.categories
+            else None
+        )
+        dialog = PeakMappingDialog(
+            source,
+            mapping=profile.mapping,
+            parent=self,
+            review_mode=True,
+            sheet=review_sheet,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.mapping is None:
+            return
+        if (
+            not self.mapping_set_active
+            or self._peak_table_mapping_set != original_set
+            or self._selection.paths != self._displayed_inputs
+        ):
+            self.status_label.setText(
+                "The input or mapping set changed; the reviewed mapping was not saved."
+            )
+            return
+        if item.source_sha256 is None or dialog.preview_source_sha256 != item.source_sha256:
+            self.status_label.setText(
+                "The source changed after inspection; run inspection again before repair."
+            )
+            return
+        try:
+            observed_preview = PeakTablePreview(
+                dialog.mapping.source_format,
+                dialog.mapping.declared_headers,
+                (),
+                dialog.preview_worksheet_title,
+            )
+            updated = clone_peak_table_mapping_profile(
+                original_set,
+                parent_profile_id=profile.profile_id,
+                observed_preview=observed_preview,
+                repaired_mapping=dialog.mapping,
+                display_label=label.strip(),
+            )
+            repaired = updated.profiles[-1]
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Repaired mapping save failed [{code}]: {message}")
+            return
+        self._set_peak_mapping_set(
+            updated,
+            activate=True,
+            selected_profile_id=repaired.profile_id,
+        )
+        self.status_label.setText(
+            "Repaired mapping added locally as a new profile; use Save Set to persist it."
         )
 
     def _map_peak_columns(self) -> None:
@@ -743,6 +1028,7 @@ class MainWindow(QMainWindow):
 
     def _clear_inputs(self) -> None:
         self._selection.clear()
+        self._invalidate_mapping_drift_review()
         self.selection_list.clear()
         self.input_table.setRowCount(0)
         self.status_label.setText("Input list cleared.")
@@ -755,6 +1041,7 @@ class MainWindow(QMainWindow):
         return value if isinstance(value, str) else "auto"
 
     def _render_queued_inputs(self) -> None:
+        self._invalidate_mapping_drift_review()
         self.selection_list.clear()
         for path in self._selection.paths:
             self.selection_list.addItem(safe_display_name(path))
@@ -792,6 +1079,7 @@ class MainWindow(QMainWindow):
         route_labels = {
             "EXACT_ADAPTER": "Exact adapter",
             "USER_MAPPING": "Single user mapping",
+            "SCHEMA_DRIFT_CANDIDATE": "Schema changed — review required",
             "NO_MAPPING_MATCH": "No mapping profile matched",
             "AMBIGUOUS_MAPPING_PROFILE": "Ambiguous mapping profiles",
             "AMBIGUOUS_WORKSHEET": "Ambiguous workbook sheets",
@@ -818,6 +1106,7 @@ class MainWindow(QMainWindow):
     def _request_preview(self, *_unused: object) -> None:
         if not self._selection.paths or self._conversion_thread is not None:
             return
+        self._invalidate_mapping_drift_review()
         if self._preview_thread is not None:
             self._preview_pending = True
             return
@@ -866,6 +1155,9 @@ class MainWindow(QMainWindow):
                 f"Inspection failed [{report.error_code}]: {report.error_message}"
             )
         else:
+            self._displayed_files = report.files
+            self._displayed_inputs = self._selection.paths
+            self._displayed_mapping_set = active_mapping_set
             self._render_report(report)
             self.status_label.setText(
                 f"Inspection complete: {len(report.files)} file(s), {report.failure_count} failed."
@@ -881,10 +1173,13 @@ class MainWindow(QMainWindow):
         self.convert_button.setEnabled(bool(self._selection.paths))
         if self._preview_pending:
             self._request_preview()
+        else:
+            self._mapping_drift_row_changed()
 
     def _start_conversion(self) -> None:
         if self._conversion_thread is not None:
             return
+        self._invalidate_mapping_drift_review()
         active_mapping, active_mapping_set = self._active_peak_mappings()
         request = DesktopRequest(
             inputs=self._selection.paths,
@@ -964,6 +1259,7 @@ class MainWindow(QMainWindow):
         self._conversion_worker = None
         self._set_conversion_controls(True)
         self._update_mapping_controls()
+        self._mapping_drift_row_changed()
 
     def _set_conversion_controls(self, enabled: bool) -> None:
         for widget in (
@@ -982,6 +1278,8 @@ class MainWindow(QMainWindow):
             self.add_mapping_profile_button,
             self.rename_mapping_profile_button,
             self.remove_mapping_profile_button,
+            self.drift_candidate_combo,
+            self.review_mapping_button,
             self.selection_list,
             self.input_table,
             self.sort_combo,

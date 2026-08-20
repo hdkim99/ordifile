@@ -18,8 +18,14 @@ from typing import Any, cast
 
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
-from ordifile import __version__
-from ordifile.api import convert, get_format_report, inspect_inputs, list_formats
+from ordifile import __version__, clone_peak_table_mapping_profile
+from ordifile.api import (
+    convert,
+    get_format_report,
+    inspect_inputs,
+    list_formats,
+    preview_peak_table,
+)
 from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
@@ -510,6 +516,50 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         } != {"USER_MAPPING_PROFILE"}:
             raise ValueError("The packaged runtime did not apply the mapping set exactly.")
         mapped_set_digest, mapped_set_sheets = semantic_digest(mapped_set_output)
+        drift_input = Path(temporary) / "drift.csv"
+        drift_input.write_text(
+            "Template A Time,Template A Area\n4.0,40\n",
+            encoding="utf-8",
+            newline="",
+        )
+        drift_result = inspect_inputs((drift_input,), peak_table_mapping_set=mapping_set)
+        drift_file = drift_result.files[0]
+        if (
+            drift_file.mapping_route != "SCHEMA_DRIFT_CANDIDATE"
+            or drift_file.bundle is not None
+            or len(drift_file.mapping_diagnostics) != 1
+        ):
+            raise ValueError("The packaged runtime did not fail closed on mapping drift.")
+        drift_preview = preview_peak_table(drift_input, PeakTableFormat.CSV, row_limit=1)
+        repaired_mapping = PeakTableMapping(
+            ColumnSelector("Template A Time", 1),
+            ColumnSelector("Template A Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+        )
+        repaired_set = clone_peak_table_mapping_profile(
+            mapping_set,
+            parent_profile_id="profile-11111111111111111111111111111111",
+            observed_preview=drift_preview,
+            repaired_mapping=repaired_mapping,
+            display_label="Template A revised",
+        )
+        if (
+            mapping_set.profiles[0].mapping.retention_time_column.label != "Template A RT"
+            or repaired_set.set_id != mapping_set.set_id
+            or len(repaired_set.profiles) != len(mapping_set.profiles) + 1
+        ):
+            raise ValueError("The packaged repair changed its immutable parent profile.")
+        repaired_output = Path(temporary) / "repaired.xlsx"
+        repaired_result = convert(
+            drift_input,
+            repaired_output,
+            peak_table_mapping_set=repaired_set,
+        )
+        if repaired_result.failure_count or repaired_result.files[0].mapping_route != (
+            "USER_MAPPING_PROFILE"
+        ):
+            raise ValueError("The packaged runtime did not apply the confirmed repaired profile.")
     if mapped_set_digest != mapped_set_expected.get("semantic_sha256") or list(
         mapped_set_sheets
     ) != mapped_set_expected.get("scientific_sheets"):
@@ -526,6 +576,8 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
             "semantic_sha256": digest,
             "mapped_semantic_sha256": mapped_digest,
             "mapping_set_semantic_sha256": mapped_set_digest,
+            "mapping_drift_diagnostic": "PASS",
+            "mapping_repair_clone": "PASS",
             "existing_output_preserved": True,
         },
     )

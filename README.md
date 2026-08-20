@@ -151,6 +151,9 @@ not verified compatibility, and this workflow does not add a vendor to the suppo
 Mapping Sets reuse several user-approved templates by exact format/header structure in one
 batch; zero or multiple matches fail rather than falling back. See the
 [explicit mapping contract](docs/formats/explicit-peak-table-mapping.md).
+When a saved structure drifts, bounded diagnostics explain fixed structural differences but
+never apply a candidate. Desktop review can create a new user-confirmed profile while keeping
+the original template available.
 
 ## Experimental proprietary adapters
 
