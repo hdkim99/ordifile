@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Warning: do not attach raw instrument files to this public issue unless you own the data and have confirmed redistribution permission. Remove personal, sample, patient, organization, and instrument identifiers. A format is not supported until fixtures and tests verify its exact capabilities.
+        Warning: do not attach raw/result files, screenshots, mapping JSON, Mapping Set JSON, or workbooks to this public issue. Remove personal, sample, patient, organization, path, and instrument identifiers. Maintainers will arrange a private/local intake path when useful. A format is not supported until lawful actual fixtures and tests verify its exact capabilities.
   - type: input
     id: vendor
     attributes:
@@ -29,6 +29,13 @@ body:
     id: extension
     attributes:
       label: File extension or folder suffix
+    validations:
+      required: true
+  - type: input
+    id: export_action
+    attributes:
+      label: Exact export menu or action
+      description: Describe how the original Result/Peak Table file is produced without attaching it.
     validations:
       required: true
   - type: dropdown

@@ -136,14 +136,17 @@ mapping JSON을 사용할 수 있습니다.
 
 ```console
 ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
+ordifile convert input/ --recursive --peak-mapping-set lab-mappings.json -o results.xlsx
 ```
 
 Mapping은 모든 header를 분류하고 RT unit과 Area unit 상태를 사용자가 확인해야 합니다.
 Ordifile은 source 행 순서를 보존하며 내장 Result adapter와 같은 `PeakRecord` → `Peaks` →
 ordered matrix → workbook 경로를 사용합니다. RT, Area, unit, compound, vendor를 자동
 추론하지 않습니다. Manufacturer/software 값은 사용자 제공 provenance일 뿐 검증된
-호환성이 아니며 vendor 지원 표에 추가되지 않습니다. [명시적 mapping
-계약](docs/formats/explicit-peak-table-mapping.md)을 참고해 주세요.
+호환성이 아니며 vendor 지원 표에 추가되지 않습니다. Mapping Set은 사용자가 승인한 여러
+template을 exact format/header 구조로 한 batch에서 재사용하며, 0개 또는 여러 profile이
+일치하면 fallback 없이 실패합니다. [명시적 mapping 계약](docs/formats/explicit-peak-table-mapping.md)을
+참고해 주세요.
 
 ## Experimental proprietary adapter
 
@@ -259,6 +262,8 @@ ordifile convert ./exports --extension .csv --extension .xlsx \
 - `--adapter`는 adapter를 강제하고 `--sheet`는 XLSX worksheet를 선택합니다.
 - `--peak-mapping FILE.json`은 batch의 일치하는 generic 표에 하나의 엄격한 local
   사용자 확인 mapping을 적용합니다.
+- `--peak-mapping-set FILE.json`은 서로 다른 generic template을 재사용 가능한 exact 구조
+  profile로 routing하며 `--adapter`, `--peak-mapping`과 동시에 사용할 수 없습니다.
 - signal이 있어도 `--include-signals`를 지정해야 workbook에 기록합니다.
 - `--verbose`는 검출 근거와 상세 구조화 진단을 표시합니다.
 

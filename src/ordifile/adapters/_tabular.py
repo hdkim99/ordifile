@@ -425,6 +425,9 @@ def parse_mapped_peak_rows(
     mapping: PeakTableMapping,
     *,
     namespace: str,
+    mapping_profile_id: str | None = None,
+    mapping_profile_fingerprint: str | None = None,
+    mapping_set_id: str | None = None,
 ) -> DatasetBundle:
     """Transform one clean table using only user-confirmed semantic selectors."""
     iterator = iter(rows)
@@ -614,14 +617,6 @@ def parse_mapped_peak_rows(
             sample_id,
             source.name,
             namespace,
-            "mapping_sha256",
-            mapping.semantic_sha256,
-            source="canonical:user_supplied_mapping.sha256",
-        ),
-        MetadataEntry(
-            sample_id,
-            source.name,
-            namespace,
             "mapped_roles",
             ";".join(mapping.mapped_roles),
             source="canonical:user_supplied_mapping.roles",
@@ -675,6 +670,54 @@ def parse_mapped_peak_rows(
             source="canonical:user_supplied_mapping.software_status",
         ),
     ]
+    if mapping_profile_id is None:
+        metadata.append(
+            MetadataEntry(
+                sample_id,
+                source.name,
+                namespace,
+                "mapping_sha256",
+                mapping.semantic_sha256,
+                source="canonical:user_supplied_mapping.sha256",
+            )
+        )
+    else:
+        metadata.extend(
+            (
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "mapping_selection_mode",
+                    "PROFILE_SET",
+                    source="canonical:user_supplied_mapping.selection_mode",
+                ),
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "mapping_profile_id",
+                    mapping_profile_id,
+                    source="canonical:user_supplied_mapping.profile_id",
+                ),
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "mapping_profile_structural_fingerprint_sha256",
+                    mapping_profile_fingerprint,
+                    source="canonical:user_supplied_mapping.profile_structure",
+                ),
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "mapping_set_id",
+                    mapping_set_id,
+                    source="canonical:user_supplied_mapping.set_id",
+                ),
+            )
+        )
     if mapping.manufacturer is not None:
         metadata.append(
             MetadataEntry(

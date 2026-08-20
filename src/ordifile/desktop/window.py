@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QUrl
 from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -32,16 +35,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ordifile import PeakTableMapping
+from ordifile import PeakTableMapping, PeakTableMappingProfile, PeakTableMappingSet
 from ordifile.core.models import BatchOutcome, ProgressEvent
-from ordifile.desktop.models import DesktopBatchReport, DesktopRequest, InputSelectionModel
+from ordifile.desktop.models import (
+    DesktopBatchReport,
+    DesktopFileReport,
+    DesktopRequest,
+    InputSelectionModel,
+)
 from ordifile.desktop.peak_mapping_dialog import PeakMappingDialog, formats_for_path
 from ordifile.desktop.services import (
     details_text,
     load_mapping,
+    load_mapping_set,
     presentation_error,
     safe_display_name,
+    safe_preview_text,
     save_mapping,
+    save_mapping_set,
 )
 from ordifile.desktop.workers import ConversionWorker, PreviewWorker
 
@@ -78,11 +89,13 @@ class MainWindow(QMainWindow):
         self._preview_worker: PreviewWorker | None = None
         self._preview_inputs: tuple[Path, ...] | None = None
         self._preview_mapping: PeakTableMapping | None = None
+        self._preview_mapping_set: PeakTableMappingSet | None = None
         self._preview_pending = False
         self._conversion_thread: QThread | None = None
         self._conversion_worker: ConversionWorker | None = None
         self._last_output: Path | None = None
         self._peak_table_mapping: PeakTableMapping | None = None
+        self._peak_table_mapping_set: PeakTableMappingSet | None = None
 
         central = QWidget(self)
         root = QVBoxLayout(central)
@@ -149,16 +162,63 @@ class MainWindow(QMainWindow):
         self.mapping_label.setWordWrap(True)
         root.addWidget(self.mapping_label)
 
+        mapping_set_group = QGroupBox("Reusable mapping set")
+        mapping_set_layout = QGridLayout(mapping_set_group)
+        self.use_mapping_set_checkbox = QCheckBox("Use mapping set for batch routing")
+        self.use_mapping_set_checkbox.setAccessibleName("Use reusable peak mapping set")
+        self.use_mapping_set_checkbox.setEnabled(False)
+        mapping_set_layout.addWidget(self.use_mapping_set_checkbox, 0, 0, 1, 6)
+        mapping_set_entry_label = QLabel("&Profiles:")
+        self.mapping_set_combo = QComboBox()
+        self.mapping_set_combo.setAccessibleName("Reusable peak mapping profiles")
+        mapping_set_combo_size = self.mapping_set_combo.sizePolicy()
+        mapping_set_combo_size.setHorizontalStretch(1)
+        self.mapping_set_combo.setSizePolicy(mapping_set_combo_size)
+        mapping_set_entry_label.setBuddy(self.mapping_set_combo)
+        mapping_set_layout.addWidget(mapping_set_entry_label, 1, 0)
+        mapping_set_layout.addWidget(self.mapping_set_combo, 1, 1, 1, 5)
+        self.load_mapping_set_button = QPushButton("Load &Set…")
+        self.load_mapping_set_button.setAccessibleName("Load reusable peak mapping set JSON")
+        self.save_mapping_set_button = QPushButton("Save Se&t…")
+        self.save_mapping_set_button.setAccessibleName("Save reusable peak mapping set JSON")
+        self.add_mapping_profile_button = QPushButton("Add &Current")
+        self.add_mapping_profile_button.setAccessibleName(
+            "Add current mapping to reusable mapping set"
+        )
+        self.rename_mapping_profile_button = QPushButton("Re&name…")
+        self.rename_mapping_profile_button.setAccessibleName("Rename selected mapping profile")
+        self.remove_mapping_profile_button = QPushButton("Remo&ve")
+        self.remove_mapping_profile_button.setAccessibleName("Remove selected mapping profile")
+        for column, button in enumerate(
+            (
+                self.load_mapping_set_button,
+                self.save_mapping_set_button,
+                self.add_mapping_profile_button,
+                self.rename_mapping_profile_button,
+                self.remove_mapping_profile_button,
+            ),
+            start=1,
+        ):
+            mapping_set_layout.addWidget(button, 2, column)
+        self.mapping_set_label = QLabel("Mapping set: none")
+        self.mapping_set_label.setAccessibleName("Reusable mapping set status")
+        self.mapping_set_label.setWordWrap(True)
+        mapping_set_layout.addWidget(self.mapping_set_label, 3, 0, 1, 6)
+        root.addWidget(mapping_set_group)
+
         detected_label = QLabel("&Detected files:")
-        self.input_table = QTableWidget(0, 4)
+        self.input_table = QTableWidget(0, 5)
         self.input_table.setObjectName("inputTable")
         self.input_table.setAccessibleName("Detected input files")
-        self.input_table.setHorizontalHeaderLabels(("File", "Detected format", "Adapter", "Status"))
+        self.input_table.setHorizontalHeaderLabels(
+            ("File", "Detected format", "Adapter", "Conversion route", "Status")
+        )
         self.input_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.input_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.input_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.input_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.input_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.input_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.input_table.setToolTip("Drop files or folders here, or use the Add buttons.")
         detected_label.setBuddy(self.input_table)
         root.addWidget(detected_label)
@@ -226,6 +286,13 @@ class MainWindow(QMainWindow):
         self.load_mapping_button.clicked.connect(self._load_peak_mapping)
         self.save_mapping_button.clicked.connect(self._save_peak_mapping)
         self.clear_mapping_button.clicked.connect(self._clear_peak_mapping)
+        self.use_mapping_set_checkbox.toggled.connect(self._mapping_set_toggled)
+        self.mapping_set_combo.currentIndexChanged.connect(self._update_mapping_controls)
+        self.load_mapping_set_button.clicked.connect(self._load_peak_mapping_set)
+        self.save_mapping_set_button.clicked.connect(self._save_peak_mapping_set)
+        self.add_mapping_profile_button.clicked.connect(self._add_current_mapping_profile)
+        self.rename_mapping_profile_button.clicked.connect(self._rename_mapping_profile)
+        self.remove_mapping_profile_button.clicked.connect(self._remove_mapping_profile)
         self.selection_list.itemSelectionChanged.connect(self._update_mapping_controls)
         self.output_button.clicked.connect(self._choose_output)
         self.convert_button.clicked.connect(self._start_conversion)
@@ -238,7 +305,14 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.map_peaks_button, self.load_mapping_button)
         self.setTabOrder(self.load_mapping_button, self.save_mapping_button)
         self.setTabOrder(self.save_mapping_button, self.clear_mapping_button)
-        self.setTabOrder(self.clear_mapping_button, self.remove_button)
+        self.setTabOrder(self.clear_mapping_button, self.use_mapping_set_checkbox)
+        self.setTabOrder(self.use_mapping_set_checkbox, self.mapping_set_combo)
+        self.setTabOrder(self.mapping_set_combo, self.load_mapping_set_button)
+        self.setTabOrder(self.load_mapping_set_button, self.save_mapping_set_button)
+        self.setTabOrder(self.save_mapping_set_button, self.add_mapping_profile_button)
+        self.setTabOrder(self.add_mapping_profile_button, self.rename_mapping_profile_button)
+        self.setTabOrder(self.rename_mapping_profile_button, self.remove_mapping_profile_button)
+        self.setTabOrder(self.remove_mapping_profile_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.input_table)
         self.setTabOrder(self.input_table, self.sort_combo)
@@ -246,6 +320,7 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.output_edit, self.output_button)
         self.setTabOrder(self.output_button, self.convert_button)
         self.setTabOrder(self.convert_button, self.open_output_button)
+        self._update_mapping_controls()
 
     @property
     def selected_paths(self) -> tuple[Path, ...]:
@@ -256,6 +331,16 @@ class MainWindow(QMainWindow):
     def peak_table_mapping(self) -> PeakTableMapping | None:
         """Expose the immutable user-confirmed mapping for interface tests."""
         return self._peak_table_mapping
+
+    @property
+    def peak_table_mapping_set(self) -> PeakTableMappingSet | None:
+        """Expose the immutable reusable mapping set for interface tests."""
+        return self._peak_table_mapping_set
+
+    @property
+    def mapping_set_active(self) -> bool:
+        """Return whether batch routing currently uses the reusable mapping set."""
+        return self.use_mapping_set_checkbox.isChecked()
 
     def add_paths(self, paths: Iterable[str | Path]) -> bool:
         """Add local files/folders and schedule authoritative public-API inspection."""
@@ -295,19 +380,93 @@ class MainWindow(QMainWindow):
         has_mapping = self._peak_table_mapping is not None
         self.save_mapping_button.setEnabled(idle and has_mapping)
         self.clear_mapping_button.setEnabled(idle and has_mapping)
+        has_set = self._peak_table_mapping_set is not None
+        has_profile = has_set and self.mapping_set_combo.currentIndex() >= 0
+        self.use_mapping_set_checkbox.setEnabled(idle and has_set)
+        self.mapping_set_combo.setEnabled(idle and has_set)
+        self.load_mapping_set_button.setEnabled(idle)
+        self.save_mapping_set_button.setEnabled(idle and has_set)
+        self.add_mapping_profile_button.setEnabled(idle and has_mapping)
+        self.rename_mapping_profile_button.setEnabled(idle and has_profile)
+        self.remove_mapping_profile_button.setEnabled(idle and has_profile)
 
-    def _set_peak_mapping(self, mapping: PeakTableMapping | None) -> None:
-        self._peak_table_mapping = mapping
+    def _refresh_mapping_status(self) -> None:
+        set_active = self.mapping_set_active
+        mapping = self._peak_table_mapping
         if mapping is None:
             self.mapping_label.setText("Explicit peak mapping: none")
         else:
+            inactive = " Current mapping is not active." if set_active else ""
             self.mapping_label.setText(
                 "Explicit peak mapping: user-supplied "
                 f"{mapping.source_format.value.upper()} mapping, "
-                f"schema {mapping.schema_version}."
+                f"schema {mapping.schema_version}.{inactive}"
             )
+        mapping_set = self._peak_table_mapping_set
+        if mapping_set is None:
+            self.mapping_set_label.setText("Mapping set: none")
+        else:
+            state = "active" if set_active else "inactive"
+            self.mapping_set_label.setText(
+                f"Mapping set: {len(mapping_set.profiles)} profile(s), {state}. "
+                "Exact vendor adapters remain authoritative."
+            )
+
+    def _set_peak_mapping(self, mapping: PeakTableMapping | None) -> None:
+        self._peak_table_mapping = mapping
+        self._refresh_mapping_status()
         self._update_mapping_controls()
         self._request_preview()
+
+    def _set_peak_mapping_set(
+        self,
+        mapping_set: PeakTableMappingSet | None,
+        *,
+        activate: bool | None = None,
+        selected_profile_id: str | None = None,
+    ) -> None:
+        self._peak_table_mapping_set = mapping_set
+        self.mapping_set_combo.blockSignals(True)
+        self.mapping_set_combo.clear()
+        selected_index = 0
+        if mapping_set is not None:
+            for index, profile in enumerate(mapping_set.profiles):
+                label = safe_preview_text(profile.display_label)
+                profile_suffix = profile.profile_id.rsplit("-", maxsplit=1)[-1][-6:]
+                self.mapping_set_combo.addItem(
+                    f"{profile.mapping.source_format.value.upper()} — {label} [{profile_suffix}]",
+                    profile.profile_id,
+                )
+                if profile.profile_id == selected_profile_id:
+                    selected_index = index
+            self.mapping_set_combo.setCurrentIndex(selected_index)
+        self.mapping_set_combo.blockSignals(False)
+        checked = mapping_set is not None and (
+            self.mapping_set_active if activate is None else activate
+        )
+        self.use_mapping_set_checkbox.blockSignals(True)
+        self.use_mapping_set_checkbox.setChecked(checked)
+        self.use_mapping_set_checkbox.blockSignals(False)
+        self._refresh_mapping_status()
+        self._update_mapping_controls()
+        self._request_preview()
+
+    def _active_peak_mappings(
+        self,
+    ) -> tuple[PeakTableMapping | None, PeakTableMappingSet | None]:
+        if self.mapping_set_active and self._peak_table_mapping_set is not None:
+            return None, self._peak_table_mapping_set
+        return self._peak_table_mapping, None
+
+    def _selected_mapping_profile(self) -> PeakTableMappingProfile | None:
+        mapping_set = self._peak_table_mapping_set
+        profile_id = self.mapping_set_combo.currentData()
+        if mapping_set is None or not isinstance(profile_id, str):
+            return None
+        return next(
+            (profile for profile in mapping_set.profiles if profile.profile_id == profile_id),
+            None,
+        )
 
     def _map_peak_columns(self) -> None:
         source = self._mapping_source()
@@ -319,9 +478,15 @@ class MainWindow(QMainWindow):
         dialog = PeakMappingDialog(source, mapping=self._peak_table_mapping, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.mapping is not None:
             self._set_peak_mapping(dialog.mapping)
-            self.status_label.setText(
-                "Explicit peak mapping applied. Column meanings remain user-declared."
-            )
+            if self.mapping_set_active:
+                self.status_label.setText(
+                    "Current mapping updated but the mapping set remains active. "
+                    "Use Add Current to include it in batch routing."
+                )
+            else:
+                self.status_label.setText(
+                    "Explicit peak mapping applied. Column meanings remain user-declared."
+                )
 
     def _load_peak_mapping(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
@@ -339,7 +504,11 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Mapping load failed [{code}]: {message}")
             return
         self._set_peak_mapping(mapping)
-        self.status_label.setText("Explicit peak mapping loaded.")
+        self.status_label.setText(
+            "Explicit peak mapping loaded."
+            if not self.mapping_set_active
+            else "Current mapping loaded; the mapping set remains active."
+        )
 
     def _save_peak_mapping(self) -> None:
         if self._peak_table_mapping is None:
@@ -370,6 +539,149 @@ class MainWindow(QMainWindow):
     def _clear_peak_mapping(self) -> None:
         self._set_peak_mapping(None)
         self.status_label.setText("Explicit peak mapping cleared.")
+
+    def _mapping_set_toggled(self, checked: bool) -> None:
+        if checked and self._peak_table_mapping_set is None:
+            self.use_mapping_set_checkbox.blockSignals(True)
+            self.use_mapping_set_checkbox.setChecked(False)
+            self.use_mapping_set_checkbox.blockSignals(False)
+            return
+        self._refresh_mapping_status()
+        self._update_mapping_controls()
+        self.status_label.setText(
+            "Reusable mapping set enabled for batch routing."
+            if checked
+            else "Reusable mapping set disabled; single-mapping mode is active."
+        )
+        self._request_preview()
+
+    def _load_peak_mapping_set(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Load peak mapping set",
+            str(Path.home()),
+            "Peak mapping set JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            mapping_set = load_mapping_set(Path(path))
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping set load failed [{code}]: {message}")
+            return
+        self._set_peak_mapping_set(mapping_set, activate=True)
+        self.status_label.setText(
+            f"Reusable mapping set loaded with {len(mapping_set.profiles)} profile(s)."
+        )
+
+    def _save_peak_mapping_set(self) -> None:
+        mapping_set = self._peak_table_mapping_set
+        if mapping_set is None:
+            return
+        path, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Save peak mapping set",
+            str(Path.cwd() / "peak-mapping-set.json"),
+            "Peak mapping set JSON (*.json)",
+        )
+        if not path:
+            return
+        destination = Path(path)
+        if destination.suffix.casefold() != ".json":
+            destination = destination.with_suffix(".json")
+        try:
+            save_mapping_set(mapping_set, destination, overwrite=destination.exists())
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping set save failed [{code}]: {message}")
+            return
+        self.status_label.setText("Reusable mapping set saved.")
+
+    def _add_current_mapping_profile(self) -> None:
+        mapping = self._peak_table_mapping
+        if mapping is None:
+            return
+        label, accepted = QInputDialog.getText(
+            self,
+            "Add mapping profile",
+            "Local profile name:",
+            QLineEdit.EchoMode.Normal,
+            f"{mapping.source_format.value.upper()} mapping",
+        )
+        if not accepted:
+            return
+        try:
+            profile = PeakTableMappingProfile(mapping, display_label=label.strip())
+            mapping_set = self._peak_table_mapping_set
+            if mapping_set is None:
+                updated = PeakTableMappingSet((profile,))
+            else:
+                updated = replace(mapping_set, profiles=(*mapping_set.profiles, profile))
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping profile add failed [{code}]: {message}")
+            return
+        self._set_peak_mapping_set(
+            updated,
+            activate=True,
+            selected_profile_id=profile.profile_id,
+        )
+        self.status_label.setText("Current mapping added to the active reusable mapping set.")
+
+    def _rename_mapping_profile(self) -> None:
+        profile = self._selected_mapping_profile()
+        mapping_set = self._peak_table_mapping_set
+        if profile is None or mapping_set is None:
+            return
+        label, accepted = QInputDialog.getText(
+            self,
+            "Rename mapping profile",
+            "Local profile name:",
+            QLineEdit.EchoMode.Normal,
+            profile.display_label,
+        )
+        if not accepted:
+            return
+        try:
+            renamed = replace(profile, display_label=label.strip())
+            updated_profiles = tuple(
+                renamed if item.profile_id == profile.profile_id else item
+                for item in mapping_set.profiles
+            )
+            updated = replace(mapping_set, profiles=updated_profiles)
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping profile rename failed [{code}]: {message}")
+            return
+        self._set_peak_mapping_set(
+            updated,
+            selected_profile_id=profile.profile_id,
+        )
+        self.status_label.setText("Mapping profile renamed locally.")
+
+    def _remove_mapping_profile(self) -> None:
+        profile = self._selected_mapping_profile()
+        mapping_set = self._peak_table_mapping_set
+        if profile is None or mapping_set is None:
+            return
+        remaining = tuple(
+            item for item in mapping_set.profiles if item.profile_id != profile.profile_id
+        )
+        if not remaining:
+            self._set_peak_mapping_set(None, activate=False)
+            self.status_label.setText(
+                "Last mapping profile removed; single-mapping mode is active."
+            )
+            return
+        try:
+            updated = replace(mapping_set, profiles=remaining)
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping profile removal failed [{code}]: {message}")
+            return
+        self._set_peak_mapping_set(updated)
+        self.status_label.setText("Mapping profile removed from the local set.")
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802 - Qt API
         """Accept local file/folder URLs only."""
@@ -448,7 +760,13 @@ class MainWindow(QMainWindow):
             self.selection_list.addItem(safe_display_name(path))
         self.input_table.setRowCount(len(self._selection.paths))
         for row, path in enumerate(self._selection.paths):
-            values = (safe_display_name(path), "Pending core discovery", "—", "Queued")
+            values = (
+                safe_display_name(path),
+                "Pending core discovery",
+                "—",
+                "Pending inspection",
+                "Queued",
+            )
             for column, value in enumerate(values):
                 self.input_table.setItem(row, column, QTableWidgetItem(value))
         self.convert_button.setEnabled(bool(self._selection.paths))
@@ -457,12 +775,45 @@ class MainWindow(QMainWindow):
     def _render_report(self, report: DesktopBatchReport) -> None:
         self.input_table.setRowCount(len(report.files))
         for row, item in enumerate(report.files):
-            values = (item.source, item.format_name, item.adapter_id, item.status.value)
+            values = (
+                item.source,
+                item.format_name,
+                item.adapter_id,
+                self._mapping_route_text(item),
+                item.status.value,
+            )
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
                 if item.message:
                     cell.setToolTip(item.message)
                 self.input_table.setItem(row, column, cell)
+
+    def _mapping_route_text(self, item: DesktopFileReport) -> str:
+        route_labels = {
+            "EXACT_ADAPTER": "Exact adapter",
+            "USER_MAPPING": "Single user mapping",
+            "NO_MAPPING_MATCH": "No mapping profile matched",
+            "AMBIGUOUS_MAPPING_PROFILE": "Ambiguous mapping profiles",
+            "AMBIGUOUS_WORKSHEET": "Ambiguous workbook sheets",
+            "MAPPING_VALIDATION_FAILED": "Mapping validation failed",
+        }
+        if item.mapping_route == "USER_MAPPING_PROFILE":
+            mapping_set = self._peak_table_mapping_set
+            if mapping_set is not None and item.mapping_profile_id is not None:
+                profile = next(
+                    (
+                        candidate
+                        for candidate in mapping_set.profiles
+                        if candidate.profile_id == item.mapping_profile_id
+                    ),
+                    None,
+                )
+                if profile is not None:
+                    return f"User mapping: {safe_preview_text(profile.display_label)}"
+            return "User mapping profile"
+        if item.mapping_route is None:
+            return "Automatic detection"
+        return route_labels.get(item.mapping_route, safe_preview_text(item.mapping_route))
 
     def _request_preview(self, *_unused: object) -> None:
         if not self._selection.paths or self._conversion_thread is not None:
@@ -471,15 +822,18 @@ class MainWindow(QMainWindow):
             self._preview_pending = True
             return
         self._preview_pending = False
+        active_mapping, active_mapping_set = self._active_peak_mappings()
         self._preview_inputs = self._selection.paths
-        self._preview_mapping = self._peak_table_mapping
+        self._preview_mapping = active_mapping
+        self._preview_mapping_set = active_mapping_set
         self.convert_button.setEnabled(False)
         self.status_label.setText("Inspecting selected inputs…")
         thread = QThread(self)
         worker = PreviewWorker(
             self._selection.paths,
             self._sort_value(),
-            self._peak_table_mapping,
+            active_mapping,
+            active_mapping_set,
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -500,9 +854,11 @@ class MainWindow(QMainWindow):
     def _on_preview_complete(self, report: object) -> None:
         if not isinstance(report, DesktopBatchReport):
             return
+        active_mapping, active_mapping_set = self._active_peak_mappings()
         if (
             self._preview_inputs != self._selection.paths
-            or self._preview_mapping != self._peak_table_mapping
+            or self._preview_mapping != active_mapping
+            or self._preview_mapping_set != active_mapping_set
         ):
             return
         if report.is_fatal_error:
@@ -521,6 +877,7 @@ class MainWindow(QMainWindow):
         self._preview_worker = None
         self._preview_inputs = None
         self._preview_mapping = None
+        self._preview_mapping_set = None
         self.convert_button.setEnabled(bool(self._selection.paths))
         if self._preview_pending:
             self._request_preview()
@@ -528,11 +885,13 @@ class MainWindow(QMainWindow):
     def _start_conversion(self) -> None:
         if self._conversion_thread is not None:
             return
+        active_mapping, active_mapping_set = self._active_peak_mappings()
         request = DesktopRequest(
-            self._selection.paths,
-            Path(self.output_edit.text()),
-            self._sort_value(),
-            self._peak_table_mapping,
+            inputs=self._selection.paths,
+            output=Path(self.output_edit.text()),
+            sort=self._sort_value(),
+            peak_table_mapping=active_mapping,
+            peak_table_mapping_set=active_mapping_set,
         )
         self._set_conversion_controls(False)
         self.open_output_button.setEnabled(False)
@@ -616,6 +975,13 @@ class MainWindow(QMainWindow):
             self.load_mapping_button,
             self.save_mapping_button,
             self.clear_mapping_button,
+            self.use_mapping_set_checkbox,
+            self.mapping_set_combo,
+            self.load_mapping_set_button,
+            self.save_mapping_set_button,
+            self.add_mapping_profile_button,
+            self.rename_mapping_profile_button,
+            self.remove_mapping_profile_button,
             self.selection_list,
             self.input_table,
             self.sort_combo,

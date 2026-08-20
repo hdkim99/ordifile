@@ -36,6 +36,18 @@ The CLI form is:
 ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
 ```
 
+For a mixed batch containing several previously approved table templates, save those
+mappings as profiles in one local Mapping Set and route the batch in one command:
+
+```console
+ordifile convert input/ --recursive --peak-mapping-set lab-mappings.json -o results.xlsx
+```
+
+The practical progression is: known exact format → automatic adapter; one unknown
+table → map once; repeated same-template tables → reuse the same mapping; mixed generic
+templates → use a Mapping Set. Exact-profile adapters always retain ownership before a
+Mapping Set is considered.
+
 For a neutral synthetic table with headers `Peak No.`, `Retention Time`, `Area`,
 `Height`, and `Compound`, a minimal mapping can be saved as:
 
@@ -58,6 +70,8 @@ Missing optional properties mean “not mapped.” The serializer writes a norma
 with every optional property present, including exact mapped and ignored header selectors,
 units, and optional user-supplied manufacturer/software. It stores no source data rows or
 source paths. Its path-independent semantic SHA-256 is stored in conversion provenance.
+This semantic digest applies to direct single-mapping mode; Mapping Set provenance uses the
+separate public-safe structural fingerprint described below.
 
 The desktop interface provides the same mapping model. Preview and conversion receive
 the same immutable mapping value; the UI does not contain a second CSV or XLSX parser.
@@ -66,6 +80,36 @@ desktop dialog), 11,264 cells including headers, and 1,000,000 rendered characte
 preview also bounds each physical line to 256 KiB and the read prefix to 2 MiB. Unsafe
 control and directional-format characters are rejected in headers and visibly escaped in
 local preview values.
+
+## Reusable profiles and Mapping Sets
+
+A `PeakTableMappingProfile` combines one existing schema-version-1 mapping with a local
+opaque profile ID, a local display label, and an XLSX worksheet policy. A
+`PeakTableMappingSet` is a bounded ordered collection of at most 32 profiles. The set
+uses its own schema version 1; existing single-mapping JSON remains loadable unchanged.
+Both documents are strict, non-executable UTF-8 JSON.
+
+Profile selection is exact structural routing, not scientific inference. For text it
+compares the declared container and every decoded header label at its one-based position.
+CSV, TSV, and semicolon-TXT remain distinct. For XLSX a profile either names one exact
+local worksheet or requires one unambiguous visible worksheet, then compares the ordered
+headers. Filename, directory, vendor name, display label, file hash, row count, and all
+measurement or sample values are excluded from selection. Case folding, aliases, fuzzy
+matching, and first-profile precedence are not used.
+
+Exactly one match applies the already approved mapping. Zero matches produces
+`PEAK_MAPPING_PROFILE_NOT_MATCHED`; multiple matches produce
+`PEAK_MAPPING_PROFILE_AMBIGUOUS`; an ambiguous single-visible-sheet workbook produces
+`PEAK_MAPPING_WORKSHEET_AMBIGUOUS`. The file fails without generic fallback, while other
+batch files remain independently processable under `--on-error continue`. The selected
+mapping is validated again against the actual header before any `PeakRecord` is created.
+
+Each profile also has a public-safe structural fingerprint. It summarizes schema versions,
+container, column count, ordered canonical roles or `IGNORED`, unit-presence states, and
+worksheet-policy type. It contains no raw or hashed header labels, row values, filename,
+path, worksheet title, display label, manufacturer, software, or free-text unit. This
+fingerprint is an audit summary only: it cannot reproduce the mapping, is not the private
+exact-match key, and does not verify a vendor.
 
 ## Mapping semantics
 
@@ -99,11 +143,19 @@ Treat the preview, its screenshots, and the mapping JSON as
 privacy-bearing local data: exact header labels and optional manufacturer/software are part
 of the JSON. They are not public evidence artifacts.
 
+Profile and Mapping Set JSON are also privacy-bearing local configuration. They contain
+embedded mapping selectors and may contain a local display label or exact worksheet title.
+Do not attach them to public issues. Workbooks record only opaque profile/set IDs, schema
+versions, and public-safe fingerprints; they do not record the Mapping Set path, filename,
+display label, exact headers, worksheet title, or complete JSON.
+
 Mapped inputs always use `source-<full SHA-256>` public identities. If no sample column is
-mapped, that source alias is also the deterministic sample identity. The workbook records
-mapping mode `USER_SUPPLIED`, schema version, semantic mapping SHA-256, canonical roles,
-unit provenance, converted row count, ignored-column count, and manufacturer/software
-verification status. It also contains every explicitly mapped canonical value and optional
+mapped, that source alias is also the deterministic sample identity. Direct single-mapping
+workbooks record mapping mode `USER_SUPPLIED`, schema version, semantic mapping SHA-256,
+canonical roles, unit provenance, converted row count, ignored-column count, and
+manufacturer/software verification status. Mapping Set workbooks replace that private
+semantic digest with the opaque profile/set IDs and public-safe fingerprint described above.
+Both modes contain every explicitly mapped canonical value and optional
 user-supplied manufacturer/software; mapping a sensitive sample, run, compound, peak-name,
 detector, channel, or acquisition field therefore writes that value to the local workbook.
 Ordifile does not record the source path/basename, mapping path/filename, complete JSON,

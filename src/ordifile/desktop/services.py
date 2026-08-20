@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import ordifile
-from ordifile import PeakTableFormat, PeakTableMapping
+from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
 from ordifile import api as _ordifile_api
 from ordifile.core.models import BatchOutcome, BatchResult, FileStatus, ProgressEvent, Severity
 from ordifile.core.peak_mapping import peak_preview_display
@@ -115,6 +115,14 @@ def _file_reports(result: BatchResult) -> tuple[DesktopFileReport, ...]:
                     if issue is None
                     else f"[{_safe_text(issue.code)}] {_safe_text(issue.message)}"
                 ),
+                mapping_route=(
+                    _safe_text(item.mapping_route, limit=100) if item.mapping_route else None
+                ),
+                mapping_profile_id=(
+                    _safe_text(item.mapping_profile_id, limit=100)
+                    if item.mapping_profile_id
+                    else None
+                ),
             )
         )
     return tuple(reports)
@@ -137,6 +145,7 @@ def inspect_selection(
     *,
     sort: str,
     peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
     progress: ProgressCallback | None = None,
 ) -> DesktopBatchReport:
     """Discover and detect selected inputs without writing an artifact."""
@@ -145,6 +154,7 @@ def inspect_selection(
             inputs,
             sort=sort,
             peak_table_mapping=peak_table_mapping,
+            peak_table_mapping_set=peak_table_mapping_set,
             progress=progress,
         )
     except (KeyboardInterrupt, SystemExit, MemoryError):
@@ -170,6 +180,7 @@ def convert_selection(
             on_error="continue",
             overwrite=False,
             peak_table_mapping=request.peak_table_mapping,
+            peak_table_mapping_set=request.peak_table_mapping_set,
             progress=progress,
         )
     except (KeyboardInterrupt, SystemExit, MemoryError):
@@ -215,6 +226,21 @@ def load_mapping(path: Path) -> PeakTableMapping:
 def save_mapping(mapping: PeakTableMapping, path: Path, *, overwrite: bool = False) -> None:
     """Save a data-only mapping through the public package interface."""
     ordifile.save_peak_table_mapping(mapping, path, overwrite=overwrite)
+
+
+def load_mapping_set(path: Path) -> PeakTableMappingSet:
+    """Load a data-only reusable mapping set through the public package interface."""
+    return ordifile.load_peak_table_mapping_set(path)
+
+
+def save_mapping_set(
+    mapping_set: PeakTableMappingSet,
+    path: Path,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Save a data-only reusable mapping set through the public package interface."""
+    ordifile.save_peak_table_mapping_set(mapping_set, path, overwrite=overwrite)
 
 
 def details_text(report: DesktopBatchReport) -> str:

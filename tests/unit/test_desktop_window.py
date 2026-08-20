@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,9 +16,15 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
+)
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
@@ -32,6 +39,33 @@ from ordifile.desktop.workers import ConversionWorker, PreviewWorker
 def app() -> QApplication:
     existing = QApplication.instance()
     return cast(QApplication, existing) if existing is not None else QApplication([])
+
+
+def _mapping(*, unit: str = "min") -> PeakTableMapping:
+    return PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        unit,
+        PeakTableFormat.CSV,
+    )
+
+
+def _mapping_set(
+    mapping: PeakTableMapping | None = None,
+    *,
+    label: str = "Daily CSV",
+) -> PeakTableMappingSet:
+    return PeakTableMappingSet((PeakTableMappingProfile(mapping or _mapping(), label),))
+
+
+def _next_expected_widget(current: QWidget, expected: set[QWidget]) -> QWidget:
+    candidate = current.nextInFocusChain()
+    assert candidate is not None
+    while candidate not in expected:
+        candidate = candidate.nextInFocusChain()
+        assert candidate is not None
+        assert candidate is not current
+    return candidate
 
 
 def test_drop_normalization_accepts_files_folders_and_ignores_remote_urls(
@@ -76,7 +110,7 @@ def test_window_adds_files_and_folder_without_duplicating_inputs(
 
     assert window.selected_paths == (file, folder)
     assert window.input_table.rowCount() == 2
-    status_item = window.input_table.item(0, 3)
+    status_item = window.input_table.item(0, 4)
     folder_item = window.input_table.item(1, 1)
     assert status_item is not None and status_item.text() == "Queued"
     assert folder_item is not None and folder_item.text() == "Pending core discovery"
@@ -159,6 +193,8 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.sort_combo.accessibleName() == "Sort method"
     assert window.convert_button.accessibleName() == "Convert selected inputs"
     assert window.map_peaks_button.accessibleName() == "Map selected file peak columns"
+    assert window.mapping_set_combo.accessibleName() == "Reusable peak mapping profiles"
+    assert window.use_mapping_set_checkbox.accessibleName() == ("Use reusable peak mapping set")
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -166,6 +202,32 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     )
     assert not window.open_output_button.isEnabled()
     assert not window.convert_button.isEnabled()
+    window.close()
+
+
+def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplication) -> None:
+    del app
+    window = MainWindow()
+    expected_order = (
+        window.map_peaks_button,
+        window.load_mapping_button,
+        window.save_mapping_button,
+        window.clear_mapping_button,
+        window.use_mapping_set_checkbox,
+        window.mapping_set_combo,
+        window.load_mapping_set_button,
+        window.save_mapping_set_button,
+        window.add_mapping_profile_button,
+        window.rename_mapping_profile_button,
+        window.remove_mapping_profile_button,
+        window.remove_button,
+    )
+    expected = set(expected_order)
+
+    assert all(
+        _next_expected_widget(current, expected) is following
+        for current, following in pairwise(expected_order)
+    )
     window.close()
 
 
@@ -237,6 +299,198 @@ def test_window_loads_saves_and_clears_one_frozen_mapping(
     window.close()
 
 
+def test_window_loads_and_saves_one_frozen_mapping_set(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping_set = _mapping_set()
+    mapping_file = tmp_path / "mapping-set.json"
+    saved: list[tuple[PeakTableMappingSet, Path, bool]] = []
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getOpenFileName",
+        lambda *_args, **_kwargs: (str(mapping_file), ""),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.load_mapping_set",
+        lambda _path: mapping_set,
+    )
+
+    window._load_peak_mapping_set()
+
+    assert window.peak_table_mapping_set is mapping_set
+    assert window.use_mapping_set_checkbox.isChecked()
+    assert window.mapping_set_combo.count() == 1
+    assert "Daily CSV" in window.mapping_set_combo.currentText()
+    assert window.save_mapping_set_button.isEnabled()
+
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(mapping_file), ""),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.save_mapping_set",
+        lambda value, path, *, overwrite: saved.append((value, path, overwrite)),
+    )
+    window._save_peak_mapping_set()
+
+    assert saved == [(mapping_set, mapping_file, False)]
+    window.close()
+
+
+def test_window_adds_renames_and_removes_current_mapping_profile(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    answers = iter(("First local profile", "Renamed local profile"))
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: (next(answers), True),
+    )
+    mapping = _mapping()
+    window._set_peak_mapping(mapping)
+
+    window._add_current_mapping_profile()
+
+    added_set = window.peak_table_mapping_set
+    assert added_set is not None
+    assert window.mapping_set_active
+    assert added_set.profiles[0].mapping is mapping
+    original_id = added_set.profiles[0].profile_id
+    original_set_id = added_set.set_id
+
+    window._rename_mapping_profile()
+
+    renamed_set = window.peak_table_mapping_set
+    assert renamed_set is not None
+    assert renamed_set.set_id == original_set_id
+    assert renamed_set.profiles[0].profile_id == original_id
+    assert renamed_set.profiles[0].display_label == "Renamed local profile"
+
+    window._remove_mapping_profile()
+
+    assert window.peak_table_mapping_set is None
+    assert not window.use_mapping_set_checkbox.isChecked()
+    assert window.peak_table_mapping is mapping
+    window.close()
+
+
+def test_window_mapping_profile_dialog_cancel_keeps_existing_set(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping_set = _mapping_set()
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window._set_peak_mapping(_mapping(unit="s"))
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Discarded", False),
+    )
+
+    window._add_current_mapping_profile()
+    window._rename_mapping_profile()
+
+    assert window.peak_table_mapping_set is mapping_set
+    assert window.mapping_set_active
+    window.close()
+
+
+def test_window_active_mapping_modes_are_mutually_exclusive(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping = _mapping()
+    mapping_set = _mapping_set(mapping)
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window._set_peak_mapping(mapping)
+    assert window._active_peak_mappings() == (mapping, None)
+
+    window._set_peak_mapping_set(mapping_set, activate=True)
+
+    assert window._active_peak_mappings() == (None, mapping_set)
+    window.use_mapping_set_checkbox.setChecked(False)
+    assert window._active_peak_mappings() == (mapping, None)
+    window.close()
+
+
+def test_window_route_display_uses_public_route_and_local_profile_label(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping_set = _mapping_set(label="Daily CSV")
+    profile = mapping_set.profiles[0]
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window._set_peak_mapping_set(mapping_set, activate=True)
+    report = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        files=(
+            DesktopFileReport(
+                "mapped.csv",
+                "Generic CSV (Verified)",
+                "generic_csv",
+                DesktopInputStatus.SUCCESS,
+                mapping_route="USER_MAPPING_PROFILE",
+                mapping_profile_id=profile.profile_id,
+            ),
+            DesktopFileReport(
+                "exact.txt",
+                "LECO exact profile (Experimental)",
+                "leco_chromatof_gcxgc_result_txt",
+                DesktopInputStatus.WARNING,
+                mapping_route="EXACT_ADAPTER",
+            ),
+        ),
+        success_count=2,
+    )
+
+    window._render_report(report)
+
+    mapped_route = window.input_table.item(0, 3)
+    exact_route = window.input_table.item(1, 3)
+    assert mapped_route is not None and mapped_route.text() == "User mapping: Daily CSV"
+    assert exact_route is not None and exact_route.text() == "Exact adapter"
+    window.close()
+
+
+def test_window_mapping_combo_distinguishes_duplicate_local_labels(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    first = PeakTableMappingProfile(
+        _mapping(),
+        "Daily result",
+        profile_id="profile-11111111111111111111111111aaaaaa",
+    )
+    second_mapping = PeakTableMapping(
+        ColumnSelector("Time", 1),
+        ColumnSelector("Integrated", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    second = PeakTableMappingProfile(
+        second_mapping,
+        "Daily result",
+        profile_id="profile-22222222222222222222222222bbbbbb",
+    )
+    mapping_set = PeakTableMappingSet((first, second))
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+
+    window._set_peak_mapping_set(mapping_set, activate=True)
+
+    assert window.mapping_set_combo.itemText(0).endswith("[aaaaaa]")
+    assert window.mapping_set_combo.itemText(1).endswith("[bbbbbb]")
+    assert window.mapping_set_combo.itemText(0) != window.mapping_set_combo.itemText(1)
+    window.close()
+
+
 def test_stale_preview_does_not_replace_rows_after_mapping_changes(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -270,6 +524,43 @@ def test_stale_preview_does_not_replace_rows_after_mapping_changes(
                 "Generic CSV (Verified)",
                 "generic_csv",
                 DesktopInputStatus.SUCCESS,
+            ),
+        ),
+        success_count=1,
+    )
+
+    window._on_preview_complete(stale)
+
+    queued = window.input_table.item(0, 0)
+    assert queued is not None and queued.text() != "stale.csv"
+    window.close()
+
+
+def test_stale_preview_does_not_replace_rows_after_mapping_set_changes(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    first = _mapping_set(_mapping(unit="min"), label="First")
+    second = _mapping_set(_mapping(unit="s"), label="Second")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.add_paths((source,))
+    window._set_peak_mapping_set(first, activate=True)
+    window._preview_inputs = window.selected_paths
+    window._preview_mapping = None
+    window._preview_mapping_set = first
+    window._set_peak_mapping_set(second, activate=True)
+    stale = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        files=(
+            DesktopFileReport(
+                "stale.csv",
+                "Generic CSV (Verified)",
+                "generic_csv",
+                DesktopInputStatus.SUCCESS,
+                mapping_route="USER_MAPPING_PROFILE",
+                mapping_profile_id=first.profiles[0].profile_id,
             ),
         ),
         success_count=1,
@@ -380,6 +671,26 @@ def test_window_progress_uses_existing_public_stages(app: QApplication) -> None:
     window.close()
 
 
+def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
+    del app
+    window = MainWindow()
+    window._peak_table_mapping = _mapping()
+    window._peak_table_mapping_set = _mapping_set()
+    window.use_mapping_set_checkbox.setChecked(True)
+    window._update_mapping_controls()
+
+    window._set_conversion_controls(False)
+
+    assert not window.use_mapping_set_checkbox.isEnabled()
+    assert not window.mapping_set_combo.isEnabled()
+    assert not window.load_mapping_set_button.isEnabled()
+    assert not window.save_mapping_set_button.isEnabled()
+    assert not window.add_mapping_profile_button.isEnabled()
+    assert not window.rename_mapping_profile_button.isEnabled()
+    assert not window.remove_mapping_profile_button.isEnabled()
+    window.close()
+
+
 def test_open_output_uses_local_desktop_service(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -430,6 +741,27 @@ def test_workers_always_emit_completed_and_finished(
 
     assert completed == [report]
     assert finished == [True]
+
+
+def test_preview_worker_forwards_one_frozen_mapping_set_snapshot(
+    app: QApplication,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del app
+    mapping_set = _mapping_set()
+    captured: list[tuple[object, object]] = []
+
+    def inspect(*_args: object, **kwargs: object) -> DesktopBatchReport:
+        captured.append((kwargs.get("peak_table_mapping"), kwargs.get("peak_table_mapping_set")))
+        return DesktopBatchReport(BatchOutcome.SUCCESS)
+
+    monkeypatch.setattr("ordifile.desktop.workers.inspect_selection", inspect)
+    worker = PreviewWorker((tmp_path / "input.csv",), "auto", None, mapping_set)
+
+    worker.run()
+
+    assert captured == [(None, mapping_set)]
 
 
 @pytest.mark.parametrize("worker_type", [PreviewWorker, ConversionWorker])

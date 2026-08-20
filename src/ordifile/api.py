@@ -37,6 +37,7 @@ from ordifile.core.peak_mapping import (
     MAPPED_XLSX_SHEET_MARKER,
     PeakTableFormat,
     PeakTableMapping,
+    PeakTableMappingSet,
     PeakTablePreview,
 )
 from ordifile.core.pipeline import run_pipeline
@@ -123,10 +124,20 @@ def _require_peak_mapping(value: object) -> None:
         )
 
 
+def _require_peak_mapping_set(value: object) -> None:
+    if value is not None and type(value) is not PeakTableMappingSet:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID",
+            "peak_table_mapping_set must be a PeakTableMappingSet or None.",
+        )
+
+
 def _validate_peak_mapping_options(
     mapping: PeakTableMapping | None,
+    mapping_set: PeakTableMappingSet | None = None,
     *,
     sheet: str | None,
+    include_hidden_sheets: bool = False,
 ) -> None:
     """Reject XLSX-only options for mapped text before discovery begins."""
     if (
@@ -137,6 +148,16 @@ def _validate_peak_mapping_options(
         raise OrdifileError(
             "PEAK_MAPPING_SHEET_INVALID",
             "sheet is available only for XLSX peak-table mappings.",
+        )
+    if mapping is not None and mapping_set is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_OPTION_CONFLICT",
+            "peak_table_mapping and peak_table_mapping_set are mutually exclusive.",
+        )
+    if mapping_set is not None and (sheet is not None or include_hidden_sheets):
+        raise OrdifileError(
+            "PEAK_MAPPING_SET_SHEET_CONFLICT",
+            "Mapping profiles own XLSX worksheet selection; sheet options cannot be combined.",
         )
 
 
@@ -272,6 +293,7 @@ def inspect_file(
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
     peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
     registry: AdapterRegistry | None = None,
 ) -> InspectionResult:
     """Detect, parse, and validate one file without writing an output."""
@@ -280,8 +302,16 @@ def inspect_file(
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
     _require_peak_mapping(peak_table_mapping)
-    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
-    if adapter is not None and peak_table_mapping is not None:
+    _require_peak_mapping_set(peak_table_mapping_set)
+    _validate_peak_mapping_options(
+        peak_table_mapping,
+        peak_table_mapping_set,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+    )
+    if adapter is not None and (
+        peak_table_mapping is not None or peak_table_mapping_set is not None
+    ):
         raise OrdifileError(
             "PEAK_MAPPING_ADAPTER_CONFLICT",
             "adapter and peak_table_mapping cannot be selected together.",
@@ -307,6 +337,7 @@ def inspect_file(
             sheet=sheet,
             include_hidden_sheets=include_hidden_sheets,
             peak_table_mapping=peak_table_mapping,
+            peak_table_mapping_set=peak_table_mapping_set,
         ),
     )
     if len(result.files) != 1:
@@ -343,6 +374,7 @@ def inspect_inputs(
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
     peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
     progress: Callable[[ProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
 ) -> BatchResult:
@@ -358,8 +390,16 @@ def inspect_inputs(
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
     _require_peak_mapping(peak_table_mapping)
-    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
-    if adapter is not None and peak_table_mapping is not None:
+    _require_peak_mapping_set(peak_table_mapping_set)
+    _validate_peak_mapping_options(
+        peak_table_mapping,
+        peak_table_mapping_set,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+    )
+    if adapter is not None and (
+        peak_table_mapping is not None or peak_table_mapping_set is not None
+    ):
         raise OrdifileError(
             "PEAK_MAPPING_ADAPTER_CONFLICT",
             "adapter and peak_table_mapping cannot be selected together.",
@@ -383,6 +423,7 @@ def inspect_inputs(
             sheet=sheet,
             include_hidden_sheets=include_hidden_sheets,
             peak_table_mapping=peak_table_mapping,
+            peak_table_mapping_set=peak_table_mapping_set,
         ),
         on_error="continue",
         progress=progress,
@@ -412,6 +453,24 @@ def inspect_inputs(
                     if peak_table_mapping is not None
                     else None
                 ),
+                peak_table_mapping_set_id=(
+                    peak_table_mapping_set.set_id if peak_table_mapping_set is not None else None
+                ),
+                peak_table_mapping_set_schema_version=(
+                    peak_table_mapping_set.schema_version
+                    if peak_table_mapping_set is not None
+                    else None
+                ),
+                peak_table_mapping_set_fingerprint=(
+                    peak_table_mapping_set.structural_fingerprint_sha256
+                    if peak_table_mapping_set is not None
+                    else None
+                ),
+                peak_table_mapping_set_profile_count=(
+                    len(peak_table_mapping_set.profiles)
+                    if peak_table_mapping_set is not None
+                    else None
+                ),
             ),
         )
     )
@@ -429,6 +488,7 @@ def convert(
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
     peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
     on_error: str = "continue",
     overwrite: bool = False,
     sidecar_mode: str = "error",
@@ -444,8 +504,16 @@ def convert(
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
     _require_peak_mapping(peak_table_mapping)
-    _validate_peak_mapping_options(peak_table_mapping, sheet=sheet)
-    if adapter is not None and peak_table_mapping is not None:
+    _require_peak_mapping_set(peak_table_mapping_set)
+    _validate_peak_mapping_options(
+        peak_table_mapping,
+        peak_table_mapping_set,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+    )
+    if adapter is not None and (
+        peak_table_mapping is not None or peak_table_mapping_set is not None
+    ):
         raise OrdifileError(
             "PEAK_MAPPING_ADAPTER_CONFLICT",
             "adapter and peak_table_mapping cannot be selected together.",
@@ -483,6 +551,7 @@ def convert(
             sheet=sheet,
             include_hidden_sheets=include_hidden_sheets,
             peak_table_mapping=peak_table_mapping,
+            peak_table_mapping_set=peak_table_mapping_set,
         ),
         on_error=on_error,
         progress=progress,
@@ -536,6 +605,22 @@ def convert(
             ),
             peak_table_source_format=(
                 peak_table_mapping.source_format.value if peak_table_mapping is not None else None
+            ),
+            peak_table_mapping_set_id=(
+                peak_table_mapping_set.set_id if peak_table_mapping_set is not None else None
+            ),
+            peak_table_mapping_set_schema_version=(
+                peak_table_mapping_set.schema_version
+                if peak_table_mapping_set is not None
+                else None
+            ),
+            peak_table_mapping_set_fingerprint=(
+                peak_table_mapping_set.structural_fingerprint_sha256
+                if peak_table_mapping_set is not None
+                else None
+            ),
+            peak_table_mapping_set_profile_count=(
+                len(peak_table_mapping_set.profiles) if peak_table_mapping_set is not None else None
             ),
         ),
     )

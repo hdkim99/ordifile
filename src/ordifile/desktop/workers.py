@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ordifile import PeakTableFormat, PeakTableMapping
+from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
@@ -40,11 +40,13 @@ class PreviewWorker(QObject):
         inputs: tuple[Path, ...],
         sort: str,
         peak_table_mapping: PeakTableMapping | None = None,
+        peak_table_mapping_set: PeakTableMappingSet | None = None,
     ) -> None:
         super().__init__()
         self._inputs = inputs
         self._sort = sort
         self._peak_table_mapping = peak_table_mapping
+        self._peak_table_mapping_set = peak_table_mapping_set
 
     def _emit_progress(self, event: ProgressEvent) -> None:
         self.progress.emit(event)
@@ -58,6 +60,7 @@ class PreviewWorker(QObject):
                     self._inputs,
                     sort=self._sort,
                     peak_table_mapping=self._peak_table_mapping,
+                    peak_table_mapping_set=self._peak_table_mapping_set,
                     progress=self._emit_progress,
                 )
             )

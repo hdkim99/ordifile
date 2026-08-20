@@ -8,17 +8,25 @@ from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
     PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
     PeakTablePreview,
     load_peak_table_mapping,
+    load_peak_table_mapping_set,
     save_peak_table_mapping,
+    save_peak_table_mapping_set,
 )
 
 __all__ = [
     "ColumnSelector",
     "PeakTableFormat",
     "PeakTableMapping",
+    "PeakTableMappingProfile",
+    "PeakTableMappingSet",
     "PeakTablePreview",
     "__version__",
     "load_peak_table_mapping",
+    "load_peak_table_mapping_set",
     "save_peak_table_mapping",
+    "save_peak_table_mapping_set",
 ]

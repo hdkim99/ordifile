@@ -47,9 +47,12 @@ def detect_adapter(
     redact_reasons: bool = False,
     redact_adapter_ids: frozenset[str] | None = None,
     redact_error_reasons: bool = False,
+    excluded_adapter_ids: frozenset[str] | None = None,
 ) -> DetectionOutcome:
     """Probe adapters, optionally replacing selected reasons before any disclosure."""
+    excluded = frozenset() if excluded_adapter_ids is None else excluded_adapter_ids
     adapters = (registry.get(forced_adapter),) if forced_adapter else registry.adapters()
+    adapters = tuple(adapter for adapter in adapters if adapter.adapter_id not in excluded)
     reason_redactions = frozenset() if redact_adapter_ids is None else redact_adapter_ids
     probes: list[tuple[str, DetectionResult]] = []
     for adapter in adapters:
