@@ -4,6 +4,9 @@ This guide describes the privacy-first path for contributing an actual chromatog
 Result/Peak Table export toward a new exact-profile adapter. Do not attach the original
 scientific file, screenshot, mapping/profile/Mapping Set JSON, or generated workbook to a
 public issue.
+Do not attach local schema-drift screens or reports containing raw header, worksheet, profile
+label, or repaired-mapping details. A fixed diagnostic category/count summary may be shared
+only after the same privacy review.
 
 ## Preferred source
 

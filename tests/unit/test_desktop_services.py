@@ -11,6 +11,8 @@ import pytest
 
 from ordifile import (
     ColumnSelector,
+    PeakMappingDriftCategory,
+    PeakMappingDriftDiagnostic,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
@@ -34,6 +36,27 @@ from ordifile.desktop.models import DesktopInputStatus, DesktopRequest
 
 def _source(name: str, order: int) -> SourceFile:
     return SourceFile(Path(name), name, name, 1, "a" * 64, None, order)
+
+
+def _drift_diagnostic(
+    profile_id: str = "profile-11111111111111111111111111111111",
+) -> PeakMappingDriftDiagnostic:
+    return PeakMappingDriftDiagnostic(
+        profile_id=profile_id,
+        profile_structural_fingerprint="b" * 64,
+        source_format=PeakTableFormat.CSV,
+        categories=(PeakMappingDriftCategory.HEADER_CHANGED_UNRESOLVED,),
+        expected_column_count=2,
+        observed_column_count=2,
+        exact_position_matches=1,
+        changed_column_count=1,
+        added_column_count=0,
+        removed_column_count=0,
+        moved_column_count=0,
+        total_difference_count=1,
+        unresolved_required_roles=("area",),
+        unresolved_optional_roles=(),
+    )
 
 
 def _batch(
@@ -232,6 +255,50 @@ def test_desktop_report_carries_only_public_mapping_route_identity(
     assert report.files[0].mapping_profile_id == profile_id
 
 
+def test_desktop_report_carries_public_drift_diagnostics_without_raw_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_path = tmp_path / "private-result.csv"
+    source_path.write_text("Changed RT,Area\n1,2\n", encoding="utf-8")
+    source = SourceFile(
+        Path("source-" + "a" * 64),
+        "source-" + "a" * 64,
+        "source-" + "a" * 64,
+        1,
+        "a" * 64,
+        None,
+        0,
+        public_id="source-" + "a" * 64,
+    )
+    diagnostic = _drift_diagnostic()
+    batch = BatchResult(
+        (
+            FileResult(
+                source,
+                FileStatus.FAILED,
+                issues=(
+                    Issue(
+                        "PEAK_MAPPING_PROFILE_NOT_MATCHED",
+                        "No exact match.",
+                        Severity.ERROR,
+                    ),
+                ),
+                mapping_route="SCHEMA_DRIFT_CANDIDATE",
+                mapping_diagnostics=(diagnostic,),
+            ),
+        ),
+        SortDecision(SortMode.AUTO, SortMode.INPUT_ORDER, "test"),
+    )
+    monkeypatch.setattr(public_api, "inspect_inputs", lambda *_args, **_kwargs: batch)
+
+    report = services.inspect_selection((source_path,), sort="auto")
+
+    assert report.files[0].mapping_diagnostics == (diagnostic,)
+    assert report.files[0].review_input_index == 0
+    assert str(source_path) not in repr(report)
+    assert source_path.name not in services.details_text(report)
+
+
 def test_mapping_set_load_and_save_use_public_root_exports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -270,6 +337,7 @@ def test_preview_peak_table_uses_public_bounded_preview_api(
         headers=("RT", "Area"),
         rows=(("1.2", "10"),),
         sheet=None,
+        source_sha256="1" * 64,
     )
     calls: list[tuple[object, ...]] = []
 
@@ -285,6 +353,7 @@ def test_preview_peak_table_uses_public_bounded_preview_api(
     assert report.preview is not None
     assert report.preview.headers == ("RT", "Area")
     assert report.preview.rows == (("1.2", "10"),)
+    assert report.preview.source_sha256 == "1" * 64
 
 
 def test_convert_selection_distinguishes_partial_success(

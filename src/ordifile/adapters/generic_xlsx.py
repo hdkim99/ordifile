@@ -118,10 +118,10 @@ def preview_xlsx_peak_table(
     row_limit: int = 5,
 ) -> PeakTablePreview:
     """Return one bounded worksheet preview after the existing OOXML audit."""
-    if type(row_limit) is not int or row_limit < 1 or row_limit > MAX_PEAK_PREVIEW_ROWS:
+    if type(row_limit) is not int or row_limit < 0 or row_limit > MAX_PEAK_PREVIEW_ROWS:
         raise ParseError(
             "PEAK_MAPPING_PREVIEW_LIMIT_INVALID",
-            f"row_limit must be from 1 to {MAX_PEAK_PREVIEW_ROWS}.",
+            f"Internal row_limit must be from 0 to {MAX_PEAK_PREVIEW_ROWS}.",
         )
     package = preflight_xlsx(path)
     try:
@@ -219,34 +219,35 @@ def preview_xlsx_peak_table(
                 "The bounded preview exceeds its cell or rendered-text limit.",
             )
         rows: list[tuple[str, ...]] = []
-        for row in worksheet.iter_rows(
-            min_row=2,
-            max_row=min(captured.actual_max_row, row_limit + 1),
-            min_col=1,
-            max_col=len(header),
-        ):
-            if all(cell.value is None or str(cell.value) == "" for cell in row):
-                continue
-            values = tuple(
-                "<formula>"
-                if getattr(cell, "data_type", None) == "f"
-                else peak_preview_display("" if cell.value is None else str(cell.value))
-                for cell in row
-            )
-            total_cells += len(values)
-            total_characters += sum(len(value) for value in values)
-            if (
-                total_cells > MAX_PEAK_PREVIEW_CELLS
-                or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
-                or any(len(value) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in values)
+        if row_limit:
+            for row in worksheet.iter_rows(
+                min_row=2,
+                max_row=min(captured.actual_max_row, row_limit + 1),
+                min_col=1,
+                max_col=len(header),
             ):
-                raise ParseError(
-                    "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
-                    "The bounded preview exceeds its cell or rendered-text limit.",
+                if all(cell.value is None or str(cell.value) == "" for cell in row):
+                    continue
+                values = tuple(
+                    "<formula>"
+                    if getattr(cell, "data_type", None) == "f"
+                    else peak_preview_display("" if cell.value is None else str(cell.value))
+                    for cell in row
                 )
-            rows.append(values)
-            if len(rows) == row_limit:
-                break
+                total_cells += len(values)
+                total_characters += sum(len(value) for value in values)
+                if (
+                    total_cells > MAX_PEAK_PREVIEW_CELLS
+                    or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
+                    or any(len(value) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in values)
+                ):
+                    raise ParseError(
+                        "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
+                        "The bounded preview exceeds its cell or rendered-text limit.",
+                    )
+                rows.append(values)
+                if len(rows) == row_limit:
+                    break
         return PeakTablePreview(
             PeakTableFormat.XLSX,
             tuple("" if value is None else str(value) for value in header),

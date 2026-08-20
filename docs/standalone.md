@@ -174,6 +174,8 @@ then runs the packaged executable with `--standalone-smoke`. It verifies:
   without changing the adapter inventory or automatic-detection input count;
 - a bounded synthetic two-profile Mapping Set load plus CSV/XLSX mixed-template mapped
   conversion, also without changing the adapter inventory;
+- fail-closed Mapping Set schema-drift diagnostics followed by an explicit synthetic
+  add-as-new profile repair, preserving the original profile and set identity;
 - conversion using the same public API as CLI/GUI;
 - workbook reopen plus ordered equivalence for `Samples`, `Peak_Matrix`, `Peaks`,
   `Peak_Order_Matrix`, conditional `Peak_Order_Matrix_2D`, `Metadata` and `Import_Log`;

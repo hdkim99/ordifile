@@ -92,7 +92,11 @@ def _descriptor_map() -> dict[str, tuple[str, str]]:
     }
 
 
-def _file_reports(result: BatchResult) -> tuple[DesktopFileReport, ...]:
+def _file_reports(
+    result: BatchResult,
+    *,
+    direct_input_count: int | None = None,
+) -> tuple[DesktopFileReport, ...]:
     descriptors = _descriptor_map()
     reports: list[DesktopFileReport] = []
     for item in result.files:
@@ -123,15 +127,27 @@ def _file_reports(result: BatchResult) -> tuple[DesktopFileReport, ...]:
                     if item.mapping_profile_id
                     else None
                 ),
+                mapping_diagnostics=item.mapping_diagnostics,
+                review_input_index=(
+                    item.source.input_order
+                    if direct_input_count is not None
+                    and 0 <= item.source.input_order < direct_input_count
+                    else None
+                ),
+                source_sha256=item.source.sha256,
             )
         )
     return tuple(reports)
 
 
-def _report(result: BatchResult) -> DesktopBatchReport:
+def _report(
+    result: BatchResult,
+    *,
+    direct_input_count: int | None = None,
+) -> DesktopBatchReport:
     return DesktopBatchReport(
         outcome=result.outcome,
-        files=_file_reports(result),
+        files=_file_reports(result, direct_input_count=direct_input_count),
         success_count=result.success_count,
         warning_count=result.warning_count,
         failure_count=result.failure_count,
@@ -149,6 +165,9 @@ def inspect_selection(
     progress: ProgressCallback | None = None,
 ) -> DesktopBatchReport:
     """Discover and detect selected inputs without writing an artifact."""
+    direct_input_count = (
+        len(inputs) if all(path.is_file() and not path.is_symlink() for path in inputs) else None
+    )
     try:
         result = _ordifile_api.inspect_inputs(
             inputs,
@@ -162,7 +181,9 @@ def inspect_selection(
     except Exception as error:
         code, message = _structured_error(error)
         return DesktopBatchReport(BatchOutcome.FAILED, error_code=code, error_message=message)
-    return _report(result)
+    if direct_input_count is not None and len(result.files) != direct_input_count:
+        direct_input_count = None
+    return _report(result, direct_input_count=direct_input_count)
 
 
 def convert_selection(
@@ -171,6 +192,11 @@ def convert_selection(
     progress: ProgressCallback | None = None,
 ) -> DesktopBatchReport:
     """Convert with the public API while preserving partial and all-failed outcomes."""
+    direct_input_count = (
+        len(request.inputs)
+        if all(path.is_file() and not path.is_symlink() for path in request.inputs)
+        else None
+    )
     try:
         validate_request(request)
         result = _ordifile_api.convert(
@@ -188,7 +214,9 @@ def convert_selection(
     except Exception as error:
         code, message = _structured_error(error)
         return DesktopBatchReport(BatchOutcome.FAILED, error_code=code, error_message=message)
-    return _report(result)
+    if direct_input_count is not None and len(result.files) != direct_input_count:
+        direct_input_count = None
+    return _report(result, direct_input_count=direct_input_count)
 
 
 def preview_peak_table(
@@ -214,6 +242,7 @@ def preview_peak_table(
             tuple(preview.headers),
             tuple(tuple(str(cell) for cell in row) for row in preview.rows),
             preview.sheet,
+            preview.source_sha256,
         )
     )
 

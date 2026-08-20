@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
+from ordifile import (
+    PeakMappingDriftDiagnostic,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingSet,
+)
 from ordifile.core.models import BatchOutcome
 
 
@@ -53,6 +58,7 @@ class DesktopPeakTablePreview:
     headers: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]
     sheet: str | None = None
+    source_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +86,9 @@ class DesktopFileReport:
     message: str = ""
     mapping_route: str | None = None
     mapping_profile_id: str | None = None
+    mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
+    review_input_index: int | None = None
+    source_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

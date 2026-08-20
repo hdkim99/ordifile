@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import runpy
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ import openpyxl  # type: ignore[import-untyped]
 import pytest
 
 from ordifile.api import convert, inspect_file, inspect_inputs, preview_peak_table
+from ordifile.core.discovery import sha256_file
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import FileStatus
 from ordifile.core.peak_mapping import ColumnSelector, PeakTableFormat, PeakTableMapping
@@ -188,6 +190,38 @@ def test_delimited_preview_escapes_directional_row_text(tmp_path: Path) -> None:
     preview = preview_peak_table(source, PeakTableFormat.CSV)
 
     assert preview.rows[0][2] == "left\\u202Eright"
+
+
+def test_peak_table_preview_records_the_exact_source_snapshot(tmp_path: Path) -> None:
+    source = tmp_path / "preview.csv"
+    source.write_bytes(b"RT,Area\n1,2\n")
+
+    preview = preview_peak_table(source, PeakTableFormat.CSV)
+
+    assert preview.source_sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
+
+
+def test_peak_table_preview_fails_if_source_changes_during_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "preview.csv"
+    source.write_bytes(b"RT,Area\n1,2\n")
+    from ordifile import api
+
+    real_hash = sha256_file
+
+    def hash_then_change(path: Path) -> str:
+        digest = real_hash(path)
+        path.write_bytes(b"RT,Area\n3,4\n")
+        return digest
+
+    monkeypatch.setattr(api, "sha256_file", hash_then_change)
+
+    with pytest.raises(OrdifileError) as captured:
+        preview_peak_table(source, PeakTableFormat.CSV)
+
+    assert captured.value.code == "PEAK_MAPPING_PREVIEW_SOURCE_CHANGED"
 
 
 def test_delimited_preview_rejects_oversized_line(tmp_path: Path) -> None:

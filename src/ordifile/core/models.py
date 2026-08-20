@@ -11,6 +11,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from ordifile.core.peak_mapping import PeakMappingDriftDiagnostic
+
 MAX_CANONICAL_INTEGER_DECIMAL_DIGITS: int = 1_000
 MAX_CANONICAL_INTEGER_LEXEME_CHARACTERS: int = 4_096
 MAX_CANONICAL_INTEGER_ABS: int = 10**MAX_CANONICAL_INTEGER_DECIMAL_DIGITS
@@ -218,6 +220,7 @@ class FileResult:
     mapping_route: str | None = None
     mapping_profile_id: str | None = None
     mapping_structure_fingerprint: str | None = None
+    mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

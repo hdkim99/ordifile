@@ -12,7 +12,7 @@ import secrets
 import stat
 import tempfile
 import unicodedata
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
@@ -25,10 +25,12 @@ PEAK_MAPPING_SCHEMA_VERSION = 1
 PEAK_MAPPING_PROFILE_SCHEMA_VERSION = 1
 PEAK_MAPPING_SET_SCHEMA_VERSION = 1
 PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION = 1
+PEAK_MAPPING_DRIFT_SCHEMA_VERSION = 1
 MAX_PEAK_MAPPING_BYTES = 64 * 1024
 MAX_PEAK_MAPPING_PROFILE_BYTES = 128 * 1024
 MAX_PEAK_MAPPING_SET_BYTES = 4 * 1024 * 1024
 MAX_PEAK_MAPPING_PROFILES = 32
+MAX_PEAK_MAPPING_DRIFT_CANDIDATES = 3
 MAX_PEAK_MAPPING_PROFILE_LABEL_CHARACTERS = 128
 MAX_PEAK_MAPPING_PROFILE_LABEL_BYTES = 512
 MAX_PEAK_PREVIEW_COLUMNS = 1_024
@@ -77,6 +79,80 @@ class PeakTableFormat(StrEnum):
     XLSX = "xlsx"
 
 
+class PeakMappingDriftCategory(StrEnum):
+    """Fixed, non-semantic structural differences for a failed exact match."""
+
+    HEADER_CHANGED_UNRESOLVED = "HEADER_CHANGED_UNRESOLVED"
+    COLUMN_ADDED = "COLUMN_ADDED"
+    COLUMN_REMOVED = "COLUMN_REMOVED"
+    COLUMN_REORDERED = "COLUMN_REORDERED"
+    DUPLICATE_HEADER_CHANGED = "DUPLICATE_HEADER_CHANGED"
+    REQUIRED_MAPPING_COLUMN_MISSING = "REQUIRED_MAPPING_COLUMN_MISSING"
+    OPTIONAL_MAPPING_COLUMN_MISSING = "OPTIONAL_MAPPING_COLUMN_MISSING"
+    WORKSHEET_IDENTITY_CHANGED_UNRESOLVED = "WORKSHEET_IDENTITY_CHANGED_UNRESOLVED"
+    INCOMPATIBLE_STRUCTURE = "INCOMPATIBLE_STRUCTURE"
+
+
+@dataclass(frozen=True, slots=True)
+class PeakMappingDriftDiagnostic:
+    """Privacy-safe structural summary that can never authorize a mapping."""
+
+    profile_id: str
+    profile_structural_fingerprint: str
+    source_format: PeakTableFormat
+    categories: tuple[PeakMappingDriftCategory, ...]
+    expected_column_count: int
+    observed_column_count: int
+    exact_position_matches: int
+    changed_column_count: int
+    added_column_count: int
+    removed_column_count: int
+    moved_column_count: int
+    total_difference_count: int
+    unresolved_required_roles: tuple[str, ...]
+    unresolved_optional_roles: tuple[str, ...]
+    schema_version: int = PEAK_MAPPING_DRIFT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.profile_id) is not str or _PROFILE_ID.fullmatch(self.profile_id) is None:
+            raise _mapping_error("drift profile_id must be an opaque profile identifier.")
+        if (
+            type(self.profile_structural_fingerprint) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", self.profile_structural_fingerprint) is None
+        ):
+            raise _mapping_error("drift profile fingerprint must be a SHA-256 value.")
+        if type(self.source_format) is not PeakTableFormat:
+            raise _mapping_error("drift source_format must be a PeakTableFormat.")
+        if not self.categories or any(
+            type(category) is not PeakMappingDriftCategory for category in self.categories
+        ):
+            raise _mapping_error("drift categories must contain fixed category values.")
+        if len(self.categories) != len(set(self.categories)):
+            raise _mapping_error("drift categories cannot contain duplicates.")
+        integer_fields = (
+            self.expected_column_count,
+            self.observed_column_count,
+            self.exact_position_matches,
+            self.changed_column_count,
+            self.added_column_count,
+            self.removed_column_count,
+            self.moved_column_count,
+            self.total_difference_count,
+        )
+        if any(type(value) is not int or value < 0 for value in integer_fields):
+            raise _mapping_error("drift counts must be nonnegative integers.")
+        allowed_roles = frozenset(_ROLE_BY_FIELD.values())
+        for roles in (self.unresolved_required_roles, self.unresolved_optional_roles):
+            if type(roles) is not tuple or any(
+                type(role) is not str or role not in allowed_roles for role in roles
+            ):
+                raise _mapping_error("drift unresolved roles must use fixed mapping role names.")
+            if len(roles) != len(set(roles)):
+                raise _mapping_error("drift unresolved roles cannot contain duplicates.")
+        if type(self.schema_version) is not int or self.schema_version != 1:
+            raise _mapping_error("drift schema_version must be exactly 1.")
+
+
 @dataclass(frozen=True, slots=True)
 class PeakTablePreview:
     """Bounded local header and row preview for the mapping UI."""
@@ -85,6 +161,7 @@ class PeakTablePreview:
     headers: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]
     sheet: str | None = None
+    source_sha256: str | None = None
 
 
 _ROLE_BY_FIELD = {
@@ -785,6 +862,93 @@ class PeakTableMappingSet:
                 "Mapping-set JSON is malformed or exceeds nesting limits."
             ) from error
         return cls.from_dict(decoded)
+
+
+def clone_peak_table_mapping_profile(
+    mapping_set: PeakTableMappingSet,
+    *,
+    parent_profile_id: str,
+    observed_preview: PeakTablePreview,
+    repaired_mapping: PeakTableMapping,
+    display_label: str,
+) -> PeakTableMappingSet:
+    """Add one user-confirmed repaired profile without mutating its parent or source set."""
+    if type(mapping_set) is not PeakTableMappingSet:
+        raise _mapping_error("mapping_set must be a PeakTableMappingSet.")
+    if type(parent_profile_id) is not str:
+        raise _mapping_error("parent_profile_id must be text.")
+    parent = next(
+        (profile for profile in mapping_set.profiles if profile.profile_id == parent_profile_id),
+        None,
+    )
+    if parent is None:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_PARENT_MISSING",
+            "The selected repair parent is not present in the immutable mapping set.",
+        )
+    if type(observed_preview) is not PeakTablePreview:
+        raise _mapping_error("observed_preview must be a PeakTablePreview.")
+    if type(repaired_mapping) is not PeakTableMapping:
+        raise _mapping_error("repaired_mapping must be a PeakTableMapping.")
+    if parent.mapping.source_format is not observed_preview.source_format:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_FORMAT_MISMATCH",
+            "The repair preview format does not match the selected parent profile.",
+        )
+    if repaired_mapping.source_format is not observed_preview.source_format:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_FORMAT_MISMATCH",
+            "The repaired mapping format does not match the observed table.",
+        )
+    if repaired_mapping.source_format is PeakTableFormat.XLSX:
+        if type(observed_preview.sheet) is not str or not observed_preview.sheet:
+            raise OrdifileError(
+                "PEAK_MAPPING_REPAIR_WORKSHEET_REQUIRED",
+                "An XLSX repair requires one explicitly previewed worksheet title.",
+            )
+    elif observed_preview.sheet is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_WORKSHEET_INVALID",
+            "A non-XLSX repair cannot contain a worksheet title.",
+        )
+    if repaired_mapping.declared_headers != observed_preview.headers:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_STRUCTURE_MISMATCH",
+            "The repaired mapping does not classify the exact observed table structure.",
+        )
+    repaired_mapping.semantic_headers(observed_preview.headers)
+    worksheet_title = (
+        observed_preview.sheet if repaired_mapping.source_format is PeakTableFormat.XLSX else None
+    )
+    existing_matches = mapping_set.match(
+        observed_preview.source_format,
+        observed_preview.headers,
+        worksheet_title=observed_preview.sheet,
+        single_visible_worksheet=observed_preview.source_format is PeakTableFormat.XLSX,
+    )
+    if existing_matches:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_AMBIGUOUS",
+            "The repaired structure is already claimed by a mapping profile.",
+        )
+    profile = PeakTableMappingProfile(
+        repaired_mapping,
+        display_label=display_label,
+        worksheet_title=worksheet_title,
+    )
+    updated = replace(mapping_set, profiles=(*mapping_set.profiles, profile))
+    matches = updated.match(
+        observed_preview.source_format,
+        observed_preview.headers,
+        worksheet_title=observed_preview.sheet,
+        single_visible_worksheet=observed_preview.source_format is PeakTableFormat.XLSX,
+    )
+    if tuple(item.profile_id for item in matches) != (profile.profile_id,):
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_AMBIGUOUS",
+            "The repaired profile would make exact mapping selection ambiguous.",
+        )
+    return updated
 
 
 def load_peak_table_mapping(path: str | os.PathLike[str]) -> PeakTableMapping:

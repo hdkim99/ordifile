@@ -9,6 +9,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Privacy-safe Mapping Schema Drift Diagnostics and an explicit desktop review flow that
+  clones a repaired mapping as a new profile. Diagnostics never authorize fuzzy mapping,
+  expose raw headers publicly, mutate the parent profile, or bypass exact adapters.
 - Reusable Peak Table Mapping Profiles and bounded Mapping Set JSON for mixed-template
   generic batches. Exact vendor adapters retain priority; exact structural zero/multiple
   matches fail closed, while API, CLI, desktop, workbook provenance, and standalone smoke

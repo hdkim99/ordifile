@@ -76,16 +76,24 @@ class PeakTablePreviewWorker(QObject):
     completed = Signal(object)
     finished = Signal()
 
-    def __init__(self, path: Path, source_format: PeakTableFormat) -> None:
+    def __init__(
+        self,
+        path: Path,
+        source_format: PeakTableFormat,
+        sheet: str | None = None,
+    ) -> None:
         super().__init__()
         self._path = path
         self._source_format = source_format
+        self._sheet = sheet
 
     @Slot()
     def run(self) -> None:
         """Call the public preview service and always release the worker thread."""
         try:
-            self.completed.emit(preview_peak_table(self._path, self._source_format))
+            self.completed.emit(
+                preview_peak_table(self._path, self._source_format, sheet=self._sheet)
+            )
         except BaseException:
             self.completed.emit(
                 DesktopPeakTablePreviewReport(

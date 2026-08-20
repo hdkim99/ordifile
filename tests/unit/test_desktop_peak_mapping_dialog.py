@@ -10,12 +10,13 @@ from typing import cast
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import openpyxl  # type: ignore[import-untyped]
 import pytest
 
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QThread
-from PySide6.QtWidgets import QApplication, QComboBox, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QWidget
 
 from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
 from ordifile.core.errors import OrdifileError
@@ -276,6 +277,180 @@ def test_dialog_restores_loaded_mapping_after_preview(app: QApplication, tmp_pat
     assert dialog.area_unit_edit.text() == "mV.s"
     assert dialog.apply_button.isEnabled()
     dialog.close()
+
+
+def test_review_dialog_restores_only_exact_surviving_selectors(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Height,Peak Area\n1,2,3\n", encoding="utf-8")
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        height_column=ColumnSelector("Height", 3),
+    )
+    dialog = PeakMappingDialog(
+        source,
+        mapping=mapping,
+        auto_preview=False,
+        review_mode=True,
+    )
+
+    dialog.set_preview(_preview("RT", "Height", "Peak Area"))
+
+    assert dialog.windowTitle() == "Review Mapping"
+    assert dialog.retention_time_combo.currentData() == ColumnSelector("RT", 1)
+    assert dialog.area_combo.currentData() is None
+    assert dialog.optional_combos["height_column"].currentData() is None
+    assert not dialog.apply_button.isEnabled()
+    dialog.close()
+
+
+def test_review_dialog_does_not_rebind_a_changed_duplicate_occurrence(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "duplicates.csv"
+    source.write_text("RT,Signal,Area\n1,2,3\n", encoding="utf-8")
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        height_column=ColumnSelector("Area", 3),
+    )
+    dialog = PeakMappingDialog(
+        source,
+        mapping=mapping,
+        auto_preview=False,
+        review_mode=True,
+    )
+
+    dialog.set_preview(_preview("RT", "Signal", "Area"))
+
+    assert dialog.retention_time_combo.currentData() == ColumnSelector("RT", 1)
+    assert dialog.area_combo.currentData() is None
+    assert dialog.optional_combos["height_column"].currentData() is None
+    assert not dialog.apply_button.isEnabled()
+    dialog.close()
+
+
+def test_review_dialog_exposes_only_previewed_xlsx_worksheet_title(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    dialog = PeakMappingDialog(
+        tmp_path / "changed.xlsx",
+        auto_preview=False,
+        review_mode=True,
+    )
+
+    dialog.set_preview(
+        DesktopPeakTablePreview(
+            PeakTableFormat.XLSX,
+            ("RT", "Area"),
+            (("1", "2"),),
+            "Reviewed Sheet",
+        )
+    )
+
+    assert dialog.preview_worksheet_title == "Reviewed Sheet"
+    dialog.close()
+
+
+def test_review_dialog_rechecks_source_before_accepting(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    dialog = PeakMappingDialog(source, auto_preview=False, review_mode=True)
+    preview = DesktopPeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area"),
+        (("1", "2"),),
+        source_sha256="1" * 64,
+    )
+    dialog.set_preview(preview)
+    _select(dialog.retention_time_combo, ColumnSelector("RT", 1))
+    _select(dialog.area_combo, ColumnSelector("Peak Area", 2))
+    dialog.retention_time_unit_edit.setText("min")
+    monkeypatch.setattr(dialog, "_start_preview_worker", lambda *_args: None)
+
+    dialog._accept_mapping()
+    dialog._on_confirmation_complete(DesktopPeakTablePreviewReport(preview=preview))
+    dialog._preview_finished()
+
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    assert dialog.mapping is not None
+    dialog.close()
+
+
+def test_review_dialog_rejects_source_changed_after_mapping_review(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    dialog = PeakMappingDialog(source, auto_preview=False, review_mode=True)
+    first = DesktopPeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area"),
+        (("1", "2"),),
+        source_sha256="1" * 64,
+    )
+    changed = DesktopPeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area"),
+        (("3", "4"),),
+        source_sha256="2" * 64,
+    )
+    dialog.set_preview(first)
+    _select(dialog.retention_time_combo, ColumnSelector("RT", 1))
+    _select(dialog.area_combo, ColumnSelector("Peak Area", 2))
+    dialog.retention_time_unit_edit.setText("min")
+    monkeypatch.setattr(dialog, "_start_preview_worker", lambda *_args: None)
+
+    dialog._accept_mapping()
+    dialog._on_confirmation_complete(DesktopPeakTablePreviewReport(preview=changed))
+    dialog._preview_finished()
+
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.mapping is None
+    assert "changed after preview" in dialog.preview_status.text().casefold()
+    assert dialog.apply_button.isEnabled()
+    dialog.close()
+
+
+def test_review_preview_worker_reads_the_selected_xlsx_sheet(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "changed.xlsx"
+    workbook = openpyxl.Workbook()
+    results = workbook.active
+    results.title = "Results"
+    results.append(("RT", "Peak Area"))
+    results.append((1, 2))
+    other = workbook.create_sheet("Other")
+    other.append(("Unrelated",))
+    workbook.save(source)
+    worker = PeakTablePreviewWorker(source, PeakTableFormat.XLSX, "Results")
+    completed: list[object] = []
+    worker.completed.connect(completed.append)
+
+    worker.run()
+
+    assert len(completed) == 1
+    report = completed[0]
+    assert isinstance(report, DesktopPeakTablePreviewReport)
+    assert not report.is_error
+    assert report.preview is not None
+    assert report.preview.sheet == "Results"
+    assert report.preview.headers == ("RT", "Peak Area")
 
 
 def test_dialog_handles_mapping_construction_failure_without_accepting(

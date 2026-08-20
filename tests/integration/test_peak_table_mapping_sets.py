@@ -13,7 +13,7 @@ import pytest
 from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOptions
 from ordifile.adapters.generic_csv import GenericCsvAdapter
 from ordifile.adapters.registry import AdapterRegistry
-from ordifile.api import convert, inspect_file, inspect_inputs
+from ordifile.api import convert, inspect_file, inspect_inputs, preview_peak_table
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import DatasetBundle, FileStatus, PeakRecord, SampleRecord, SourceFile
 from ordifile.core.peak_mapping import (
@@ -22,6 +22,7 @@ from ordifile.core.peak_mapping import (
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
+    clone_peak_table_mapping_profile,
 )
 
 
@@ -169,7 +170,9 @@ def test_mapping_set_routes_multiple_generic_templates_into_one_workbook(tmp_pat
     assert manifest["option_peak_table_mapping_set_fingerprint"] == (
         mapping_set.structural_fingerprint_sha256
     )
-    assert "USER_MAPPING_PROFILE" in {row[-3] for row in import_rows[1:]}
+    import_headers = tuple(import_rows[0])
+    route_index = import_headers.index("conversion_route")
+    assert "USER_MAPPING_PROFILE" in {row[route_index] for row in import_rows[1:]}
     assert "PROFILE_SET" in metadata_values
     assert "Changing Run Sheet" not in repr(import_rows)
     assert not any("Template A" in value for value in workbook_strings)
@@ -191,8 +194,119 @@ def test_mapping_set_no_match_fails_without_generic_fallback(tmp_path: Path) -> 
     assert result.mapping_route == "NO_MAPPING_MATCH"
     assert {issue.code for issue in result.issues} == {"PEAK_MAPPING_PROFILE_NOT_MATCHED"}
     assert result.bundle is None
+    assert len(result.mapping_diagnostics) == 1
+    assert result.mapping_diagnostics[0].profile_id == _csv_profile().profile_id
     assert result.source.public_reference == f"source-{result.source.sha256}"
     assert source.name not in repr(result)
+
+
+def test_mapping_set_reports_schema_drift_without_applying_a_candidate(tmp_path: Path) -> None:
+    source = tmp_path / "changed.csv"
+    source.write_text(
+        "Template A Time,Template A Area,Template A Note\n1,2,local-only\n",
+        encoding="utf-8",
+    )
+
+    result = inspect_file(
+        source,
+        peak_table_mapping_set=PeakTableMappingSet((_csv_profile(),)),
+    ).file
+
+    assert result.status is FileStatus.FAILED
+    assert result.mapping_route == "SCHEMA_DRIFT_CANDIDATE"
+    assert result.bundle is None
+    assert result.mapping_profile_id is None
+    assert len(result.mapping_diagnostics) == 1
+    diagnostic = result.mapping_diagnostics[0]
+    assert diagnostic.profile_id == _csv_profile().profile_id
+    assert diagnostic.changed_column_count == 1
+    assert diagnostic.unresolved_required_roles == ("retention_time",)
+    assert source.name not in repr(result)
+
+
+def test_schema_drift_import_log_contains_only_fixed_categories(tmp_path: Path) -> None:
+    good = tmp_path / "good.csv"
+    drift = tmp_path / "private-drift.csv"
+    output = tmp_path / "partial.xlsx"
+    _write_csv(good, (("1", "2"),))
+    drift.write_text(
+        "Private Header Canary,Template A Area,Template A Note\n1,2,local-only\n",
+        encoding="utf-8",
+    )
+
+    result = convert(
+        (good, drift),
+        output,
+        peak_table_mapping_set=PeakTableMappingSet((_csv_profile(),)),
+    )
+    workbook = openpyxl.load_workbook(output, read_only=True, data_only=False)
+    try:
+        rows = tuple(workbook["Import_Log"].iter_rows(values_only=True))
+        strings = {
+            value
+            for worksheet in workbook.worksheets
+            for row in worksheet.iter_rows(values_only=True)
+            for value in row
+            if isinstance(value, str)
+        }
+    finally:
+        workbook.close()
+
+    headers = tuple(rows[0])
+    route_index = headers.index("conversion_route")
+    count_index = headers.index("mapping_diagnostic_candidates")
+    category_index = headers.index("mapping_diagnostic_categories")
+    drift_row = next(row for row in rows[1:] if row[route_index] == "SCHEMA_DRIFT_CANDIDATE")
+    assert result.failure_count == 1
+    assert drift_row[count_index] == 1
+    assert "HEADER_CHANGED_UNRESOLVED" in drift_row[category_index]
+    assert "Private Header Canary" not in strings
+    assert "Template A RT" not in strings
+    assert "Private Profile Label" not in strings
+    assert drift.name not in strings
+
+
+def test_repaired_profile_routes_old_and_new_templates_separately(tmp_path: Path) -> None:
+    old = tmp_path / "old.csv"
+    new = tmp_path / "new.csv"
+    output = tmp_path / "old-new.xlsx"
+    _write_csv(old, (("1", "10"),))
+    new.write_text(
+        "Template A Time,Template A Area,Template A Note\n2,20,local-only\n",
+        encoding="utf-8",
+    )
+    original = PeakTableMappingSet((_csv_profile(),))
+    preview = preview_peak_table(new, PeakTableFormat.CSV, row_limit=1)
+    repaired_mapping = PeakTableMapping(
+        ColumnSelector("Template A Time", 1),
+        ColumnSelector("Template A Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        area_unit="mV.s",
+        ignored_columns=(ColumnSelector("Template A Note", 3),),
+    )
+    updated = clone_peak_table_mapping_profile(
+        original,
+        parent_profile_id=_csv_profile().profile_id,
+        observed_preview=preview,
+        repaired_mapping=repaired_mapping,
+        display_label="Template A revised",
+    )
+
+    result = convert((old, new), output, peak_table_mapping_set=updated)
+
+    assert result.failure_count == 0
+    assert {item.mapping_profile_id for item in result.files} == {
+        original.profiles[0].profile_id,
+        updated.profiles[-1].profile_id,
+    }
+    assert original.profiles == (_csv_profile(),)
+    workbook = openpyxl.load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert workbook["Peaks"].max_row == 3
+        assert workbook["Peak_Order_Matrix"].max_row == 3
+    finally:
+        workbook.close()
 
 
 @pytest.mark.parametrize(
@@ -258,6 +372,21 @@ def test_mapping_set_ambiguous_profiles_fail_closed_and_isolate_sibling(tmp_path
     assert routes == {"AMBIGUOUS_MAPPING_PROFILE", "NO_MAPPING_MATCH"}
 
 
+def test_malformed_generic_table_keeps_mapping_validation_route(tmp_path: Path) -> None:
+    source = tmp_path / "empty.csv"
+    source.write_bytes(b"")
+
+    result = inspect_file(
+        source,
+        peak_table_mapping_set=PeakTableMappingSet((_csv_profile(),)),
+    ).file
+
+    assert result.status is FileStatus.FAILED
+    assert result.mapping_route == "MAPPING_VALIDATION_FAILED"
+    assert {issue.code for issue in result.issues} == {"MISSING_HEADER"}
+    assert result.mapping_diagnostics == ()
+
+
 def test_mapping_set_single_visible_xlsx_profile_rejects_ambiguous_workbook(
     tmp_path: Path,
 ) -> None:
@@ -319,6 +448,7 @@ def test_exact_leco_adapter_owns_input_before_mapping_set(tmp_path: Path) -> Non
     assert result.adapter_id == "leco_chromatof_gcxgc_result_txt"
     assert result.mapping_route == "EXACT_ADAPTER"
     assert result.mapping_profile_id is None
+    assert result.mapping_diagnostics == ()
     assert result.bundle is not None
     assert any(issue.code == "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE" for issue in result.issues)
 
@@ -402,5 +532,6 @@ def test_external_exact_adapter_beats_higher_confidence_generic_profile(tmp_path
 
     assert result.adapter_id == "external_exact_csv"
     assert result.mapping_route == "EXACT_ADAPTER"
+    assert result.mapping_diagnostics == ()
     assert result.bundle is not None
     assert result.bundle.peaks[0].retention_time == 9.0

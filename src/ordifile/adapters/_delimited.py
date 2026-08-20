@@ -53,10 +53,10 @@ def preview_delimited_peak_table(
     delimiter = delimiters.get(source_format)
     if delimiter is None:
         raise ParseError("PEAK_MAPPING_FORMAT_MISMATCH", "A text source format is required.")
-    if type(row_limit) is not int or row_limit < 1 or row_limit > MAX_PEAK_PREVIEW_ROWS:
+    if type(row_limit) is not int or row_limit < 0 or row_limit > MAX_PEAK_PREVIEW_ROWS:
         raise ParseError(
             "PEAK_MAPPING_PREVIEW_LIMIT_INVALID",
-            f"row_limit must be from 1 through {MAX_PEAK_PREVIEW_ROWS}.",
+            f"Internal row_limit must be from 0 through {MAX_PEAK_PREVIEW_ROWS}.",
         )
     try:
         size = path.stat().st_size
@@ -117,30 +117,31 @@ def preview_delimited_peak_table(
                     "A preview header exceeds the bounded cell-text limit.",
                 )
             rows: list[tuple[str, ...]] = []
-            for raw in reader:
-                if all(value == "" for value in raw):
-                    continue
-                if len(raw) > len(header) and any(value != "" for value in raw[len(header) :]):
-                    raise ParseError(
-                        "PEAK_MAPPING_PREVIEW_EXTRA_CELLS",
-                        "A preview row contains data beyond the header.",
-                    )
-                values = [*raw[: len(header)], *([""] * max(0, len(header) - len(raw)))]
-                rendered = tuple(peak_preview_display(value) for value in values)
-                total_cells += len(rendered)
-                total_characters += sum(len(value) for value in rendered)
-                if (
-                    total_cells > MAX_PEAK_PREVIEW_CELLS
-                    or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
-                    or any(len(value) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in rendered)
-                ):
-                    raise ParseError(
-                        "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
-                        "The bounded preview exceeds its cell or rendered-text limit.",
-                    )
-                rows.append(rendered)
-                if len(rows) == row_limit:
-                    break
+            if row_limit:
+                for raw in reader:
+                    if all(value == "" for value in raw):
+                        continue
+                    if len(raw) > len(header) and any(value != "" for value in raw[len(header) :]):
+                        raise ParseError(
+                            "PEAK_MAPPING_PREVIEW_EXTRA_CELLS",
+                            "A preview row contains data beyond the header.",
+                        )
+                    values = [*raw[: len(header)], *([""] * max(0, len(header) - len(raw)))]
+                    rendered = tuple(peak_preview_display(value) for value in values)
+                    total_cells += len(rendered)
+                    total_characters += sum(len(value) for value in rendered)
+                    if (
+                        total_cells > MAX_PEAK_PREVIEW_CELLS
+                        or total_characters > MAX_PEAK_PREVIEW_TOTAL_CHARACTERS
+                        or any(len(value) > MAX_PEAK_PREVIEW_CELL_CHARACTERS for value in rendered)
+                    ):
+                        raise ParseError(
+                            "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
+                            "The bounded preview exceeds its cell or rendered-text limit.",
+                        )
+                    rows.append(rendered)
+                    if len(rows) == row_limit:
+                        break
     except StopIteration as error:
         raise ParseError("MISSING_HEADER", "The mapped table is empty.") from error
     except UnicodeDecodeError as error:

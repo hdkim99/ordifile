@@ -147,6 +147,9 @@ ordered matrix → workbook 경로를 사용합니다. RT, Area, unit, compound,
 template을 exact format/header 구조로 한 batch에서 재사용하며, 0개 또는 여러 profile이
 일치하면 fallback 없이 실패합니다. [명시적 mapping 계약](docs/formats/explicit-peak-table-mapping.md)을
 참고해 주세요.
+저장된 구조가 달라지면 bounded 진단은 고정된 구조 차이만 설명하고 후보를 자동 적용하지
+않습니다. Desktop에서 사용자가 mapping을 다시 확인하면 기존 template을 보존한 채 새
+profile을 만들 수 있습니다.
 
 ## Experimental proprietary adapter
 

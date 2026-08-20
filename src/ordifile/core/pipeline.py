@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ordifile.adapters._mapped_table import (
     GENERIC_PEAK_TABLE_ADAPTER_IDS,
+    PeakMappingResolutionError,
     resolve_peak_table_mapping,
 )
 from ordifile.adapters.base import DetectionResult, ParseOptions, SourceIdentityPolicy
@@ -37,7 +38,12 @@ from ordifile.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
-from ordifile.core.peak_mapping import MAPPED_XLSX_SHEET_MARKER, PeakTableFormat
+from ordifile.core.peak_mapping import (
+    MAPPED_XLSX_SHEET_MARKER,
+    PeakMappingDriftCategory,
+    PeakMappingDriftDiagnostic,
+    PeakTableFormat,
+)
 from ordifile.core.privacy import contains_machine_local_path, scrub_machine_local_paths
 from ordifile.core.sorting import sort_file_results
 from ordifile.core.validation import validate_bundle, validate_bundle_structure
@@ -604,6 +610,7 @@ def run_pipeline(
         mapping_route: str | None = None
         mapping_profile_id: str | None = None
         mapping_structure_fingerprint: str | None = None
+        mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
         try:
             mapping_applied = False
             parse_for_adapter = options
@@ -665,12 +672,24 @@ def run_pipeline(
                         resolved = resolve_peak_table_mapping(
                             source.path, options.peak_table_mapping_set
                         )
-                    except OrdifileError as error:
+                    except PeakMappingResolutionError as error:
+                        mapping_diagnostics = error.diagnostics
                         mapping_route = {
-                            "PEAK_MAPPING_PROFILE_NOT_MATCHED": "NO_MAPPING_MATCH",
+                            "PEAK_MAPPING_PROFILE_NOT_MATCHED": (
+                                "SCHEMA_DRIFT_CANDIDATE"
+                                if any(
+                                    PeakMappingDriftCategory.INCOMPATIBLE_STRUCTURE
+                                    not in diagnostic.categories
+                                    for diagnostic in mapping_diagnostics
+                                )
+                                else "NO_MAPPING_MATCH"
+                            ),
                             "PEAK_MAPPING_PROFILE_AMBIGUOUS": "AMBIGUOUS_MAPPING_PROFILE",
                             "PEAK_MAPPING_WORKSHEET_AMBIGUOUS": "AMBIGUOUS_WORKSHEET",
                         }.get(error.code, "MAPPING_VALIDATION_FAILED")
+                        raise
+                    except OrdifileError:
+                        mapping_route = "MAPPING_VALIDATION_FAILED"
                         raise
                     mapped_adapter = registry.get(resolved.adapter_id)
                     detection = DetectionOutcome(
@@ -902,6 +921,7 @@ def run_pipeline(
             mapping_route=mapping_route,
             mapping_profile_id=mapping_profile_id,
             mapping_structure_fingerprint=mapping_structure_fingerprint,
+            mapping_diagnostics=mapping_diagnostics,
         )
         processed[-1] = result
         report_processed(result, completed)

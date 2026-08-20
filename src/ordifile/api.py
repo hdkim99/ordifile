@@ -20,7 +20,7 @@ from ordifile.adapters.registry import (
     create_registry,
     normalize_extension_token,
 )
-from ordifile.core.discovery import paths_alias
+from ordifile.core.discovery import paths_alias, sha256_file
 from ordifile.core.errors import ExportError, OrdifileError
 from ordifile.core.models import (
     BatchResult,
@@ -35,6 +35,7 @@ from ordifile.core.models import (
 )
 from ordifile.core.peak_mapping import (
     MAPPED_XLSX_SHEET_MARKER,
+    MAX_PEAK_PREVIEW_ROWS,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingSet,
@@ -260,12 +261,24 @@ def preview_peak_table(
     """Read a bounded local header/row preview through existing generic readers."""
     if type(source_format) is not PeakTableFormat:
         raise OrdifileError("OPTION_TYPE_INVALID", "source_format must be a PeakTableFormat value.")
+    if type(row_limit) is not int or row_limit < 1 or row_limit > MAX_PEAK_PREVIEW_ROWS:
+        raise OrdifileError(
+            "PEAK_MAPPING_PREVIEW_LIMIT_INVALID",
+            f"row_limit must be from 1 through {MAX_PEAK_PREVIEW_ROWS}.",
+        )
     _require_optional_text("sheet", sheet)
     candidate = Path(path)
     if candidate.is_symlink():
         raise OrdifileError("SYMLINK_REJECTED", "Peak-table preview does not follow symlinks.")
     if not candidate.is_file():
         raise OrdifileError("INSPECT_REQUIRES_FILE", "Peak-table preview requires one file.")
+    try:
+        before = candidate.stat()
+    except OSError as error:
+        raise OrdifileError(
+            "PEAK_MAPPING_PREVIEW_READ_FAILED",
+            "The peak-table preview source could not be inspected safely.",
+        ) from error
     suffixes = {
         PeakTableFormat.CSV: frozenset((".csv",)),
         PeakTableFormat.TSV: frozenset((".tsv", ".txt")),
@@ -278,12 +291,29 @@ def preview_peak_table(
             "The input extension does not match the selected audited source format.",
         )
     if source_format is PeakTableFormat.XLSX:
-        return preview_xlsx_peak_table(candidate, sheet=sheet, row_limit=row_limit)
-    if sheet is not None:
+        preview = preview_xlsx_peak_table(candidate, sheet=sheet, row_limit=row_limit)
+    else:
+        if sheet is not None:
+            raise OrdifileError(
+                "PEAK_MAPPING_SHEET_INVALID", "sheet is available only for XLSX mappings."
+            )
+        preview = preview_delimited_peak_table(candidate, source_format, row_limit=row_limit)
+    try:
+        source_sha256 = sha256_file(candidate)
+        after = candidate.stat()
+    except OSError as error:
         raise OrdifileError(
-            "PEAK_MAPPING_SHEET_INVALID", "sheet is available only for XLSX mappings."
+            "PEAK_MAPPING_PREVIEW_READ_FAILED",
+            "The peak-table preview source could not be read safely.",
+        ) from error
+    before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+    after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if before_identity != after_identity:
+        raise OrdifileError(
+            "PEAK_MAPPING_PREVIEW_SOURCE_CHANGED",
+            "The peak-table preview source changed while it was being inspected.",
         )
-    return preview_delimited_peak_table(candidate, source_format, row_limit=row_limit)
+    return replace(preview, source_sha256=source_sha256)
 
 
 def inspect_file(

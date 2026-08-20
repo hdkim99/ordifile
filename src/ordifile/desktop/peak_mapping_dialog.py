@@ -75,22 +75,36 @@ class PeakMappingDialog(QDialog):
         mapping: PeakTableMapping | None = None,
         parent: QWidget | None = None,
         auto_preview: bool = True,
+        review_mode: bool = False,
+        sheet: str | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Map Peak Columns")
+        self.setWindowTitle("Review Mapping" if review_mode else "Map Peak Columns")
         self.resize(900, 700)
         self.setModal(True)
         self._source = source
+        self._sheet = sheet
+        self._review_mode = review_mode
         self._initial_mapping = mapping
         self._mapping: PeakTableMapping | None = None
         self._preview: DesktopPeakTablePreview | None = None
+        self._confirmation_snapshot: DesktopPeakTablePreview | None = None
+        self._confirmation_accept_pending = False
+        self._confirming = False
         self._preview_thread: QThread | None = None
         self._preview_worker: PeakTablePreviewWorker | None = None
 
         root = QVBoxLayout(self)
         explanation = QLabel(
-            "Select the retention-time and area columns explicitly. Ordifile does not "
-            "infer vendor semantics or units from this table."
+            (
+                "Only source columns whose label and position are unchanged are restored. "
+                "Review unresolved roles explicitly; Ordifile does not infer replacements."
+            )
+            if review_mode
+            else (
+                "Select the retention-time and area columns explicitly. Ordifile does not "
+                "infer vendor semantics or units from this table."
+            )
         )
         explanation.setWordWrap(True)
         root.addWidget(explanation)
@@ -126,8 +140,8 @@ class PeakMappingDialog(QDialog):
         mapping_scroll.setAccessibleName("Peak mapping fields")
         mapping_scroll.setWidgetResizable(True)
         mapping_scroll.setMaximumHeight(320)
-        mapping_container = QWidget()
-        mapping_layout = QVBoxLayout(mapping_container)
+        self.mapping_container = QWidget()
+        mapping_layout = QVBoxLayout(self.mapping_container)
 
         required = QGroupBox("Required mapping")
         required_form = QFormLayout(required)
@@ -166,7 +180,7 @@ class PeakMappingDialog(QDialog):
         optional_form.addRow("Manufacturer:", self.manufacturer_edit)
         optional_form.addRow("Software:", self.software_edit)
         mapping_layout.addWidget(optional)
-        mapping_scroll.setWidget(mapping_container)
+        mapping_scroll.setWidget(self.mapping_container)
         root.addWidget(mapping_scroll)
 
         self.validation_label = QLabel("Load a preview, then select RT and Area columns.")
@@ -242,6 +256,18 @@ class PeakMappingDialog(QDialog):
         """Return the immutable mapping after the dialog is accepted."""
         return self._mapping
 
+    @property
+    def preview_worksheet_title(self) -> str | None:
+        """Return the locally previewed XLSX worksheet title after user review."""
+        if self._preview is None or self._preview.source_format is not PeakTableFormat.XLSX:
+            return None
+        return self._preview.sheet
+
+    @property
+    def preview_source_sha256(self) -> str | None:
+        """Return the local source snapshot identity produced by the preview worker."""
+        return None if self._preview is None else self._preview.source_sha256
+
     def _source_format(self) -> PeakTableFormat | None:
         value = self.format_combo.currentData()
         try:
@@ -280,8 +306,11 @@ class PeakMappingDialog(QDialog):
         self.reload_button.setEnabled(False)
         self.format_combo.setEnabled(False)
         self.preview_status.setText("Loading bounded preview…")
+        self._start_preview_worker(source_format)
+
+    def _start_preview_worker(self, source_format: PeakTableFormat) -> None:
         thread = QThread(self)
-        worker = PeakTablePreviewWorker(self._source, source_format)
+        worker = PeakTablePreviewWorker(self._source, source_format, self._sheet)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.completed.connect(self._on_preview_complete)
@@ -294,6 +323,9 @@ class PeakMappingDialog(QDialog):
         thread.start()
 
     def _on_preview_complete(self, result: object) -> None:
+        if self._confirming:
+            self._on_confirmation_complete(result)
+            return
         if not isinstance(result, DesktopPeakTablePreviewReport):
             return
         if result.is_error or result.preview is None:
@@ -307,10 +339,48 @@ class PeakMappingDialog(QDialog):
             self.set_preview(result.preview)
 
     def _preview_finished(self) -> None:
+        accept_pending = self._confirmation_accept_pending
         self._preview_thread = None
         self._preview_worker = None
+        self._confirming = False
+        self._confirmation_snapshot = None
+        self._confirmation_accept_pending = False
         self.reload_button.setEnabled(self.format_combo.count() > 0)
         self.format_combo.setEnabled(True)
+        self.mapping_container.setEnabled(True)
+        if accept_pending:
+            self.accept()
+        else:
+            self._update_validity()
+
+    def _on_confirmation_complete(self, result: object) -> None:
+        snapshot = self._confirmation_snapshot
+        if (
+            snapshot is None
+            or not isinstance(result, DesktopPeakTablePreviewReport)
+            or result.is_error
+            or result.preview is None
+        ):
+            self._mapping = None
+            self.preview_status.setText(
+                "Source recheck failed; reload the preview before applying this repair."
+            )
+            return
+        current = result.preview
+        if (
+            current.source_format is not snapshot.source_format
+            or current.headers != snapshot.headers
+            or current.sheet != snapshot.sheet
+            or current.source_sha256 is None
+            or current.source_sha256 != snapshot.source_sha256
+        ):
+            self._mapping = None
+            self.preview_status.setText(
+                "Source changed after preview; reload and review the mapping again."
+            )
+            return
+        self._preview = current
+        self._confirmation_accept_pending = True
 
     def set_preview(self, preview: DesktopPeakTablePreview) -> None:
         """Render a public bounded preview; exposed for deterministic interface tests."""
@@ -379,6 +449,15 @@ class PeakMappingDialog(QDialog):
         for field_name, combo in field_combos.items():
             selector = getattr(mapping, field_name)
             if selector is None:
+                continue
+            expected = mapping.declared_headers
+            observed = self._preview.headers
+            if (
+                selector.index > len(observed)
+                or observed[selector.index - 1] != selector.label
+                or expected[: selector.index].count(selector.label)
+                != observed[: selector.index].count(selector.label)
+            ):
                 continue
             index = self._find_data_index(combo, selector)
             if index >= 0:
@@ -488,7 +567,23 @@ class PeakMappingDialog(QDialog):
             code, message = presentation_error(error)
             self.validation_label.setText(f"Mapping could not be applied [{code}]: {message}")
             return
-        self.accept()
+        if not self._review_mode:
+            self.accept()
+            return
+        if self._preview.source_sha256 is None:
+            self._mapping = None
+            self.preview_status.setText(
+                "Source identity is unavailable; reload before applying this repair."
+            )
+            return
+        self._confirmation_snapshot = self._preview
+        self._confirming = True
+        self.reload_button.setEnabled(False)
+        self.format_combo.setEnabled(False)
+        self.mapping_container.setEnabled(False)
+        self.apply_button.setEnabled(False)
+        self.preview_status.setText("Rechecking the unchanged local source before repair…")
+        self._start_preview_worker(source_format)
 
     def reject(self) -> None:
         """Keep the dialog alive until its bounded background preview has finished."""

@@ -247,3 +247,32 @@ def test_desktop_mapping_set_routes_multiple_tables_without_bypassing_exact_adap
     assert direct.failure_count == 0
     for sheet in ("Peaks", "Peak_Order_Matrix", "Metadata", "Import_Log"):
         assert _sheet_values(desktop_output, sheet) == _sheet_values(api_output, sheet)
+
+
+def test_desktop_inspection_exposes_bounded_schema_drift_without_applying_it(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    profile = PeakTableMappingProfile(mapping, "Original")
+    mapping_set = PeakTableMappingSet((profile,))
+
+    report = inspect_selection(
+        (source,),
+        sort="input_order",
+        peak_table_mapping_set=mapping_set,
+    )
+
+    assert report.outcome is BatchOutcome.FAILED
+    assert report.files[0].mapping_route == "SCHEMA_DRIFT_CANDIDATE"
+    assert report.files[0].mapping_profile_id is None
+    assert len(report.files[0].mapping_diagnostics) == 1
+    assert report.files[0].mapping_diagnostics[0].profile_id == profile.profile_id
+    assert report.files[0].review_input_index == 0
+    assert source.name not in repr(report)

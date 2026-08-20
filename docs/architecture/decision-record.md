@@ -256,6 +256,15 @@ to the workbook layout.
     and row values never participate. Zero or multiple matches fail the file without generic
     fallback. Local profile/set JSON may contain private selectors and labels, while workbook
     provenance contains only opaque IDs and a separate public-safe structural fingerprint.
+44. Mapping schema-drift diagnostics explain a failed exact profile match without changing
+    routing. Comparison is bounded, same-container, occurrence-aware, and limited to exact
+    labels/positions plus existing worksheet policy; previewed row or measurement values are
+    never used for matching, ranking, diagnostics, or output, and no fuzzy scientific
+    remapping is performed. Public results contain only opaque IDs, fixed
+    categories/roles and counts. Raw headers and local labels remain in the existing local
+    preview. Repair reuses the explicit mapping dialog and adds a new user-confirmed profile;
+    the parent profile is never mutated or silently replaced. Exact adapters and exact
+    profile matching remain authoritative and fail closed.
 
 ## Public boundaries
 

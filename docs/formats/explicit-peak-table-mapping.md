@@ -111,6 +111,37 @@ path, worksheet title, display label, manufacturer, software, or free-text unit.
 fingerprint is an audit summary only: it cannot reproduce the mapping, is not the private
 exact-match key, and does not verify a vendor.
 
+## Schema drift diagnostics and confirmed repair
+
+Saved profiles continue to apply only when the local container, ordered decoded headers,
+duplicate-header occurrences, positions, and worksheet policy match exactly. A diagnostic
+does not relax that rule. When exact matching fails, Ordifile may compare the observed local
+structure with at most three same-container profiles and report fixed structural categories
+such as changed, added, removed, reordered, duplicate, missing required/optional role, or
+worksheet identity changes. Scientific values, row counts, filenames, paths, vendor strings,
+display labels, units, aliases, fuzzy similarity, and semantic synonym dictionaries do not
+participate.
+
+The default CLI/API result contains only opaque profile IDs, public-safe fingerprints, fixed
+categories, fixed canonical role names, and bounded counts. Raw expected/observed headers,
+worksheet titles, and local labels are not written to terminal output, `Import_Log`, workbook
+provenance, progress, or public evidence. The desktop may join an opaque profile ID with the
+already loaded local Mapping Set and show the bounded local preview; that local screen and its
+screenshots remain privacy-bearing.
+
+A single diagnostic candidate is still not selected or applied. The file remains failed with
+`PEAK_MAPPING_PROFILE_NOT_MATCHED`; `SCHEMA_DRIFT_CANDIDATE` only explains that a local review
+is possible. Ambiguous exact profiles and ambiguous worksheets remain fail-closed. Exact
+vendor/profile adapters are probed before any diagnostic and retain ownership.
+
+Desktop repair reuses **Map Peak Columns**. Only selectors whose label and one-based position
+survive exactly are prefilled. Changed, moved, removed, or duplicate-ambiguous fields remain
+unmapped, so RT, Area, units, and optional roles require explicit user review. Accepting the
+dialog creates a new opaque profile and adds it to a new immutable Mapping Set value; the old
+profile and Mapping Set identity are preserved. Cancel creates nothing. Existing profiles are
+not silently replaced, and conversion is rerun through ordinary exact matching after the new
+profile is approved.
+
 ## Mapping semantics
 
 `retention_time_column`, `area_column`, `retention_time_unit`, and `source_format` are
