@@ -239,6 +239,11 @@ class DelimitedAdapter:
                         csv.reader(stream, delimiter=self.delimiter, strict=True),
                         options.peak_table_mapping,
                         namespace=f"adapter:{self.adapter_id}:user_mapping",
+                        mapping_profile_id=options.peak_table_mapping_profile_id,
+                        mapping_profile_fingerprint=(
+                            options.peak_table_mapping_profile_fingerprint
+                        ),
+                        mapping_set_id=options.peak_table_mapping_set_id,
                     )
                 return parse_rows(
                     path,

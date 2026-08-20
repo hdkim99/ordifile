@@ -19,7 +19,10 @@ from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
     PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
     save_peak_table_mapping,
+    save_peak_table_mapping_set,
 )
 
 
@@ -91,6 +94,47 @@ def test_inspect_and_convert_accept_same_explicit_peak_mapping(
         == 0
     )
     assert output.is_file()
+
+
+def test_cli_mapping_set_routes_batch_and_reports_privacy_safe_summary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "private-source.csv"
+    source.write_text("Declared RT,Declared Area\n1.5,20\n", encoding="utf-8")
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("Declared RT", 1),
+            ColumnSelector("Declared Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+        ),
+        "Private local profile label",
+        profile_id="profile-11111111111111111111111111111111",
+    )
+    mapping_set_path = tmp_path / "private-set-name.json"
+    save_peak_table_mapping_set(PeakTableMappingSet((profile,)), mapping_set_path)
+    output = tmp_path / "mapped-set.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--peak-mapping-set",
+                str(mapping_set_path),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    rendered = capsys.readouterr().out
+
+    assert output.is_file()
+    assert "Mapping profiles used: 1" in rendered
+    assert "Unmapped generic tables: 0" in rendered
+    assert "Private local profile label" not in rendered
+    assert mapping_set_path.name not in rendered
 
 
 def test_formats_distinguishes_verified_generic_and_experimental_capabilities(

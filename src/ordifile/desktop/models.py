@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from ordifile import PeakTableFormat, PeakTableMapping
+from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
 from ordifile.core.models import BatchOutcome
 
 
@@ -42,6 +42,7 @@ class DesktopRequest:
     output: Path
     sort: str = "auto"
     peak_table_mapping: PeakTableMapping | None = None
+    peak_table_mapping_set: PeakTableMappingSet | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +78,8 @@ class DesktopFileReport:
     adapter_id: str
     status: DesktopInputStatus
     message: str = ""
+    mapping_route: str | None = None
+    mapping_profile_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,3 +168,8 @@ def validate_request(request: DesktopRequest) -> None:
     supported_sorts = {"auto", "acquired_at", "sequence", "filename", "input_order"}
     if request.sort not in supported_sorts:
         raise RequestValidationError("SORT_MODE_INVALID", "Choose a supported sort method.")
+    if request.peak_table_mapping is not None and request.peak_table_mapping_set is not None:
+        raise RequestValidationError(
+            "PEAK_MAPPING_MODE_CONFLICT",
+            "Choose either one explicit mapping or a reusable mapping set, not both.",
+        )

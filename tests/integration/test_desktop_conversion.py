@@ -10,7 +10,13 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
+)
 from ordifile.api import convert
 from ordifile.core.models import BatchOutcome
 from ordifile.desktop.models import DesktopRequest
@@ -178,5 +184,66 @@ def test_desktop_explicit_mapping_matches_public_api_and_writes_order_matrix(
 
     assert desktop.outcome is BatchOutcome.SUCCESS
     assert direct.success_count == 1
+    for sheet in ("Peaks", "Peak_Order_Matrix", "Metadata", "Import_Log"):
+        assert _sheet_values(desktop_output, sheet) == _sheet_values(api_output, sheet)
+
+
+def test_desktop_mapping_set_routes_multiple_tables_without_bypassing_exact_adapter(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "neutral-one.csv"
+    first.write_text("RT,Area\n1.25,100\n", encoding="utf-8")
+    second = tmp_path / "neutral-two.csv"
+    second.write_text("Time,Integrated,Note\n2.5,250,local\n", encoding="utf-8")
+    exact = tmp_path / "synthetic-youngin-result.csv"
+    exact.write_bytes(synthetic_result_csv_bytes())
+    first_mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    second_mapping = PeakTableMapping(
+        ColumnSelector("Time", 1),
+        ColumnSelector("Integrated", 2),
+        "min",
+        PeakTableFormat.CSV,
+        ignored_columns=(ColumnSelector("Note", 3),),
+    )
+    mapping_set = PeakTableMappingSet(
+        (
+            PeakTableMappingProfile(first_mapping, "Template one"),
+            PeakTableMappingProfile(second_mapping, "Template two"),
+        )
+    )
+    desktop_output = tmp_path / "desktop-set.xlsx"
+    api_output = tmp_path / "api-set.xlsx"
+
+    desktop = convert_selection(
+        DesktopRequest(
+            (first, second, exact),
+            desktop_output,
+            "input_order",
+            peak_table_mapping_set=mapping_set,
+        )
+    )
+    direct = convert(
+        (first, second, exact),
+        api_output,
+        sort="input_order",
+        peak_table_mapping_set=mapping_set,
+    )
+
+    assert desktop.outcome is BatchOutcome.SUCCESS
+    assert desktop.failure_count == 0
+    assert [item.mapping_route for item in desktop.files] == [
+        "USER_MAPPING_PROFILE",
+        "USER_MAPPING_PROFILE",
+        "EXACT_ADAPTER",
+    ]
+    assert desktop.files[0].mapping_profile_id == mapping_set.profiles[0].profile_id
+    assert desktop.files[1].mapping_profile_id == mapping_set.profiles[1].profile_id
+    assert desktop.files[2].adapter_id == "youngin_yl_clarity_result_csv"
+    assert direct.failure_count == 0
     for sheet in ("Peaks", "Peak_Order_Matrix", "Metadata", "Import_Log"):
         assert _sheet_values(desktop_output, sheet) == _sheet_values(api_output, sheet)

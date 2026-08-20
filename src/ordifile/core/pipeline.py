@@ -14,6 +14,10 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
+from ordifile.adapters._mapped_table import (
+    GENERIC_PEAK_TABLE_ADAPTER_IDS,
+    resolve_peak_table_mapping,
+)
 from ordifile.adapters.base import DetectionResult, ParseOptions, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, DetectionOutcome, detect_adapter
@@ -486,10 +490,18 @@ def run_pipeline(
     if forced_adapter is not None:
         registry.get(forced_adapter)
     options = ParseOptions() if parse_options is None else parse_options
-    if forced_adapter is not None and options.peak_table_mapping is not None:
+    mapping_requested = (
+        options.peak_table_mapping is not None or options.peak_table_mapping_set is not None
+    )
+    if options.peak_table_mapping is not None and options.peak_table_mapping_set is not None:
+        raise OrdifileError(
+            "PEAK_MAPPING_OPTION_CONFLICT",
+            "peak_table_mapping and peak_table_mapping_set are mutually exclusive.",
+        )
+    if forced_adapter is not None and mapping_requested:
         raise OrdifileError(
             "PEAK_MAPPING_ADAPTER_CONFLICT",
-            "adapter and peak_table_mapping cannot be selected together.",
+            "adapter and explicit peak-table mapping options cannot be selected together.",
         )
     normalized_extensions = None if extensions is None else tuple(extensions)
     processed: list[FileResult] = []
@@ -524,7 +536,7 @@ def run_pipeline(
         )
         initial_policy = (
             SourceIdentityPolicy.SHA256_ALIAS
-            if options.peak_table_mapping is not None
+            if mapping_requested
             else _source_identity_policy_before_detection(
                 discovered.source.path, registry, forced_adapter
             )
@@ -589,10 +601,13 @@ def run_pipeline(
         selected_adapter_id: str | None = None
         selected_adapter_version: str | None = None
         probes: tuple[tuple[str, float, str], ...] = ()
+        mapping_route: str | None = None
+        mapping_profile_id: str | None = None
+        mapping_structure_fingerprint: str | None = None
         try:
             mapping_applied = False
             parse_for_adapter = options
-            if options.peak_table_mapping is None:
+            if not mapping_requested:
                 detection = detect_adapter(
                     source.path,
                     registry,
@@ -602,26 +617,29 @@ def run_pipeline(
                 )
             else:
                 try:
-                    automatic = detect_adapter(
+                    exact = detect_adapter(
                         source.path,
                         registry,
                         redact_adapter_ids=sha256_alias_owner_ids,
                         redact_error_reasons=True,
+                        excluded_adapter_ids=GENERIC_PEAK_TABLE_ADAPTER_IDS,
                     )
                 except DetectionError as error:
                     if error.code != "FORMAT_NOT_DETECTED":
                         raise
-                    automatic = None
-                generic_ids = {
-                    "generic_csv",
-                    "generic_tsv",
-                    "generic_semicolon",
-                    "generic_xlsx",
-                }
-                if automatic is not None and automatic.adapter.adapter_id not in generic_ids:
-                    detection = automatic
-                    parse_for_adapter = replace(options, peak_table_mapping=None)
-                else:
+                    exact = None
+                if exact is not None:
+                    detection = exact
+                    mapping_route = "EXACT_ADAPTER"
+                    parse_for_adapter = replace(
+                        options,
+                        peak_table_mapping=None,
+                        peak_table_mapping_set=None,
+                        peak_table_mapping_profile_id=None,
+                        peak_table_mapping_profile_fingerprint=None,
+                        peak_table_mapping_set_id=None,
+                    )
+                elif options.peak_table_mapping is not None:
                     mapped_id = _mapped_adapter_id(
                         source.path, options.peak_table_mapping.source_format
                     )
@@ -640,6 +658,48 @@ def run_pipeline(
                         ),
                     )
                     mapping_applied = True
+                    mapping_route = "USER_MAPPING"
+                else:
+                    assert options.peak_table_mapping_set is not None
+                    try:
+                        resolved = resolve_peak_table_mapping(
+                            source.path, options.peak_table_mapping_set
+                        )
+                    except OrdifileError as error:
+                        mapping_route = {
+                            "PEAK_MAPPING_PROFILE_NOT_MATCHED": "NO_MAPPING_MATCH",
+                            "PEAK_MAPPING_PROFILE_AMBIGUOUS": "AMBIGUOUS_MAPPING_PROFILE",
+                            "PEAK_MAPPING_WORKSHEET_AMBIGUOUS": "AMBIGUOUS_WORKSHEET",
+                        }.get(error.code, "MAPPING_VALIDATION_FAILED")
+                        raise
+                    mapped_adapter = registry.get(resolved.adapter_id)
+                    detection = DetectionOutcome(
+                        mapped_adapter,
+                        (
+                            (
+                                resolved.adapter_id,
+                                DetectionResult(
+                                    True,
+                                    1.0,
+                                    "A user-approved mapping profile exactly matched the "
+                                    "generic table structure.",
+                                ),
+                            ),
+                        ),
+                    )
+                    mapping_profile_id = resolved.profile.profile_id
+                    mapping_structure_fingerprint = resolved.profile.structural_fingerprint_sha256
+                    parse_for_adapter = replace(
+                        options,
+                        sheet=resolved.sheet,
+                        peak_table_mapping=resolved.profile.mapping,
+                        peak_table_mapping_set=None,
+                        peak_table_mapping_profile_id=mapping_profile_id,
+                        peak_table_mapping_profile_fingerprint=mapping_structure_fingerprint,
+                        peak_table_mapping_set_id=options.peak_table_mapping_set.set_id,
+                    )
+                    mapping_applied = True
+                    mapping_route = "USER_MAPPING_PROFILE"
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
             selected_adapter_policy = detection.adapter.descriptor.source_identity_policy
@@ -664,7 +724,7 @@ def run_pipeline(
             )
             discovery_issues = _rebind_issue_sources(discovery_issues, source)
             display_source = workbook_audit_display(source.public_reference)
-            if options.peak_table_mapping is not None and not mapping_applied:
+            if mapping_requested and not mapping_applied:
                 discovery_issues = (
                     *discovery_issues,
                     Issue(
@@ -696,8 +756,8 @@ def run_pipeline(
             if (
                 bundle is not None
                 and mapping_applied
-                and options.peak_table_mapping is not None
-                and options.peak_table_mapping.sample_id_column is None
+                and parse_for_adapter.peak_table_mapping is not None
+                and parse_for_adapter.peak_table_mapping.sample_id_column is None
             ):
                 bundle = _bind_mapped_fallback_sample(bundle, source)
             datetime_issues: tuple[Issue, ...] = ()
@@ -836,7 +896,13 @@ def run_pipeline(
             )
             processed.append(result)
             stopped = stopped or on_error == "stop"
-        result = replace(result, issues=_rebind_issue_sources(result.issues, result.source))
+        result = replace(
+            result,
+            issues=_rebind_issue_sources(result.issues, result.source),
+            mapping_route=mapping_route,
+            mapping_profile_id=mapping_profile_id,
+            mapping_structure_fingerprint=mapping_structure_fingerprint,
+        )
         processed[-1] = result
         report_processed(result, completed)
     ordered, decision = sort_file_results(tuple(processed), requested_sort)
@@ -868,6 +934,26 @@ def run_pipeline(
             peak_table_source_format=(
                 options.peak_table_mapping.source_format.value
                 if options.peak_table_mapping is not None
+                else None
+            ),
+            peak_table_mapping_set_id=(
+                options.peak_table_mapping_set.set_id
+                if options.peak_table_mapping_set is not None
+                else None
+            ),
+            peak_table_mapping_set_schema_version=(
+                options.peak_table_mapping_set.schema_version
+                if options.peak_table_mapping_set is not None
+                else None
+            ),
+            peak_table_mapping_set_fingerprint=(
+                options.peak_table_mapping_set.structural_fingerprint_sha256
+                if options.peak_table_mapping_set is not None
+                else None
+            ),
+            peak_table_mapping_set_profile_count=(
+                len(options.peak_table_mapping_set.profiles)
+                if options.peak_table_mapping_set is not None
                 else None
             ),
         ),

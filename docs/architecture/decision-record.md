@@ -249,6 +249,13 @@ to the workbook layout.
     is therefore not applied. A selected mapped XLSX worksheet is recorded only as the
     fixed `USER_SELECTED` option marker, not as its potentially identifying title. Details are in
     [`../formats/explicit-peak-table-mapping.md`](../formats/explicit-peak-table-mapping.md).
+43. Reusable mapping profiles extend that same mapping contract without changing
+    `PeakRecord`, workbook scientific sheets, generic readers, or adapter API v1. Automatic
+    exact-profile detection runs before Mapping Set routing. Generic candidates are selected
+    only by exact container plus ordered local header/title structure; filename, vendor guess,
+    and row values never participate. Zero or multiple matches fail the file without generic
+    fallback. Local profile/set JSON may contain private selectors and labels, while workbook
+    provenance contains only opaque IDs and a separate public-safe structural fingerprint.
 
 ## Public boundaries
 

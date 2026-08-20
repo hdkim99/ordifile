@@ -16,7 +16,7 @@ from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, cast
 
-from openpyxl import load_workbook  # type: ignore[import-untyped]
+from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
 from ordifile import __version__
 from ordifile.api import convert, get_format_report, inspect_inputs, list_formats
@@ -24,11 +24,15 @@ from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
     PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
     load_peak_table_mapping,
+    load_peak_table_mapping_set,
     save_peak_table_mapping,
+    save_peak_table_mapping_set,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCIENTIFIC_SHEETS = (
     "Samples",
     "Peak_Matrix",
@@ -54,6 +58,9 @@ YOUNGIN_NAME = "youngin-result.csv"
 EXPECTED_NAME = "expected.json"
 MAPPED_NAME = "explicit-mapped.csv"
 MAPPING_NAME = "peak-mapping.json"
+MAPPED_SET_CSV_NAME = "mapped-template-a.csv"
+MAPPED_SET_XLSX_NAME = "mapped-template-b.xlsx"
+MAPPING_SET_NAME = "peak-mapping-set.json"
 CP949_PROBE_TEXT = "합성 보고서"
 GENERATED_INPUTS = (
     (
@@ -239,6 +246,46 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         ignored_columns=(ColumnSelector("Note", 4),),
     )
     save_peak_table_mapping(mapping, output / MAPPING_NAME)
+    mapped_set_csv = output / MAPPED_SET_CSV_NAME
+    mapped_set_csv.write_text(
+        "Template A RT,Template A Area\n1.0,10\n2.0,20\n",
+        encoding="utf-8",
+        newline="",
+    )
+    mapped_set_xlsx = output / MAPPED_SET_XLSX_NAME
+    mapped_set_workbook = Workbook()
+    mapped_set_sheet = mapped_set_workbook.active
+    mapped_set_sheet.title = "Changing Run Sheet"
+    mapped_set_sheet.append(("Template B Peak", "Template B Time", "Template B Area"))
+    mapped_set_sheet.append((1, 3.0, 30.0))
+    mapped_set_workbook.save(mapped_set_xlsx)
+    mapping_set = PeakTableMappingSet(
+        (
+            PeakTableMappingProfile(
+                PeakTableMapping(
+                    ColumnSelector("Template A RT", 1),
+                    ColumnSelector("Template A Area", 2),
+                    "min",
+                    PeakTableFormat.CSV,
+                ),
+                "Template A",
+                profile_id="profile-11111111111111111111111111111111",
+            ),
+            PeakTableMappingProfile(
+                PeakTableMapping(
+                    ColumnSelector("Template B Time", 2),
+                    ColumnSelector("Template B Area", 3),
+                    "s",
+                    PeakTableFormat.XLSX,
+                    peak_index_column=ColumnSelector("Template B Peak", 1),
+                ),
+                "Template B",
+                profile_id="profile-22222222222222222222222222222222",
+            ),
+        ),
+        set_id="profile-set-33333333333333333333333333333333",
+    )
+    save_peak_table_mapping_set(mapping_set, output / MAPPING_SET_NAME)
 
     generated_paths: list[Path] = []
     generated_expectations: dict[str, str] = {}
@@ -286,6 +333,15 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         if mapped_result.failure_count:
             raise ValueError("Synthetic mapped standalone conversion failed.")
         mapped_digest, mapped_sheets = semantic_digest(mapped_workbook)
+        mapped_set_workbook_path = Path(temporary) / "mapped-set-expected.xlsx"
+        mapped_set_result = convert(
+            (mapped_set_csv, mapped_set_xlsx),
+            mapped_set_workbook_path,
+            peak_table_mapping_set=mapping_set,
+        )
+        if mapped_set_result.failure_count:
+            raise ValueError("Synthetic mapping-set standalone conversion failed.")
+        mapped_set_digest, mapped_set_sheets = semantic_digest(mapped_set_workbook_path)
     expected = {
         "schema_version": SCHEMA_VERSION,
         "ordifile_version": __version__,
@@ -308,6 +364,14 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
             "adapter_id": "generic_csv",
             "scientific_sheets": list(mapped_sheets),
             "semantic_sha256": mapped_digest,
+        },
+        "mapping_set": {
+            "csv_input_sha256": _sha256(mapped_set_csv),
+            "xlsx_input_sha256": _sha256(mapped_set_xlsx),
+            "mapping_set_file_sha256": _sha256(output / MAPPING_SET_NAME),
+            "mapping_set_fingerprint": mapping_set.structural_fingerprint_sha256,
+            "scientific_sheets": list(mapped_set_sheets),
+            "semantic_sha256": mapped_set_digest,
         },
     }
     _write_json(output / EXPECTED_NAME, expected)
@@ -379,6 +443,25 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
     mapping = load_peak_table_mapping(mapping_path)
     if mapping.semantic_sha256 != mapped_expected.get("mapping_semantic_sha256"):
         raise ValueError("The standalone mapping semantic identity differs from the baseline.")
+    mapped_set_expected = expected.get("mapping_set")
+    mapped_set_path = kit / MAPPING_SET_NAME
+    mapped_set_csv = kit / MAPPED_SET_CSV_NAME
+    mapped_set_xlsx = kit / MAPPED_SET_XLSX_NAME
+    if (
+        type(mapped_set_expected) is not dict
+        or not mapped_set_path.is_file()
+        or _sha256(mapped_set_path) != mapped_set_expected.get("mapping_set_file_sha256")
+        or not mapped_set_csv.is_file()
+        or _sha256(mapped_set_csv) != mapped_set_expected.get("csv_input_sha256")
+        or not mapped_set_xlsx.is_file()
+        or _sha256(mapped_set_xlsx) != mapped_set_expected.get("xlsx_input_sha256")
+    ):
+        raise ValueError("The standalone mapping-set kit failed its checksum.")
+    mapping_set = load_peak_table_mapping_set(mapped_set_path)
+    if mapping_set.structural_fingerprint_sha256 != mapped_set_expected.get(
+        "mapping_set_fingerprint"
+    ):
+        raise ValueError("The standalone mapping-set structure differs from the baseline.")
     inspected = inspect_inputs(tuple(paths), sort="input_order")
     detected = [item.adapter_id for item in inspected.files]
     if detected != expected_detection or inspected.failure_count:
@@ -415,6 +498,22 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         mapped_sheets
     ) != mapped_expected.get("scientific_sheets"):
         raise ValueError("The packaged mapped workbook differs from the source baseline.")
+    with tempfile.TemporaryDirectory(prefix="ordifile-standalone-mapping-set-") as temporary:
+        mapped_set_output = Path(temporary) / "mapped-set.xlsx"
+        mapped_set_result = convert(
+            (mapped_set_csv, mapped_set_xlsx),
+            mapped_set_output,
+            peak_table_mapping_set=mapping_set,
+        )
+        if mapped_set_result.failure_count or {
+            item.mapping_route for item in mapped_set_result.files
+        } != {"USER_MAPPING_PROFILE"}:
+            raise ValueError("The packaged runtime did not apply the mapping set exactly.")
+        mapped_set_digest, mapped_set_sheets = semantic_digest(mapped_set_output)
+    if mapped_set_digest != mapped_set_expected.get("semantic_sha256") or list(
+        mapped_set_sheets
+    ) != mapped_set_expected.get("scientific_sheets"):
+        raise ValueError("The packaged mapping-set workbook differs from the source baseline.")
     _write_json(
         report_path,
         {
@@ -426,6 +525,7 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
             "scientific_sheets": list(SCIENTIFIC_SHEETS),
             "semantic_sha256": digest,
             "mapped_semantic_sha256": mapped_digest,
+            "mapping_set_semantic_sha256": mapped_set_digest,
             "existing_output_preserved": True,
         },
     )

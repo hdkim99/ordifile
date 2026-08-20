@@ -16,7 +16,7 @@ from ordifile import __version__
 from ordifile.adapters.base import SupportStatus
 from ordifile.api import convert, get_format_report, inspect_file
 from ordifile.core.models import BatchOutcome, SeriesKind
-from ordifile.core.peak_mapping import load_peak_table_mapping
+from ordifile.core.peak_mapping import load_peak_table_mapping, load_peak_table_mapping_set
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -98,7 +98,8 @@ def _yes_no(value: bool) -> str:
 
 
 def _add_parse_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
         "--adapter",
         help="Use one registered adapter ID instead of automatic detection.",
     )
@@ -111,10 +112,15 @@ def _add_parse_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Include hidden XLSX sheets when detecting a compatible sheet.",
     )
-    parser.add_argument(
+    selection.add_argument(
         "--peak-mapping",
         type=Path,
         help="Apply a strict user-supplied peak-table mapping JSON to generic inputs.",
+    )
+    selection.add_argument(
+        "--peak-mapping-set",
+        type=Path,
+        help="Route mixed generic tables with reusable exact-structure mapping profiles.",
     )
     parser.add_argument(
         "--verbose",
@@ -300,12 +306,16 @@ def _print_issues(result: object, *, verbose: bool) -> None:
 
 def _run_inspect(args: argparse.Namespace) -> int:
     mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
+    mapping_set = (
+        load_peak_table_mapping_set(args.peak_mapping_set) if args.peak_mapping_set else None
+    )
     inspected = inspect_file(
         args.file,
         adapter=args.adapter,
         sheet=args.sheet,
         include_hidden_sheets=args.include_hidden_sheets,
         peak_table_mapping=mapping,
+        peak_table_mapping_set=mapping_set,
     )
     result = inspected.file
     bundle = result.bundle
@@ -406,6 +416,9 @@ def _print_batch_detection_evidence(result: object) -> None:
 def _run_convert(args: argparse.Namespace) -> int:
     print(f"Input paths: {len(args.inputs)}")
     mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
+    mapping_set = (
+        load_peak_table_mapping_set(args.peak_mapping_set) if args.peak_mapping_set else None
+    )
 
     def print_progress(event: object) -> None:
         stage = getattr(event, "stage", None)
@@ -435,6 +448,7 @@ def _run_convert(args: argparse.Namespace) -> int:
         sheet=args.sheet,
         include_hidden_sheets=args.include_hidden_sheets,
         peak_table_mapping=mapping,
+        peak_table_mapping_set=mapping_set,
         on_error=args.on_error,
         overwrite=args.overwrite,
         sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
@@ -455,6 +469,17 @@ def _run_convert(args: argparse.Namespace) -> int:
     print(f"Sort used: {_terminal_safe(result.sort.effective.value)}")
     print(f"Sort reason: {_terminal_safe(result.sort.reason)}")
     print(f"Sheets: {', '.join(_terminal_safe(sheet) for sheet in result.sheets)}")
+    if mapping_set is not None:
+        exact_count = sum(item.mapping_route == "EXACT_ADAPTER" for item in result.files)
+        used_profiles = {
+            item.mapping_profile_id
+            for item in result.files
+            if item.mapping_route == "USER_MAPPING_PROFILE" and item.mapping_profile_id is not None
+        }
+        unmapped_count = sum(item.mapping_route == "NO_MAPPING_MATCH" for item in result.files)
+        print(f"Exact adapter routes: {exact_count}")
+        print(f"Mapping profiles used: {len(used_profiles)}")
+        print(f"Unmapped generic tables: {unmapped_count}")
     if result.sidecars:
         print("Sidecars:")
         for sidecar in result.sidecars:

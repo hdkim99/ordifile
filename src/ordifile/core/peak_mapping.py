@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import secrets
 import stat
 import tempfile
 import unicodedata
@@ -20,7 +22,15 @@ from ordifile.core.errors import OrdifileError
 from ordifile.core.workbook_text import workbook_audit_display, workbook_cell_text_is_exact
 
 PEAK_MAPPING_SCHEMA_VERSION = 1
+PEAK_MAPPING_PROFILE_SCHEMA_VERSION = 1
+PEAK_MAPPING_SET_SCHEMA_VERSION = 1
+PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION = 1
 MAX_PEAK_MAPPING_BYTES = 64 * 1024
+MAX_PEAK_MAPPING_PROFILE_BYTES = 128 * 1024
+MAX_PEAK_MAPPING_SET_BYTES = 4 * 1024 * 1024
+MAX_PEAK_MAPPING_PROFILES = 32
+MAX_PEAK_MAPPING_PROFILE_LABEL_CHARACTERS = 128
+MAX_PEAK_MAPPING_PROFILE_LABEL_BYTES = 512
 MAX_PEAK_PREVIEW_COLUMNS = 1_024
 MAX_PEAK_PREVIEW_ROWS = 10
 MAX_PEAK_PREVIEW_CELLS = MAX_PEAK_PREVIEW_COLUMNS * (MAX_PEAK_PREVIEW_ROWS + 1)
@@ -54,6 +64,8 @@ _TEXT_FIELDS = (
     "manufacturer",
     "software",
 )
+_PROFILE_ID = re.compile(r"profile-[0-9a-f]{32}\Z")
+_MAPPING_SET_ID = re.compile(r"profile-set-[0-9a-f]{32}\Z")
 
 
 class PeakTableFormat(StrEnum):
@@ -95,6 +107,14 @@ _ROLE_BY_FIELD = {
 
 def _mapping_error(message: str) -> OrdifileError:
     return OrdifileError("PEAK_MAPPING_INVALID", message)
+
+
+def _json_text_size(text: str, *, document: str) -> int:
+    """Return strict UTF-8 size without leaking an invalid Python string."""
+    try:
+        return len(text.encode("utf-8", errors="strict"))
+    except UnicodeError as error:
+        raise _mapping_error(f"{document} JSON must be valid Unicode text.") from error
 
 
 def peak_preview_display(value: str) -> str:
@@ -307,6 +327,36 @@ class PeakTableMapping:
             _ROLE_BY_FIELD[name] for name in _COLUMN_FIELDS if getattr(self, name) is not None
         )
 
+    @property
+    def declared_headers(self) -> tuple[str, ...]:
+        """Return the complete ordered local header contract for exact matching."""
+        selectors = [
+            selector for name in _COLUMN_FIELDS if (selector := getattr(self, name)) is not None
+        ]
+        selectors.extend(self.ignored_columns)
+        if not selectors:
+            raise _mapping_error("A peak mapping must classify at least one source column.")
+        maximum = max(selector.index for selector in selectors)
+        by_position = {selector.index: selector.label for selector in selectors}
+        if set(by_position) != set(range(1, maximum + 1)):
+            raise _mapping_error(
+                "A reusable mapping profile must classify contiguous source columns."
+            )
+        return tuple(by_position[index] for index in range(1, maximum + 1))
+
+    @property
+    def structural_roles(self) -> tuple[str, ...]:
+        """Return privacy-safe ordered role names for a public structure summary."""
+        selectors: dict[int, str] = {}
+        for name in _COLUMN_FIELDS:
+            selector = getattr(self, name)
+            if selector is not None:
+                selectors[selector.index] = _ROLE_BY_FIELD[name]
+        for selector in self.ignored_columns:
+            selectors[selector.index] = "IGNORED"
+        headers = self.declared_headers
+        return tuple(selectors[index] for index in range(1, len(headers) + 1))
+
     @classmethod
     def from_dict(cls, value: object) -> PeakTableMapping:
         """Build a mapping from one strict data-only object."""
@@ -392,7 +442,7 @@ class PeakTableMapping:
         """Parse bounded JSON while rejecting duplicate keys and non-standard numbers."""
         if type(text) is not str:
             raise _mapping_error("Peak mapping JSON must be text.")
-        if len(text.encode("utf-8")) > MAX_PEAK_MAPPING_BYTES:
+        if _json_text_size(text, document="Peak mapping") > MAX_PEAK_MAPPING_BYTES:
             raise _mapping_error(
                 f"Peak mapping JSON exceeds the {MAX_PEAK_MAPPING_BYTES}-byte safety limit."
             )
@@ -423,12 +473,331 @@ class PeakTableMapping:
         return cls.from_dict(decoded)
 
 
+def _new_profile_id() -> str:
+    return f"profile-{secrets.token_hex(16)}"
+
+
+def _new_mapping_set_id() -> str:
+    return f"profile-set-{secrets.token_hex(16)}"
+
+
+def _require_profile_label(value: object) -> str:
+    label = _require_mapping_text("display_label", value, optional=False)
+    assert label is not None
+    if (
+        len(label) > MAX_PEAK_MAPPING_PROFILE_LABEL_CHARACTERS
+        or len(label.encode("utf-8")) > MAX_PEAK_MAPPING_PROFILE_LABEL_BYTES
+    ):
+        raise _mapping_error("display_label exceeds the reusable-profile safety limit.")
+    return label
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    return sha256(encoded).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class PeakTableMappingProfile:
+    """One user-approved mapping plus its exact local table structure."""
+
+    mapping: PeakTableMapping
+    display_label: str = "Mapping profile"
+    profile_id: str = ""
+    worksheet_title: str | None = None
+    schema_version: int = PEAK_MAPPING_PROFILE_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.mapping) is not PeakTableMapping:
+            raise _mapping_error("mapping must be a PeakTableMapping.")
+        _require_profile_label(self.display_label)
+        if self.profile_id == "":
+            object.__setattr__(self, "profile_id", _new_profile_id())
+        if type(self.profile_id) is not str or _PROFILE_ID.fullmatch(self.profile_id) is None:
+            raise _mapping_error("profile_id must be an opaque Ordifile profile identifier.")
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != PEAK_MAPPING_PROFILE_SCHEMA_VERSION
+        ):
+            raise _mapping_error(
+                f"profile schema_version must be exactly {PEAK_MAPPING_PROFILE_SCHEMA_VERSION}."
+            )
+        if self.mapping.source_format is PeakTableFormat.XLSX:
+            if self.worksheet_title is not None:
+                _require_mapping_text("worksheet_title", self.worksheet_title, optional=False)
+        elif self.worksheet_title is not None:
+            raise _mapping_error("worksheet_title is available only for XLSX profiles.")
+        # Profiles require a complete, contiguous structural contract.
+        declared_headers = self.mapping.declared_headers
+        if not declared_headers:
+            raise _mapping_error("A reusable mapping profile requires source columns.")
+        if len(self.to_json().encode("utf-8")) > MAX_PEAK_MAPPING_PROFILE_BYTES:
+            raise _mapping_error(
+                f"The normalized mapping profile exceeds the "
+                f"{MAX_PEAK_MAPPING_PROFILE_BYTES}-byte safety limit."
+            )
+
+    @property
+    def exact_structure_sha256(self) -> str:
+        """Return a local-only exact structure digest; never public provenance."""
+        return _canonical_sha256(
+            {
+                "source_format": self.mapping.source_format.value,
+                "headers": self.mapping.declared_headers,
+                "worksheet_title": self.worksheet_title,
+            }
+        )
+
+    @property
+    def structural_fingerprint_sha256(self) -> str:
+        """Return a public-safe summary without header labels, values, or local names."""
+        return _canonical_sha256(
+            {
+                "fingerprint_schema_version": PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION,
+                "mapping_schema_version": self.mapping.schema_version,
+                "source_format": self.mapping.source_format.value,
+                "column_count": len(self.mapping.declared_headers),
+                "ordered_roles": self.mapping.structural_roles,
+                "unit_presence": {
+                    "retention_time": True,
+                    "area": self.mapping.area_unit is not None,
+                    "height": self.mapping.height_unit is not None,
+                    "secondary_retention_time": (
+                        self.mapping.secondary_retention_time_unit is not None
+                    ),
+                },
+                "worksheet_policy": (
+                    "EXACT_TITLE" if self.worksheet_title is not None else "SINGLE_VISIBLE"
+                )
+                if self.mapping.source_format is PeakTableFormat.XLSX
+                else "NOT_APPLICABLE",
+            }
+        )
+
+    @property
+    def semantic_sha256(self) -> str:
+        """Return the private semantic identity used only for duplicate validation."""
+        return _canonical_sha256(
+            {
+                "mapping": self.mapping.to_dict(),
+                "worksheet_title": self.worksheet_title,
+            }
+        )
+
+    def matches(
+        self,
+        source_format: PeakTableFormat,
+        headers: tuple[str, ...],
+        *,
+        worksheet_title: str | None = None,
+        single_visible_worksheet: bool = False,
+    ) -> bool:
+        """Match exact local structure without reading any scientific row values."""
+        if source_format is not self.mapping.source_format:
+            return False
+        if headers != self.mapping.declared_headers:
+            return False
+        if source_format is not PeakTableFormat.XLSX:
+            return worksheet_title is None
+        if self.worksheet_title is not None:
+            return worksheet_title == self.worksheet_title
+        return single_visible_worksheet
+
+    def to_dict(self) -> dict[str, object]:
+        """Return local profile configuration; labels and headers remain private."""
+        return {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "display_label": self.display_label,
+            "worksheet_title": self.worksheet_title,
+            "mapping": self.mapping.to_dict(),
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+    @classmethod
+    def from_dict(cls, value: object) -> PeakTableMappingProfile:
+        if type(value) is not dict:
+            raise _mapping_error("A mapping profile must be an object.")
+        payload = cast(dict[object, object], value)
+        expected = {
+            "schema_version",
+            "profile_id",
+            "display_label",
+            "worksheet_title",
+            "mapping",
+        }
+        if set(payload) != expected:
+            raise _mapping_error("A mapping profile has missing or unsupported schema fields.")
+        if type(payload["schema_version"]) is not int:
+            raise _mapping_error("Profile schema_version must be an integer.")
+        if type(payload["profile_id"]) is not str or type(payload["display_label"]) is not str:
+            raise _mapping_error("Profile identifiers and display labels must be text.")
+        worksheet_title = payload["worksheet_title"]
+        if worksheet_title is not None and type(worksheet_title) is not str:
+            raise _mapping_error("worksheet_title must be text or null.")
+        return cls(
+            mapping=PeakTableMapping.from_dict(payload["mapping"]),
+            display_label=payload["display_label"],
+            profile_id=payload["profile_id"],
+            worksheet_title=worksheet_title,
+            schema_version=payload["schema_version"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PeakTableMappingSet:
+    """Bounded ordered collection of reusable user-approved mapping profiles."""
+
+    profiles: tuple[PeakTableMappingProfile, ...]
+    set_id: str = ""
+    schema_version: int = PEAK_MAPPING_SET_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if type(self.profiles) is not tuple or any(
+            type(profile) is not PeakTableMappingProfile for profile in self.profiles
+        ):
+            raise _mapping_error("profiles must be a tuple of PeakTableMappingProfile values.")
+        if not self.profiles or len(self.profiles) > MAX_PEAK_MAPPING_PROFILES:
+            raise _mapping_error(
+                f"A mapping set must contain from 1 through {MAX_PEAK_MAPPING_PROFILES} profiles."
+            )
+        if self.set_id == "":
+            object.__setattr__(self, "set_id", _new_mapping_set_id())
+        if type(self.set_id) is not str or _MAPPING_SET_ID.fullmatch(self.set_id) is None:
+            raise _mapping_error("set_id must be an opaque Ordifile mapping-set identifier.")
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != PEAK_MAPPING_SET_SCHEMA_VERSION
+        ):
+            raise _mapping_error(
+                f"mapping-set schema_version must be exactly {PEAK_MAPPING_SET_SCHEMA_VERSION}."
+            )
+        ids = [profile.profile_id for profile in self.profiles]
+        if len(ids) != len(set(ids)):
+            raise _mapping_error("A mapping set cannot contain duplicate profile identifiers.")
+        exact_profiles = [
+            (profile.exact_structure_sha256, profile.semantic_sha256) for profile in self.profiles
+        ]
+        if len(exact_profiles) != len(set(exact_profiles)):
+            raise _mapping_error("A mapping set cannot contain duplicate complete profiles.")
+        if len(self.to_json().encode("utf-8")) > MAX_PEAK_MAPPING_SET_BYTES:
+            raise _mapping_error(
+                f"The normalized mapping set exceeds the {MAX_PEAK_MAPPING_SET_BYTES}-byte "
+                "safety limit."
+            )
+
+    @property
+    def structural_fingerprint_sha256(self) -> str:
+        """Return an ordered public-safe summary independent of local labels and paths."""
+        return _canonical_sha256(
+            {
+                "mapping_set_schema_version": self.schema_version,
+                "fingerprint_schema_version": PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION,
+                "profiles": [profile.structural_fingerprint_sha256 for profile in self.profiles],
+            }
+        )
+
+    def match(
+        self,
+        source_format: PeakTableFormat,
+        headers: tuple[str, ...],
+        *,
+        worksheet_title: str | None = None,
+        single_visible_worksheet: bool = False,
+    ) -> tuple[PeakTableMappingProfile, ...]:
+        """Return every exact match so callers can fail closed on ambiguity."""
+        return tuple(
+            profile
+            for profile in self.profiles
+            if profile.matches(
+                source_format,
+                headers,
+                worksheet_title=worksheet_title,
+                single_visible_worksheet=single_visible_worksheet,
+            )
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "set_id": self.set_id,
+            "profiles": [profile.to_dict() for profile in self.profiles],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+    @classmethod
+    def from_dict(cls, value: object) -> PeakTableMappingSet:
+        if type(value) is not dict:
+            raise _mapping_error("The mapping-set root must be an object.")
+        payload = cast(dict[object, object], value)
+        if set(payload) != {"schema_version", "set_id", "profiles"}:
+            raise _mapping_error("The mapping set has missing or unsupported schema fields.")
+        if type(payload["schema_version"]) is not int or type(payload["set_id"]) is not str:
+            raise _mapping_error("Mapping-set version and identifier types are invalid.")
+        raw_profiles = payload["profiles"]
+        if type(raw_profiles) is not list:
+            raise _mapping_error("profiles must be an array.")
+        if len(raw_profiles) > MAX_PEAK_MAPPING_PROFILES:
+            raise _mapping_error("The mapping set exceeds its profile-count safety limit.")
+        return cls(
+            profiles=tuple(PeakTableMappingProfile.from_dict(item) for item in raw_profiles),
+            set_id=payload["set_id"],
+            schema_version=payload["schema_version"],
+        )
+
+    @classmethod
+    def from_json(cls, text: str) -> PeakTableMappingSet:
+        if type(text) is not str:
+            raise _mapping_error("Mapping-set JSON must be text.")
+        if _json_text_size(text, document="Mapping-set") > MAX_PEAK_MAPPING_SET_BYTES:
+            raise _mapping_error("Mapping-set JSON exceeds its byte safety limit.")
+
+        def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, item in pairs:
+                if key in result:
+                    raise _mapping_error("Mapping-set JSON contains a duplicate object key.")
+                result[key] = item
+            return result
+
+        def invalid_constant(_value: str) -> None:
+            raise _mapping_error("Mapping-set JSON contains a non-standard numeric constant.")
+
+        try:
+            decoded = json.loads(
+                text,
+                object_pairs_hook=object_pairs,
+                parse_constant=invalid_constant,
+            )
+        except OrdifileError:
+            raise
+        except (UnicodeError, ValueError, RecursionError) as error:
+            raise _mapping_error(
+                "Mapping-set JSON is malformed or exceeds nesting limits."
+            ) from error
+        return cls.from_dict(decoded)
+
+
 def load_peak_table_mapping(path: str | os.PathLike[str]) -> PeakTableMapping:
     """Load one bounded mapping file without recording its local path in provenance."""
     candidate = Path(path)
     if candidate.is_symlink():
         raise _mapping_error("Peak mapping files must not be symbolic links.")
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     try:
         descriptor = os.open(candidate, flags)
     except OSError as error:
@@ -528,7 +897,26 @@ def save_peak_table_mapping(
                 raise OrdifileError(
                     "PEAK_MAPPING_EXISTS", "The peak mapping file already exists."
                 ) from error
-            temporary.unlink()
+            try:
+                os.unlink(temporary)
+            except OSError:
+                try:
+                    os.unlink(temporary)
+                except OSError as retry_error:
+                    raise _mapping_error(
+                        "Peak mapping publication completed but temporary cleanup failed safely."
+                    ) from retry_error
+            try:
+                published = os.lstat(destination)
+            except OSError as error:
+                raise _mapping_error(
+                    "Peak mapping destination changed during publication."
+                ) from error
+            if (
+                not stat.S_ISREG(published.st_mode)
+                or (published.st_dev, published.st_ino) != temporary_identity
+            ):
+                raise _mapping_error("Peak mapping destination changed during publication.")
             temporary_name = None
     except (OrdifileError, KeyboardInterrupt, SystemExit, MemoryError):
         raise
@@ -545,5 +933,150 @@ def save_peak_table_mapping(
                     and (remaining.st_dev, remaining.st_ino) == temporary_identity
                 ):
                     os.unlink(temporary_name)
-            except FileNotFoundError:
+            except OSError:
+                pass
+
+
+def load_peak_table_mapping_set(path: str | os.PathLike[str]) -> PeakTableMappingSet:
+    """Load one bounded mapping set without exposing its local path."""
+    candidate = Path(path)
+    if candidate.is_symlink():
+        raise _mapping_error("Mapping-set files must not be symbolic links.")
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        descriptor = os.open(candidate, flags)
+    except OSError as error:
+        raise _mapping_error("Mapping-set file could not be read.") from error
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise _mapping_error("Mapping-set input must be a regular file.")
+        if before.st_size > MAX_PEAK_MAPPING_SET_BYTES:
+            raise _mapping_error("Mapping-set file exceeds its byte safety limit.")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            data = stream.read(MAX_PEAK_MAPPING_SET_BYTES + 1)
+        after = os.fstat(descriptor)
+        identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+        identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+        if len(data) > MAX_PEAK_MAPPING_SET_BYTES or identity_before != identity_after:
+            raise _mapping_error("Mapping-set file changed while it was being read.")
+    except OSError as error:
+        raise _mapping_error("Mapping-set file could not be read safely.") from error
+    finally:
+        os.close(descriptor)
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeError as error:
+        raise _mapping_error("Mapping-set file must be valid UTF-8 JSON.") from error
+    return PeakTableMappingSet.from_json(text)
+
+
+def save_peak_table_mapping_set(
+    mapping_set: PeakTableMappingSet,
+    path: str | os.PathLike[str],
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Save a bounded local mapping set with the existing atomic file policy."""
+    if type(mapping_set) is not PeakTableMappingSet:
+        raise _mapping_error("mapping_set must be a PeakTableMappingSet.")
+    if type(overwrite) is not bool:
+        raise _mapping_error("overwrite must be an exact boolean value.")
+    destination = Path(path)
+    if destination.suffix.casefold() != ".json":
+        raise _mapping_error("Mapping-set files must use the .json extension.")
+    if not destination.parent.is_dir():
+        raise _mapping_error("The mapping-set destination directory does not exist.")
+
+    def destination_status() -> os.stat_result | None:
+        try:
+            return os.lstat(destination)
+        except FileNotFoundError:
+            return None
+        except OSError as error:
+            raise _mapping_error("The mapping-set destination could not be inspected.") from error
+
+    current = destination_status()
+    if current is not None:
+        if not stat.S_ISREG(current.st_mode):
+            raise _mapping_error("The mapping-set destination must be a regular file.")
+        if not overwrite:
+            raise OrdifileError("PEAK_MAPPING_SET_EXISTS", "The mapping-set file already exists.")
+    encoded = mapping_set.to_json().encode("utf-8")
+    if len(encoded) > MAX_PEAK_MAPPING_SET_BYTES:
+        raise _mapping_error("The normalized mapping set exceeds its byte safety limit.")
+    descriptor = -1
+    temporary_name: str | None = None
+    temporary_identity: tuple[int, int] | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".ordifile-peak-mapping-set-",
+            suffix=".tmp",
+            dir=destination.parent,
+        )
+        created = os.fstat(descriptor)
+        if not stat.S_ISREG(created.st_mode):
+            raise _mapping_error("The owned mapping-set temporary file is not regular.")
+        temporary_identity = (created.st_dev, created.st_ino)
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            descriptor = -1
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary = Path(temporary_name)
+        if overwrite:
+            current = destination_status()
+            if current is not None and not stat.S_ISREG(current.st_mode):
+                raise _mapping_error("The mapping-set destination must be a regular file.")
+            os.replace(temporary, destination)
+            temporary_name = None
+        else:
+            try:
+                os.link(temporary, destination, follow_symlinks=False)
+            except FileExistsError as error:
+                raise OrdifileError(
+                    "PEAK_MAPPING_SET_EXISTS", "The mapping-set file already exists."
+                ) from error
+            try:
+                os.unlink(temporary)
+            except OSError:
+                try:
+                    os.unlink(temporary)
+                except OSError as retry_error:
+                    raise _mapping_error(
+                        "Mapping-set publication completed but temporary cleanup failed safely."
+                    ) from retry_error
+            try:
+                published = os.lstat(destination)
+            except OSError as error:
+                raise _mapping_error(
+                    "Mapping-set destination changed during publication."
+                ) from error
+            if (
+                not stat.S_ISREG(published.st_mode)
+                or (published.st_dev, published.st_ino) != temporary_identity
+            ):
+                raise _mapping_error("Mapping-set destination changed during publication.")
+            temporary_name = None
+    except (OrdifileError, KeyboardInterrupt, SystemExit, MemoryError):
+        raise
+    except OSError as error:
+        raise _mapping_error("Mapping-set file could not be written safely.") from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_name is not None and temporary_identity is not None:
+            try:
+                remaining = os.lstat(temporary_name)
+                if (
+                    stat.S_ISREG(remaining.st_mode)
+                    and (remaining.st_dev, remaining.st_ino) == temporary_identity
+                ):
+                    os.unlink(temporary_name)
+            except OSError:
                 pass

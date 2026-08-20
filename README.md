@@ -140,6 +140,7 @@ Columns** in the desktop interface or reuse a mapping JSON in the CLI:
 
 ```console
 ordifile convert run001.csv run002.csv --peak-mapping peak-map.json -o results.xlsx
+ordifile convert input/ --recursive --peak-mapping-set lab-mappings.json -o results.xlsx
 ```
 
 The mapping must classify every header, declare the RT unit, and confirm the Area-unit
@@ -147,7 +148,9 @@ state. Ordifile preserves source row order and uses the same `PeakRecord` → `P
 ordered-matrix → workbook path as built-in Result adapters. It does not infer RT, Area,
 units, compounds, or vendors. Manufacturer/software values are user-supplied provenance,
 not verified compatibility, and this workflow does not add a vendor to the support table.
-See the [explicit mapping contract](docs/formats/explicit-peak-table-mapping.md).
+Mapping Sets reuse several user-approved templates by exact format/header structure in one
+batch; zero or multiple matches fail rather than falling back. See the
+[explicit mapping contract](docs/formats/explicit-peak-table-mapping.md).
 
 ## Experimental proprietary adapters
 
@@ -267,6 +270,8 @@ Important behavior:
 - `--adapter` forces one installed adapter; `--sheet` selects one XLSX worksheet;
 - `--peak-mapping FILE.json` applies one strict, local, user-confirmed mapping to
   matching generic tables in the batch;
+- `--peak-mapping-set FILE.json` routes mixed generic templates with reusable exact-
+  structure profiles; it is mutually exclusive with `--adapter` and `--peak-mapping`;
 - signals are parsed when present but written only with `--include-signals`;
 - `--verbose` adds detection evidence and detailed structured diagnostics.
 

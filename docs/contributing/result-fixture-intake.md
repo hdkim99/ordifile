@@ -2,7 +2,8 @@
 
 This guide describes the privacy-first path for contributing an actual chromatography
 Result/Peak Table export toward a new exact-profile adapter. Do not attach the original
-scientific file, screenshot, mapping JSON, or generated workbook to a public issue.
+scientific file, screenshot, mapping/profile/Mapping Set JSON, or generated workbook to a
+public issue.
 
 ## Preferred source
 
@@ -41,6 +42,9 @@ synthetic tables.
 Only a sanitized issue summary should be public: vendor/software/version, the exact export
 action, container type, result row count, whether RT/Area/units exist, permission class, and
 privacy status. Maintainers will arrange a private/local inspection path if the lead is useful.
+An Ordifile-generated structural fingerprint, schema versions, container, column count,
+canonical role sequence, unit-presence states, and a fixed error code may be shared after
+privacy review. The fingerprint contains no mapping selectors and cannot verify a vendor.
 
 ## Promotion gate
 

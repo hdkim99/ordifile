@@ -153,6 +153,13 @@ def test_mapping_rejects_huge_json_integer_as_structured_error() -> None:
     assert captured.value.code == "PEAK_MAPPING_INVALID"
 
 
+def test_mapping_rejects_lone_surrogate_as_structured_error() -> None:
+    with pytest.raises(OrdifileError) as captured:
+        PeakTableMapping.from_json("\ud800")
+
+    assert captured.value.code == "PEAK_MAPPING_INVALID"
+
+
 def test_mapping_save_load_round_trip_and_no_overwrite(tmp_path: Path) -> None:
     destination = tmp_path / "mapping.json"
     save_peak_table_mapping(mapping(), destination)
@@ -164,6 +171,90 @@ def test_mapping_save_load_round_trip_and_no_overwrite(tmp_path: Path) -> None:
 
     assert captured.value.code == "PEAK_MAPPING_EXISTS"
     assert destination.read_bytes() == before
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are unavailable")
+def test_mapping_load_rejects_fifo_without_blocking(tmp_path: Path) -> None:
+    source = tmp_path / "mapping.json"
+    os.mkfifo(source)
+
+    with pytest.raises(OrdifileError, match="regular file"):
+        load_peak_table_mapping(source)
+
+
+def test_mapping_non_overwrite_publish_retries_temp_unlink_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "mapping.json"
+    real_unlink = os.unlink
+    failed_once = False
+
+    def reject_owned_temporary(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]) -> None:
+        nonlocal failed_once
+        if ".ordifile-peak-mapping-" in os.fsdecode(path) and not failed_once:
+            failed_once = True
+            raise PermissionError("PRIVATE-CANARY-PATH")
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", reject_owned_temporary)
+
+    save_peak_table_mapping(mapping(), destination)
+
+    assert load_peak_table_mapping(destination) == mapping()
+    assert not tuple(tmp_path.glob(".ordifile-peak-mapping-*.tmp"))
+
+
+def test_mapping_publish_reports_repeated_temp_cleanup_failure_without_raw_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "mapping.json"
+    real_unlink = os.unlink
+    failures = 0
+
+    def reject_twice(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]) -> None:
+        nonlocal failures
+        if ".ordifile-peak-mapping-" in os.fsdecode(path) and failures < 2:
+            failures += 1
+            raise PermissionError("PRIVATE-CANARY-PATH")
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", reject_twice)
+
+    with pytest.raises(OrdifileError) as captured:
+        save_peak_table_mapping(mapping(), destination)
+
+    assert captured.value.code == "PEAK_MAPPING_INVALID"
+    assert "PRIVATE-CANARY-PATH" not in str(captured.value)
+    assert load_peak_table_mapping(destination) == mapping()
+    assert not tuple(tmp_path.glob(".ordifile-peak-mapping-*.tmp"))
+
+
+def test_mapping_publish_preserves_foreign_destination_swapped_during_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    destination = tmp_path / "mapping.json"
+    foreign = b"foreign-preserved"
+    real_unlink = os.unlink
+    swapped = False
+
+    def swap_destination(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]) -> None:
+        nonlocal swapped
+        if ".ordifile-peak-mapping-" in os.fsdecode(path) and not swapped:
+            swapped = True
+            real_unlink(destination)
+            destination.write_bytes(foreign)
+            raise PermissionError("PRIVATE-CANARY-PATH")
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", swap_destination)
+
+    with pytest.raises(OrdifileError) as captured:
+        save_peak_table_mapping(mapping(), destination)
+
+    assert captured.value.code == "PEAK_MAPPING_INVALID"
+    assert "PRIVATE-CANARY-PATH" not in str(captured.value)
+    assert destination.read_bytes() == foreign
+    assert not tuple(tmp_path.glob(".ordifile-peak-mapping-*.tmp"))
 
 
 @pytest.mark.skipif(not hasattr(os, "symlink"), reason="symlinks are unavailable")

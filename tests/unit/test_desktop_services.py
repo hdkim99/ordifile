@@ -9,7 +9,13 @@ from typing import Any
 
 import pytest
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
+)
 from ordifile import api as public_api
 from ordifile.core.models import (
     BatchOutcome,
@@ -86,6 +92,7 @@ def test_inspect_selection_uses_public_batch_api_and_forwards_progress(
         "inputs": inputs,
         "sort": "filename",
         "peak_table_mapping": None,
+        "peak_table_mapping_set": None,
         "progress": events.append,
     }
     assert report.outcome is BatchOutcome.SUCCESS
@@ -117,6 +124,7 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
         "on_error": "continue",
         "overwrite": False,
         "peak_table_mapping": None,
+        "peak_table_mapping_set": None,
         "progress": None,
     }
     assert report.output_path == output
@@ -156,6 +164,101 @@ def test_desktop_services_forward_one_frozen_mapping_to_preview_and_conversion(
     )
 
     assert calls == [mapping, mapping]
+
+
+def test_desktop_services_forward_one_frozen_mapping_set_to_preview_and_conversion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_set = PeakTableMappingSet((PeakTableMappingProfile(mapping, "Daily CSV"),))
+    calls: list[tuple[object, object]] = []
+    output = tmp_path / "result.xlsx"
+
+    def inspect(*_args: object, **kwargs: object) -> BatchResult:
+        calls.append((kwargs.get("peak_table_mapping"), kwargs.get("peak_table_mapping_set")))
+        return _batch(FileStatus.SUCCESS)
+
+    def convert(*_args: object, **kwargs: object) -> BatchResult:
+        calls.append((kwargs.get("peak_table_mapping"), kwargs.get("peak_table_mapping_set")))
+        return _batch(FileStatus.SUCCESS, output=output)
+
+    monkeypatch.setattr(public_api, "inspect_inputs", inspect)
+    monkeypatch.setattr(public_api, "convert", convert)
+
+    services.inspect_selection(
+        (tmp_path / "input.csv",),
+        sort="auto",
+        peak_table_mapping_set=mapping_set,
+    )
+    services.convert_selection(
+        DesktopRequest(
+            (tmp_path / "input.csv",),
+            output,
+            peak_table_mapping_set=mapping_set,
+        )
+    )
+
+    assert calls == [(None, mapping_set), (None, mapping_set)]
+
+
+def test_desktop_report_carries_only_public_mapping_route_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile_id = "profile-11111111111111111111111111111111"
+    source = _source("public.csv", 0)
+    batch = BatchResult(
+        (
+            FileResult(
+                source,
+                FileStatus.SUCCESS,
+                "generic_csv",
+                "1",
+                mapping_route="USER_MAPPING_PROFILE",
+                mapping_profile_id=profile_id,
+            ),
+        ),
+        SortDecision(SortMode.AUTO, SortMode.INPUT_ORDER, "test"),
+    )
+    monkeypatch.setattr(public_api, "inspect_inputs", lambda *_args, **_kwargs: batch)
+
+    report = services.inspect_selection((tmp_path / "input.csv",), sort="auto")
+
+    assert report.files[0].mapping_route == "USER_MAPPING_PROFILE"
+    assert report.files[0].mapping_profile_id == profile_id
+
+
+def test_mapping_set_load_and_save_use_public_root_exports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_set = PeakTableMappingSet((PeakTableMappingProfile(mapping, "Daily CSV"),))
+    path = tmp_path / "set.json"
+    saved: list[tuple[PeakTableMappingSet, Path, bool]] = []
+    monkeypatch.setattr(
+        "ordifile.desktop.services.ordifile.load_peak_table_mapping_set",
+        lambda value: mapping_set,
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.services.ordifile.save_peak_table_mapping_set",
+        lambda value, destination, *, overwrite: saved.append(
+            (value, Path(destination), overwrite)
+        ),
+    )
+
+    assert services.load_mapping_set(path) is mapping_set
+    services.save_mapping_set(mapping_set, path, overwrite=True)
+
+    assert saved == [(mapping_set, path, True)]
 
 
 def test_preview_peak_table_uses_public_bounded_preview_api(

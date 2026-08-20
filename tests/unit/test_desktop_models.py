@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
+)
 from ordifile.desktop.models import (
     DesktopRequest,
     InputSelectionModel,
@@ -103,3 +109,46 @@ def test_desktop_request_preserves_optional_frozen_peak_mapping(tmp_path: Path) 
     )
 
     assert request.peak_table_mapping is mapping
+
+
+def test_desktop_request_preserves_optional_frozen_mapping_set(tmp_path: Path) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_set = PeakTableMappingSet((PeakTableMappingProfile(mapping, "Daily CSV"),))
+
+    request = DesktopRequest(
+        (tmp_path / "input.csv",),
+        tmp_path / "result.xlsx",
+        peak_table_mapping_set=mapping_set,
+    )
+
+    assert request.peak_table_mapping is None
+    assert request.peak_table_mapping_set is mapping_set
+
+
+def test_request_validation_rejects_simultaneous_single_mapping_and_set(
+    tmp_path: Path,
+) -> None:
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_set = PeakTableMappingSet((PeakTableMappingProfile(mapping, "Daily CSV"),))
+
+    with pytest.raises(RequestValidationError) as caught:
+        validate_request(
+            DesktopRequest(
+                (tmp_path / "input.csv",),
+                tmp_path / "result.xlsx",
+                peak_table_mapping=mapping,
+                peak_table_mapping_set=mapping_set,
+            )
+        )
+
+    assert caught.value.code == "PEAK_MAPPING_MODE_CONFLICT"

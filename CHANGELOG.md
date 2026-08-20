@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Reusable Peak Table Mapping Profiles and bounded Mapping Set JSON for mixed-template
+  generic batches. Exact vendor adapters retain priority; exact structural zero/multiple
+  matches fail closed, while API, CLI, desktop, workbook provenance, and standalone smoke
+  share the same user-supplied mapping contract.
 - A strict, reproducible Explicit Peak Table Mapping workflow for user-selected RT and
   Area columns in the existing CSV, TSV, semicolon-TXT, and audited XLSX containers.
   The shared API, CLI, desktop UI, canonical `PeakRecord` path, ordered matrices, and

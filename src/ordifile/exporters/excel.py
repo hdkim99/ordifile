@@ -507,7 +507,7 @@ def _metadata_data(result: BatchResult) -> _SheetData:
 
 
 def _import_log_data(result: BatchResult) -> _SheetData:
-    headers = (
+    base_headers = (
         "source_file",
         "detected_format",
         "adapter",
@@ -519,24 +519,39 @@ def _import_log_data(result: BatchResult) -> _SheetData:
         "sort_key",
         "sha256",
     )
+    has_profile_routes = result.options.peak_table_mapping_set_id is not None
+    headers = (
+        *base_headers,
+        *(
+            ("conversion_route", "mapping_profile_id", "structure_fingerprint")
+            if has_profile_routes
+            else ()
+        ),
+    )
     rows = []
     for item in result.files:
         warnings = [issue for issue in item.issues if issue.severity.value == "warning"]
         errors = [issue for issue in item.issues if issue.severity.value == "error"]
-        rows.append(
-            (
-                workbook_audit_display(item.source.public_reference),
-                item.source.detected_format,
-                item.adapter_id,
-                item.adapter_version,
-                item.status.value,
-                ";".join(issue.code for issue in warnings),
-                ";".join(issue.code for issue in errors),
-                " | ".join(issue.message for issue in item.issues),
-                None if item.sort_key is None else workbook_audit_display(item.sort_key),
-                item.source.sha256,
-            )
+        row: tuple[Any, ...] = (
+            workbook_audit_display(item.source.public_reference),
+            item.source.detected_format,
+            item.adapter_id,
+            item.adapter_version,
+            item.status.value,
+            ";".join(issue.code for issue in warnings),
+            ";".join(issue.code for issue in errors),
+            " | ".join(issue.message for issue in item.issues),
+            None if item.sort_key is None else workbook_audit_display(item.sort_key),
+            item.source.sha256,
         )
+        if has_profile_routes:
+            row = (
+                *row,
+                item.mapping_route,
+                item.mapping_profile_id,
+                item.mapping_structure_fingerprint,
+            )
+        rows.append(row)
     return _SheetData("Import_Log", headers, tuple(rows))
 
 
@@ -931,6 +946,24 @@ def _manifest_data(
                     None,
                     None,
                     None,
+                ),
+            )
+        )
+    if result.options.peak_table_mapping_set_id is not None:
+        rows.extend(
+            (
+                ("option_peak_table_mapping_set_id", result.options.peak_table_mapping_set_id),
+                (
+                    "option_peak_table_mapping_set_schema_version",
+                    result.options.peak_table_mapping_set_schema_version,
+                ),
+                (
+                    "option_peak_table_mapping_set_fingerprint",
+                    result.options.peak_table_mapping_set_fingerprint,
+                ),
+                (
+                    "option_peak_table_mapping_set_profile_count",
+                    result.options.peak_table_mapping_set_profile_count,
                 ),
             )
         )

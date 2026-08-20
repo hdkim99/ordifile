@@ -215,6 +215,9 @@ class FileResult:
     issues: tuple[Issue, ...] = ()
     sort_key: str | None = None
     probes: tuple[tuple[str, float, str], ...] = ()
+    mapping_route: str | None = None
+    mapping_profile_id: str | None = None
+    mapping_structure_fingerprint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +257,10 @@ class ConversionOptions:
     peak_table_mapping_sha256: str | None = None
     peak_table_mapping_schema_version: int | None = None
     peak_table_source_format: str | None = None
+    peak_table_mapping_set_id: str | None = None
+    peak_table_mapping_set_schema_version: int | None = None
+    peak_table_mapping_set_fingerprint: str | None = None
+    peak_table_mapping_set_profile_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
