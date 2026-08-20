@@ -15,6 +15,12 @@ from ordifile.adapters.base import AdapterDescriptor
 from ordifile.api import FormatReport
 from ordifile.cli.main import _terminal_safe, main
 from ordifile.core.errors import OrdifileError
+from ordifile.core.peak_mapping import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    save_peak_table_mapping,
+)
 
 
 def _write_peak_table(path: Path, sample_id: str = "sample") -> None:
@@ -50,6 +56,41 @@ def test_convert_uses_ordifile_default_output_name(
     output = tmp_path / "Ordifile_Result.xlsx"
     assert output.is_file()
     assert "Ordifile_Result.xlsx" in capsys.readouterr().out
+
+
+def test_inspect_and_convert_accept_same_explicit_peak_mapping(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "private-source.csv"
+    source.write_text("Declared RT,Declared Area\n1.5,20\n", encoding="utf-8")
+    mapping = PeakTableMapping(
+        ColumnSelector("Declared RT", 1),
+        ColumnSelector("Declared Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_path = tmp_path / "mapping.json"
+    save_peak_table_mapping(mapping, mapping_path)
+    output = tmp_path / "mapped.xlsx"
+
+    assert main(["inspect", str(source), "--peak-mapping", str(mapping_path)]) == 0
+    inspect_output = capsys.readouterr().out
+    assert "Peaks: 1" in inspect_output
+    assert source.name not in inspect_output
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--peak-mapping",
+                str(mapping_path),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert output.is_file()
 
 
 def test_formats_distinguishes_verified_generic_and_experimental_capabilities(

@@ -236,13 +236,28 @@ to the workbook layout.
     and concatenated strings are not retention-coordinate carriers. The complete
     rationale and migration boundary are in
     [`secondary-retention-coordinate.md`](secondary-retention-coordinate.md).
+42. Unsupported clean peak tables use an explicit, user-confirmed mapping layer over
+    the existing audited CSV, TSV, semicolon-TXT, and XLSX readers. Mapping is a frozen,
+    bounded, data-only JSON contract with exact label-plus-position column selectors,
+    mandatory RT/Area roles, explicit units, and explicit ignored columns. It does not
+    mutate global aliases, add a runtime adapter, change adapter API v1, infer scientific
+    meaning, or verify a vendor. Mapped inputs use SHA-derived public source identities;
+    the mapping path, filename, ignored values, and unselected header labels do not enter
+    workbook provenance. Explicitly mapped canonical values and optional user-supplied
+    manufacturer/software do enter the local workbook. Existing exact-profile adapters
+    retain automatic ownership and emit a fixed per-file warning when a supplied mapping
+    is therefore not applied. A selected mapped XLSX worksheet is recorded only as the
+    fixed `USER_SELECTED` option marker, not as its potentially identifying title. Details are in
+    [`../formats/explicit-peak-table-mapping.md`](../formats/explicit-peak-table-mapping.md).
 
 ## Public boundaries
 
-- `ordifile.api`: `inspect_file`, `inspect_inputs`, `list_formats`,
-  `get_format_report`, `convert`
+- `ordifile.api`: `inspect_file`, `inspect_inputs`, `preview_peak_table`,
+  `list_formats`, `get_format_report`, `convert`
 - `ordifile.core.models`: canonical immutable values, structured issues,
   `ProgressEvent`, `BatchOutcome`, and immutable `ConversionOptions`
+- `ordifile.core.peak_mapping`: strict data-only mapping, local preview value, and
+  deterministic mapping identity
 - `ordifile.adapters.base`: `FormatAdapter` protocol and descriptors
 - `ordifile.exporters.base`: exporter protocol
 - `ordifile.cli`: presentation and exit-code mapping only

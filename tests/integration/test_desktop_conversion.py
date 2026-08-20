@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
+from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
 from ordifile.api import convert
 from ordifile.core.models import BatchOutcome
 from ordifile.desktop.models import DesktopRequest
@@ -139,3 +140,43 @@ def test_desktop_conversion_requires_no_network(
 
     assert report.outcome is BatchOutcome.SUCCESS
     assert output.is_file()
+
+
+def test_desktop_explicit_mapping_matches_public_api_and_writes_order_matrix(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "neutral-result.csv"
+    source.write_text(
+        "Time coordinate,Integrated response,Unused note\n1.25,100,local\n2.5,250,local\n",
+        encoding="utf-8",
+    )
+    mapping = PeakTableMapping(
+        ColumnSelector("Time coordinate", 1),
+        ColumnSelector("Integrated response", 2),
+        "min",
+        PeakTableFormat.CSV,
+        area_unit="arbitrary",
+        ignored_columns=(ColumnSelector("Unused note", 3),),
+    )
+    desktop_output = tmp_path / "mapped-desktop.xlsx"
+    api_output = tmp_path / "mapped-api.xlsx"
+
+    desktop = convert_selection(
+        DesktopRequest(
+            (source,),
+            desktop_output,
+            "input_order",
+            mapping,
+        )
+    )
+    direct = convert(
+        (source,),
+        api_output,
+        sort="input_order",
+        peak_table_mapping=mapping,
+    )
+
+    assert desktop.outcome is BatchOutcome.SUCCESS
+    assert direct.success_count == 1
+    for sheet in ("Peaks", "Peak_Order_Matrix", "Metadata", "Import_Log"):
+        assert _sheet_values(desktop_output, sheet) == _sheet_values(api_output, sheet)

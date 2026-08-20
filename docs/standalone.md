@@ -170,6 +170,8 @@ then runs the packaged executable with `--standalone-smoke`. It verifies:
   adapters, including CP949 codec, exact synthetic YoungIn Result detection and the
   exact synthetic LECO dual-retention profile;
 - independent plain UTF-8 and UTF-8-BOM generic input handling;
+- a separate synthetic explicit RT/Area mapping JSON and mapped generic conversion,
+  without changing the adapter inventory or automatic-detection input count;
 - conversion using the same public API as CLI/GUI;
 - workbook reopen plus ordered equivalence for `Samples`, `Peak_Matrix`, `Peaks`,
   `Peak_Order_Matrix`, conditional `Peak_Order_Matrix_2D`, `Metadata` and `Import_Log`;

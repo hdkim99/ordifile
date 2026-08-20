@@ -20,8 +20,15 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile import __version__
 from ordifile.api import convert, get_format_report, inspect_inputs, list_formats
+from ordifile.core.peak_mapping import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+    load_peak_table_mapping,
+    save_peak_table_mapping,
+)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCIENTIFIC_SHEETS = (
     "Samples",
     "Peak_Matrix",
@@ -45,6 +52,8 @@ LECO_GCXGC_RESULT_NAME = "leco-gcxgc-result.txt"
 YOUNGIN_RAW_NAME = "youngin.prm"
 YOUNGIN_NAME = "youngin-result.csv"
 EXPECTED_NAME = "expected.json"
+MAPPED_NAME = "explicit-mapped.csv"
+MAPPING_NAME = "peak-mapping.json"
 CP949_PROBE_TEXT = "합성 보고서"
 GENERATED_INPUTS = (
     (
@@ -215,6 +224,21 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         raise ValueError("The synthetic XLSX generator has no supported callable.")
     generic_xlsx = output / GENERIC_XLSX_NAME
     generate_xlsx(generic_xlsx)
+    mapped_input = output / MAPPED_NAME
+    mapped_input.write_text(
+        "Peak,Declared RT,Declared Area,Note\n1,1.5,42,ignored\n2,2.75,84,ignored\n",
+        encoding="utf-8",
+        newline="",
+    )
+    mapping = PeakTableMapping(
+        retention_time_column=ColumnSelector("Declared RT", 2),
+        area_column=ColumnSelector("Declared Area", 3),
+        retention_time_unit="min",
+        source_format=PeakTableFormat.CSV,
+        peak_index_column=ColumnSelector("Peak", 1),
+        ignored_columns=(ColumnSelector("Note", 4),),
+    )
+    save_peak_table_mapping(mapping, output / MAPPING_NAME)
 
     generated_paths: list[Path] = []
     generated_expectations: dict[str, str] = {}
@@ -257,6 +281,11 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         if result.failure_count:
             raise ValueError("Synthetic smoke-kit conversion failed.")
         digest, sheets = semantic_digest(workbook)
+        mapped_workbook = Path(temporary) / "mapped-expected.xlsx"
+        mapped_result = convert(mapped_input, mapped_workbook, peak_table_mapping=mapping)
+        if mapped_result.failure_count:
+            raise ValueError("Synthetic mapped standalone conversion failed.")
+        mapped_digest, mapped_sheets = semantic_digest(mapped_workbook)
     expected = {
         "schema_version": SCHEMA_VERSION,
         "ordifile_version": __version__,
@@ -272,6 +301,14 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         "scientific_sheets": list(SCIENTIFIC_SHEETS),
         "workbook_sheets": list(sheets),
         "semantic_sha256": digest,
+        "mapped": {
+            "input_sha256": _sha256(mapped_input),
+            "mapping_file_sha256": _sha256(output / MAPPING_NAME),
+            "mapping_semantic_sha256": mapping.semantic_sha256,
+            "adapter_id": "generic_csv",
+            "scientific_sheets": list(mapped_sheets),
+            "semantic_sha256": mapped_digest,
+        },
     }
     _write_json(output / EXPECTED_NAME, expected)
 
@@ -327,6 +364,21 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
     adapter_ids = tuple(item.adapter_id for item in list_formats())
     if list(adapter_ids) != expected.get("adapter_ids"):
         raise ValueError("The packaged adapter inventory differs from the source expectation.")
+    mapped_expected = expected.get("mapped")
+    if type(mapped_expected) is not dict:
+        raise ValueError("The standalone mapped-input expectation is invalid.")
+    mapped_input = kit / MAPPED_NAME
+    mapping_path = kit / MAPPING_NAME
+    if (
+        not mapped_input.is_file()
+        or _sha256(mapped_input) != mapped_expected.get("input_sha256")
+        or not mapping_path.is_file()
+        or _sha256(mapping_path) != mapped_expected.get("mapping_file_sha256")
+    ):
+        raise ValueError("The standalone mapped-input kit failed its checksum.")
+    mapping = load_peak_table_mapping(mapping_path)
+    if mapping.semantic_sha256 != mapped_expected.get("mapping_semantic_sha256"):
+        raise ValueError("The standalone mapping semantic identity differs from the baseline.")
     inspected = inspect_inputs(tuple(paths), sort="input_order")
     detected = [item.adapter_id for item in inspected.files]
     if detected != expected_detection or inspected.failure_count:
@@ -351,6 +403,18 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         raise ValueError("The packaged workbook differs from the source semantic baseline.")
     if list(sheets) != expected.get("workbook_sheets"):
         raise ValueError("The packaged workbook sheet inventory differs from the baseline.")
+    with tempfile.TemporaryDirectory(prefix="ordifile-standalone-mapping-") as temporary:
+        mapped_output = Path(temporary) / "mapped.xlsx"
+        mapped_result = convert(mapped_input, mapped_output, peak_table_mapping=mapping)
+        if mapped_result.failure_count or tuple(
+            item.adapter_id for item in mapped_result.files
+        ) != (mapped_expected.get("adapter_id"),):
+            raise ValueError("The packaged runtime did not apply explicit peak mapping exactly.")
+        mapped_digest, mapped_sheets = semantic_digest(mapped_output)
+    if mapped_digest != mapped_expected.get("semantic_sha256") or list(
+        mapped_sheets
+    ) != mapped_expected.get("scientific_sheets"):
+        raise ValueError("The packaged mapped workbook differs from the source baseline.")
     _write_json(
         report_path,
         {
@@ -361,6 +425,7 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
             "detected_adapter_ids": detected,
             "scientific_sheets": list(SCIENTIFIC_SHEETS),
             "semantic_sha256": digest,
+            "mapped_semantic_sha256": mapped_digest,
             "existing_output_preserved": True,
         },
     )

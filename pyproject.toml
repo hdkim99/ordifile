@@ -77,6 +77,9 @@ include = [
   "/SECURITY.md",
   "/AGENTS.md",
 ]
+exclude = [
+  "/docs/**/* 2.md",
+]
 
 [tool.ruff]
 target-version = "py311"

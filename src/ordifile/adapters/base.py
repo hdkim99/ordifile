@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import ClassVar, Protocol, runtime_checkable
 
 from ordifile.core.models import DatasetBundle, SeriesKind
+from ordifile.core.peak_mapping import PeakTableMapping
 
 ADAPTER_API_VERSION = "1"
 
@@ -45,6 +46,7 @@ class ParseOptions:
 
     sheet: str | None = None
     include_hidden_sheets: bool = False
+    peak_table_mapping: PeakTableMapping | None = None
 
 
 @dataclass(frozen=True, slots=True)

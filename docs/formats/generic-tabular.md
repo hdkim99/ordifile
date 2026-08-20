@@ -126,3 +126,8 @@ workbook to verify the result.
 
 This support does not imply compatibility with every vendor's CSV or XLSX schema, and it is not
 support for proprietary raw acquisition containers.
+
+Tables with other clean headers can instead use [explicit peak-table
+mapping](explicit-peak-table-mapping.md). That mode requires the user to select RT and Area,
+classify every source column, and confirm units. It does not add aliases to this automatic
+schema and does not verify a vendor format.

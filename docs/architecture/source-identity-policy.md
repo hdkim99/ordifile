@@ -24,6 +24,13 @@ failure retains the conservative SHA alias. SHA-aliased results use their public
 reference for deterministic sorting; successful generic relative-path ordering is
 unchanged.
 
+Explicit user peak-table mapping is an opt-in exception to the ordinary generic default.
+Mapped tables may be direct vendor exports with identifying basenames or unused columns,
+so the mapping request applies `SHA256_ALIAS` before detection and keeps it after success.
+Only explicitly selected fields enter canonical output; explicitly ignored fields and
+their values are not copied to Metadata. An exact vendor adapter that already claims the
+content retains its automatic adapter ownership instead of being bypassed by mapping.
+
 When a `SHA256_ALIAS` adapter makes a positive content-ownership claim, detection
 considers only positively matched SHA-policy owners for selection and ambiguity.
 This rule is independent of confidence: a broader relative-path parser cannot win a
@@ -60,7 +67,8 @@ parsed bundle is exposed. The independent post-parse file hash remains a second 
 The core retains the real path only while it must read and protect the input. Public
 `inspect_file()` and `convert()` results replace `path`, `relative_path` and `name` for
 a SHA-aliased source with the same public reference, including nested sample sources.
-Generic results retain their original path provenance.
+Ordinary generic results retain their original path provenance; explicitly mapped generic
+results retain the SHA alias.
 
 The YoungIn YL-Clarity PRM raw adapter is the first opt-in user. Its owner-supplied
 fixtures can have privacy-bearing native basenames, while the full content hash already

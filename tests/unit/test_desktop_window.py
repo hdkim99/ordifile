@@ -17,6 +17,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication
 
+from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
@@ -157,6 +158,7 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.input_table.accessibleName() == "Detected input files"
     assert window.sort_combo.accessibleName() == "Sort method"
     assert window.convert_button.accessibleName() == "Convert selected inputs"
+    assert window.map_peaks_button.accessibleName() == "Map selected file peak columns"
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -164,6 +166,119 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     )
     assert not window.open_output_button.isEnabled()
     assert not window.convert_button.isEnabled()
+    window.close()
+
+
+def test_mapping_action_is_explicit_and_requires_one_supported_regular_file(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    csv = tmp_path / "result.csv"
+    csv.write_text("RT,Area\n1,2\n", encoding="utf-8")
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+
+    window.add_paths((csv,))
+    assert window.map_peaks_button.isEnabled()
+
+    window.add_paths((folder,))
+    window.selection_list.clearSelection()
+    window.selection_list.setCurrentRow(1)
+    assert not window.map_peaks_button.isEnabled()
+
+    window.selection_list.setCurrentRow(0)
+    assert window.map_peaks_button.isEnabled()
+    window.close()
+
+
+def test_window_loads_saves_and_clears_one_frozen_mapping(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    mapping_file = tmp_path / "mapping.json"
+    saved: list[tuple[PeakTableMapping, Path, bool]] = []
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getOpenFileName",
+        lambda *_args, **_kwargs: (str(mapping_file), ""),
+    )
+    monkeypatch.setattr("ordifile.desktop.window.load_mapping", lambda _path: mapping)
+
+    window._load_peak_mapping()
+
+    current_mapping = window.peak_table_mapping
+    assert current_mapping is mapping
+    assert window.save_mapping_button.isEnabled()
+    assert "user-supplied" in window.mapping_label.text()
+
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(mapping_file), ""),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.save_mapping",
+        lambda value, path, *, overwrite: saved.append((value, path, overwrite)),
+    )
+    window._save_peak_mapping()
+    assert saved == [(mapping, mapping_file, False)]
+
+    window._clear_peak_mapping()
+    assert window.peak_table_mapping is None
+    assert window.mapping_label.text().endswith("none")
+    window.close()
+
+
+def test_stale_preview_does_not_replace_rows_after_mapping_changes(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_text("RT,Area\n1,2\n", encoding="utf-8")
+    first = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    second = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "s",
+        PeakTableFormat.CSV,
+    )
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.add_paths((source,))
+    window._peak_table_mapping = first
+    window._preview_inputs = window.selected_paths
+    window._preview_mapping = first
+    window._peak_table_mapping = second
+    stale = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        files=(
+            DesktopFileReport(
+                "stale.csv",
+                "Generic CSV (Verified)",
+                "generic_csv",
+                DesktopInputStatus.SUCCESS,
+            ),
+        ),
+        success_count=1,
+    )
+
+    window._on_preview_complete(stale)
+
+    queued = window.input_table.item(0, 0)
+    assert queued is not None and queued.text() != "stale.csv"
     window.close()
 
 

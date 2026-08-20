@@ -13,6 +13,7 @@ from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -31,9 +32,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ordifile import PeakTableMapping
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import DesktopBatchReport, DesktopRequest, InputSelectionModel
-from ordifile.desktop.services import details_text, safe_display_name
+from ordifile.desktop.peak_mapping_dialog import PeakMappingDialog, formats_for_path
+from ordifile.desktop.services import (
+    details_text,
+    load_mapping,
+    presentation_error,
+    safe_display_name,
+    save_mapping,
+)
 from ordifile.desktop.workers import ConversionWorker, PreviewWorker
 
 SORT_OPTIONS = (
@@ -68,10 +77,12 @@ class MainWindow(QMainWindow):
         self._preview_thread: QThread | None = None
         self._preview_worker: PreviewWorker | None = None
         self._preview_inputs: tuple[Path, ...] | None = None
+        self._preview_mapping: PeakTableMapping | None = None
         self._preview_pending = False
         self._conversion_thread: QThread | None = None
         self._conversion_worker: ConversionWorker | None = None
         self._last_output: Path | None = None
+        self._peak_table_mapping: PeakTableMapping | None = None
 
         central = QWidget(self)
         root = QVBoxLayout(central)
@@ -111,6 +122,32 @@ class MainWindow(QMainWindow):
         selected_label.setBuddy(self.selection_list)
         root.addWidget(selected_label)
         root.addWidget(self.selection_list)
+
+        mapping_buttons = QHBoxLayout()
+        self.map_peaks_button = QPushButton("&Map Peak Columns…")
+        self.map_peaks_button.setAccessibleName("Map selected file peak columns")
+        self.map_peaks_button.setEnabled(False)
+        self.load_mapping_button = QPushButton("&Load Mapping…")
+        self.load_mapping_button.setAccessibleName("Load peak mapping JSON")
+        self.clear_mapping_button = QPushButton("Clear Mappin&g")
+        self.clear_mapping_button.setAccessibleName("Clear explicit peak mapping")
+        self.clear_mapping_button.setEnabled(False)
+        self.save_mapping_button = QPushButton("&Save Mapping…")
+        self.save_mapping_button.setAccessibleName("Save peak mapping JSON")
+        self.save_mapping_button.setEnabled(False)
+        for button in (
+            self.map_peaks_button,
+            self.load_mapping_button,
+            self.save_mapping_button,
+            self.clear_mapping_button,
+        ):
+            mapping_buttons.addWidget(button)
+        mapping_buttons.addStretch()
+        root.addLayout(mapping_buttons)
+        self.mapping_label = QLabel("Explicit peak mapping: none")
+        self.mapping_label.setAccessibleName("Explicit peak mapping status")
+        self.mapping_label.setWordWrap(True)
+        root.addWidget(self.mapping_label)
 
         detected_label = QLabel("&Detected files:")
         self.input_table = QTableWidget(0, 4)
@@ -185,6 +222,11 @@ class MainWindow(QMainWindow):
         self.add_folder_button.clicked.connect(self._choose_folder)
         self.remove_button.clicked.connect(self._remove_selected)
         self.clear_button.clicked.connect(self._clear_inputs)
+        self.map_peaks_button.clicked.connect(self._map_peak_columns)
+        self.load_mapping_button.clicked.connect(self._load_peak_mapping)
+        self.save_mapping_button.clicked.connect(self._save_peak_mapping)
+        self.clear_mapping_button.clicked.connect(self._clear_peak_mapping)
+        self.selection_list.itemSelectionChanged.connect(self._update_mapping_controls)
         self.output_button.clicked.connect(self._choose_output)
         self.convert_button.clicked.connect(self._start_conversion)
         self.open_output_button.clicked.connect(self._open_output)
@@ -192,7 +234,11 @@ class MainWindow(QMainWindow):
 
         self.setTabOrder(self.add_files_button, self.add_folder_button)
         self.setTabOrder(self.add_folder_button, self.selection_list)
-        self.setTabOrder(self.selection_list, self.remove_button)
+        self.setTabOrder(self.selection_list, self.map_peaks_button)
+        self.setTabOrder(self.map_peaks_button, self.load_mapping_button)
+        self.setTabOrder(self.load_mapping_button, self.save_mapping_button)
+        self.setTabOrder(self.save_mapping_button, self.clear_mapping_button)
+        self.setTabOrder(self.clear_mapping_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.input_table)
         self.setTabOrder(self.input_table, self.sort_combo)
@@ -205,6 +251,11 @@ class MainWindow(QMainWindow):
     def selected_paths(self) -> tuple[Path, ...]:
         """Expose immutable top-level selection for interface tests."""
         return self._selection.paths
+
+    @property
+    def peak_table_mapping(self) -> PeakTableMapping | None:
+        """Expose the immutable user-confirmed mapping for interface tests."""
+        return self._peak_table_mapping
 
     def add_paths(self, paths: Iterable[str | Path]) -> bool:
         """Add local files/folders and schedule authoritative public-API inspection."""
@@ -223,6 +274,102 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Added {len(result.added)} input(s){duplicate_note}.")
         self._request_preview()
         return True
+
+    def _mapping_source(self) -> Path | None:
+        rows = sorted({index.row() for index in self.selection_list.selectedIndexes()})
+        if not rows and len(self._selection.paths) == 1:
+            rows = [0]
+        if len(rows) != 1 or rows[0] >= len(self._selection.paths):
+            return None
+        source = self._selection.paths[rows[0]]
+        return (
+            source
+            if not source.is_symlink() and source.is_file() and formats_for_path(source)
+            else None
+        )
+
+    def _update_mapping_controls(self) -> None:
+        idle = self._conversion_thread is None
+        self.map_peaks_button.setEnabled(idle and self._mapping_source() is not None)
+        self.load_mapping_button.setEnabled(idle)
+        has_mapping = self._peak_table_mapping is not None
+        self.save_mapping_button.setEnabled(idle and has_mapping)
+        self.clear_mapping_button.setEnabled(idle and has_mapping)
+
+    def _set_peak_mapping(self, mapping: PeakTableMapping | None) -> None:
+        self._peak_table_mapping = mapping
+        if mapping is None:
+            self.mapping_label.setText("Explicit peak mapping: none")
+        else:
+            self.mapping_label.setText(
+                "Explicit peak mapping: user-supplied "
+                f"{mapping.source_format.value.upper()} mapping, "
+                f"schema {mapping.schema_version}."
+            )
+        self._update_mapping_controls()
+        self._request_preview()
+
+    def _map_peak_columns(self) -> None:
+        source = self._mapping_source()
+        if source is None:
+            self.status_label.setText(
+                "Select one regular CSV, TSV, TXT, or XLSX file to map its peak columns."
+            )
+            return
+        dialog = PeakMappingDialog(source, mapping=self._peak_table_mapping, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.mapping is not None:
+            self._set_peak_mapping(dialog.mapping)
+            self.status_label.setText(
+                "Explicit peak mapping applied. Column meanings remain user-declared."
+            )
+
+    def _load_peak_mapping(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Load peak mapping",
+            str(Path.home()),
+            "Peak mapping JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            mapping = load_mapping(Path(path))
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping load failed [{code}]: {message}")
+            return
+        self._set_peak_mapping(mapping)
+        self.status_label.setText("Explicit peak mapping loaded.")
+
+    def _save_peak_mapping(self) -> None:
+        if self._peak_table_mapping is None:
+            return
+        path, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Save peak mapping",
+            str(Path.cwd() / "peak-mapping.json"),
+            "Peak mapping JSON (*.json)",
+        )
+        if not path:
+            return
+        destination = Path(path)
+        if destination.suffix.casefold() != ".json":
+            destination = destination.with_suffix(".json")
+        try:
+            save_mapping(
+                self._peak_table_mapping,
+                destination,
+                overwrite=destination.exists(),
+            )
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Mapping save failed [{code}]: {message}")
+            return
+        self.status_label.setText("Explicit peak mapping saved.")
+
+    def _clear_peak_mapping(self) -> None:
+        self._set_peak_mapping(None)
+        self.status_label.setText("Explicit peak mapping cleared.")
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802 - Qt API
         """Accept local file/folder URLs only."""
@@ -289,6 +436,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Input list cleared.")
         self.details.setPlainText("No inputs selected.")
         self.convert_button.setEnabled(False)
+        self._update_mapping_controls()
 
     def _sort_value(self) -> str:
         value = self.sort_combo.currentData()
@@ -304,6 +452,7 @@ class MainWindow(QMainWindow):
             for column, value in enumerate(values):
                 self.input_table.setItem(row, column, QTableWidgetItem(value))
         self.convert_button.setEnabled(bool(self._selection.paths))
+        self._update_mapping_controls()
 
     def _render_report(self, report: DesktopBatchReport) -> None:
         self.input_table.setRowCount(len(report.files))
@@ -323,10 +472,15 @@ class MainWindow(QMainWindow):
             return
         self._preview_pending = False
         self._preview_inputs = self._selection.paths
+        self._preview_mapping = self._peak_table_mapping
         self.convert_button.setEnabled(False)
         self.status_label.setText("Inspecting selected inputs…")
         thread = QThread(self)
-        worker = PreviewWorker(self._selection.paths, self._sort_value())
+        worker = PreviewWorker(
+            self._selection.paths,
+            self._sort_value(),
+            self._peak_table_mapping,
+        )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(self._on_preview_progress)
@@ -346,7 +500,10 @@ class MainWindow(QMainWindow):
     def _on_preview_complete(self, report: object) -> None:
         if not isinstance(report, DesktopBatchReport):
             return
-        if self._preview_inputs != self._selection.paths:
+        if (
+            self._preview_inputs != self._selection.paths
+            or self._preview_mapping != self._peak_table_mapping
+        ):
             return
         if report.is_fatal_error:
             self.status_label.setText(
@@ -363,6 +520,7 @@ class MainWindow(QMainWindow):
         self._preview_thread = None
         self._preview_worker = None
         self._preview_inputs = None
+        self._preview_mapping = None
         self.convert_button.setEnabled(bool(self._selection.paths))
         if self._preview_pending:
             self._request_preview()
@@ -374,6 +532,7 @@ class MainWindow(QMainWindow):
             self._selection.paths,
             Path(self.output_edit.text()),
             self._sort_value(),
+            self._peak_table_mapping,
         )
         self._set_conversion_controls(False)
         self.open_output_button.setEnabled(False)
@@ -445,6 +604,7 @@ class MainWindow(QMainWindow):
         self._conversion_thread = None
         self._conversion_worker = None
         self._set_conversion_controls(True)
+        self._update_mapping_controls()
 
     def _set_conversion_controls(self, enabled: bool) -> None:
         for widget in (
@@ -452,6 +612,10 @@ class MainWindow(QMainWindow):
             self.add_folder_button,
             self.remove_button,
             self.clear_button,
+            self.map_peaks_button,
+            self.load_mapping_button,
+            self.save_mapping_button,
+            self.clear_mapping_button,
             self.selection_list,
             self.input_table,
             self.sort_combo,

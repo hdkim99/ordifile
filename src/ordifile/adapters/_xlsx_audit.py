@@ -820,6 +820,7 @@ def _audit_worksheet_stream(
     shared_strings: tuple[str, ...],
     style_count: int,
     capture_cells: bool,
+    capture_max_row: int | None = None,
 ) -> WorksheetAudit:
     dimension: str | None = None
     dimension_count = 0
@@ -1077,7 +1078,9 @@ def _audit_worksheet_stream(
                             shared_strings=shared_strings,
                             style_count=style_count,
                         )
-                        if capture_cells:
+                        if capture_cells and (
+                            capture_max_row is None or raw_cell.row <= capture_max_row
+                        ):
                             raw_cells.append(raw_cell)
                         current_cell = None
                     elif semantic == "row" and current_row is not None:
@@ -1346,9 +1349,17 @@ def audit_xlsx_package(path: Path, limits: XlsxAuditLimits) -> XlsxPackageAudit:
 
 
 def capture_worksheet_cells(
-    path: Path, package: XlsxPackageAudit, sheet: SheetPart
+    path: Path,
+    package: XlsxPackageAudit,
+    sheet: SheetPart,
+    *,
+    capture_max_row: int | None = None,
 ) -> WorksheetAudit:
     """Re-audit and capture raw cells for only the selected bounded worksheet."""
+    if capture_max_row is not None and (type(capture_max_row) is not int or capture_max_row < 1):
+        raise ParseError(
+            "XLSX_CAPTURE_LIMIT_INVALID", "capture_max_row must be a positive integer."
+        )
     try:
         with zipfile.ZipFile(path) as archive:
             captured = _audit_worksheet_stream(
@@ -1357,6 +1368,7 @@ def capture_worksheet_cells(
                 shared_strings=package.shared_strings,
                 style_count=package.style_count,
                 capture_cells=True,
+                capture_max_row=capture_max_row,
             )
     except (OSError, zipfile.BadZipFile) as error:
         raise ParseError(
