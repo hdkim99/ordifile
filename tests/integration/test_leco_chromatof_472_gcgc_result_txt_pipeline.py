@@ -70,7 +70,7 @@ def test_result_only_workbook_preserves_dual_rt_area_height_and_extra_metadata(
     result = convert(source, output)
 
     assert result.failure_count == 0
-    workbook = load_workbook(output, read_only=True, data_only=False)
+    workbook = load_workbook(output, read_only=False, data_only=False)
     try:
         peaks = tuple(workbook["Peaks"].values)
         headers = peaks[0]
@@ -104,6 +104,8 @@ def test_result_only_workbook_preserves_dual_rt_area_height_and_extra_metadata(
             "s",
             "AU",
         )
+        assert workbook["Peak_Order_Matrix_2D"].freeze_panes == "I2"
+        assert workbook["Peak_Order_Matrix_2D"].auto_filter.ref == "A1:H2"
         assert order[1][8:] == (
             120,
             0.45,

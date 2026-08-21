@@ -287,6 +287,16 @@ to the workbook layout.
     decode and validate bounded numeric source syntax. Neither path constructs or retains
     canonical rows. Executable plans reject overwrite authorization and require a new target;
     direct conversion retains the existing explicit-overwrite contract.
+46. Researcher workbook usability is improved in the existing typed sheets rather than by
+    duplicating them in a new Overview or Run Summary. `Manifest` remains the first audit tab,
+    while `Samples` is the active sheet when the workbook opens. Static presentation rules add
+    bounded schema-based widths, a literal header style, frozen identity columns, and filters
+    only on useful identity/table ranges. Scientific numeric cells retain `General`; no value,
+    unit, dimension, or processing provenance is inferred or reformatted. A shared frozen
+    count-only result summary supplies Manifest, CLI, and desktop completion messages. It
+    excludes identifiers and scientific values. Revalidated-plan conversions add only the plan
+    schema and public summary SHA-256 to Manifest; direct conversions record `DIRECT`, and no
+    plan JSON or private binding is embedded.
 
 ## Public boundaries
 

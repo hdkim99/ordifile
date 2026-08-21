@@ -34,6 +34,10 @@ def test_required_workbook_structure_hashes_and_natural_order(tmp_path: Path) ->
         assert "labconvert_version" not in manifest
         assert manifest["original_modified"] == "No"
         assert manifest["sort_effective"] == "filename"
+        assert manifest["result_summary_schema_version"] == 1
+        assert manifest["sample_record_count"] == 3
+        assert manifest["peak_record_count"] == 6
+        assert manifest["execution_mode"] == "DIRECT"
     finally:
         workbook.close()
 

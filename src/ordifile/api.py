@@ -24,6 +24,7 @@ from ordifile.core.discovery import paths_alias, sha256_file
 from ordifile.core.errors import ExportError, OrdifileError
 from ordifile.core.models import (
     BatchResult,
+    ConversionExecutionMode,
     ConversionOptions,
     DatasetBundle,
     FileResult,
@@ -537,6 +538,8 @@ def _convert_impl(
     expected_routes: tuple[InputRouteExpectation | None, ...] | None = None,
     expected_registry_signature: tuple[tuple[str, str, str], ...] | None = None,
     expected_output_binding: object | None = None,
+    conversion_plan_schema_version: int | None = None,
+    conversion_plan_public_summary_sha256: str | None = None,
 ) -> BatchResult:
     """Batch-convert inputs into one ordered Excel workbook."""
     _require_bool("recursive", recursive)
@@ -685,6 +688,13 @@ def _convert_impl(
             peak_table_mapping_set_profile_count=(
                 len(peak_table_mapping_set.profiles) if peak_table_mapping_set is not None else None
             ),
+            execution_mode=(
+                ConversionExecutionMode.REVALIDATED_PREFLIGHT
+                if conversion_plan_public_summary_sha256 is not None
+                else ConversionExecutionMode.DIRECT
+            ),
+            conversion_plan_schema_version=conversion_plan_schema_version,
+            conversion_plan_public_summary_sha256=conversion_plan_public_summary_sha256,
         ),
     )
     if progress is not None:
@@ -868,6 +878,8 @@ def convert_plan(
             expected_routes=expected_routes,
             expected_registry_signature=fresh_bindings.registry_signature,
             expected_output_binding=fresh_bindings.output_snapshot,
+            conversion_plan_schema_version=plan.schema_version,
+            conversion_plan_public_summary_sha256=plan.public_summary_sha256,
         )
     except ExportError as error:
         if error.code in {

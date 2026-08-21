@@ -19,6 +19,7 @@ from ordifile import (
     PeakTableMapping,
     PeakTableMappingSet,
     PlanProgressEvent,
+    summarize_conversion,
 )
 from ordifile import api as _ordifile_api
 from ordifile.core.models import BatchOutcome, BatchResult, FileStatus, ProgressEvent, Severity
@@ -192,6 +193,7 @@ def _report(
         failure_count=result.failure_count,
         duplicate_count=result.duplicate_count,
         output_path=result.output_path,
+        summary=summarize_conversion(result),
     )
 
 

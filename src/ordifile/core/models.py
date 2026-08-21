@@ -53,6 +53,13 @@ class BatchOutcome(StrEnum):
     FAILED = "failed"
 
 
+class ConversionExecutionMode(StrEnum):
+    """How the final conversion request reached the existing converter."""
+
+    DIRECT = "DIRECT"
+    REVALIDATED_PREFLIGHT = "REVALIDATED_PREFLIGHT"
+
+
 class SortMode(StrEnum):
     """Supported batch ordering modes."""
 
@@ -264,6 +271,9 @@ class ConversionOptions:
     peak_table_mapping_set_schema_version: int | None = None
     peak_table_mapping_set_fingerprint: str | None = None
     peak_table_mapping_set_profile_count: int | None = None
+    execution_mode: ConversionExecutionMode = ConversionExecutionMode.DIRECT
+    conversion_plan_schema_version: int | None = None
+    conversion_plan_public_summary_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

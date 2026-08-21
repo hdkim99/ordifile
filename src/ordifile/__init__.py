@@ -4,6 +4,7 @@
 """Public package for Ordifile."""
 
 from ordifile._version import __version__
+from ordifile.core.models import ConversionExecutionMode
 from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakMappingDriftCategory,
@@ -30,9 +31,15 @@ from ordifile.core.planning import (
     ConversionPlanSummary,
     PlanProgressEvent,
 )
+from ordifile.core.summary import (
+    CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION,
+    ConversionResultSummary,
+    summarize_conversion,
+)
 
 __all__ = [
     "ColumnSelector",
+    "CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION",
     "ConversionPlan",
     "ConversionPlanEntry",
     "ConversionPlanEntryStatus",
@@ -41,6 +48,8 @@ __all__ = [
     "ConversionPlanReadiness",
     "ConversionPlanRoute",
     "ConversionPlanSummary",
+    "ConversionExecutionMode",
+    "ConversionResultSummary",
     "PeakMappingDriftCategory",
     "PeakMappingDriftDiagnostic",
     "PeakTableFormat",
@@ -55,4 +64,5 @@ __all__ = [
     "load_peak_table_mapping_set",
     "save_peak_table_mapping",
     "save_peak_table_mapping_set",
+    "summarize_conversion",
 ]

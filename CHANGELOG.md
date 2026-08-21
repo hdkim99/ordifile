@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Researcher-oriented workbook presentation without a duplicate summary sheet: `Samples`
+  opens as the active tab, existing typed sheets gain deterministic frozen identity columns,
+  bounded widths, header styling, and useful filters, while numeric scientific cells retain
+  their original values and `General` display. A count-only post-conversion summary is shared
+  by Manifest, CLI, and desktop completion messages, and revalidated preflight execution can
+  be linked by its public plan-summary SHA-256.
 - Deterministic route-only conversion preflight through an immutable same-process
   `ConversionPlan`, public `plan_conversion()` / `convert_plan()` APIs, CLI
   `convert --dry-run`, and the desktop background workflow. Reviewed plans revalidate

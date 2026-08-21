@@ -177,6 +177,12 @@ def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_convers
         assert "Peak_Order_Matrix_2D" in workbook.sheetnames
         assert "Metadata" in workbook.sheetnames
         assert "Import_Log" in workbook.sheetnames
+        manifest = dict(
+            (row[0], row[1]) for row in workbook["Manifest"].iter_rows(values_only=True)
+        )
+        assert manifest["execution_mode"] == "REVALIDATED_PREFLIGHT"
+        assert manifest["conversion_plan_schema_version"] == plan.schema_version
+        assert manifest["conversion_plan_public_summary_sha256"] == plan.public_summary_sha256
     finally:
         workbook.close()
 

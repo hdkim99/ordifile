@@ -345,6 +345,15 @@ fallback합니다. 명시적 모드는 `acquired_at`, `sequence`, `filename`,
 | `Signals_<channel>` | 실제 파싱되고 요청된 경우에만 원본 비보간 x/y 값 |
 | `Signals_Records_<channel>` | retention-time signal이 아닌 Experimental 구조 decoded record |
 
+Workbook은 `Manifest`를 첫 audit tab으로 유지하지만 연구자 진입점인 `Samples`를
+처음 표시합니다. Header는 고정 style을 사용하고, scroll 중 identity 열을 고정하며,
+관련 long-form sheet에는 filter를 적용합니다. 열 너비는 private value를 scan하지 않는
+bounded schema 규칙으로 정합니다. Scientific numeric cell은 Excel `General` 표시를
+유지하므로 RT, Area, Height를 반올림하거나 정규화하지 않습니다. Manifest에는
+sample/peak/series의 count-only 완료 요약도 기록합니다. Revalidated preflight에서 실행된
+conversion은 plan schema와 public plan-summary SHA-256만 기록하며 plan 자체는 포함하지
+않습니다.
+
 Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로 나눕니다. 데이터를
 조용히 자르지 않습니다. Workbook 저장이 실용적이지 않으면
 `--sheet-mode sidecar-csv`로 명시적 CSV sidecar를 만들 수 있으며 Manifest에 상대경로,
@@ -355,6 +364,7 @@ Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로
 CLI와 향후 인터페이스는 같은 공개 API를 사용합니다.
 
 ```python
+from ordifile import summarize_conversion
 from ordifile.api import convert, inspect_file, inspect_inputs, list_formats
 
 inspection = inspect_file("sample.csv")
@@ -365,14 +375,19 @@ result = convert(
     sort="auto",
     include_signals=False,
 )
+completion = summarize_conversion(result)
 
 print(preview.outcome, result.success_count, result.failure_count, result.sort.effective)
+print(completion.converted_sources, completion.sample_records, completion.peak_records)
 ```
 
 `inspect_inputs()`는 output을 쓰지 않고 동일한 bounded discovery, detection, parsing,
 validation, sorting을 수행합니다. `convert()`는 stale data를 승인하지 않도록 입력을 다시
 읽고 검증하며, 폴더, 재귀 탐색, 확장자 필터, 명시적 adapter·XLSX sheet, 오류 정책,
 덮어쓰기, CSV sidecar, UI와 독립적인 progress callback도 지원합니다.
+`summarize_conversion()`은 Manifest, CLI, desktop이 함께 사용하는 동일한 frozen
+count-only canonical 완료 요약을 반환하며 source 식별자나 scientific value를 포함하지
+않습니다.
 
 ## Adapter 추가
 
