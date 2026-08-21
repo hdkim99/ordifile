@@ -14,9 +14,10 @@ from typing import Never
 
 from ordifile import __version__
 from ordifile.adapters.base import SupportStatus
-from ordifile.api import convert, get_format_report, inspect_file
+from ordifile.api import convert, get_format_report, inspect_file, plan_conversion
 from ordifile.core.models import BatchOutcome, SeriesKind
 from ordifile.core.peak_mapping import load_peak_table_mapping, load_peak_table_mapping_set
+from ordifile.core.planning import ConversionPlanReadiness
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -26,6 +27,8 @@ EXIT_INTERRUPTED = 130
 _CONFIGURATION_ERROR_CODES = frozenset(
     {
         "ADAPTER_NOT_FOUND",
+        "CONVERSION_PLAN_OVERWRITE_UNSUPPORTED",
+        "CONVERSION_PLAN_TOO_LARGE",
         "NO_INPUTS",
         "ON_ERROR_INVALID",
         "OUTPUT_DIRECTORY_MISSING",
@@ -211,6 +214,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--overwrite",
         action="store_true",
         help="Replace an existing output workbook. Inputs are never overwritten.",
+    )
+    convert_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build and print a route-only conversion plan without creating a workbook.",
     )
     _add_parse_options(convert_parser)
     return parser
@@ -433,6 +441,64 @@ def _run_convert(args: argparse.Namespace) -> int:
     mapping_set = (
         load_peak_table_mapping_set(args.peak_mapping_set) if args.peak_mapping_set else None
     )
+
+    if args.dry_run:
+        plan = plan_conversion(
+            args.inputs,
+            args.output,
+            recursive=args.recursive,
+            extensions=args.extension,
+            sort=args.sort,
+            include_signals=args.include_signals,
+            adapter=args.adapter,
+            sheet=args.sheet,
+            include_hidden_sheets=args.include_hidden_sheets,
+            peak_table_mapping=mapping,
+            peak_table_mapping_set=mapping_set,
+            on_error=args.on_error,
+            overwrite=args.overwrite,
+            sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
+        )
+        summary = plan.summary
+        print("Dry run: no workbook or sidecar was created.")
+        print(f"Plan schema: {plan.schema_version}")
+        print(f"Public plan-summary SHA-256: {_terminal_safe(plan.public_summary_sha256)}")
+        print(f"Readiness: {_terminal_safe(plan.readiness.value)}")
+        print(f"Inputs: {summary.total_inputs}")
+        print(f"Routable: {summary.routable}")
+        print(f"Exact adapter: {summary.exact_adapters}")
+        print(f"User mapping: {summary.user_mappings}")
+        print(f"Mapping profile: {summary.mapping_profiles}")
+        print(f"Generic input: {summary.generic_inputs}")
+        print(f"Schema drift: {summary.drifted}")
+        print(f"Unmapped: {summary.unmapped}")
+        print(f"Ambiguous: {summary.ambiguous}")
+        print(f"Unsupported: {summary.unsupported}")
+        print(f"Malformed: {summary.malformed}")
+        print(f"Failed: {summary.failed}")
+        print(f"Duplicates: {summary.duplicates}")
+        print(f"Output precheck: {_terminal_safe(plan.output_disposition.value)}")
+        if plan.output_issue_code is not None:
+            print(f"Output issue: {_terminal_safe(plan.output_issue_code)}")
+        print("Sort result: deferred until scientific parsing.")
+        print("Workbook sheets and sidecars: deferred until export planning.")
+        if args.verbose:
+            print("Planned routes:")
+            for entry in plan.entries:
+                codes = ",".join(entry.issue_codes) or "none"
+                print(
+                    f"- {_terminal_safe(entry.source_id)}: "
+                    f"status={_terminal_safe(entry.status.value)}; "
+                    f"route={_terminal_safe(entry.route.value)}; "
+                    f"problem={_terminal_safe(entry.problem.value)}; "
+                    f"adapter={_terminal_safe(entry.adapter_id or 'none')}; "
+                    f"codes={_terminal_safe(codes)}"
+                )
+        if plan.readiness is ConversionPlanReadiness.BLOCKED:
+            return EXIT_FAILURE
+        if plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES:
+            return EXIT_PARTIAL_SUCCESS
+        return EXIT_SUCCESS
 
     def print_progress(event: object) -> None:
         stage = getattr(event, "stage", None)

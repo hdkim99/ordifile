@@ -53,6 +53,7 @@ def test_public_smoke_kit_round_trips_generic_and_cp949_youngin(tmp_path: Path) 
     assert evidence["existing_output_preserved"] is True
     assert evidence["mapping_drift_diagnostic"] == "PASS"
     assert evidence["mapping_repair_clone"] == "PASS"
+    assert evidence["conversion_preflight"] == "PASS"
     assert evidence["detected_adapter_ids"] == [
         expected["inputs"][name]["adapter_id"] for name in expected["input_order"]
     ]

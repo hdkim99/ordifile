@@ -9,14 +9,18 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
+from ordifile import ConversionPlan, PeakTableFormat
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopPeakTablePreviewReport,
     DesktopRequest,
 )
-from ordifile.desktop.services import convert_selection, inspect_selection, preview_peak_table
+from ordifile.desktop.services import (
+    convert_preflight_plan,
+    preflight_selection,
+    preview_peak_table,
+)
 
 
 def _unexpected_worker_failure() -> DesktopBatchReport:
@@ -37,33 +41,19 @@ class PreviewWorker(QObject):
 
     def __init__(
         self,
-        inputs: tuple[Path, ...],
-        sort: str,
-        peak_table_mapping: PeakTableMapping | None = None,
-        peak_table_mapping_set: PeakTableMappingSet | None = None,
+        request: DesktopRequest,
     ) -> None:
         super().__init__()
-        self._inputs = inputs
-        self._sort = sort
-        self._peak_table_mapping = peak_table_mapping
-        self._peak_table_mapping_set = peak_table_mapping_set
+        self._request = request
 
-    def _emit_progress(self, event: ProgressEvent) -> None:
+    def _emit_progress(self, event: object) -> None:
         self.progress.emit(event)
 
     @Slot()
     def run(self) -> None:
         """Inspect the immutable request and always release the worker thread."""
         try:
-            self.completed.emit(
-                inspect_selection(
-                    self._inputs,
-                    sort=self._sort,
-                    peak_table_mapping=self._peak_table_mapping,
-                    peak_table_mapping_set=self._peak_table_mapping_set,
-                    progress=self._emit_progress,
-                )
-            )
+            self.completed.emit(preflight_selection(self._request, progress=self._emit_progress))
         except BaseException:
             self.completed.emit(_unexpected_worker_failure())
         finally:
@@ -112,9 +102,9 @@ class ConversionWorker(QObject):
     completed = Signal(object)
     finished = Signal()
 
-    def __init__(self, request: DesktopRequest) -> None:
+    def __init__(self, plan: ConversionPlan) -> None:
         super().__init__()
-        self._request = request
+        self._plan = plan
 
     def _emit_progress(self, event: ProgressEvent) -> None:
         self.progress.emit(event)
@@ -123,7 +113,7 @@ class ConversionWorker(QObject):
     def run(self) -> None:
         """Convert the immutable request and always release the worker thread."""
         try:
-            self.completed.emit(convert_selection(self._request, progress=self._emit_progress))
+            self.completed.emit(convert_preflight_plan(self._plan, progress=self._emit_progress))
         except BaseException:
             self.completed.emit(_unexpected_worker_failure())
         finally:

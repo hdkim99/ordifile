@@ -6,9 +6,13 @@
 from __future__ import annotations
 
 import csv
+import ctypes
+import errno
 import math
 import os
+import platform
 import re
+import stat
 import tempfile
 import unicodedata
 from collections import defaultdict
@@ -151,6 +155,40 @@ def _validate_output_path(output: Path) -> None:
 def _assert_artifact_is_not_input(artifact: Path, inputs: tuple[Path, ...], *, code: str) -> None:
     if any(paths_alias(artifact, input_path) for input_path in inputs):
         raise ExportError(code, f"Output artifact {artifact.name!r} aliases an input file.")
+
+
+def validate_primary_output_target(
+    output: Path,
+    protected_inputs: tuple[Path, ...],
+    *,
+    overwrite: bool,
+) -> None:
+    """Perform the shared read-only checks available before workbook planning."""
+    output = Path(output)
+    if not output.parent.exists() or not output.parent.is_dir():
+        raise ExportError("OUTPUT_DIRECTORY_MISSING", "The output directory does not exist.")
+    if os.name != "nt":
+        try:
+            parent_state = os.stat(output.parent, follow_symlinks=True)
+        except OSError as error:
+            raise ExportError(
+                "OUTPUT_DIRECTORY_UNAVAILABLE",
+                "The output directory could not be inspected safely.",
+            ) from error
+        shared_write = parent_state.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+        sticky = parent_state.st_mode & stat.S_ISVTX
+        if shared_write and not sticky:
+            raise ExportError(
+                "OUTPUT_DIRECTORY_UNSAFE",
+                "The output directory permits untrusted entry replacement; use a private "
+                "or sticky directory.",
+            )
+    _assert_artifact_is_not_input(output, protected_inputs, code="OUTPUT_IS_INPUT")
+    _validate_output_path(output)
+    if output.exists() and not overwrite:
+        raise ExportError(
+            "OUTPUT_EXISTS", "Output already exists; pass overwrite=True to replace it."
+        )
 
 
 def _successful(item: FileResult) -> bool:
@@ -790,15 +828,28 @@ def _sidecar_final_path(dataset: _SheetData, output: Path, index: int) -> Path:
     return output.with_name(f"{output.stem}_{safe_name}_{index:03d}.csv")
 
 
-def _write_sidecar_temp(dataset: _SheetData, final: Path) -> tuple[Path, Path, SidecarRecord]:
+def _write_sidecar_temp(
+    dataset: _SheetData,
+    final: Path,
+    *,
+    temporary_directory: Path | None = None,
+    owned_files: dict[str, tuple[int, int]] | None = None,
+) -> tuple[Path, Path, SidecarRecord]:
     safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", dataset.logical_name).strip("_") or "data"
     descriptor, raw_temp = tempfile.mkstemp(
-        prefix=f".ordifile_{safe_name}_", suffix=".csv.tmp", dir=final.parent
+        prefix=f".ordifile_{safe_name}_",
+        suffix=".csv.tmp",
+        dir=temporary_directory or final.parent,
     )
-    os.close(descriptor)
+    temporary_stat = os.fstat(descriptor)
+    if owned_files is not None:
+        owned_files[Path(raw_temp).name] = (
+            temporary_stat.st_dev,
+            temporary_stat.st_ino,
+        )
     temporary = Path(raw_temp)
     try:
-        with temporary.open("w", encoding="utf-8", newline="") as stream:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
             writer = csv.writer(stream)
             escape_count = 0
             safe_headers = []
@@ -822,7 +873,8 @@ def _write_sidecar_temp(dataset: _SheetData, final: Path) -> tuple[Path, Path, S
         )
         return temporary, final, record
     except BaseException:
-        temporary.unlink(missing_ok=True)
+        if owned_files is None:
+            temporary.unlink(missing_ok=True)
         raise
 
 
@@ -1060,13 +1112,197 @@ def _backup_path(final: Path) -> Path:
     return backup
 
 
+def _raise_rename_error(result: int, source: Path, destination: Path) -> None:
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number == errno.EEXIST:
+        raise FileExistsError(error_number, os.strerror(error_number), destination)
+    raise OSError(
+        error_number,
+        os.strerror(error_number),
+        f"{source!s} -> {destination!s}",
+    )
+
+
+def _rename_no_replace(source: Path, destination: Path) -> None:
+    """Atomically consume ``source`` without replacing ``destination``."""
+    if os.name == "nt":  # pragma: no cover - exercised by Windows CI
+        os.rename(source, destination)
+        return
+
+    library = ctypes.CDLL(None, use_errno=True)
+    encoded_source = os.fsencode(source)
+    encoded_destination = os.fsencode(destination)
+    current_platform = platform.system()
+    if current_platform == "Darwin":  # pragma: no branch - platform-specific
+        rename_exclusive = library.renamex_np
+        rename_exclusive.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename_exclusive.restype = ctypes.c_int
+        _raise_rename_error(
+            rename_exclusive(encoded_source, encoded_destination, 0x00000004),
+            source,
+            destination,
+        )
+        return
+    if current_platform == "Linux":  # pragma: no cover - exercised by Linux CI
+        try:
+            rename_exclusive = library.renameat2
+        except AttributeError as error:
+            raise OSError(
+                errno.ENOTSUP,
+                "Atomic no-replace publication is unavailable on this platform.",
+            ) from error
+        rename_exclusive.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        rename_exclusive.restype = ctypes.c_int
+        _raise_rename_error(
+            rename_exclusive(-100, encoded_source, -100, encoded_destination, 1),
+            source,
+            destination,
+        )
+        return
+    raise OSError(
+        errno.ENOTSUP,
+        "Atomic no-replace publication is unavailable on this platform.",
+    )
+
+
+def _open_private_transaction_directory(
+    parent: Path,
+) -> tuple[Path, int | None, tuple[int, int]]:
+    directory = Path(tempfile.mkdtemp(prefix=".ordifile_transaction_", dir=parent))
+    if os.name == "nt":  # pragma: no cover - exercised by Windows CI
+        created = os.lstat(directory)
+        return directory, None, (created.st_dev, created.st_ino)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(directory, flags)
+    except BaseException:
+        directory.rmdir()
+        raise
+    created = os.fstat(descriptor)
+    return directory, descriptor, (created.st_dev, created.st_ino)
+
+
+def _cleanup_private_transaction_directory(
+    directory: Path,
+    descriptor: int | None,
+    directory_identity: tuple[int, int],
+    owned_files: dict[str, tuple[int, int]],
+) -> None:
+    """Remove only proven owned files, never recursively delete a replaced path."""
+    try:
+        for name, identity in owned_files.items():
+            if identity[1] == 0:
+                continue
+            try:
+                if descriptor is None:  # pragma: no cover - exercised by Windows CI
+                    current = os.lstat(directory / name)
+                else:
+                    current = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(current.st_mode)
+                    or (
+                        current.st_dev,
+                        current.st_ino,
+                    )
+                    != identity
+                ):
+                    continue
+                if descriptor is None:  # pragma: no cover - exercised by Windows CI
+                    os.unlink(directory / name)
+                else:
+                    os.unlink(name, dir_fd=descriptor)
+            except OSError:
+                continue
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    if directory_identity[1] == 0:
+        return
+    try:
+        current_directory = os.lstat(directory)
+        if (
+            not stat.S_ISDIR(current_directory.st_mode)
+            or (
+                current_directory.st_dev,
+                current_directory.st_ino,
+            )
+            != directory_identity
+        ):
+            return
+        # This is intentionally non-recursive. A non-empty directory is preserved,
+        # and the owned contents were cleaned through the open descriptor above.
+        directory.rmdir()
+    except OSError:
+        return
+
+
 def _finalize_transaction(
     artifacts: tuple[tuple[Path, Path, str], ...],
     *,
     overwrite: bool,
     protected_inputs: tuple[Path, ...],
+    temporary_identities: dict[str, tuple[int, int]],
 ) -> None:
-    """Atomically promote a set of files, restoring every prior target on failure."""
+    """Promote artifacts without clobbering and restore replaced prior targets on failure."""
+
+    def assert_owned_temporary(temporary: Path) -> None:
+        expected = temporary_identities.get(temporary.name)
+        try:
+            current = os.lstat(temporary)
+        except OSError as error:
+            raise ExportError(
+                "OUTPUT_TEMP_CHANGED",
+                "A private output temporary changed before finalization.",
+            ) from error
+        if (
+            expected is None
+            or expected[1] == 0
+            or not stat.S_ISREG(current.st_mode)
+            or (current.st_dev, current.st_ino) != expected
+        ):
+            raise ExportError(
+                "OUTPUT_TEMP_CHANGED",
+                "A private output temporary changed before finalization.",
+            )
+
+    if not overwrite:
+        # A native exclusive rename consumes each private temporary without a
+        # path-level cleanup window and never replaces a late foreign destination.
+        # Independent final names cannot be committed as one filesystem transaction.
+        # If a later artifact collides, earlier Ordifile publications are deliberately
+        # left in place: deleting them by name could delete a concurrently exchanged
+        # foreign file.
+        published = 0
+        try:
+            for temporary, final, alias_code in artifacts:
+                _assert_artifact_is_not_input(final, protected_inputs, code=alias_code)
+                assert_owned_temporary(temporary)
+                _rename_no_replace(temporary, final)
+                published += 1
+        except FileExistsError as error:
+            code = "OUTPUT_TRANSACTION_INCOMPLETE" if published else "OUTPUT_COLLISION"
+            raise ExportError(
+                code,
+                "An output artifact appeared during finalization; no existing artifact "
+                "was replaced.",
+            ) from error
+        except OSError as error:
+            code = "OUTPUT_TRANSACTION_INCOMPLETE" if published else "OUTPUT_FINALIZATION_FAILED"
+            raise ExportError(
+                code,
+                "Output artifacts could not be published without replacing an existing "
+                "filesystem entry.",
+            ) from error
+        return
+
     backups: list[tuple[Path, Path]] = []
     finalized: list[Path] = []
     try:
@@ -1083,6 +1319,7 @@ def _finalize_transaction(
                 os.replace(final, backup)
         for temporary, final, alias_code in artifacts:
             _assert_artifact_is_not_input(final, protected_inputs, code=alias_code)
+            assert_owned_temporary(temporary)
             os.replace(temporary, final)
             finalized.append(final)
     except BaseException:
@@ -1157,19 +1394,12 @@ class ExcelExporter:
         output = Path(output)
         if sidecar_mode not in {"error", "csv"}:
             raise ExportError("SIDECAR_MODE_INVALID", "sidecar_mode must be 'error' or 'csv'.")
-        if not output.parent.exists():
-            raise ExportError("OUTPUT_DIRECTORY_MISSING", "The output directory does not exist.")
         protected_inputs = tuple(
             item.source.path
             for item in result.files
             if not any(issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in item.issues)
         )
-        _assert_artifact_is_not_input(output, protected_inputs, code="OUTPUT_IS_INPUT")
-        _validate_output_path(output)
-        if output.exists() and not overwrite:
-            raise ExportError(
-                "OUTPUT_EXISTS", "Output already exists; pass overwrite=True to replace it."
-            )
+        validate_primary_output_target(output, protected_inputs, overwrite=overwrite)
 
         peak_order_matrix = _peak_order_matrix_data(result)
         peak_order_matrix_2d = _peak_order_matrix_2d_data(result)
@@ -1244,9 +1474,19 @@ class ExcelExporter:
                     elif value is not None and not isinstance(value, (int, float, bool)):
                         formula_like += int(_cell_text(value).startswith(_FORMULA_PREFIXES))
         temporary: Path | None = None
+        transaction_directory, transaction_descriptor, transaction_identity = (
+            _open_private_transaction_directory(output.parent)
+        )
+        owned_temporaries: dict[str, tuple[int, int]] = {}
         try:
             for dataset, final in zip(sidecar_datasets, sidecar_finals, strict=True):
-                sidecar_temps.append(_write_sidecar_temp(dataset, final))
+                sidecar_temporary = _write_sidecar_temp(
+                    dataset,
+                    final,
+                    temporary_directory=transaction_directory,
+                    owned_files=owned_temporaries,
+                )
+                sidecar_temps.append(sidecar_temporary)
             sidecars = tuple(item[2] for item in sidecar_temps)
             physical_names = ("Manifest", *(sheet.name for sheet in planned_without_manifest))
             manifest = _manifest_data(
@@ -1263,23 +1503,31 @@ class ExcelExporter:
             _check_cells(physical)
 
             descriptor, raw_temp = tempfile.mkstemp(
-                prefix=".ordifile_workbook_", suffix=".xlsx.tmp", dir=output.parent
+                prefix=".ordifile_workbook_",
+                suffix=".xlsx.tmp",
+                dir=transaction_directory,
             )
-            os.close(descriptor)
+            temporary_stat = os.fstat(descriptor)
+            owned_temporaries[Path(raw_temp).name] = (
+                temporary_stat.st_dev,
+                temporary_stat.st_ino,
+            )
             temporary = Path(raw_temp)
-            workbook = xlsxwriter.Workbook(
-                temporary,
-                {
-                    "constant_memory": True,
-                    "strings_to_formulas": False,
-                    "strings_to_urls": False,
-                    "nan_inf_to_errors": False,
-                },
-            )
-            try:
-                _write_physical(workbook, physical)
-            finally:
-                workbook.close()
+            with os.fdopen(descriptor, "w+b") as workbook_stream:
+                workbook = xlsxwriter.Workbook(
+                    workbook_stream,
+                    {
+                        "constant_memory": True,
+                        "tmpdir": os.fspath(transaction_directory),
+                        "strings_to_formulas": False,
+                        "strings_to_urls": False,
+                        "nan_inf_to_errors": False,
+                    },
+                )
+                try:
+                    _write_physical(workbook, physical)
+                finally:
+                    workbook.close()
             artifacts = tuple((item[0], item[1], "SIDECAR_IS_INPUT") for item in sidecar_temps) + (
                 (temporary, output, "OUTPUT_IS_INPUT"),
             )
@@ -1287,18 +1535,23 @@ class ExcelExporter:
                 artifacts,
                 overwrite=overwrite,
                 protected_inputs=protected_inputs,
+                temporary_identities=owned_temporaries,
             )
         except (KeyboardInterrupt, SystemExit, MemoryError):
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-            for sidecar_temp, _sidecar_final, _record in sidecar_temps:
-                sidecar_temp.unlink(missing_ok=True)
+            _cleanup_private_transaction_directory(
+                transaction_directory,
+                transaction_descriptor,
+                transaction_identity,
+                owned_temporaries,
+            )
             raise
         except Exception as error:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-            for sidecar_temp, _sidecar_final, _record in sidecar_temps:
-                sidecar_temp.unlink(missing_ok=True)
+            _cleanup_private_transaction_directory(
+                transaction_directory,
+                transaction_descriptor,
+                transaction_identity,
+                owned_temporaries,
+            )
             if isinstance(error, ExportError):
                 raise
             raise ExportError(
@@ -1307,11 +1560,20 @@ class ExcelExporter:
                 "and available storage.",
             ) from error
         except BaseException:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-            for sidecar_temp, _sidecar_final, _record in sidecar_temps:
-                sidecar_temp.unlink(missing_ok=True)
+            _cleanup_private_transaction_directory(
+                transaction_directory,
+                transaction_descriptor,
+                transaction_identity,
+                owned_temporaries,
+            )
             raise
+        else:
+            _cleanup_private_transaction_directory(
+                transaction_directory,
+                transaction_descriptor,
+                transaction_identity,
+                owned_temporaries,
+            )
         return replace(
             result,
             output_path=output,

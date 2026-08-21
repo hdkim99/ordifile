@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Warning: do not attach raw/result files, screenshots, mapping JSON, Mapping Set JSON, or workbooks to this public issue. Remove personal, sample, patient, organization, path, and instrument identifiers. Maintainers will arrange a private/local intake path when useful. A format is not supported until lawful actual fixtures and tests verify its exact capabilities.
+        Warning: do not attach raw/result files, screenshots, mapping JSON, Mapping Set JSON, private conversion plans, detailed dry-run logs, or workbooks to this public issue. Remove personal, sample, patient, organization, path, and instrument identifiers. Maintainers will arrange a private/local intake path when useful. A format is not supported until lawful actual fixtures and tests verify its exact capabilities.
   - type: input
     id: vendor
     attributes:

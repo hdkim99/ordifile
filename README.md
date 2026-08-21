@@ -155,6 +155,43 @@ When a saved structure drifts, bounded diagnostics explain fixed structural diff
 never apply a candidate. Desktop review can create a new user-confirmed profile while keeping
 the original template available.
 
+### Review a conversion before writing it
+
+Use the same conversion options with `--dry-run` to build a deterministic, route-only
+preflight. It reports exact adapters, user mappings, generic routes, drift, ambiguity,
+unsupported inputs, duplicates, and the current primary-output conflict state without
+creating a workbook, sidecar, temporary file, or `PeakRecord`:
+
+```console
+ordifile convert input/ --recursive --peak-mapping-set lab-mappings.json \
+  --output results.xlsx --dry-run
+```
+
+The in-memory Python `ConversionPlan` is an immutable same-process snapshot. It stores
+content SHA-256 identities and fixed routing decisions, but no scientific rows or public
+absolute paths. `convert_plan(plan)` repeats discovery and routing and rejects a stale
+source set, source content, adapter inventory, configuration, or output state before using
+the existing converter. This is bounded TOCTOU hardening, not a claim that filesystem state
+can never change. Requested scientific sorting and workbook/sidecar capacity remain
+explicitly deferred until parsing and export planning; dry-run does not predict peak counts
+or future write permission. Mapping-profile matching is header-only. Exact-adapter ownership
+probes may decode and validate bounded source structures, including numeric row syntax, but
+preflight does not construct, store, or export canonical scientific rows. Source hashes may
+change when measurement bytes change. The public plan-summary SHA-256 covers only the
+privacy-safe projection, not private path/config bindings or authentication. Executable plans
+require a new output target; explicit overwrite remains available only through direct
+conversion. On POSIX, output directories that are group/world-writable without the sticky
+bit are rejected because another user could exchange private transaction entries. Processes
+running as the same operating-system user remain inside the local trust boundary.
+
+```python
+from ordifile.api import convert_plan, plan_conversion
+
+plan = plan_conversion("input", "results.xlsx")
+if plan.is_executable:
+    result = convert_plan(plan)
+```
+
 ## Experimental proprietary adapters
 
 | Format boundary | Metadata | Peaks | Output | Status | Real fixture |
@@ -262,11 +299,13 @@ ordifile convert ./exports --recursive --sort acquired_at --include-signals \
   --output Ordifile_Result.xlsx
 ordifile convert ./exports --extension .csv --extension .xlsx \
   --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
+ordifile convert ./exports --recursive --output Ordifile_Result.xlsx --dry-run
 ```
 
 Important behavior:
 
 - existing output is not replaced unless `--overwrite` is present;
+- `--dry-run` performs bounded routing/output preflight and creates no workbook or sidecar;
 - folder discovery is non-recursive unless `--recursive` is present;
 - `--on-error continue` preserves valid files and reports partial success;
 - `--on-error stop` stops after the first file failure and writes no workbook;
@@ -282,10 +321,10 @@ Exit codes are stable for automation:
 
 | Code | Meaning |
 |---:|---|
-| 0 | Workbook created; no file failed |
-| 1 | Fatal error or no successful input |
+| 0 | Workbook created with no failure, or dry-run is ready |
+| 1 | Fatal/blocked result or no successful input |
 | 2 | Usage or configuration error |
-| 3 | Valid workbook created with one or more failed files |
+| 3 | Valid workbook created with failures, or dry-run has known partial failures |
 | 130 | Interrupted |
 
 ## Sorting

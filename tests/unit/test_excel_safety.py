@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import csv
 import os
+import shutil
+import tempfile
 import unicodedata
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
 import ordifile.api as api_module
-from ordifile.api import convert, inspect_file
+from ordifile.api import convert, convert_plan, inspect_file, plan_conversion
 from ordifile.core.errors import ExportError, ExportLimitError, OrdifileError
 from ordifile.core.models import (
     BatchResult,
@@ -97,6 +99,49 @@ def test_exact_boolean_overwrite_false_and_true_keep_expected_semantics(tmp_path
 
     convert(source, output, overwrite=True)
     assert output.read_bytes().startswith(b"PK")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory mode policy")
+def test_export_rejects_non_sticky_shared_writable_output_directory(tmp_path: Path) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o777)
+    output = shared / "result.xlsx"
+
+    with pytest.raises(ExportError) as caught:
+        convert(source, output)
+
+    assert caught.value.code == "OUTPUT_DIRECTORY_UNSAFE"
+    assert not output.exists()
+    assert not list(shared.glob(".ordifile_*"))
+
+
+def test_xlsxwriter_internal_temporaries_stay_in_private_transaction_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    observed_directories: list[str | os.PathLike[str] | None] = []
+    real_mkstemp = tempfile.mkstemp
+
+    def tracked_mkstemp(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        observed_directories.append(kwargs.get("dir"))
+        return cast(tuple[int, str], real_mkstemp(*args, **kwargs))
+
+    monkeypatch.setattr(tempfile, "mkstemp", tracked_mkstemp)
+    convert(source, output)
+
+    assert len(observed_directories) >= 2
+    assert all(directory is not None for directory in observed_directories)
+    resolved = {Path(directory).resolve() for directory in observed_directories if directory}
+    assert len(resolved) == 1
+    transaction_directory = resolved.pop()
+    assert transaction_directory.parent == tmp_path.resolve()
+    assert transaction_directory.name.startswith(".ordifile_transaction_")
+    assert not transaction_directory.exists()
 
 
 @pytest.mark.parametrize("option", ("recursive", "include_signals", "include_hidden_sheets"))
@@ -272,6 +317,21 @@ def _write_long_formula_source(path: Path, area: int) -> None:
     )
 
 
+def _inject_late_publish_collision(
+    monkeypatch: pytest.MonkeyPatch,
+    target: Path,
+    canary: bytes,
+) -> None:
+    real_rename = excel._rename_no_replace
+
+    def collide_rename(source_path: Path, destination_path: Path) -> None:
+        if Path(destination_path) == target:
+            target.write_bytes(canary)
+        real_rename(Path(source_path), Path(destination_path))
+
+    monkeypatch.setattr(excel, "_rename_no_replace", collide_rename)
+
+
 @pytest.mark.parametrize("interrupt", [False, True])
 def test_transaction_restores_workbook_and_sidecars_on_finalize_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: bool
@@ -443,6 +503,214 @@ def test_finalization_rechecks_alias_created_after_preflight(
         convert(source, output, overwrite=True)
     assert caught.value.code == "OUTPUT_IS_INPUT"
     assert source.read_bytes() == original
+
+
+def test_no_overwrite_finalization_preserves_late_foreign_workbook(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    canary = b"foreign-workbook"
+    _inject_late_publish_collision(monkeypatch, output, canary)
+    with pytest.raises(ExportError) as caught:
+        convert(source, output)
+    assert caught.value.code == "OUTPUT_COLLISION"
+    assert output.read_bytes() == canary
+    assert not list(tmp_path.glob(".ordifile_*"))
+
+
+def test_no_overwrite_finalization_preserves_late_foreign_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_long_formula_source(source, -5)
+    output = tmp_path / "result.xlsx"
+    sidecar = tmp_path / "result_Peak_Matrix_001.csv"
+    canary = b"foreign-sidecar"
+    _inject_late_publish_collision(monkeypatch, sidecar, canary)
+    with pytest.raises(ExportError) as caught:
+        convert(source, output, sidecar_mode="csv")
+    assert caught.value.code == "OUTPUT_COLLISION"
+    assert sidecar.read_bytes() == canary
+    assert not output.exists()
+    assert not list(tmp_path.glob(".ordifile_*"))
+
+
+def test_no_overwrite_keeps_owned_sidecar_before_later_collision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_long_formula_source(source, -5)
+    output = tmp_path / "result.xlsx"
+    first_sidecar = tmp_path / "result_Peak_Matrix_001.csv"
+    second_sidecar = tmp_path / "result_Peaks_002.csv"
+    canary = b"foreign-second-sidecar"
+    _inject_late_publish_collision(monkeypatch, second_sidecar, canary)
+
+    with pytest.raises(ExportError) as caught:
+        convert(source, output, sidecar_mode="csv")
+
+    assert caught.value.code == "OUTPUT_TRANSACTION_INCOMPLETE"
+    assert first_sidecar.exists()
+    assert second_sidecar.read_bytes() == canary
+    assert not output.exists()
+    assert not list(tmp_path.glob(".ordifile_*"))
+
+
+def test_planned_conversion_reports_incomplete_multi_artifact_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_long_formula_source(source, -5)
+    output = tmp_path / "result.xlsx"
+    first_sidecar = tmp_path / "result_Peak_Matrix_001.csv"
+    second_sidecar = tmp_path / "result_Peaks_002.csv"
+    canary = b"foreign-second-sidecar"
+    plan = plan_conversion(source, output, sidecar_mode="csv")
+    _inject_late_publish_collision(monkeypatch, second_sidecar, canary)
+
+    with pytest.raises(ExportError) as caught:
+        convert_plan(plan)
+
+    assert caught.value.code == "OUTPUT_TRANSACTION_INCOMPLETE"
+    assert first_sidecar.exists()
+    assert second_sidecar.read_bytes() == canary
+    assert not output.exists()
+
+
+def test_no_overwrite_never_deletes_swapped_foreign_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_long_formula_source(source, -5)
+    output = tmp_path / "result.xlsx"
+    first_sidecar = tmp_path / "result_Peak_Matrix_001.csv"
+    second_sidecar = tmp_path / "result_Peaks_002.csv"
+    first_canary = b"foreign-first-sidecar"
+    second_canary = b"foreign-second-sidecar"
+    real_rename = excel._rename_no_replace
+
+    def collide_after_swap(
+        source_path: Path,
+        destination_path: Path,
+    ) -> None:
+        if Path(destination_path) == second_sidecar:
+            first_sidecar.unlink()
+            first_sidecar.write_bytes(first_canary)
+            second_sidecar.write_bytes(second_canary)
+        real_rename(Path(source_path), Path(destination_path))
+
+    monkeypatch.setattr(excel, "_rename_no_replace", collide_after_swap)
+    with pytest.raises(ExportError) as caught:
+        convert(source, output, sidecar_mode="csv")
+
+    assert caught.value.code == "OUTPUT_TRANSACTION_INCOMPLETE"
+    assert first_sidecar.read_bytes() == first_canary
+    assert second_sidecar.read_bytes() == second_canary
+    assert not output.exists()
+    assert not list(tmp_path.glob(".ordifile_*"))
+
+
+def test_no_overwrite_never_unlinks_a_recreated_temporary_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    canary = b"foreign-temporary"
+    recreated: Path | None = None
+    real_rename = excel._rename_no_replace
+
+    def rename_then_recreate(source_path: Path, destination_path: Path) -> None:
+        nonlocal recreated
+        real_rename(Path(source_path), Path(destination_path))
+        recreated = Path(source_path)
+        recreated.write_bytes(canary)
+
+    monkeypatch.setattr(excel, "_rename_no_replace", rename_then_recreate)
+    convert(source, output)
+
+    assert output.exists()
+    assert recreated is not None
+    assert recreated.read_bytes() == canary
+    shutil.rmtree(recreated.parent)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="directory-descriptor cleanup is POSIX-only")
+def test_transaction_cleanup_preserves_a_replaced_foreign_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    canary = b"foreign-directory"
+    moved_owned_directory: Path | None = None
+    foreign_directory: Path | None = None
+
+    def exchange_directory_then_fail(source_path: Path, destination_path: Path) -> None:
+        nonlocal moved_owned_directory, foreign_directory
+        del destination_path
+        foreign_directory = Path(source_path).parent
+        moved_owned_directory = foreign_directory.with_name(foreign_directory.name + "_moved")
+        foreign_directory.rename(moved_owned_directory)
+        foreign_directory.mkdir()
+        (foreign_directory / "canary.bin").write_bytes(canary)
+        raise OSError("injected finalization failure")
+
+    monkeypatch.setattr(excel, "_rename_no_replace", exchange_directory_then_fail)
+    with pytest.raises(ExportError) as caught:
+        convert(source, output)
+
+    assert caught.value.code == "OUTPUT_FINALIZATION_FAILED"
+    assert foreign_directory is not None
+    assert (foreign_directory / "canary.bin").read_bytes() == canary
+    assert moved_owned_directory is not None
+    assert not list(moved_owned_directory.iterdir())
+    foreign_directory.joinpath("canary.bin").unlink()
+    foreign_directory.rmdir()
+    moved_owned_directory.rmdir()
+    assert not output.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX temporary symlink regression")
+def test_workbook_writes_retained_descriptor_and_rejects_replaced_temp_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    foreign_target = tmp_path / "foreign.bin"
+    canary = b"foreign-target"
+    foreign_target.write_bytes(canary)
+    exchanged: Path | None = None
+    real_fdopen = os.fdopen
+
+    def exchange_before_fd_write(
+        descriptor: int,
+        mode: str = "r",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        nonlocal exchanged
+        if mode == "w+b":
+            transaction_directory = next(tmp_path.glob(".ordifile_transaction_*"))
+            exchanged = next(transaction_directory.iterdir())
+            exchanged.unlink()
+            exchanged.symlink_to(foreign_target)
+        return real_fdopen(descriptor, mode, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", exchange_before_fd_write)
+    with pytest.raises(ExportError) as caught:
+        convert(source, output)
+
+    assert caught.value.code == "OUTPUT_TEMP_CHANGED"
+    assert foreign_target.read_bytes() == canary
+    assert not output.exists()
+    assert exchanged is not None
+    assert exchanged.is_symlink()
+    exchanged.unlink()
+    exchanged.parent.rmdir()
 
 
 def test_export_planning_rejects_oversized_int_before_decimal_string_conversion(

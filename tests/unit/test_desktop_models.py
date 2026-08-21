@@ -12,7 +12,10 @@ from ordifile import (
     PeakTableMappingProfile,
     PeakTableMappingSet,
 )
+from ordifile.api import plan_conversion
+from ordifile.core.models import BatchOutcome
 from ordifile.desktop.models import (
+    DesktopBatchReport,
     DesktopRequest,
     InputSelectionModel,
     RequestValidationError,
@@ -152,3 +155,13 @@ def test_request_validation_rejects_simultaneous_single_mapping_and_set(
         )
 
     assert caught.value.code == "PEAK_MAPPING_MODE_CONFLICT"
+
+
+def test_desktop_report_preserves_the_same_immutable_conversion_plan(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    plan = plan_conversion(source, tmp_path / "result.xlsx")
+
+    report = DesktopBatchReport(BatchOutcome.SUCCESS, plan=plan)
+
+    assert report.plan is plan

@@ -7,6 +7,8 @@ Thank you for helping make scientific instrument conversion clearer and safer.
 - Search existing issues first.
 - Do not attach proprietary instrument files, personal data, credentials, or files you
   are not authorized to redistribute to a public issue.
+- Do not attach private conversion plans, detailed dry-run logs, plan screenshots, mapping
+  configuration, or generated workbooks; share reviewed fixed-code/count summaries only.
 - Use synthetic data whenever possible. If a real fixture is essential, first confirm
   redistribution rights and discuss a safe transfer path with the maintainers.
 - A requested format is not considered supported until a redistributable fixture and

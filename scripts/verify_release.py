@@ -640,6 +640,22 @@ def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
             _run_missing_gui_extra_smoke(site, cwd)
         _run_isolated_python(site, cwd, ["--version"])
         _run_isolated_python(site, cwd, ["formats"])
+        dry_run_output = cwd / "Preflight_Result.xlsx"
+        _run_isolated_python(
+            site,
+            cwd,
+            [
+                "convert",
+                source.name,
+                "--output",
+                dry_run_output.name,
+                "--dry-run",
+            ],
+        )
+        if dry_run_output.exists() or tuple(cwd.glob(".ordifile_*")):
+            raise ReleaseVerificationError(
+                "clean-wheel dry run created an output or temporary artifact"
+            )
         _run_isolated_python(
             site,
             cwd,

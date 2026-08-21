@@ -46,10 +46,16 @@ to the workbook layout.
    When a workbook plan is impractical, the user can request CSV sidecars. Their relative
    paths, row counts, and SHA-256 hashes are recorded in the workbook Manifest. Without
    that explicit option, export fails before writing rather than truncating data.
-10. Workbooks are written to a sibling temporary file and atomically finalized. Existing
-    output is never replaced without `overwrite=True`; inputs can never be outputs. A
-    best-effort rollback covers ordinary process exceptions and interruptions, but a power
-    failure cannot make a workbook plus multiple sidecars one filesystem-wide transaction.
+10. Workbooks and sidecars are written inside a private sibling transaction directory and
+    each final name is published with an atomic no-replace rename. Existing output is never
+    replaced without `overwrite=True`; inputs can never be outputs. A workbook plus multiple
+    sidecars cannot be one filesystem-wide transaction. If a later name collides, Ordifile
+    reports `OUTPUT_TRANSACTION_INCOMPLETE` and deliberately preserves earlier publications:
+    deleting them by path could delete a concurrently exchanged foreign file.
+    POSIX output parents that allow group/world entry replacement without the sticky bit are
+    rejected before planning or writing private transaction data.
+    Processes with the same operating-system user identity remain trusted because they
+    already hold equivalent access to that user's local output and temporary files.
 11. Python 3.11–3.14 and Linux, Windows, and macOS are portability targets. The v0.1.0
     release was validated on Ubuntu, Windows, and macOS with Python 3.11 and 3.14.
     Ongoing self-hosted coverage is documented separately and includes only OS/Python
@@ -265,11 +271,27 @@ to the workbook layout.
     preview. Repair reuses the explicit mapping dialog and adds a new user-confirmed profile;
     the parent profile is never mutated or silently replaced. Exact adapters and exact
     profile matching remain authoritative and fail closed.
+45. Conversion preflight is a route-only orchestration layer, not a second parser or exporter.
+    `plan_conversion()` shares the exact adapter/Mapping routing helper, hashes bounded
+    read-only discovery, and records only `ROUTABLE`/failure/duplicate/excluded dispositions;
+    it does not create canonical rows, effective scientific sort, workbook sheets, sidecars,
+    or filesystem artifacts. Its public-safe entries omit paths, filenames, headers, worksheet
+    titles, profile labels, and measurement rows. The same-process, non-serializable immutable
+    plan keeps private local bindings and `convert_plan()` repeats discovery/routing before
+    calling the unchanged conversion pipeline. Source/config/output differences fail closed;
+    the exporter remains the authoritative live output and late-collision gate. The public
+    plan-summary hash is deterministic equality/audit evidence for its privacy-safe projection,
+    not the private binding identity, a signature, an authentication proof, a future-write
+    guarantee, or a workbook digest.
+    Mapping-profile inspection is header-only, while an exact-adapter ownership probe may
+    decode and validate bounded numeric source syntax. Neither path constructs or retains
+    canonical rows. Executable plans reject overwrite authorization and require a new target;
+    direct conversion retains the existing explicit-overwrite contract.
 
 ## Public boundaries
 
 - `ordifile.api`: `inspect_file`, `inspect_inputs`, `preview_peak_table`,
-  `list_formats`, `get_format_report`, `convert`
+  `list_formats`, `get_format_report`, `plan_conversion`, `convert_plan`, `convert`
 - `ordifile.core.models`: canonical immutable values, structured issues,
   `ProgressEvent`, `BatchOutcome`, and immutable `ConversionOptions`
 - `ordifile.core.peak_mapping`: strict data-only mapping, local preview value, and
@@ -283,6 +305,8 @@ to the workbook layout.
 ```text
 CLI / optional desktop GUI
   -> public API
+  -> route-only preflight (optional; no canonical rows or artifacts)
+  -> reviewed plan revalidation (when executing a plan)
   -> discover and hash read-only inputs
   -> probe adapters (no match / unique match / ambiguity)
   -> parse and validate each file independently

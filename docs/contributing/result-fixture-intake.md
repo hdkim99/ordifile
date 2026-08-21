@@ -7,6 +7,8 @@ public issue.
 Do not attach local schema-drift screens or reports containing raw header, worksheet, profile
 label, or repaired-mapping details. A fixed diagnostic category/count summary may be shared
 only after the same privacy review.
+Do not attach executable/private conversion plans, detailed dry-run logs, plan screenshots,
+or serialized plan objects. Share only reviewed fixed-code/count summaries after privacy review.
 
 ## Preferred source
 

@@ -12,6 +12,10 @@ from enum import StrEnum
 from pathlib import Path
 
 from ordifile import (
+    ConversionPlan,
+    ConversionPlanEntryStatus,
+    ConversionPlanProblem,
+    ConversionPlanRoute,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
     PeakTableMapping,
@@ -89,6 +93,9 @@ class DesktopFileReport:
     mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
     review_input_index: int | None = None
     source_sha256: str | None = None
+    plan_status: ConversionPlanEntryStatus | None = None
+    plan_route: ConversionPlanRoute | None = None
+    plan_problem: ConversionPlanProblem | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +111,7 @@ class DesktopBatchReport:
     output_path: Path | None = None
     error_code: str | None = None
     error_message: str | None = None
+    plan: ConversionPlan | None = None
 
     @property
     def is_fatal_error(self) -> bool:

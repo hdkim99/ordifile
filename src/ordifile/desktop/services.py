@@ -10,7 +10,16 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import ordifile
-from ordifile import PeakTableFormat, PeakTableMapping, PeakTableMappingSet
+from ordifile import (
+    ConversionPlan,
+    ConversionPlanEntryStatus,
+    ConversionPlanProblem,
+    ConversionPlanReadiness,
+    PeakTableFormat,
+    PeakTableMapping,
+    PeakTableMappingSet,
+    PlanProgressEvent,
+)
 from ordifile import api as _ordifile_api
 from ordifile.core.models import BatchOutcome, BatchResult, FileStatus, ProgressEvent, Severity
 from ordifile.core.peak_mapping import peak_preview_display
@@ -25,6 +34,7 @@ from ordifile.desktop.models import (
 )
 
 ProgressCallback = Callable[[ProgressEvent], None]
+PlanProgressCallback = Callable[[PlanProgressEvent], None]
 
 _STATUS_MAP: Mapping[FileStatus, DesktopInputStatus] = {
     FileStatus.SUCCESS: DesktopInputStatus.SUCCESS,
@@ -32,6 +42,35 @@ _STATUS_MAP: Mapping[FileStatus, DesktopInputStatus] = {
     FileStatus.FAILED: DesktopInputStatus.FAILED,
     FileStatus.DUPLICATE: DesktopInputStatus.DUPLICATE,
     FileStatus.SKIPPED: DesktopInputStatus.SKIPPED,
+}
+
+_PLAN_STATUS_MAP: Mapping[ConversionPlanEntryStatus, DesktopInputStatus] = {
+    ConversionPlanEntryStatus.ROUTABLE: DesktopInputStatus.QUEUED,
+    ConversionPlanEntryStatus.FAILED: DesktopInputStatus.FAILED,
+    ConversionPlanEntryStatus.DUPLICATE: DesktopInputStatus.DUPLICATE,
+    ConversionPlanEntryStatus.EXCLUDED_ARTIFACT: DesktopInputStatus.SKIPPED,
+}
+
+_PLAN_PROBLEM_MESSAGES: Mapping[ConversionPlanProblem, str] = {
+    ConversionPlanProblem.NONE: "",
+    ConversionPlanProblem.UNMAPPED_GENERIC_TABLE: (
+        "A generic table needs an explicit peak-column mapping."
+    ),
+    ConversionPlanProblem.MAPPING_SCHEMA_DRIFT: (
+        "A reusable mapping profile no longer matches this table exactly."
+    ),
+    ConversionPlanProblem.MAPPING_PROFILE_AMBIGUOUS: (
+        "More than one reusable mapping profile matches this table."
+    ),
+    ConversionPlanProblem.WORKSHEET_AMBIGUOUS: (
+        "More than one workbook sheet is eligible for mapping."
+    ),
+    ConversionPlanProblem.ADAPTER_AMBIGUOUS: "More than one exact adapter claims this input.",
+    ConversionPlanProblem.UNSUPPORTED_FORMAT: "No supported input route was found.",
+    ConversionPlanProblem.MALFORMED_INPUT: "The input structure is malformed.",
+    ConversionPlanProblem.DUPLICATE_INPUT: "This input duplicates an earlier source.",
+    ConversionPlanProblem.INPUT_DISCOVERY_FAILED: "The input could not be discovered safely.",
+    ConversionPlanProblem.OUTPUT_CONFLICT: "The output target conflicts with the inputs.",
 }
 
 
@@ -156,6 +195,108 @@ def _report(
     )
 
 
+def _plan_file_reports(
+    plan: ConversionPlan,
+    *,
+    direct_input_count: int | None = None,
+) -> tuple[DesktopFileReport, ...]:
+    descriptors = _descriptor_map()
+    reports: list[DesktopFileReport] = []
+    for entry in plan.entries:
+        adapter_id = entry.adapter_id or ""
+        format_name, evidence = descriptors.get(adapter_id, ("Not detected", ""))
+        if evidence and evidence.casefold() not in format_name.casefold():
+            format_name = f"{format_name} ({evidence})"
+        reports.append(
+            DesktopFileReport(
+                source=_safe_text(entry.source_id),
+                format_name=_safe_text(format_name),
+                adapter_id=_safe_text(adapter_id) or "—",
+                status=_PLAN_STATUS_MAP[entry.status],
+                message=_PLAN_PROBLEM_MESSAGES[entry.problem],
+                mapping_route=entry.route.value,
+                mapping_profile_id=(
+                    _safe_text(entry.mapping_profile_id, limit=100)
+                    if entry.mapping_profile_id
+                    else None
+                ),
+                mapping_diagnostics=entry.mapping_diagnostics,
+                review_input_index=(
+                    entry.input_order
+                    if direct_input_count is not None
+                    and 0 <= entry.input_order < direct_input_count
+                    else None
+                ),
+                source_sha256=entry.sha256,
+                plan_status=entry.status,
+                plan_route=entry.route,
+                plan_problem=entry.problem,
+            )
+        )
+    return tuple(reports)
+
+
+def preflight_selection(
+    request: DesktopRequest,
+    *,
+    progress: PlanProgressCallback | None = None,
+) -> DesktopBatchReport:
+    """Build a plan without constructing canonical rows or writing output."""
+    direct_input_count = (
+        len(request.inputs)
+        if all(path.is_file() and not path.is_symlink() for path in request.inputs)
+        else None
+    )
+    try:
+        validate_request(request)
+        plan = _ordifile_api.plan_conversion(
+            request.inputs,
+            request.output,
+            sort=request.sort,
+            on_error="continue",
+            overwrite=False,
+            peak_table_mapping=request.peak_table_mapping,
+            peak_table_mapping_set=request.peak_table_mapping_set,
+            progress=progress,
+        )
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        return _interrupted_report()
+    except Exception as error:
+        code, message = _structured_error(error)
+        return DesktopBatchReport(BatchOutcome.FAILED, error_code=code, error_message=message)
+    if direct_input_count is not None and len(plan.entries) != direct_input_count:
+        direct_input_count = None
+    outcome = {
+        ConversionPlanReadiness.READY: BatchOutcome.SUCCESS,
+        ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES: BatchOutcome.PARTIAL_SUCCESS,
+        ConversionPlanReadiness.BLOCKED: BatchOutcome.FAILED,
+    }[plan.readiness]
+    return DesktopBatchReport(
+        outcome,
+        files=_plan_file_reports(plan, direct_input_count=direct_input_count),
+        success_count=plan.summary.routable,
+        failure_count=plan.summary.failed,
+        duplicate_count=plan.summary.duplicates,
+        plan=plan,
+    )
+
+
+def convert_preflight_plan(
+    plan: ConversionPlan,
+    *,
+    progress: ProgressCallback | None = None,
+) -> DesktopBatchReport:
+    """Execute the exact reviewed public plan after core-owned revalidation."""
+    try:
+        result = _ordifile_api.convert_plan(plan, progress=progress)
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        return _interrupted_report()
+    except Exception as error:
+        code, message = _structured_error(error)
+        return DesktopBatchReport(BatchOutcome.FAILED, error_code=code, error_message=message)
+    return _report(result)
+
+
 def inspect_selection(
     inputs: tuple[Path, ...],
     *,
@@ -276,7 +417,13 @@ def details_text(report: DesktopBatchReport) -> str:
     """Build a readable, sanitized diagnostic without a Python traceback."""
     if report.is_fatal_error:
         return f"[{report.error_code}] {report.error_message}"
-    details = [item.message for item in report.files if item.message]
+    details: list[str] = []
+    if report.plan is not None and report.plan.output_issue_code is not None:
+        details.append(
+            f"[{_safe_text(report.plan.output_issue_code, limit=100)}] "
+            "The output target blocks this plan."
+        )
+    details.extend(f"{item.source}: {item.message}" for item in report.files if item.message)
     if not details:
         return "No warnings or errors."
-    return "\n".join(f"{item.source}: {item.message}" for item in report.files if item.message)
+    return "\n".join(details)

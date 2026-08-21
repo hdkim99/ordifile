@@ -21,9 +21,11 @@ from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from ordifile import __version__, clone_peak_table_mapping_profile
 from ordifile.api import (
     convert,
+    convert_plan,
     get_format_report,
     inspect_inputs,
     list_formats,
+    plan_conversion,
     preview_peak_table,
 )
 from ordifile.core.peak_mapping import (
@@ -472,7 +474,15 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
     detected = [item.adapter_id for item in inspected.files]
     if detected != expected_detection or inspected.failure_count:
         raise ValueError("The packaged runtime did not detect the synthetic inputs exactly.")
-    result = convert(tuple(paths), output, sort="input_order")
+    conversion_plan = plan_conversion(tuple(paths), output, sort="input_order")
+    if (
+        not conversion_plan.is_executable
+        or conversion_plan.summary.routable != len(paths)
+        or output.exists()
+        or any(kit.glob(".ordifile_*"))
+    ):
+        raise ValueError("The packaged runtime preflight changed artifacts or routes.")
+    result = convert_plan(conversion_plan)
     if result.failure_count:
         raise ValueError("The packaged standalone conversion failed.")
     output_sha256 = _sha256(output)
@@ -506,11 +516,14 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         raise ValueError("The packaged mapped workbook differs from the source baseline.")
     with tempfile.TemporaryDirectory(prefix="ordifile-standalone-mapping-set-") as temporary:
         mapped_set_output = Path(temporary) / "mapped-set.xlsx"
-        mapped_set_result = convert(
+        mapped_set_plan = plan_conversion(
             (mapped_set_csv, mapped_set_xlsx),
             mapped_set_output,
             peak_table_mapping_set=mapping_set,
         )
+        if mapped_set_plan.summary.mapping_profiles != 2 or mapped_set_output.exists():
+            raise ValueError("The packaged mapping-set preflight did not route exactly.")
+        mapped_set_result = convert_plan(mapped_set_plan)
         if mapped_set_result.failure_count or {
             item.mapping_route for item in mapped_set_result.files
         } != {"USER_MAPPING_PROFILE"}:
@@ -578,6 +591,7 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
             "mapping_set_semantic_sha256": mapped_set_digest,
             "mapping_drift_diagnostic": "PASS",
             "mapping_repair_clone": "PASS",
+            "conversion_preflight": "PASS",
             "existing_output_preserved": True,
         },
     )

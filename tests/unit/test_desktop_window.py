@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
@@ -20,19 +21,24 @@ from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from ordifile import (
     ColumnSelector,
+    ConversionPlanProblem,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
+    PlanProgressEvent,
 )
+from ordifile.api import plan_conversion
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopFileReport,
     DesktopInputStatus,
+    DesktopRequest,
 )
+from ordifile.desktop.services import preflight_selection
 from ordifile.desktop.window import MainWindow, local_paths_from_urls
 from ordifile.desktop.workers import ConversionWorker, PreviewWorker
 
@@ -81,6 +87,49 @@ def _drift_diagnostic(
         unresolved_required_roles=unresolved_required_roles,
         unresolved_optional_roles=(),
     )
+
+
+def _install_current_preflight(
+    window: MainWindow,
+    report_file: DesktopFileReport,
+    mapping_set: PeakTableMappingSet,
+) -> DesktopFileReport:
+    request = window._current_preflight_request()
+    plan = plan_conversion(
+        request.inputs,
+        request.output,
+        sort=request.sort,
+        peak_table_mapping_set=mapping_set,
+        on_error="continue",
+    )
+    current_file = replace(
+        report_file,
+        source_sha256=plan.entries[0].sha256,
+        plan_problem=ConversionPlanProblem.MAPPING_SCHEMA_DRIFT,
+    )
+    window._displayed_files = (current_file,)
+    window._displayed_inputs = window.selected_paths
+    window._displayed_mapping_set = mapping_set
+    window._displayed_plan = plan
+    window._displayed_request = request
+    window._displayed_generation = window._preflight_generation
+    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(current_file,)))
+    return current_file
+
+
+def _complete_current_preflight(window: MainWindow) -> DesktopBatchReport:
+    request = window._current_preflight_request()
+    report = preflight_selection(request)
+    window._preview_request = request
+    window._preview_generation = window._preflight_generation
+    window._on_preview_complete(report)
+    return report
+
+
+def _table_text(window: MainWindow, row: int, column: int) -> str:
+    item = window.input_table.item(row, column)
+    assert item is not None
+    return item.text()
 
 
 def _next_expected_widget(current: QWidget, expected: set[QWidget]) -> QWidget:
@@ -135,7 +184,7 @@ def test_window_adds_files_and_folder_without_duplicating_inputs(
 
     assert window.selected_paths == (file, folder)
     assert window.input_table.rowCount() == 2
-    status_item = window.input_table.item(0, 4)
+    status_item = window.input_table.item(0, 5)
     folder_item = window.input_table.item(1, 1)
     assert status_item is not None and status_item.text() == "Queued"
     assert folder_item is not None and folder_item.text() == "Pending core discovery"
@@ -214,7 +263,7 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     window = MainWindow()
 
     assert "&" in window.add_files_button.text()
-    assert window.input_table.accessibleName() == "Detected input files"
+    assert window.input_table.accessibleName() == "Conversion preflight inputs"
     assert window.sort_combo.accessibleName() == "Sort method"
     assert window.convert_button.accessibleName() == "Convert selected inputs"
     assert window.map_peaks_button.accessibleName() == "Map selected file peak columns"
@@ -222,6 +271,8 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.use_mapping_set_checkbox.accessibleName() == ("Use reusable peak mapping set")
     assert window.drift_candidate_combo.accessibleName() == "Mapping schema drift candidates"
     assert window.review_mapping_button.accessibleName() == ("Review selected schema drift mapping")
+    assert window.refresh_preflight_button.accessibleName() == "Refresh conversion preflight"
+    assert window.preflight_summary_label.accessibleName() == "Conversion preflight summary"
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -229,6 +280,76 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     )
     assert not window.open_output_button.isEnabled()
     assert not window.convert_button.isEnabled()
+    window.close()
+
+
+def test_preflight_summary_routes_actions_and_enables_current_executable_plan(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "local-private.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(tmp_path / "result.xlsx"))
+    window.add_paths((source,))
+
+    report = _complete_current_preflight(window)
+
+    assert report.plan is window._current_plan()
+    assert window.convert_button.isEnabled()
+    assert window.refresh_preflight_button.isEnabled()
+    assert "1 routable" in window.preflight_summary_label.text()
+    assert _table_text(window, 0, 3) == "Generic input"
+    assert _table_text(window, 0, 4) == "Convert"
+    assert _table_text(window, 0, 5) == "Routable"
+    assert source.name not in _table_text(window, 0, 0)
+    window.close()
+
+
+def test_preflight_known_failures_remain_visible_and_executable(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    valid = tmp_path / "valid.csv"
+    valid.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    unsupported = tmp_path / "unsupported.bin"
+    unsupported.write_bytes(b"unsupported")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(tmp_path / "result.xlsx"))
+    window.add_paths((valid, unsupported))
+
+    report = _complete_current_preflight(window)
+
+    assert report.plan is not None and report.plan.is_executable
+    assert window.convert_button.isEnabled()
+    assert "1 failed" in window.preflight_summary_label.text()
+    assert "known failures" in window.convert_button.accessibleName()
+    assert _table_text(window, 1, 4) == "Unsupported"
+    window.close()
+
+
+def test_blocked_output_plan_disables_conversion(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "valid.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    output.write_bytes(b"existing")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(output))
+    window.add_paths((source,))
+
+    report = _complete_current_preflight(window)
+
+    assert report.plan is not None and not report.plan.is_executable
+    assert not window.convert_button.isEnabled()
+    assert "Blocked" in window.preflight_summary_label.text()
+    assert "OUTPUT_EXISTS" in window.preflight_summary_label.text()
+    assert _table_text(window, 0, 4) == "Choose another output"
     window.close()
 
 
@@ -250,6 +371,7 @@ def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplic
         window.remove_button,
         window.clear_button,
         window.input_table,
+        window.refresh_preflight_button,
         window.drift_candidate_combo,
         window.review_mapping_button,
         window.sort_combo,
@@ -522,10 +644,7 @@ def test_window_requires_explicit_drift_candidate_selection(
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     window.add_paths((source,))
     window._set_peak_mapping_set(mapping_set, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = mapping_set
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    _install_current_preflight(window, report_file, mapping_set)
 
     window.input_table.selectRow(0)
 
@@ -590,10 +709,9 @@ def test_window_review_saves_a_new_profile_without_replacing_candidate(
     )
     window.add_paths((source,))
     window._set_peak_mapping_set(mapping_set, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = mapping_set
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    current_file = _install_current_preflight(window, report_file, mapping_set)
+    assert current_file.source_sha256 is not None
+    AcceptedReviewDialog.preview_source_sha256 = current_file.source_sha256
     window.input_table.selectRow(0)
     window.drift_candidate_combo.setCurrentIndex(1)
 
@@ -664,10 +782,9 @@ def test_window_repaired_xlsx_profile_uses_reviewed_worksheet_title(
     )
     window.add_paths((source,))
     window._set_peak_mapping_set(mapping_set, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = mapping_set
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    current_file = _install_current_preflight(window, report_file, mapping_set)
+    assert current_file.source_sha256 is not None
+    AcceptedXlsxReviewDialog.preview_source_sha256 = current_file.source_sha256
     window.input_table.selectRow(0)
     window.drift_candidate_combo.setCurrentIndex(1)
 
@@ -728,10 +845,7 @@ def test_window_repair_rejects_a_source_changed_after_inspection(
     )
     window.add_paths((source,))
     window._set_peak_mapping_set(mapping_set, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = mapping_set
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    _install_current_preflight(window, report_file, mapping_set)
     window.input_table.selectRow(0)
     window.drift_candidate_combo.setCurrentIndex(1)
 
@@ -778,10 +892,7 @@ def test_window_review_cancel_does_not_mutate_mapping_set(
     )
     window.add_paths((source,))
     window._set_peak_mapping_set(mapping_set, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = mapping_set
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    _install_current_preflight(window, report_file, mapping_set)
     window.input_table.selectRow(0)
     window.drift_candidate_combo.setCurrentIndex(1)
 
@@ -813,10 +924,7 @@ def test_window_stale_mapping_set_disables_drift_review(
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     window.add_paths((source,))
     window._set_peak_mapping_set(first, activate=True)
-    window._displayed_files = (report_file,)
-    window._displayed_inputs = window.selected_paths
-    window._displayed_mapping_set = first
-    window._render_report(DesktopBatchReport(BatchOutcome.FAILED, files=(report_file,)))
+    _install_current_preflight(window, report_file, first)
     window.input_table.selectRow(0)
     window._peak_table_mapping_set = second
 
@@ -859,6 +967,71 @@ def test_window_mapping_combo_distinguishes_duplicate_local_labels(
     window.close()
 
 
+@pytest.mark.parametrize("change", ["input", "sort", "output", "mapping_set"])
+def test_preflight_config_changes_invalidate_plan_and_disable_conversion(
+    app: QApplication,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(tmp_path / "result.xlsx"))
+    window.add_paths((source,))
+    _complete_current_preflight(window)
+    assert window.convert_button.isEnabled()
+    monkeypatch.setattr(window, "_start_preview", lambda: None)
+
+    if change == "input":
+        added = tmp_path / "added.csv"
+        added.write_text("sample_id,area\nb,2\n", encoding="utf-8")
+        window.add_paths((added,))
+    elif change == "sort":
+        window.sort_combo.blockSignals(True)
+        window.sort_combo.setCurrentIndex(1)
+        window.sort_combo.blockSignals(False)
+    elif change == "output":
+        window.output_edit.blockSignals(True)
+        window.output_edit.setText(str(tmp_path / "changed.xlsx"))
+        window.output_edit.blockSignals(False)
+    else:
+        window._set_peak_mapping_set(_mapping_set(), activate=True)
+    MainWindow._request_preview(window)
+
+    assert window._current_plan() is None
+    assert not window.convert_button.isEnabled()
+    assert "pending" in window.preflight_summary_label.text().casefold()
+    window.close()
+
+
+def test_stale_preflight_generation_cannot_replace_current_rows(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(tmp_path / "result.xlsx"))
+    window.add_paths((source,))
+    request = window._current_preflight_request()
+    stale = preflight_selection(request)
+    window._preview_request = request
+    window._preview_generation = window._preflight_generation
+    window._invalidate_preflight("New configuration pending.")
+
+    window._on_preview_complete(stale)
+
+    queued = window.input_table.item(0, 0)
+    assert queued is not None and queued.text() == source.name
+    assert window._current_plan() is None
+    assert not window.convert_button.isEnabled()
+    window.close()
+
+
 def test_stale_preview_does_not_replace_rows_after_mapping_changes(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -881,8 +1054,8 @@ def test_stale_preview_does_not_replace_rows_after_mapping_changes(
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     window.add_paths((source,))
     window._peak_table_mapping = first
-    window._preview_inputs = window.selected_paths
-    window._preview_mapping = first
+    window._preview_request = window._current_preflight_request()
+    window._preview_generation = window._preflight_generation
     window._peak_table_mapping = second
     stale = DesktopBatchReport(
         BatchOutcome.SUCCESS,
@@ -915,9 +1088,8 @@ def test_stale_preview_does_not_replace_rows_after_mapping_set_changes(
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     window.add_paths((source,))
     window._set_peak_mapping_set(first, activate=True)
-    window._preview_inputs = window.selected_paths
-    window._preview_mapping = None
-    window._preview_mapping_set = first
+    window._preview_request = window._current_preflight_request()
+    window._preview_generation = window._preflight_generation
     window._set_peak_mapping_set(second, activate=True)
     stale = DesktopBatchReport(
         BatchOutcome.SUCCESS,
@@ -950,7 +1122,8 @@ def test_stale_preview_does_not_replace_rows_after_selection_changes(
     window = MainWindow()
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     window.add_paths((first,))
-    window._preview_inputs = window.selected_paths
+    window._preview_request = window._current_preflight_request()
+    window._preview_generation = window._preflight_generation
     window.add_paths((second,))
     stale = DesktopBatchReport(
         BatchOutcome.SUCCESS,
@@ -1039,6 +1212,18 @@ def test_window_progress_uses_existing_public_stages(app: QApplication) -> None:
     window.close()
 
 
+def test_window_progress_reports_public_preflight_stages(app: QApplication) -> None:
+    del app
+    window = MainWindow()
+
+    window._on_preview_progress(PlanProgressEvent("planning_routing", 2, 3))
+
+    assert window.progress_bar.maximum() == 3
+    assert window.progress_bar.value() == 2
+    assert "Planning conversion routes" in window.status_label.text()
+    window.close()
+
+
 def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
     del app
     window = MainWindow()
@@ -1058,6 +1243,29 @@ def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
     assert not window.remove_mapping_profile_button.isEnabled()
     assert not window.drift_candidate_combo.isEnabled()
     assert not window.review_mapping_button.isEnabled()
+    assert not window.refresh_preflight_button.isEnabled()
+    window.close()
+
+
+def test_active_preflight_disables_refresh_and_conversion(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.output_edit.setText(str(tmp_path / "result.xlsx"))
+    window.add_paths((source,))
+    _complete_current_preflight(window)
+    assert window.convert_button.isEnabled()
+
+    window._preview_thread = cast(Any, object())
+    window._update_mapping_controls()
+
+    assert not window.refresh_preflight_button.isEnabled()
+    assert not window.convert_button.isEnabled()
+    window._preview_thread = None
     window.close()
 
 
@@ -1094,14 +1302,20 @@ def test_workers_always_emit_completed_and_finished(
 ) -> None:
     del app
     report = DesktopBatchReport(BatchOutcome.SUCCESS)
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    request = DesktopRequest((source,), tmp_path / "output.xlsx")
     if worker_type is PreviewWorker:
-        monkeypatch.setattr("ordifile.desktop.workers.inspect_selection", lambda *_a, **_k: report)
-        worker: Any = PreviewWorker((tmp_path,), "auto")
+        monkeypatch.setattr(
+            "ordifile.desktop.workers.preflight_selection", lambda *_a, **_k: report
+        )
+        worker: Any = PreviewWorker(request)
     else:
-        monkeypatch.setattr("ordifile.desktop.workers.convert_selection", lambda *_a, **_k: report)
-        from ordifile.desktop.models import DesktopRequest
-
-        worker = ConversionWorker(DesktopRequest((tmp_path,), tmp_path / "output.xlsx"))
+        plan = plan_conversion(source, request.output)
+        monkeypatch.setattr(
+            "ordifile.desktop.workers.convert_preflight_plan", lambda *_a, **_k: report
+        )
+        worker = ConversionWorker(plan)
     completed: list[object] = []
     finished: list[bool] = []
     worker.completed.connect(completed.append)
@@ -1120,18 +1334,52 @@ def test_preview_worker_forwards_one_frozen_mapping_set_snapshot(
 ) -> None:
     del app
     mapping_set = _mapping_set()
-    captured: list[tuple[object, object]] = []
+    captured: list[DesktopRequest] = []
+    source = tmp_path / "input.csv"
+    source.write_text("RT,Area\n1,2\n", encoding="utf-8")
+    request = DesktopRequest(
+        (source,),
+        tmp_path / "output.xlsx",
+        peak_table_mapping_set=mapping_set,
+    )
 
-    def inspect(*_args: object, **kwargs: object) -> DesktopBatchReport:
-        captured.append((kwargs.get("peak_table_mapping"), kwargs.get("peak_table_mapping_set")))
+    def preflight(captured_request: DesktopRequest, **_kwargs: object) -> DesktopBatchReport:
+        captured.append(captured_request)
         return DesktopBatchReport(BatchOutcome.SUCCESS)
 
-    monkeypatch.setattr("ordifile.desktop.workers.inspect_selection", inspect)
-    worker = PreviewWorker((tmp_path / "input.csv",), "auto", None, mapping_set)
+    monkeypatch.setattr("ordifile.desktop.workers.preflight_selection", preflight)
+    worker = PreviewWorker(request)
 
     worker.run()
 
-    assert captured == [(None, mapping_set)]
+    assert captured == [request]
+    assert captured[0].peak_table_mapping is None
+    assert captured[0].peak_table_mapping_set is mapping_set
+
+
+def test_conversion_worker_forwards_the_exact_preflight_plan(
+    app: QApplication,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del app
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    plan = plan_conversion(source, tmp_path / "output.xlsx")
+    report = DesktopBatchReport(BatchOutcome.SUCCESS)
+    captured: list[object] = []
+
+    def convert(candidate: object, **_kwargs: object) -> DesktopBatchReport:
+        captured.append(candidate)
+        return report
+
+    monkeypatch.setattr("ordifile.desktop.workers.convert_preflight_plan", convert)
+    worker = ConversionWorker(plan)
+
+    worker.run()
+
+    assert captured == [plan]
+    assert captured[0] is plan
 
 
 @pytest.mark.parametrize("worker_type", [PreviewWorker, ConversionWorker])
@@ -1146,14 +1394,16 @@ def test_workers_convert_base_exceptions_to_fixed_reports(
     def stop(*_args: object, **_kwargs: object) -> DesktopBatchReport:
         raise SystemExit("private scientific filename")
 
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    request = DesktopRequest((source,), tmp_path / "output.xlsx")
     if worker_type is PreviewWorker:
-        monkeypatch.setattr("ordifile.desktop.workers.inspect_selection", stop)
-        worker: Any = PreviewWorker((tmp_path,), "auto")
+        monkeypatch.setattr("ordifile.desktop.workers.preflight_selection", stop)
+        worker: Any = PreviewWorker(request)
     else:
-        monkeypatch.setattr("ordifile.desktop.workers.convert_selection", stop)
-        from ordifile.desktop.models import DesktopRequest
-
-        worker = ConversionWorker(DesktopRequest((tmp_path,), tmp_path / "output.xlsx"))
+        plan = plan_conversion(source, request.output)
+        monkeypatch.setattr("ordifile.desktop.workers.convert_preflight_plan", stop)
+        worker = ConversionWorker(plan)
     completed: list[object] = []
     finished: list[bool] = []
     worker.completed.connect(completed.append)

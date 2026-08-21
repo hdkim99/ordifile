@@ -142,6 +142,26 @@ profile and Mapping Set identity are preserved. Cancel creates nothing. Existing
 not silently replaced, and conversion is rerun through ordinary exact matching after the new
 profile is approved.
 
+## Mixed-batch conversion preflight
+
+`ordifile convert ... --dry-run` and `ordifile.api.plan_conversion()` apply the same
+exact-adapter-first and exact-Mapping-Profile routing decisions without constructing canonical
+scientific rows or creating output artifacts. Exact-adapter ownership probes may decode and
+validate bounded numeric source syntax; Mapping Profile matching remains header-only. A
+profile route is reported only for one exact structural match. Drift candidates remain failed
+diagnostics, and zero/multiple matches never become an automatic mapping. The preflight
+summary contains fixed categories, opaque profile IDs, public-safe structural fingerprints,
+and whole-source SHA-256 identities; it contains no raw headers, worksheet titles, display
+labels, mapping paths, or measurement rows.
+
+The same-process `ConversionPlan` can be passed to `convert_plan()`. Execution immediately
+re-discovers and re-routes the frozen input roots and compares private configuration/output
+bindings. Any source-list, content, mapping, adapter, or output-state difference rejects the
+plan as stale. GUI mapping repair therefore invalidates the displayed plan and requires a new
+preflight. The plan does not cache a `DatasetBundle` or authorize later overwrite, and it is
+not a persisted job file. Sort results, parsed validity, scientific row counts, sheet
+segmentation, and optional sidecars are deferred to the existing parse/export pipeline.
+
 ## Mapping semantics
 
 `retention_time_column`, `area_column`, `retention_time_unit`, and `source_format` are

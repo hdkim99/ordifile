@@ -14,6 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ordifile.core.errors import OrdifileError
 from ordifile.core.models import Issue, Severity, SourceFile
 
 _NATURAL_PART = re.compile(r"(\d+)")
@@ -117,11 +118,24 @@ def _source(path: Path, relative: str, order: int) -> SourceFile:
     )
 
 
-def _directory_members(root: Path, recursive: bool) -> Iterable[Path]:
+def _directory_members(
+    root: Path,
+    recursive: bool,
+    *,
+    max_members: int | None = None,
+) -> Iterable[Path]:
     if not recursive:
-        yield from sorted(root.iterdir(), key=lambda path: natural_key(path.name))
+        members: list[Path] = []
+        for member in root.iterdir():
+            members.append(member)
+            if max_members is not None and len(members) > max_members:
+                raise OrdifileError(
+                    "CONVERSION_PLAN_TOO_LARGE",
+                    "Conversion preflight exceeded the bounded discovered-input count.",
+                )
+        yield from sorted(members, key=lambda path: natural_key(path.name))
         return
-    members: list[Path] = []
+    recursive_members: list[Path] = []
 
     def raise_walk_error(error: OSError) -> None:
         raise error
@@ -131,10 +145,15 @@ def _directory_members(root: Path, recursive: bool) -> Iterable[Path]:
         # Record symlinked directories as rejected inputs instead of traversing them.
         symlink_directories = [name for name in directories if (directory_path / name).is_symlink()]
         directories[:] = [name for name in directories if name not in symlink_directories]
-        members.extend(directory_path / name for name in symlink_directories)
-        members.extend(directory_path / name for name in files)
+        recursive_members.extend(directory_path / name for name in symlink_directories)
+        recursive_members.extend(directory_path / name for name in files)
+        if max_members is not None and len(recursive_members) > max_members:
+            raise OrdifileError(
+                "CONVERSION_PLAN_TOO_LARGE",
+                "Conversion preflight exceeded the bounded discovered-input count.",
+            )
     yield from sorted(
-        members,
+        recursive_members,
         key=lambda path: natural_key(path.relative_to(root).as_posix()),
     )
 
@@ -147,6 +166,8 @@ def discover_files(
     warn_file_bytes: int | None = None,
     max_file_bytes: int | None = None,
     artifact_output: Path | None = None,
+    max_discovered_files: int | None = None,
+    max_total_bytes: int | None = None,
 ) -> tuple[DiscoveryRecord, ...]:
     """Discover inputs without following links or collapsing duplicate paths."""
     allowed = None
@@ -157,10 +178,18 @@ def discover_files(
         }
     candidates: list[tuple[Path, str, Issue | None]] = []
 
+    def add_candidate(candidate: tuple[Path, str, Issue | None]) -> None:
+        candidates.append(candidate)
+        if max_discovered_files is not None and len(candidates) > max_discovered_files:
+            raise OrdifileError(
+                "CONVERSION_PLAN_TOO_LARGE",
+                "Conversion preflight exceeded the bounded discovered-input count.",
+            )
+
     for raw in inputs:
         path = Path(raw)
         if path.is_symlink():
-            candidates.append(
+            add_candidate(
                 (
                     path,
                     path.name,
@@ -173,7 +202,7 @@ def discover_files(
                 )
             )
         elif not path.exists():
-            candidates.append(
+            add_candidate(
                 (
                     path,
                     path.name,
@@ -187,12 +216,22 @@ def discover_files(
             )
         elif path.is_file():
             if allowed is None or path.suffix.casefold() in allowed:
-                candidates.append((path, path.name, None))
+                add_candidate((path, path.name, None))
         elif path.is_dir():
             try:
-                members = tuple(_directory_members(path, recursive))
+                members = tuple(
+                    _directory_members(
+                        path,
+                        recursive,
+                        max_members=(
+                            None
+                            if max_discovered_files is None
+                            else max_discovered_files - len(candidates)
+                        ),
+                    )
+                )
             except (OSError, UnicodeError) as error:
-                candidates.append(
+                add_candidate(
                     (
                         path,
                         path.name,
@@ -208,7 +247,7 @@ def discover_files(
             for member in members:
                 relative = member.relative_to(path).as_posix()
                 if artifact_output is not None and _is_ordifile_artifact(member, artifact_output):
-                    candidates.append(
+                    add_candidate(
                         (
                             member,
                             relative,
@@ -223,7 +262,7 @@ def discover_files(
                     )
                     continue
                 if member.is_symlink():
-                    candidates.append(
+                    add_candidate(
                         (
                             member,
                             relative,
@@ -236,9 +275,9 @@ def discover_files(
                         )
                     )
                 elif member.is_file() and (allowed is None or member.suffix.casefold() in allowed):
-                    candidates.append((member, relative, None))
+                    add_candidate((member, relative, None))
         else:
-            candidates.append(
+            add_candidate(
                 (
                     path,
                     path.name,
@@ -256,6 +295,7 @@ def discover_files(
     seen_file_ids: dict[tuple[int, int], int] = {}
     seen_paths: list[tuple[Path, int]] = []
     records: list[DiscoveryRecord] = []
+    total_bytes = 0
     for index, (path, relative, discovery_issue) in enumerate(candidates):
         if discovery_issue is not None:
             records.append(DiscoveryRecord(_placeholder(path, relative, index), (discovery_issue,)))
@@ -277,6 +317,12 @@ def discover_files(
                 )
             )
             continue
+        total_bytes += source.size
+        if max_total_bytes is not None and total_bytes > max_total_bytes:
+            raise OrdifileError(
+                "CONVERSION_PLAN_TOO_LARGE",
+                "Conversion preflight exceeded the bounded aggregate input size.",
+            )
         try:
             resolved = path.resolve(strict=True)
         except (OSError, UnicodeError) as error:

@@ -11,6 +11,8 @@ import pytest
 
 from ordifile import (
     ColumnSelector,
+    ConversionPlanEntryStatus,
+    ConversionPlanRoute,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
@@ -121,6 +123,98 @@ def test_inspect_selection_uses_public_batch_api_and_forwards_progress(
     assert report.outcome is BatchOutcome.SUCCESS
     assert report.files[0].format_name == "Generic CSV (Verified)"
     assert report.files[0].status is DesktopInputStatus.SUCCESS
+
+
+def test_preflight_selection_preserves_public_plan_and_projects_public_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "private-canary.csv"
+    source.write_text(
+        "Private RT Header,Private Area Header,Private Note Header\n"
+        "1,2,Private Measurement Canary\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "result.xlsx"
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("Private RT Header", 1),
+            ColumnSelector("Private Area Header", 2),
+            "Private RT Unit",
+            PeakTableFormat.CSV,
+            manufacturer="Private Manufacturer",
+            software="Private Software",
+            ignored_columns=(ColumnSelector("Private Note Header", 3),),
+        ),
+        "Private Profile Label",
+    )
+    xlsx_profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("Private XLSX RT", 1),
+            ColumnSelector("Private XLSX Area", 2),
+            "s",
+            PeakTableFormat.XLSX,
+        ),
+        "Private XLSX Profile Label",
+        worksheet_title="Private Worksheet Title",
+    )
+    mapping_set = PeakTableMappingSet((profile, xlsx_profile))
+    plan = public_api.plan_conversion(source, output, peak_table_mapping_set=mapping_set)
+    calls: list[tuple[object, object, object]] = []
+
+    def preflight(inputs: object, destination: object, **kwargs: object) -> object:
+        calls.append((inputs, destination, kwargs.get("sort")))
+        return plan
+
+    monkeypatch.setattr(public_api, "plan_conversion", preflight)
+    report = services.preflight_selection(
+        DesktopRequest((source,), output, "filename", peak_table_mapping_set=mapping_set)
+    )
+
+    assert calls == [((source,), output, "filename")]
+    assert report.plan is plan
+    assert report.success_count == 1
+    assert report.files[0].plan_status is ConversionPlanEntryStatus.ROUTABLE
+    assert report.files[0].plan_route is ConversionPlanRoute.USER_MAPPING_PROFILE
+    assert report.files[0].source.startswith("source-")
+    assert source.name not in repr(report)
+    public_report = repr(report)
+    for canary in (
+        "Private RT Header",
+        "Private Area Header",
+        "Private Note Header",
+        "Private Measurement Canary",
+        "Private RT Unit",
+        "Private Manufacturer",
+        "Private Software",
+        "Private Profile Label",
+        "Private XLSX RT",
+        "Private XLSX Area",
+        "Private XLSX Profile Label",
+        "Private Worksheet Title",
+    ):
+        assert canary not in public_report
+
+
+def test_convert_preflight_plan_passes_the_exact_plan_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    plan = public_api.plan_conversion(source, output)
+    received: list[object] = []
+
+    def convert(candidate: object, **_kwargs: object) -> BatchResult:
+        received.append(candidate)
+        return _batch(FileStatus.SUCCESS, output=output)
+
+    monkeypatch.setattr(public_api, "convert_plan", convert)
+
+    report = services.convert_preflight_plan(plan)
+
+    assert received == [plan]
+    assert received[0] is plan
+    assert report.outcome is BatchOutcome.SUCCESS
 
 
 def test_convert_selection_calls_only_public_convert_with_safe_defaults(

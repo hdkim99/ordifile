@@ -168,7 +168,8 @@ def test_unique_reliable_file_ids_never_call_samefile(
 def test_directory_iteration_failures_are_structured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recursive: bool
 ) -> None:
-    def denied(_root: Path, _recursive: bool) -> object:
+    def denied(_root: Path, _recursive: bool, *, max_members: int | None = None) -> object:
+        del max_members
         raise PermissionError("private path must not leak")
 
     monkeypatch.setattr(discovery, "_directory_members", denied)
