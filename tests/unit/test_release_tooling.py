@@ -332,6 +332,20 @@ def test_sdist_rejects_lexical_and_casefold_aliases(
         release.verify_sdist(sdist, "0.1.0", source)
 
 
+def test_sdist_rejects_unintended_duplicate_copy(tmp_path: Path) -> None:
+    source = _source_tree(tmp_path / "source")
+    sdist = tmp_path / "ordifile-0.1.0.tar.gz"
+    _write_sdist_with_aliases(
+        sdist,
+        source,
+        "ordifile-0.1.0/tests/unit/test_conversion_plan 2.py",
+        "ordifile-0.1.0/tests/unit/ordinary.py",
+    )
+
+    with pytest.raises(release.ReleaseVerificationError, match="duplicate copy"):
+        release.verify_sdist(sdist, "0.1.0", source)
+
+
 @pytest.mark.parametrize(
     "unsafe_name",
     (

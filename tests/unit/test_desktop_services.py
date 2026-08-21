@@ -246,6 +246,9 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
     }
     assert report.output_path == output
     assert report.outcome is BatchOutcome.SUCCESS
+    assert report.summary is not None
+    assert report.summary.total_sources == 1
+    assert report.summary.peak_records == 0
 
 
 def test_desktop_services_forward_one_frozen_mapping_to_preview_and_conversion(

@@ -169,6 +169,38 @@ def semantic_digest(path: Path) -> tuple[str, tuple[str, ...]]:
         workbook.close()
 
 
+def validate_workbook_presentation(path: Path) -> None:
+    """Verify the researcher-facing workbook presentation without reading values twice."""
+    workbook = load_workbook(path, read_only=False, data_only=False)
+    try:
+        if workbook.active.title != "Samples":
+            raise ValueError("The workbook does not open on the Samples sheet.")
+        expected_freeze = {
+            "Manifest": "A2",
+            "Samples": "C2",
+            "Peak_Matrix": "B2",
+            "Peaks": "C2",
+            "Metadata": "C2",
+            "Import_Log": "B2",
+        }
+        for name, freeze_panes in expected_freeze.items():
+            if workbook[name].freeze_panes != freeze_panes:
+                raise ValueError("A workbook sheet has an unexpected frozen-header policy.")
+        if workbook["Samples"].auto_filter.ref is None:
+            raise ValueError("The Samples sheet has no researcher-facing filter.")
+        manifest = {
+            row[0]: row[1]
+            for row in workbook["Manifest"].iter_rows(min_row=2, values_only=True)
+            if row[0] is not None
+        }
+        if manifest.get("sample_record_count") != workbook["Samples"].max_row - 1:
+            raise ValueError("The workbook sample summary differs from the Samples sheet.")
+        if manifest.get("peak_record_count") != workbook["Peaks"].max_row - 1:
+            raise ValueError("The workbook peak summary differs from the Peaks sheet.")
+    finally:
+        workbook.close()
+
+
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(
@@ -502,6 +534,7 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         raise ValueError("The packaged workbook differs from the source semantic baseline.")
     if list(sheets) != expected.get("workbook_sheets"):
         raise ValueError("The packaged workbook sheet inventory differs from the baseline.")
+    validate_workbook_presentation(output)
     with tempfile.TemporaryDirectory(prefix="ordifile-standalone-mapping-") as temporary:
         mapped_output = Path(temporary) / "mapped.xlsx"
         mapped_result = convert(mapped_input, mapped_output, peak_table_mapping=mapping)
@@ -592,6 +625,7 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
             "mapping_drift_diagnostic": "PASS",
             "mapping_repair_clone": "PASS",
             "conversion_preflight": "PASS",
+            "workbook_presentation": "PASS",
             "existing_output_preserved": True,
         },
     )

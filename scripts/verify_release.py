@@ -428,6 +428,10 @@ def verify_sdist(path: Path, expected_version: str, source_root: Path) -> None:
             root = next(iter(roots))
             if root != f"{PROJECT_NAME}-{expected_version}":
                 raise ReleaseVerificationError("sdist top-level directory has the wrong identity")
+            if any(
+                PurePosixPath(name).name.endswith((" 2.md", " 2.py")) for name in canonical_names
+            ):
+                raise ReleaseVerificationError("sdist contains an unintended duplicate copy")
 
             def read_member(relative: str) -> bytes:
                 name = f"{root}/{relative}"
@@ -610,16 +614,54 @@ raise SystemExit(app.main([]))
 def _verify_smoke_workbook(path: Path) -> None:
     try:
         with zipfile.ZipFile(path) as workbook:
-            raw = workbook.read("xl/workbook.xml")
-        root = ElementTree.fromstring(raw)
+            root = ElementTree.fromstring(workbook.read("xl/workbook.xml"))
+            relationships = ElementTree.fromstring(workbook.read("xl/_rels/workbook.xml.rels"))
     except (OSError, KeyError, zipfile.BadZipFile, ElementTree.ParseError) as error:
         raise ReleaseVerificationError(
             "clean-wheel smoke did not create a readable XLSX"
         ) from error
     namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-    names = {element.attrib.get("name", "") for element in root.iter(f"{namespace}sheet")}
+    sheets = tuple(root.iter(f"{namespace}sheet"))
+    names = {element.attrib.get("name", "") for element in sheets}
     if not MANDATORY_WORKBOOK_SHEETS.issubset(names):
         raise ReleaseVerificationError("smoke workbook is missing mandatory sheets")
+    samples_index = next(
+        index for index, element in enumerate(sheets) if element.attrib.get("name") == "Samples"
+    )
+    views = tuple(root.iter(f"{namespace}workbookView"))
+    if not views or views[0].attrib.get("activeTab") != str(samples_index):
+        raise ReleaseVerificationError("smoke workbook does not open on Samples")
+    document_relationship = (
+        "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    )
+    relationship_namespace = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+    relationship_id = sheets[samples_index].attrib.get(document_relationship)
+    targets = {
+        item.attrib.get("Id"): item.attrib.get("Target")
+        for item in relationships.iter(f"{relationship_namespace}Relationship")
+    }
+    target = targets.get(relationship_id)
+    if target is None:
+        raise ReleaseVerificationError("smoke workbook Samples relationship is missing")
+    normalized_target = target.lstrip("/")
+    worksheet_path = (
+        normalized_target if normalized_target.startswith("xl/") else f"xl/{normalized_target}"
+    )
+    try:
+        with zipfile.ZipFile(path) as workbook:
+            samples = ElementTree.fromstring(workbook.read(worksheet_path))
+    except (OSError, KeyError, zipfile.BadZipFile, ElementTree.ParseError) as error:
+        raise ReleaseVerificationError("smoke workbook Samples sheet is unreadable") from error
+    panes = tuple(samples.iter(f"{namespace}pane"))
+    filters = tuple(samples.iter(f"{namespace}autoFilter"))
+    if (
+        not panes
+        or panes[0].attrib.get("xSplit") != "2"
+        or panes[0].attrib.get("ySplit") != "1"
+        or panes[0].attrib.get("topLeftCell") != "C2"
+        or not filters
+    ):
+        raise ReleaseVerificationError("smoke workbook Samples presentation is incomplete")
 
 
 def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:

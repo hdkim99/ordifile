@@ -16,6 +16,7 @@ from ordifile import (
     ConversionPlanEntryStatus,
     ConversionPlanProblem,
     ConversionPlanRoute,
+    ConversionResultSummary,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
     PeakTableMapping,
@@ -112,6 +113,7 @@ class DesktopBatchReport:
     error_code: str | None = None
     error_message: str | None = None
     plan: ConversionPlan | None = None
+    summary: ConversionResultSummary | None = None
 
     @property
     def is_fatal_error(self) -> bool:

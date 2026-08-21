@@ -39,6 +39,10 @@ from ordifile.core.models import (
     SignalSeries,
     integer_is_within_canonical_bound,
 )
+from ordifile.core.summary import (
+    CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION,
+    summarize_conversion,
+)
 from ordifile.core.workbook_text import (
     XLSX_ESCAPE_TOKEN,
     text_codepoint_unrepresentable,
@@ -77,9 +81,19 @@ class _SheetData:
 
 @dataclass(frozen=True, slots=True)
 class _PhysicalSheet:
+    logical_name: str
     name: str
     headers: tuple[str, ...]
     rows: tuple[tuple[Any, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _SheetPresentation:
+    freeze_columns: int = 0
+    filter_columns: int = 0
+    default_width: float = 14.0
+    width_overrides: tuple[tuple[int, int, float], ...] = ()
+    activate: bool = False
 
 
 def _validate_workbook_text(text: str, *, location: str) -> None:
@@ -719,7 +733,9 @@ def _physical_sheets(datasets: tuple[_SheetData, ...]) -> tuple[_PhysicalSheet, 
                     dataset.logical_name if count == 1 else f"{dataset.logical_name}_{count:03d}"
                 )
                 name = sanitize_sheet_name(requested, used)
-                physical.append(_PhysicalSheet(name, column_segment.headers, rows))
+                physical.append(
+                    _PhysicalSheet(dataset.logical_name, name, column_segment.headers, rows)
+                )
     return tuple(physical)
 
 
@@ -767,39 +783,157 @@ def _check_cells(sheets: tuple[_PhysicalSheet, ...]) -> None:
                     )
 
 
-def _write_cell(worksheet: Any, row: int, column: int, value: Any) -> tuple[int, int, int]:
+def _write_cell(
+    worksheet: Any,
+    row: int,
+    column: int,
+    value: Any,
+    cell_format: Any | None = None,
+) -> tuple[int, int, int]:
     """Write strings literally and non-finite numbers visibly; return safety counters."""
+    format_arg = () if cell_format is None else (cell_format,)
     if value is None:
-        worksheet.write_blank(row, column, None)
+        worksheet.write_blank(row, column, None, *format_arg)
         return (0, 0, 0)
     if isinstance(value, bool):
-        worksheet.write_boolean(row, column, value)
+        worksheet.write_boolean(row, column, value, *format_arg)
         return (0, 0, 0)
     if isinstance(value, int):
         if _needs_exact_integer_literal(value):
-            worksheet.write_string(row, column, str(value))
+            worksheet.write_string(row, column, str(value), *format_arg)
             return (0, 0, 1)
-        worksheet.write_number(row, column, value)
+        worksheet.write_number(row, column, value, *format_arg)
         return (0, 0, 0)
     if isinstance(value, float):
         if math.isfinite(value):
-            worksheet.write_number(row, column, value)
+            worksheet.write_number(row, column, value, *format_arg)
             return (0, 0, 0)
-        worksheet.write_string(row, column, str(value))
+        worksheet.write_string(row, column, str(value), *format_arg)
         return (0, 1, 0)
     text = _cell_text(value)
-    worksheet.write_string(row, column, text)
+    worksheet.write_string(row, column, text, *format_arg)
     return (int(text.startswith(_FORMULA_PREFIXES)), 0, 0)
+
+
+def _presentation_for(sheet: _PhysicalSheet) -> _SheetPresentation:
+    logical_name = sheet.logical_name
+    if logical_name == "Manifest":
+        return _SheetPresentation(
+            default_width=18,
+            width_overrides=((0, 0, 34), (1, 1, 60), (2, 2, 30)),
+        )
+    if logical_name == "Samples":
+        return _SheetPresentation(
+            freeze_columns=2,
+            filter_columns=len(sheet.headers),
+            default_width=15,
+            width_overrides=(
+                (1, 1, 22),
+                (2, 3, 30),
+                (7, 7, 24),
+                (8, 8, 28),
+                (13, 13, 18),
+            ),
+            activate=True,
+        )
+    if logical_name == "Peaks":
+        return _SheetPresentation(
+            freeze_columns=2,
+            filter_columns=len(sheet.headers),
+            default_width=14,
+            width_overrides=(
+                (0, 1, 24),
+                (4, 4, 16),
+                (5, 6, 22),
+                (9, 10, 22),
+                (12, 12, 18),
+                (13, 17, 20),
+                (18, 19, 30),
+            ),
+        )
+    if logical_name == "Metadata":
+        return _SheetPresentation(
+            freeze_columns=2,
+            filter_columns=len(sheet.headers),
+            default_width=18,
+            width_overrides=((0, 1, 24), (3, 3, 24), (4, 4, 36), (6, 6, 32)),
+        )
+    if logical_name == "Import_Log":
+        return _SheetPresentation(
+            freeze_columns=1,
+            filter_columns=len(sheet.headers),
+            default_width=18,
+            width_overrides=((0, 0, 30), (7, 7, 48), (9, 9, 18)),
+        )
+    if logical_name == "Peak_Matrix":
+        return _SheetPresentation(
+            freeze_columns=1,
+            filter_columns=min(1, len(sheet.headers)),
+            default_width=12,
+            width_overrides=((0, 0, 22),),
+        )
+    if logical_name == "Peak_Order_Matrix":
+        return _SheetPresentation(
+            freeze_columns=7,
+            filter_columns=min(7, len(sheet.headers)),
+            default_width=12,
+            width_overrides=((0, 2, 22), (3, 4, 16), (5, 6, 22)),
+        )
+    if logical_name == "Peak_Order_Matrix_2D":
+        return _SheetPresentation(
+            freeze_columns=8,
+            filter_columns=min(8, len(sheet.headers)),
+            default_width=12,
+            width_overrides=((0, 2, 22), (3, 4, 16), (5, 7, 24)),
+        )
+    if logical_name.startswith("Signals_"):
+        return _SheetPresentation(
+            freeze_columns=4,
+            filter_columns=min(4, len(sheet.headers)),
+            default_width=14,
+            width_overrides=((0, 1, 22), (2, 3, 16)),
+        )
+    return _SheetPresentation(filter_columns=len(sheet.headers))
+
+
+def _apply_sheet_presentation(worksheet: Any, sheet: _PhysicalSheet) -> bool:
+    presentation = _presentation_for(sheet)
+    if sheet.headers:
+        worksheet.freeze_panes(1, min(presentation.freeze_columns, len(sheet.headers)))
+        worksheet.set_column(0, len(sheet.headers) - 1, presentation.default_width)
+        for first, last, width in presentation.width_overrides:
+            if first < len(sheet.headers):
+                worksheet.set_column(first, min(last, len(sheet.headers) - 1), width)
+        if sheet.rows and presentation.filter_columns:
+            worksheet.autofilter(
+                0,
+                0,
+                len(sheet.rows),
+                min(presentation.filter_columns, len(sheet.headers)) - 1,
+            )
+    return presentation.activate
 
 
 def _write_physical(workbook: Any, sheets: tuple[_PhysicalSheet, ...]) -> tuple[int, int, int]:
     formula_like = 0
     nonfinite = 0
     exact_integer_literals = 0
+    header_format = workbook.add_format({"bold": True, "bg_color": "#D9EAF7", "bottom": 1})
+    activated = False
     for sheet in sheets:
         worksheet = workbook.add_worksheet(sheet.name)
+        should_activate = _apply_sheet_presentation(worksheet, sheet)
+        if should_activate and not activated:
+            worksheet.activate()
+            activated = True
         for column, header in enumerate(sheet.headers):
-            formula_count, numeric_count, integer_count = _write_cell(worksheet, 0, column, header)
+            formula_count, numeric_count, integer_count = _write_cell(
+                worksheet,
+                0,
+                column,
+                header,
+                header_format,
+            )
             formula_like += formula_count
             nonfinite += numeric_count
             exact_integer_literals += integer_count
@@ -889,6 +1023,8 @@ def _manifest_data(
     nonfinite: int,
     exact_integer_literals: int,
 ) -> _SheetData:
+    summary = summarize_conversion(result)
+
     def bounded_summary(severity: str) -> tuple[str, int]:
         codes = sorted(
             {
@@ -912,6 +1048,30 @@ def _manifest_data(
         ("warning_file_count", result.warning_count, None, None, None),
         ("failure_count", result.failure_count, None, None, None),
         ("duplicate_count", result.duplicate_count, None, None, None),
+        ("skipped_count", summary.skipped_sources, None, None, None),
+        (
+            "result_summary_schema_version",
+            CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION,
+            None,
+            None,
+            None,
+        ),
+        ("sample_record_count", summary.sample_records, None, None, None),
+        ("peak_record_count", summary.peak_records, None, None, None),
+        (
+            "scientific_signal_series_count",
+            summary.scientific_signal_series,
+            None,
+            None,
+            None,
+        ),
+        (
+            "structural_record_series_count",
+            summary.structural_record_series,
+            None,
+            None,
+            None,
+        ),
         ("sort_requested", result.sort.requested.value, None, None, None),
         ("sort_effective", result.sort.effective.value, None, None, None),
         ("sort_reason", result.sort.reason, None, None, None),
@@ -945,6 +1105,7 @@ def _manifest_data(
         ("option_overwrite", str(result.options.overwrite), None, None, None),
         ("option_sidecar_mode", result.options.sidecar_mode, None, None, None),
         ("option_output_name", result.options.output_name, None, None, None),
+        ("execution_mode", result.options.execution_mode.value, None, None, None),
         ("included_sheets", "; ".join(sheet_names), None, None, None),
         ("include_signals", str(include_signals), None, None, None),
         ("original_modified", "No", None, None, None),
@@ -1032,6 +1193,25 @@ def _manifest_data(
                 (
                     "option_peak_table_mapping_set_profile_count",
                     result.options.peak_table_mapping_set_profile_count,
+                ),
+            )
+        )
+    if result.options.conversion_plan_public_summary_sha256 is not None:
+        rows.extend(
+            (
+                (
+                    "conversion_plan_schema_version",
+                    result.options.conversion_plan_schema_version,
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "conversion_plan_public_summary_sha256",
+                    result.options.conversion_plan_public_summary_sha256,
+                    None,
+                    None,
+                    None,
                 ),
             )
         )

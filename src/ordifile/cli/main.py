@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Never
 
-from ordifile import __version__
+from ordifile import __version__, summarize_conversion
 from ordifile.adapters.base import SupportStatus
 from ordifile.api import convert, get_format_report, inspect_file, plan_conversion
 from ordifile.core.models import BatchOutcome, SeriesKind
@@ -459,24 +459,24 @@ def _run_convert(args: argparse.Namespace) -> int:
             overwrite=args.overwrite,
             sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
         )
-        summary = plan.summary
+        plan_summary = plan.summary
         print("Dry run: no workbook or sidecar was created.")
         print(f"Plan schema: {plan.schema_version}")
         print(f"Public plan-summary SHA-256: {_terminal_safe(plan.public_summary_sha256)}")
         print(f"Readiness: {_terminal_safe(plan.readiness.value)}")
-        print(f"Inputs: {summary.total_inputs}")
-        print(f"Routable: {summary.routable}")
-        print(f"Exact adapter: {summary.exact_adapters}")
-        print(f"User mapping: {summary.user_mappings}")
-        print(f"Mapping profile: {summary.mapping_profiles}")
-        print(f"Generic input: {summary.generic_inputs}")
-        print(f"Schema drift: {summary.drifted}")
-        print(f"Unmapped: {summary.unmapped}")
-        print(f"Ambiguous: {summary.ambiguous}")
-        print(f"Unsupported: {summary.unsupported}")
-        print(f"Malformed: {summary.malformed}")
-        print(f"Failed: {summary.failed}")
-        print(f"Duplicates: {summary.duplicates}")
+        print(f"Inputs: {plan_summary.total_inputs}")
+        print(f"Routable: {plan_summary.routable}")
+        print(f"Exact adapter: {plan_summary.exact_adapters}")
+        print(f"User mapping: {plan_summary.user_mappings}")
+        print(f"Mapping profile: {plan_summary.mapping_profiles}")
+        print(f"Generic input: {plan_summary.generic_inputs}")
+        print(f"Schema drift: {plan_summary.drifted}")
+        print(f"Unmapped: {plan_summary.unmapped}")
+        print(f"Ambiguous: {plan_summary.ambiguous}")
+        print(f"Unsupported: {plan_summary.unsupported}")
+        print(f"Malformed: {plan_summary.malformed}")
+        print(f"Failed: {plan_summary.failed}")
+        print(f"Duplicates: {plan_summary.duplicates}")
         print(f"Output precheck: {_terminal_safe(plan.output_disposition.value)}")
         if plan.output_issue_code is not None:
             print(f"Output issue: {_terminal_safe(plan.output_issue_code)}")
@@ -539,12 +539,19 @@ def _run_convert(args: argparse.Namespace) -> int:
         BatchOutcome.PARTIAL_SUCCESS: "partial success",
         BatchOutcome.FAILED: "failed",
     }[result.outcome]
+    result_summary = summarize_conversion(result)
     print(f"Status: {status}")
-    print(f"Output: {_terminal_safe(result.output_path or args.output)}")
+    output_name = Path(result.output_path or args.output).name
+    print(f"Output: {_terminal_safe(output_name)}")
     print(f"Successful files: {result.success_count}")
     print(f"Files with warnings: {result.warning_count}")
     print(f"Failed files: {result.failure_count}")
+    print(f"Skipped files: {result_summary.skipped_sources}")
     print(f"Duplicate files: {result.duplicate_count}")
+    print(f"Samples: {result_summary.sample_records}")
+    print(f"Peaks: {result_summary.peak_records}")
+    print(f"Scientific signal series: {result_summary.scientific_signal_series}")
+    print(f"Structural record series: {result_summary.structural_record_series}")
     print(f"Sort requested: {_terminal_safe(result.sort.requested.value)}")
     print(f"Sort used: {_terminal_safe(result.sort.effective.value)}")
     print(f"Sort reason: {_terminal_safe(result.sort.reason)}")

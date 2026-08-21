@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QWidget
 from ordifile import (
     ColumnSelector,
     ConversionPlanProblem,
+    ConversionResultSummary,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
@@ -1172,12 +1173,26 @@ def test_window_distinguishes_conversion_outcomes(
         success_count=successes,
         failure_count=failures,
         output_path=output,
+        summary=ConversionResultSummary(
+            total_sources=1,
+            converted_sources=successes,
+            warning_sources=0,
+            failed_sources=failures,
+            skipped_sources=0,
+            duplicate_sources=0,
+            sample_records=successes,
+            peak_records=36 if successes else 0,
+            scientific_signal_series=0,
+            structural_record_series=0,
+        ),
     )
     window = MainWindow()
 
     window._on_conversion_complete(report)
 
     assert expected in window.status_label.text()
+    if outcome is not BatchOutcome.FAILED:
+        assert "36 peak(s)" in window.status_label.text()
     assert window.open_output_button.isEnabled()
     window.close()
 

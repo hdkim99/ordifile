@@ -1411,25 +1411,47 @@ class MainWindow(QMainWindow):
         if output_exists:
             self._last_output = report.output_path
             self.open_output_button.setEnabled(True)
+        summary = report.summary
+        result_counts = (
+            None
+            if summary is None
+            else (
+                f"{summary.converted_sources} source(s), {summary.sample_records} sample(s), "
+                f"{summary.peak_records} peak(s)"
+            )
+        )
         if report.is_fatal_error:
             self.status_label.setText(
                 f"Conversion failed [{report.error_code}]: {report.error_message}"
             )
         elif report.outcome is BatchOutcome.PARTIAL_SUCCESS:
-            self.status_label.setText(
-                f"Workbook created with partial success: {report.success_count} succeeded, "
-                f"{report.failure_count} failed."
-            )
+            if summary is None:
+                self.status_label.setText(
+                    f"Workbook created with partial success: {report.success_count} succeeded, "
+                    f"{report.failure_count} failed."
+                )
+            else:
+                self.status_label.setText(
+                    f"Workbook created with partial success: {result_counts}; "
+                    f"{summary.failed_sources} failed, {summary.skipped_sources} skipped."
+                )
         elif report.outcome is BatchOutcome.FAILED:
             suffix = " A diagnostic workbook was created." if output_exists else ""
             self.status_label.setText(
                 f"No files converted successfully; {report.failure_count} failed.{suffix}"
             )
         else:
-            self.status_label.setText(
-                f"Conversion complete: {report.success_count} succeeded, "
-                f"{report.warning_count} with warnings."
-            )
+            if summary is None:
+                self.status_label.setText(
+                    f"Conversion complete: {report.success_count} succeeded, "
+                    f"{report.warning_count} with warnings."
+                )
+            else:
+                self.status_label.setText(
+                    f"Conversion complete: {result_counts}; "
+                    f"{summary.warning_sources} with warnings, "
+                    f"{summary.skipped_sources} skipped."
+                )
 
     def _conversion_finished(self) -> None:
         self._conversion_thread = None

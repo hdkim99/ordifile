@@ -352,6 +352,15 @@ workbook.
 | `Signals_<channel>` | Original uninterpolated x/y values, only when requested and actually parsed |
 | `Signals_Records_<channel>` | Experimental structural decoded records, explicitly not a retention-time signal |
 
+The workbook keeps `Manifest` as the first audit tab but opens on `Samples` as the
+researcher entry point. Headers use a fixed style, identity columns remain visible while
+scrolling, relevant long-form sheets have filters, and widths come from bounded schema
+rules rather than scanning private values. Scientific numeric cells retain Excel's
+`General` display so presentation never rounds or normalizes RT, area, or height values.
+The Manifest also records count-only sample/peak/series totals. Conversions executed from
+a revalidated preflight record only the plan schema and public plan-summary SHA-256; the
+plan itself is never embedded.
+
 Rows and columns are split into deterministic numbered sheets before Excel limits are
 reached. Data is never silently truncated. If workbook storage is impractical,
 `--sheet-mode sidecar-csv` can create explicit CSV sidecars; the Manifest records each
@@ -362,6 +371,7 @@ relative path, row count, formula-escape count, and SHA-256.
 The CLI calls the same public API intended for future interfaces:
 
 ```python
+from ordifile import summarize_conversion
 from ordifile.api import convert, inspect_file, inspect_inputs, list_formats
 
 inspection = inspect_file("sample.csv")
@@ -372,8 +382,10 @@ result = convert(
     sort="auto",
     include_signals=False,
 )
+completion = summarize_conversion(result)
 
 print(preview.outcome, result.success_count, result.failure_count, result.sort.effective)
+print(completion.converted_sources, completion.sample_records, completion.peak_records)
 ```
 
 `inspect_inputs()` performs the same bounded discovery, detection, parsing, validation,
@@ -381,6 +393,9 @@ and sorting without writing an artifact. `convert()` intentionally reads and val
 the inputs again, and also accepts folders, recursion, extension filters, explicit
 adapters and XLSX sheets, error policy, overwrite policy, CSV sidecars, and a
 presentation-neutral progress callback.
+`summarize_conversion()` returns the same frozen, count-only canonical completion summary
+used by the Manifest, CLI, and desktop; it contains no source identifiers or scientific
+values.
 
 ## Add an adapter
 

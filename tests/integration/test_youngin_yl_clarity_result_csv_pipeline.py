@@ -76,7 +76,7 @@ def test_standalone_result_workbook_preserves_units_order_and_no_compound(
     result = convert(source, output)
 
     assert result.failure_count == 0
-    workbook = load_workbook(output, read_only=True, data_only=False)
+    workbook = load_workbook(output, read_only=False, data_only=False)
     try:
         peaks = list(workbook["Peaks"].values)
         headers = peaks[0]
@@ -96,6 +96,8 @@ def test_standalone_result_workbook_preserves_units_order_and_no_compound(
         assert len(order) == 2
         assert order[1][2:7] == ("YoungIn", None, "Signal 1: TCD", "min", "mV.s")
         assert order[1][7:] == (1.25, 100.5, 2.5, 150.75)
+        assert workbook["Peak_Order_Matrix"].freeze_panes == "H2"
+        assert workbook["Peak_Order_Matrix"].auto_filter.ref == "A1:G2"
         assert workbook["Peak_Matrix"].max_column == 1
         assert private_name not in _workbook_values(output)
     finally:

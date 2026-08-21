@@ -79,6 +79,7 @@ include = [
 ]
 exclude = [
   "/docs/**/* 2.md",
+  "/tests/**/* 2.py",
 ]
 
 [tool.ruff]

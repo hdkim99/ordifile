@@ -103,6 +103,10 @@ def test_desktop_and_cli_api_create_equivalent_scientific_tables(tmp_path: Path)
     direct = convert((FIXTURE,), api_output, sort="input_order")
 
     assert desktop.outcome is BatchOutcome.SUCCESS
+    assert desktop.summary is not None
+    assert desktop.summary.converted_sources == 1
+    assert desktop.summary.sample_records == 1
+    assert desktop.summary.peak_records == len(_sheet_values(desktop_output, "Peaks")) - 1
     assert direct.success_count == 1
     for sheet in ("Samples", "Peak_Matrix", "Peaks", "Metadata", "Import_Log"):
         assert _sheet_values(desktop_output, sheet) == _sheet_values(api_output, sheet)

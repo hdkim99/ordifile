@@ -2,9 +2,26 @@
 
 ## Product goal
 
-Ordifile batch-converts scientific instrument files and merges verified data into
-one ordered Excel workbook. The priority is usability, correctness, transparent
-behavior, and GitHub adoption. This is not a paper-oriented research project.
+Ordifile is a local scientific chromatography data converter. It transforms
+instrument and CDS result files into canonical scientific records and one ordered
+Excel workbook. The priority is researcher usability, correctness, transparent
+behavior, file-format interoperability, and GitHub adoption. This is not a
+paper-oriented research project.
+
+## Scope and wording
+
+- Describe work in terms of scientific data conversion, file-format interoperability,
+  researcher workflow, data integrity, privacy, software quality, license compatibility,
+  and reproducibility.
+- Name checks by their actual purpose, such as input validation, scientific regression,
+  privacy, dependency health, build verification, and output consistency.
+- Do not add unrelated network, account, platform-control, or system-configuration work.
+- Collect only build information required for compatibility: OS family, architecture,
+  Python version, and relevant dependency versions.
+- Do not change account, authentication, access, or platform protection settings for
+  Ordifile development.
+- If an external platform requires a separate confirmation for a necessary step, stop at
+  that boundary and report: "External platform confirmation is required before this step."
 
 ## Communication
 

@@ -480,10 +480,16 @@ def test_convert_success_writes_workbook_and_summary(
     assert output_path.is_file()
     output = capsys.readouterr().out
     assert "Status: success" in output
-    assert f"Output: {output_path}" in output
+    assert "Output: result.xlsx" in output
+    assert str(tmp_path) not in output
     assert "Successful files: 1" in output
     assert "Files with warnings: 0" in output
     assert "Failed files: 0" in output
+    assert "Skipped files: 0" in output
+    assert "Samples: 1" in output
+    assert "Peaks: 1" in output
+    assert "Scientific signal series: 1" in output
+    assert "Structural record series: 0" in output
     assert "Sort used: filename" in output
     assert "Discovered files: 1" in output
     assert "Processed 1/1: success sample.csv" in output
