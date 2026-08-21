@@ -151,6 +151,44 @@ template을 exact format/header 구조로 한 batch에서 재사용하며, 0개 
 않습니다. Desktop에서 사용자가 mapping을 다시 확인하면 기존 template을 보존한 채 새
 profile을 만들 수 있습니다.
 
+### 쓰기 전 변환 검토
+
+동일한 변환 option에 `--dry-run`을 추가하면 deterministic route-only preflight를
+생성합니다. Exact adapter, 사용자 mapping, generic route, drift, ambiguity, unsupported
+입력, duplicate, 현재 primary output conflict를 보고하지만 workbook, sidecar, temporary
+file 또는 `PeakRecord`는 만들지 않습니다.
+
+```console
+ordifile convert input/ --recursive --peak-mapping-set lab-mappings.json \
+  --output results.xlsx --dry-run
+```
+
+Python의 in-memory `ConversionPlan`은 같은 process 안에서 사용하는 immutable
+snapshot입니다. Content SHA-256 identity와 고정 routing decision은 보관하지만 scientific
+row와 공개 absolute path는 보관하지 않습니다. `convert_plan(plan)`은 discovery와 routing을
+다시 수행하고 source set/content, adapter inventory, configuration 또는 output state가
+달라지면 기존 converter를 실행하기 전에 stale plan을 거부합니다. 이는 bounded TOCTOU
+hardening이며 filesystem state가 절대 변하지 않는다는 보장은 아닙니다. Scientific sort
+결과와 workbook/sidecar capacity는 parsing/export planning까지 명시적으로 deferred됩니다.
+Dry-run은 peak 수나 미래 write permission을 예측하지 않습니다. Mapping Profile matching은
+header-only입니다. Exact adapter ownership probe는 필요에 따라 numeric row syntax를 포함한
+bounded source structure를 decode·validate할 수 있지만, preflight는 canonical scientific row를
+생성·저장·export하지 않습니다. Freshness용 whole-file hash는 measurement bytes가 바뀌면
+자연히 달라질 수 있습니다. Public plan-summary SHA-256은 privacy-safe projection만 나타내며
+private path/config binding이나 authentication을 뜻하지 않습니다. 실행 가능한 plan에는 새
+output target이 필요하고, 명시적 overwrite는 direct conversion에서만 사용할 수 있습니다.
+POSIX에서는 sticky bit 없이 group/world-writable인 output directory를 거부합니다. 다른
+사용자가 private transaction entry를 교체할 수 있기 때문입니다. 같은 운영체제 사용자로
+실행되는 process는 local trust boundary 안에 있습니다.
+
+```python
+from ordifile.api import convert_plan, plan_conversion
+
+plan = plan_conversion("input", "results.xlsx")
+if plan.is_executable:
+    result = convert_plan(plan)
+```
+
 ## Experimental proprietary adapter
 
 | 형식 경계 | Metadata | Peaks | 출력 | 상태 | 실제 fixture |
@@ -254,11 +292,13 @@ ordifile convert ./exports --recursive --sort acquired_at --include-signals \
   --output Ordifile_Result.xlsx
 ordifile convert ./exports --extension .csv --extension .xlsx \
   --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
+ordifile convert ./exports --recursive --output Ordifile_Result.xlsx --dry-run
 ```
 
 주요 동작은 다음과 같습니다.
 
 - 기존 출력은 `--overwrite`가 없으면 덮어쓰지 않습니다.
+- `--dry-run`은 bounded routing/output preflight만 수행하며 workbook과 sidecar를 만들지 않습니다.
 - 폴더 탐색은 기본적으로 비재귀이며 `--recursive`로 하위 폴더를 포함합니다.
 - `--on-error continue`는 정상 파일을 보존하고 부분 성공을 보고합니다.
 - `--on-error stop`은 첫 파일 실패 후 중단하며 workbook을 쓰지 않습니다.
@@ -274,10 +314,10 @@ ordifile convert ./exports --extension .csv --extension .xlsx \
 
 | Code | 의미 |
 |---:|---|
-| 0 | 실패 파일 없이 workbook 생성 |
-| 1 | 치명적 오류 또는 성공 입력 없음 |
+| 0 | 실패 없이 workbook 생성 또는 dry-run 준비 완료 |
+| 1 | 치명적/blocked 결과 또는 성공 입력 없음 |
 | 2 | 사용법 또는 설정 오류 |
-| 3 | 하나 이상의 실패 파일이 있지만 유효한 workbook 생성 |
+| 3 | 실패가 있는 유효 workbook 또는 known partial failure가 있는 dry-run |
 | 130 | 사용자 중단 |
 
 ## 정렬

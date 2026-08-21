@@ -19,9 +19,28 @@ from ordifile.core.peak_mapping import (
     save_peak_table_mapping,
     save_peak_table_mapping_set,
 )
+from ordifile.core.planning import (
+    ConversionPlan,
+    ConversionPlanEntry,
+    ConversionPlanEntryStatus,
+    ConversionPlanOutputDisposition,
+    ConversionPlanProblem,
+    ConversionPlanReadiness,
+    ConversionPlanRoute,
+    ConversionPlanSummary,
+    PlanProgressEvent,
+)
 
 __all__ = [
     "ColumnSelector",
+    "ConversionPlan",
+    "ConversionPlanEntry",
+    "ConversionPlanEntryStatus",
+    "ConversionPlanOutputDisposition",
+    "ConversionPlanProblem",
+    "ConversionPlanReadiness",
+    "ConversionPlanRoute",
+    "ConversionPlanSummary",
     "PeakMappingDriftCategory",
     "PeakMappingDriftDiagnostic",
     "PeakTableFormat",
@@ -29,6 +48,7 @@ __all__ = [
     "PeakTableMappingProfile",
     "PeakTableMappingSet",
     "PeakTablePreview",
+    "PlanProgressEvent",
     "__version__",
     "clone_peak_table_mapping_profile",
     "load_peak_table_mapping",

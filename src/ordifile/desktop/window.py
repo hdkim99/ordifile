@@ -36,12 +36,19 @@ from PySide6.QtWidgets import (
 )
 
 from ordifile import (
+    ConversionPlan,
+    ConversionPlanEntryStatus,
+    ConversionPlanOutputDisposition,
+    ConversionPlanProblem,
+    ConversionPlanReadiness,
+    ConversionPlanRoute,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
     PeakTablePreview,
+    PlanProgressEvent,
     clone_peak_table_mapping_profile,
 )
 from ordifile.core.models import BatchOutcome, ProgressEvent
@@ -95,9 +102,9 @@ class MainWindow(QMainWindow):
         self._selection = InputSelectionModel()
         self._preview_thread: QThread | None = None
         self._preview_worker: PreviewWorker | None = None
-        self._preview_inputs: tuple[Path, ...] | None = None
-        self._preview_mapping: PeakTableMapping | None = None
-        self._preview_mapping_set: PeakTableMappingSet | None = None
+        self._preview_request: DesktopRequest | None = None
+        self._preview_generation: int | None = None
+        self._preflight_generation = 0
         self._preview_pending = False
         self._conversion_thread: QThread | None = None
         self._conversion_worker: ConversionWorker | None = None
@@ -107,6 +114,9 @@ class MainWindow(QMainWindow):
         self._displayed_files: tuple[DesktopFileReport, ...] = ()
         self._displayed_inputs: tuple[Path, ...] = ()
         self._displayed_mapping_set: PeakTableMappingSet | None = None
+        self._displayed_plan: ConversionPlan | None = None
+        self._displayed_request: DesktopRequest | None = None
+        self._displayed_generation: int | None = None
 
         central = QWidget(self)
         root = QVBoxLayout(central)
@@ -217,12 +227,24 @@ class MainWindow(QMainWindow):
         mapping_set_layout.addWidget(self.mapping_set_label, 3, 0, 1, 6)
         root.addWidget(mapping_set_group)
 
-        detected_label = QLabel("&Detected files:")
-        self.input_table = QTableWidget(0, 5)
+        detected_header = QHBoxLayout()
+        detected_label = QLabel("Conversion &preflight:")
+        self.refresh_preflight_button = QPushButton("&Refresh Preflight")
+        self.refresh_preflight_button.setAccessibleName("Refresh conversion preflight")
+        self.refresh_preflight_button.setEnabled(False)
+        detected_header.addWidget(detected_label)
+        detected_header.addStretch()
+        detected_header.addWidget(self.refresh_preflight_button)
+        root.addLayout(detected_header)
+        self.preflight_summary_label = QLabel("Preflight has not run.")
+        self.preflight_summary_label.setAccessibleName("Conversion preflight summary")
+        self.preflight_summary_label.setWordWrap(True)
+        root.addWidget(self.preflight_summary_label)
+        self.input_table = QTableWidget(0, 6)
         self.input_table.setObjectName("inputTable")
-        self.input_table.setAccessibleName("Detected input files")
+        self.input_table.setAccessibleName("Conversion preflight inputs")
         self.input_table.setHorizontalHeaderLabels(
-            ("File", "Detected format", "Adapter", "Conversion route", "Status")
+            ("File", "Detected format", "Adapter", "Conversion route", "Action", "Status")
         )
         self.input_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.input_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -232,7 +254,6 @@ class MainWindow(QMainWindow):
         self.input_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.input_table.setToolTip("Drop files or folders here, or use the Add buttons.")
         detected_label.setBuddy(self.input_table)
-        root.addWidget(detected_label)
         root.addWidget(self.input_table, stretch=1)
 
         drift_group = QGroupBox("Mapping schema drift review")
@@ -331,9 +352,11 @@ class MainWindow(QMainWindow):
         self.drift_candidate_combo.currentIndexChanged.connect(self._update_drift_candidate_detail)
         self.review_mapping_button.clicked.connect(self._review_mapping)
         self.output_button.clicked.connect(self._choose_output)
+        self.refresh_preflight_button.clicked.connect(self._request_preview)
         self.convert_button.clicked.connect(self._start_conversion)
         self.open_output_button.clicked.connect(self._open_output)
         self.sort_combo.currentIndexChanged.connect(self._request_preview)
+        self.output_edit.textChanged.connect(self._request_preview)
 
         self.setTabOrder(self.add_files_button, self.add_folder_button)
         self.setTabOrder(self.add_folder_button, self.selection_list)
@@ -351,7 +374,8 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.remove_mapping_profile_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.input_table)
-        self.setTabOrder(self.input_table, self.drift_candidate_combo)
+        self.setTabOrder(self.input_table, self.refresh_preflight_button)
+        self.setTabOrder(self.refresh_preflight_button, self.drift_candidate_combo)
         self.setTabOrder(self.drift_candidate_combo, self.review_mapping_button)
         self.setTabOrder(self.review_mapping_button, self.sort_combo)
         self.setTabOrder(self.sort_combo, self.output_edit)
@@ -413,6 +437,9 @@ class MainWindow(QMainWindow):
 
     def _update_mapping_controls(self) -> None:
         idle = self._conversion_thread is None
+        self.refresh_preflight_button.setEnabled(
+            idle and self._preview_thread is None and bool(self._selection.paths)
+        )
         self.map_peaks_button.setEnabled(idle and self._mapping_source() is not None)
         self.load_mapping_button.setEnabled(idle)
         has_mapping = self._peak_table_mapping is not None
@@ -427,6 +454,7 @@ class MainWindow(QMainWindow):
         self.add_mapping_profile_button.setEnabled(idle and has_mapping)
         self.rename_mapping_profile_button.setEnabled(idle and has_profile)
         self.remove_mapping_profile_button.setEnabled(idle and has_profile)
+        self._update_convert_enabled()
 
     def _refresh_mapping_status(self) -> None:
         set_active = self.mapping_set_active
@@ -496,6 +524,52 @@ class MainWindow(QMainWindow):
             return None, self._peak_table_mapping_set
         return self._peak_table_mapping, None
 
+    def _current_preflight_request(self) -> DesktopRequest:
+        active_mapping, active_mapping_set = self._active_peak_mappings()
+        return DesktopRequest(
+            inputs=self._selection.paths,
+            output=Path(self.output_edit.text()),
+            sort=self._sort_value(),
+            peak_table_mapping=active_mapping,
+            peak_table_mapping_set=active_mapping_set,
+        )
+
+    def _invalidate_preflight(self, message: str) -> None:
+        self._preflight_generation += 1
+        self._displayed_plan = None
+        self._displayed_request = None
+        self._displayed_generation = None
+        self._invalidate_mapping_drift_review()
+        self.preflight_summary_label.setText(message)
+        self._update_convert_enabled()
+
+    def _current_plan(self) -> ConversionPlan | None:
+        if (
+            self._displayed_plan is None
+            or self._displayed_request != self._current_preflight_request()
+            or self._displayed_generation != self._preflight_generation
+        ):
+            return None
+        return self._displayed_plan
+
+    def _update_convert_enabled(self) -> None:
+        plan = self._current_plan()
+        enabled = (
+            self._preview_thread is None
+            and self._conversion_thread is None
+            and plan is not None
+            and plan.is_executable
+            and plan.summary.routable > 0
+        )
+        self.convert_button.setEnabled(enabled)
+        if plan is not None and plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES:
+            self.convert_button.setAccessibleName(
+                f"Convert {plan.summary.routable} routable inputs with "
+                f"{plan.summary.failed} known failures"
+            )
+        else:
+            self.convert_button.setAccessibleName("Convert selected inputs")
+
     def _selected_mapping_profile(self) -> PeakTableMappingProfile | None:
         mapping_set = self._peak_table_mapping_set
         profile_id = self.mapping_set_combo.currentData()
@@ -534,6 +608,7 @@ class MainWindow(QMainWindow):
         return (
             self._preview_thread is None
             and self._conversion_thread is None
+            and self._current_plan() is not None
             and self.mapping_set_active
             and self._displayed_inputs == self._selection.paths
             and self._displayed_mapping_set is not None
@@ -567,7 +642,10 @@ class MainWindow(QMainWindow):
         item = self._selected_displayed_file()
         if (
             item is None
-            or item.mapping_route != "SCHEMA_DRIFT_CANDIDATE"
+            or (
+                item.plan_problem is not ConversionPlanProblem.MAPPING_SCHEMA_DRIFT
+                and item.mapping_route != "SCHEMA_DRIFT_CANDIDATE"
+            )
             or not item.mapping_diagnostics
         ):
             return
@@ -1028,12 +1106,11 @@ class MainWindow(QMainWindow):
 
     def _clear_inputs(self) -> None:
         self._selection.clear()
-        self._invalidate_mapping_drift_review()
+        self._invalidate_preflight("Preflight has not run.")
         self.selection_list.clear()
         self.input_table.setRowCount(0)
         self.status_label.setText("Input list cleared.")
         self.details.setPlainText("No inputs selected.")
-        self.convert_button.setEnabled(False)
         self._update_mapping_controls()
 
     def _sort_value(self) -> str:
@@ -1041,7 +1118,7 @@ class MainWindow(QMainWindow):
         return value if isinstance(value, str) else "auto"
 
     def _render_queued_inputs(self) -> None:
-        self._invalidate_mapping_drift_review()
+        self._invalidate_preflight("Preflight is required for the current selection.")
         self.selection_list.clear()
         for path in self._selection.paths:
             self.selection_list.addItem(safe_display_name(path))
@@ -1052,22 +1129,29 @@ class MainWindow(QMainWindow):
                 "Pending core discovery",
                 "—",
                 "Pending inspection",
+                "Wait for preflight",
                 "Queued",
             )
             for column, value in enumerate(values):
                 self.input_table.setItem(row, column, QTableWidgetItem(value))
-        self.convert_button.setEnabled(bool(self._selection.paths))
         self._update_mapping_controls()
 
     def _render_report(self, report: DesktopBatchReport) -> None:
         self.input_table.setRowCount(len(report.files))
         for row, item in enumerate(report.files):
+            action = (
+                "Choose another output"
+                if report.plan is not None
+                and report.plan.output_disposition is ConversionPlanOutputDisposition.BLOCKED
+                else self._plan_action_text(item)
+            )
             values = (
                 item.source,
                 item.format_name,
                 item.adapter_id,
                 self._mapping_route_text(item),
-                item.status.value,
+                action,
+                self._plan_status_text(item),
             )
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
@@ -1076,6 +1160,31 @@ class MainWindow(QMainWindow):
                 self.input_table.setItem(row, column, cell)
 
     def _mapping_route_text(self, item: DesktopFileReport) -> str:
+        plan_route_labels = {
+            ConversionPlanRoute.EXACT_ADAPTER: "Exact adapter",
+            ConversionPlanRoute.USER_MAPPING: "Single user mapping",
+            ConversionPlanRoute.USER_MAPPING_PROFILE: "User mapping profile",
+            ConversionPlanRoute.GENERIC_INPUT: "Generic input",
+            ConversionPlanRoute.UNROUTED: "Unrouted",
+        }
+        if item.plan_route is not None:
+            if (
+                item.plan_route is ConversionPlanRoute.USER_MAPPING_PROFILE
+                and item.mapping_profile_id is not None
+            ):
+                mapping_set = self._peak_table_mapping_set
+                if mapping_set is not None:
+                    profile = next(
+                        (
+                            candidate
+                            for candidate in mapping_set.profiles
+                            if candidate.profile_id == item.mapping_profile_id
+                        ),
+                        None,
+                    )
+                    if profile is not None:
+                        return f"User mapping: {safe_preview_text(profile.display_label)}"
+            return plan_route_labels[item.plan_route]
         route_labels = {
             "EXACT_ADAPTER": "Exact adapter",
             "USER_MAPPING": "Single user mapping",
@@ -1103,27 +1212,83 @@ class MainWindow(QMainWindow):
             return "Automatic detection"
         return route_labels.get(item.mapping_route, safe_preview_text(item.mapping_route))
 
+    @staticmethod
+    def _plan_action_text(item: DesktopFileReport) -> str:
+        if item.plan_status is None:
+            return "Completed"
+        if item.plan_status is ConversionPlanEntryStatus.ROUTABLE:
+            return "Convert"
+        if item.plan_status is ConversionPlanEntryStatus.DUPLICATE:
+            return "Skip duplicate"
+        if item.plan_status is ConversionPlanEntryStatus.EXCLUDED_ARTIFACT:
+            return "Exclude prior artifact"
+        actions = {
+            ConversionPlanProblem.UNMAPPED_GENERIC_TABLE: "Map peak columns",
+            ConversionPlanProblem.MAPPING_SCHEMA_DRIFT: "Review mapping",
+            ConversionPlanProblem.MAPPING_PROFILE_AMBIGUOUS: "Resolve profile ambiguity",
+            ConversionPlanProblem.WORKSHEET_AMBIGUOUS: "Choose worksheet",
+            ConversionPlanProblem.ADAPTER_AMBIGUOUS: "Resolve adapter ambiguity",
+            ConversionPlanProblem.UNSUPPORTED_FORMAT: "Unsupported",
+            ConversionPlanProblem.MALFORMED_INPUT: "Repair input structure",
+            ConversionPlanProblem.INPUT_DISCOVERY_FAILED: "Resolve input failure",
+            ConversionPlanProblem.OUTPUT_CONFLICT: "Choose another output",
+            ConversionPlanProblem.DUPLICATE_INPUT: "Skip duplicate",
+            ConversionPlanProblem.NONE: "Resolve failure",
+        }
+        return actions[item.plan_problem or ConversionPlanProblem.NONE]
+
+    @staticmethod
+    def _plan_status_text(item: DesktopFileReport) -> str:
+        if item.plan_status is None:
+            return item.status.value
+        return {
+            ConversionPlanEntryStatus.ROUTABLE: "Routable",
+            ConversionPlanEntryStatus.FAILED: "Failed",
+            ConversionPlanEntryStatus.DUPLICATE: "Duplicate",
+            ConversionPlanEntryStatus.EXCLUDED_ARTIFACT: "Excluded",
+        }[item.plan_status]
+
+    def _render_preflight_summary(self, plan: ConversionPlan) -> None:
+        summary = plan.summary
+        readiness = {
+            ConversionPlanReadiness.READY: "Ready",
+            ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES: ("Ready with known failures"),
+            ConversionPlanReadiness.BLOCKED: "Blocked",
+        }[plan.readiness]
+        output_note = (
+            f" Output: {safe_preview_text(plan.output_issue_code)}."
+            if plan.output_issue_code
+            else ""
+        )
+        self.preflight_summary_label.setText(
+            f"{readiness}: {summary.routable} routable, {summary.failed} failed, "
+            f"{summary.duplicates} duplicate, {summary.exact_adapters} exact-adapter, "
+            f"{summary.user_mappings + summary.mapping_profiles} user-mapped, "
+            f"{summary.drifted} schema-drift, {summary.unmapped} unmapped, "
+            f"{summary.unsupported} unsupported.{output_note}"
+        )
+
     def _request_preview(self, *_unused: object) -> None:
         if not self._selection.paths or self._conversion_thread is not None:
             return
-        self._invalidate_mapping_drift_review()
+        self._invalidate_preflight("Preflight is pending for the current configuration.")
         if self._preview_thread is not None:
             self._preview_pending = True
             return
+        self._start_preview()
+
+    def _start_preview(self) -> None:
+        if not self._selection.paths or self._conversion_thread is not None:
+            return
         self._preview_pending = False
-        active_mapping, active_mapping_set = self._active_peak_mappings()
-        self._preview_inputs = self._selection.paths
-        self._preview_mapping = active_mapping
-        self._preview_mapping_set = active_mapping_set
-        self.convert_button.setEnabled(False)
-        self.status_label.setText("Inspecting selected inputs…")
+        request = self._current_preflight_request()
+        self._preview_request = request
+        self._preview_generation = self._preflight_generation
+        self.refresh_preflight_button.setEnabled(False)
+        self._update_convert_enabled()
+        self.status_label.setText("Planning selected inputs…")
         thread = QThread(self)
-        worker = PreviewWorker(
-            self._selection.paths,
-            self._sort_value(),
-            active_mapping,
-            active_mapping_set,
-        )
+        worker = PreviewWorker(request)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(self._on_preview_progress)
@@ -1137,64 +1302,76 @@ class MainWindow(QMainWindow):
         thread.start()
 
     def _on_preview_progress(self, event: object) -> None:
-        if isinstance(event, ProgressEvent):
-            self._show_progress(event, inspecting=True)
+        if isinstance(event, PlanProgressEvent):
+            total = max(event.total, 1)
+            self.progress_bar.setRange(0, total)
+            self.progress_bar.setValue(min(event.completed, total))
+            label = {
+                "planning_discovery": "Discovering inputs",
+                "planning_routing": "Planning conversion routes",
+                "planning_complete": "Preflight complete",
+            }.get(event.stage, "Planning conversion")
+            self.status_label.setText(f"{label}: {event.completed}/{event.total}")
 
     def _on_preview_complete(self, report: object) -> None:
         if not isinstance(report, DesktopBatchReport):
             return
-        active_mapping, active_mapping_set = self._active_peak_mappings()
         if (
-            self._preview_inputs != self._selection.paths
-            or self._preview_mapping != active_mapping
-            or self._preview_mapping_set != active_mapping_set
+            self._preview_generation != self._preflight_generation
+            or self._preview_request != self._current_preflight_request()
         ):
             return
         if report.is_fatal_error:
+            self.preflight_summary_label.setText("Preflight failed; conversion is disabled.")
             self.status_label.setText(
                 f"Inspection failed [{report.error_code}]: {report.error_message}"
             )
         else:
             self._displayed_files = report.files
             self._displayed_inputs = self._selection.paths
-            self._displayed_mapping_set = active_mapping_set
+            self._displayed_mapping_set = self._active_peak_mappings()[1]
+            self._displayed_plan = report.plan
+            self._displayed_request = self._preview_request
+            self._displayed_generation = self._preview_generation
             self._render_report(report)
+            if report.plan is not None:
+                self._render_preflight_summary(report.plan)
             self.status_label.setText(
-                f"Inspection complete: {len(report.files)} file(s), {report.failure_count} failed."
+                f"Preflight complete: {len(report.files)} input(s), "
+                f"{report.failure_count} known failure(s)."
             )
         self.details.setPlainText(details_text(report))
+        self._update_convert_enabled()
 
     def _preview_finished(self) -> None:
         self._preview_thread = None
         self._preview_worker = None
-        self._preview_inputs = None
-        self._preview_mapping = None
-        self._preview_mapping_set = None
-        self.convert_button.setEnabled(bool(self._selection.paths))
+        self._preview_request = None
+        self._preview_generation = None
         if self._preview_pending:
-            self._request_preview()
+            self._start_preview()
         else:
+            self._update_mapping_controls()
             self._mapping_drift_row_changed()
 
     def _start_conversion(self) -> None:
         if self._conversion_thread is not None:
             return
+        plan = self._current_plan()
+        if plan is None or not plan.is_executable or plan.summary.routable == 0:
+            self.status_label.setText(
+                "Refresh preflight and resolve blocking actions before conversion."
+            )
+            self._update_convert_enabled()
+            return
         self._invalidate_mapping_drift_review()
-        active_mapping, active_mapping_set = self._active_peak_mappings()
-        request = DesktopRequest(
-            inputs=self._selection.paths,
-            output=Path(self.output_edit.text()),
-            sort=self._sort_value(),
-            peak_table_mapping=active_mapping,
-            peak_table_mapping_set=active_mapping_set,
-        )
         self._set_conversion_controls(False)
         self.open_output_button.setEnabled(False)
         self._last_output = None
         self.status_label.setText("Starting conversion…")
         self.details.setPlainText("Conversion is running.")
         thread = QThread(self)
-        worker = ConversionWorker(request)
+        worker = ConversionWorker(plan)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(self._on_conversion_progress)
@@ -1259,7 +1436,8 @@ class MainWindow(QMainWindow):
         self._conversion_worker = None
         self._set_conversion_controls(True)
         self._update_mapping_controls()
-        self._mapping_drift_row_changed()
+        self._invalidate_preflight("Refresh preflight before another conversion.")
+        self._update_convert_enabled()
 
     def _set_conversion_controls(self, enabled: bool) -> None:
         for widget in (
@@ -1280,6 +1458,7 @@ class MainWindow(QMainWindow):
             self.remove_mapping_profile_button,
             self.drift_candidate_combo,
             self.review_mapping_button,
+            self.refresh_preflight_button,
             self.selection_list,
             self.input_table,
             self.sort_combo,

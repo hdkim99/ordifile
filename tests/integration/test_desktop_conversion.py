@@ -12,6 +12,8 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile import (
     ColumnSelector,
+    ConversionPlanProblem,
+    ConversionPlanRoute,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
@@ -20,7 +22,12 @@ from ordifile import (
 from ordifile.api import convert
 from ordifile.core.models import BatchOutcome
 from ordifile.desktop.models import DesktopRequest
-from ordifile.desktop.services import convert_selection, inspect_selection
+from ordifile.desktop.services import (
+    convert_preflight_plan,
+    convert_selection,
+    inspect_selection,
+    preflight_selection,
+)
 
 FIXTURE = Path("tests/fixtures/synthetic/generic_peaks.csv")
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -49,6 +56,43 @@ def test_desktop_service_discovers_folder_and_reports_detected_adapter(tmp_path:
     assert len(report.files) == 1
     assert report.files[0].adapter_id == "generic_csv"
     assert "Verified" in report.files[0].format_name
+
+
+def test_desktop_preflight_executes_the_exact_immutable_plan(tmp_path: Path) -> None:
+    output = tmp_path / "planned.xlsx"
+    request = DesktopRequest((FIXTURE,), output, "input_order")
+
+    preflight = preflight_selection(request)
+
+    assert preflight.plan is not None and preflight.plan.is_executable
+    assert preflight.files[0].plan_route is ConversionPlanRoute.GENERIC_INPUT
+    assert not output.exists()
+
+    converted = convert_preflight_plan(preflight.plan)
+
+    assert converted.outcome is BatchOutcome.SUCCESS
+    assert output.is_file()
+    workbook = load_workbook(output, read_only=True)
+    try:
+        assert "Peaks" in workbook.sheetnames
+    finally:
+        workbook.close()
+
+
+def test_desktop_preflight_blocks_a_source_changed_before_conversion(tmp_path: Path) -> None:
+    source = tmp_path / "private-source.csv"
+    source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    output = tmp_path / "planned.xlsx"
+    preflight = preflight_selection(DesktopRequest((source,), output))
+    assert preflight.plan is not None
+    source.write_text("sample_id,area\na,2\n", encoding="utf-8")
+
+    converted = convert_preflight_plan(preflight.plan)
+
+    assert converted.is_fatal_error
+    assert converted.error_code == "CONVERSION_PLAN_STALE"
+    assert not output.exists()
+    assert source.name not in repr(preflight)
 
 
 def test_desktop_and_cli_api_create_equivalent_scientific_tables(tmp_path: Path) -> None:
@@ -276,3 +320,16 @@ def test_desktop_inspection_exposes_bounded_schema_drift_without_applying_it(
     assert report.files[0].mapping_diagnostics[0].profile_id == profile.profile_id
     assert report.files[0].review_input_index == 0
     assert source.name not in repr(report)
+
+    preflight = preflight_selection(
+        DesktopRequest(
+            (source,),
+            tmp_path / "drift-preflight.xlsx",
+            "input_order",
+            peak_table_mapping_set=mapping_set,
+        )
+    )
+    assert preflight.plan is not None
+    assert preflight.files[0].plan_problem is ConversionPlanProblem.MAPPING_SCHEMA_DRIFT
+    assert preflight.files[0].mapping_diagnostics[0].profile_id == profile.profile_id
+    assert preflight.failure_count == 1

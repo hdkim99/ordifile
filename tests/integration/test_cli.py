@@ -100,13 +100,21 @@ def test_cli_mapping_set_routes_batch_and_reports_privacy_safe_summary(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source = tmp_path / "private-source.csv"
-    source.write_text("Declared RT,Declared Area\n1.5,20\n", encoding="utf-8")
+    source.write_text(
+        "Private RT Header,Private Area Header,Private Note Header\n"
+        "1.5,20,Private Measurement Canary\n",
+        encoding="utf-8",
+    )
     profile = PeakTableMappingProfile(
         PeakTableMapping(
-            ColumnSelector("Declared RT", 1),
-            ColumnSelector("Declared Area", 2),
-            "min",
+            ColumnSelector("Private RT Header", 1),
+            ColumnSelector("Private Area Header", 2),
+            "Private RT Unit",
             PeakTableFormat.CSV,
+            area_unit="Private Area Unit",
+            manufacturer="Private Manufacturer",
+            software="Private Software",
+            ignored_columns=(ColumnSelector("Private Note Header", 3),),
         ),
         "Private local profile label",
         profile_id="profile-11111111111111111111111111111111",
@@ -114,6 +122,38 @@ def test_cli_mapping_set_routes_batch_and_reports_privacy_safe_summary(
     mapping_set_path = tmp_path / "private-set-name.json"
     save_peak_table_mapping_set(PeakTableMappingSet((profile,)), mapping_set_path)
     output = tmp_path / "mapped-set.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--peak-mapping-set",
+                str(mapping_set_path),
+                "--output",
+                str(output),
+                "--dry-run",
+                "--verbose",
+            ]
+        )
+        == 0
+    )
+    dry_run = capsys.readouterr().out
+    assert "Mapping profile: 1" in dry_run
+    assert "Private local profile label" not in dry_run
+    assert mapping_set_path.name not in dry_run
+    for canary in (
+        "Private RT Header",
+        "Private Area Header",
+        "Private Note Header",
+        "Private Measurement Canary",
+        "Private RT Unit",
+        "Private Area Unit",
+        "Private Manufacturer",
+        "Private Software",
+    ):
+        assert canary not in dry_run
+    assert not output.exists()
 
     assert (
         main(
@@ -759,6 +799,133 @@ def test_terminal_renderer_preserves_readable_unicode_and_disambiguates_escapes(
     assert _terminal_safe("literal\\x1b actual\x1b") == "literal\\\\x1b actual\\x1b"
     assert _terminal_safe("literal\\u202e actual\u202e") == "literal\\\\u202e actual\\u202e"
     assert _terminal_safe("\x00\x7f\x85\u2066\u2028") == "\\x00\\x7f\\x85\\u2066\\u2028"
+
+
+def test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "private-canary-source.csv"
+    output = tmp_path / "private-canary-output.xlsx"
+    _write_peak_table(source)
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--output",
+                str(output),
+                "--dry-run",
+                "--verbose",
+            ]
+        )
+        == 0
+    )
+
+    rendered = capsys.readouterr().out
+    assert "Dry run: no workbook or sidecar was created." in rendered
+    assert "Readiness: READY" in rendered
+    assert "Generic input: 1" in rendered
+    assert "Public plan-summary SHA-256:" in rendered
+    assert "Sort result: deferred" in rendered
+    assert "source-" in rendered
+    assert "private-canary-source.csv" not in rendered
+    assert "private-canary-output.xlsx" not in rendered
+    assert not output.exists()
+    assert not list(tmp_path.glob(".ordifile_*"))
+
+
+def test_convert_dry_run_folder_partial_and_output_block_exit_semantics(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    folder = tmp_path / "inputs"
+    good = folder / "nested" / "good.csv"
+    unsupported = folder / "nested" / "unsupported.bin"
+    _write_peak_table(good)
+    unsupported.write_bytes(b"unsupported")
+    output = tmp_path / "result.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(folder),
+                "--recursive",
+                "--output",
+                str(output),
+                "--dry-run",
+            ]
+        )
+        == 3
+    )
+    partial = capsys.readouterr().out
+    assert "Readiness: READY_WITH_KNOWN_FAILURES" in partial
+    assert "Inputs: 2" in partial
+    assert "Unsupported: 1" in partial
+    assert not output.exists()
+
+    output.write_bytes(b"foreign")
+    assert (
+        main(
+            [
+                "convert",
+                str(good),
+                "--output",
+                str(output),
+                "--dry-run",
+            ]
+        )
+        == 1
+    )
+    blocked = capsys.readouterr().out
+    assert "Readiness: BLOCKED" in blocked
+    assert "Output issue: OUTPUT_EXISTS" in blocked
+    assert output.read_bytes() == b"foreign"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(good),
+                "--output",
+                str(output),
+                "--dry-run",
+                "--overwrite",
+            ]
+        )
+        == 2
+    )
+    error = capsys.readouterr().err
+    assert "CONVERSION_PLAN_OVERWRITE_UNSUPPORTED" in error
+    assert output.read_bytes() == b"foreign"
+
+
+def test_convert_dry_run_reflects_forced_adapter_without_parsing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_peak_table(source)
+    output = tmp_path / "result.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--adapter",
+                "generic_csv",
+                "--output",
+                str(output),
+                "--dry-run",
+                "--verbose",
+            ]
+        )
+        == 0
+    )
+    rendered = capsys.readouterr().out
+    assert "adapter=generic_csv" in rendered
+    assert "route=GENERIC_INPUT" in rendered
+    assert not output.exists()
 
 
 def test_structured_input_error_has_actionable_message_without_traceback(

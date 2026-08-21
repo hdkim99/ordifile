@@ -42,6 +42,14 @@ from ordifile.core.peak_mapping import (
     PeakTablePreview,
 )
 from ordifile.core.pipeline import run_pipeline
+from ordifile.core.planning import (
+    ConversionPlan,
+    PlanProgressEvent,
+    build_conversion_plan,
+    output_binding,
+    plan_bindings,
+)
+from ordifile.core.routing import InputRouteExpectation
 from ordifile.exporters.excel import ExcelExporter
 
 
@@ -506,7 +514,7 @@ def inspect_inputs(
     )
 
 
-def convert(
+def _convert_impl(
     inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
     output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
     *,
@@ -524,6 +532,11 @@ def convert(
     sidecar_mode: str = "error",
     progress: Callable[[ProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
+    expected_sources: tuple[tuple[str, int, str | None, int | None, tuple[str, ...]], ...]
+    | None = None,
+    expected_routes: tuple[InputRouteExpectation | None, ...] | None = None,
+    expected_registry_signature: tuple[tuple[str, str, str], ...] | None = None,
+    expected_output_binding: object | None = None,
 ) -> BatchResult:
     """Batch-convert inputs into one ordered Excel workbook."""
     _require_bool("recursive", recursive)
@@ -586,10 +599,30 @@ def convert(
         on_error=on_error,
         progress=progress,
         artifact_output=output_path,
+        expected_sources=expected_sources,
+        expected_routes=expected_routes,
+        expected_registry_signature=expected_registry_signature,
     )
     if not result.files:
         raise OrdifileError(
             "NO_DISCOVERED_FILES", "No files remained after discovery and extension filtering."
+        )
+    if expected_sources is not None and any(
+        issue.code in {"INPUT_CHANGED_DURING_PARSE", "INPUT_INTEGRITY_CHECK_FAILED"}
+        for item in result.files
+        for issue in item.issues
+    ):
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "An input changed during planned conversion; no workbook was written.",
+        )
+    if (
+        expected_output_binding is not None
+        and output_binding(output_path) != expected_output_binding
+    ):
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "The output target changed after conversion preflight; no workbook was written.",
         )
     if on_error == "stop" and result.failure_count:
         failed = next(item for item in result.files if item.status.value == "failed")
@@ -666,3 +699,257 @@ def convert(
     if progress is not None:
         progress(ProgressEvent("export_complete", 1, 1, output_path.name))
     return _public_api_batch_result(exported)
+
+
+def plan_conversion(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
+    *,
+    recursive: bool = False,
+    extensions: Iterable[str] | None = None,
+    sort: SortMode | str = SortMode.AUTO,
+    include_signals: bool = False,
+    adapter: str | None = None,
+    sheet: str | None = None,
+    include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
+    on_error: str = "continue",
+    overwrite: bool = False,
+    sidecar_mode: str = "error",
+    progress: Callable[[PlanProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+) -> ConversionPlan:
+    """Build a route-only immutable plan without canonical rows or output artifacts."""
+    _require_bool("recursive", recursive)
+    _require_bool("include_signals", include_signals)
+    _require_bool("include_hidden_sheets", include_hidden_sheets)
+    _require_bool("overwrite", overwrite)
+    if overwrite:
+        raise OrdifileError(
+            "CONVERSION_PLAN_OVERWRITE_UNSUPPORTED",
+            "Conversion preflight requires a new output target; use direct conversion for an "
+            "explicit overwrite.",
+        )
+    _require_optional_text("adapter", adapter)
+    _require_optional_text("sheet", sheet)
+    _require_registry(registry)
+    _require_peak_mapping(peak_table_mapping)
+    _require_peak_mapping_set(peak_table_mapping_set)
+    _validate_peak_mapping_options(
+        peak_table_mapping,
+        peak_table_mapping_set,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+    )
+    if adapter is not None and (
+        peak_table_mapping is not None or peak_table_mapping_set is not None
+    ):
+        raise OrdifileError(
+            "PEAK_MAPPING_ADAPTER_CONFLICT",
+            "adapter and peak_table_mapping cannot be selected together.",
+        )
+    if type(on_error) is not str or on_error not in {"continue", "stop"}:
+        raise OrdifileError("ON_ERROR_INVALID", "on_error must be 'continue' or 'stop'.")
+    if type(sidecar_mode) is not str or sidecar_mode not in {"error", "csv"}:
+        raise OrdifileError("SIDECAR_MODE_INVALID", "sidecar_mode must be 'error' or 'csv'.")
+    if progress is not None and not callable(progress):
+        raise OrdifileError("OPTION_TYPE_INVALID", "progress must be callable or None.")
+    if not isinstance(output, (str, os.PathLike)):
+        raise OrdifileError("OPTION_TYPE_INVALID", "output must be a filesystem path.")
+    requested_sort = _normalize_sort(sort)
+    normalized_extensions = _normalize_extensions(extensions)
+    normalized = _inputs(inputs)
+    if not normalized:
+        raise OrdifileError("NO_INPUTS", "At least one input path is required.")
+    active = create_registry() if registry is None else registry
+    if adapter is not None:
+        active.get(adapter)
+    return build_conversion_plan(
+        normalized,
+        output,
+        active,
+        recursive=recursive,
+        extensions=normalized_extensions,
+        sort=requested_sort.value,
+        include_signals=include_signals,
+        adapter=adapter,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+        peak_table_mapping=peak_table_mapping,
+        peak_table_mapping_set=peak_table_mapping_set,
+        on_error=on_error,
+        overwrite=overwrite,
+        sidecar_mode=sidecar_mode,
+        progress=progress,
+    )
+
+
+def convert_plan(
+    plan: ConversionPlan,
+    *,
+    progress: Callable[[ProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+) -> BatchResult:
+    """Revalidate one reviewed same-process plan, then execute the existing converter."""
+    if type(plan) is not ConversionPlan:
+        raise OrdifileError("CONVERSION_PLAN_INVALID", "plan must be a ConversionPlan.")
+    _require_registry(registry)
+    if progress is not None and not callable(progress):
+        raise OrdifileError("OPTION_TYPE_INVALID", "progress must be callable or None.")
+    if not plan.is_executable:
+        raise OrdifileError(
+            "CONVERSION_PLAN_BLOCKED",
+            "The reviewed plan is blocked; refresh preflight after resolving its failures.",
+        )
+    bindings = plan_bindings(plan)
+    active = create_registry() if registry is None else registry
+    try:
+        fresh = build_conversion_plan(
+            bindings.inputs,
+            bindings.output,
+            active,
+            recursive=bindings.recursive,
+            extensions=bindings.extensions,
+            sort=bindings.sort,
+            include_signals=bindings.include_signals,
+            adapter=bindings.adapter,
+            sheet=bindings.sheet,
+            include_hidden_sheets=bindings.include_hidden_sheets,
+            peak_table_mapping=bindings.peak_table_mapping,
+            peak_table_mapping_set=bindings.peak_table_mapping_set,
+            on_error=bindings.on_error,
+            overwrite=bindings.overwrite,
+            sidecar_mode=bindings.sidecar_mode,
+        )
+    except (KeyboardInterrupt, SystemExit, MemoryError):
+        raise
+    except Exception as error:
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "Inputs or conversion configuration changed; refresh preflight before converting.",
+        ) from error
+    fresh_bindings = plan_bindings(fresh)
+    if fresh.public_summary_sha256 != plan.public_summary_sha256 or fresh_bindings != bindings:
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "Inputs or conversion configuration changed; refresh preflight before converting.",
+        )
+    expected_sources = tuple(
+        (
+            os.path.abspath(os.fspath(source.path)),
+            source.size,
+            source.sha256,
+            source.duplicate_of,
+            source.issue_codes,
+        )
+        for source in fresh_bindings.sources
+    )
+    expected_routes = tuple(source.route_expectation for source in fresh_bindings.sources)
+    try:
+        return _convert_impl(
+            fresh_bindings.inputs,
+            fresh_bindings.output,
+            recursive=fresh_bindings.recursive,
+            extensions=fresh_bindings.extensions,
+            sort=fresh_bindings.sort,
+            include_signals=fresh_bindings.include_signals,
+            adapter=fresh_bindings.adapter,
+            sheet=fresh_bindings.sheet,
+            include_hidden_sheets=fresh_bindings.include_hidden_sheets,
+            peak_table_mapping=fresh_bindings.peak_table_mapping,
+            peak_table_mapping_set=fresh_bindings.peak_table_mapping_set,
+            on_error=fresh_bindings.on_error,
+            overwrite=fresh_bindings.overwrite,
+            sidecar_mode=fresh_bindings.sidecar_mode,
+            progress=progress,
+            registry=active,
+            expected_sources=expected_sources,
+            expected_routes=expected_routes,
+            expected_registry_signature=fresh_bindings.registry_signature,
+            expected_output_binding=fresh_bindings.output_snapshot,
+        )
+    except ExportError as error:
+        if error.code in {
+            "OUTPUT_COLLISION",
+            "OUTPUT_EXISTS",
+            "SIDECAR_EXISTS",
+        }:
+            raise OrdifileError(
+                "CONVERSION_PLAN_STALE",
+                "The output target changed after preflight; no existing artifact was replaced.",
+            ) from error
+        raise
+
+
+def convert(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
+    *,
+    recursive: bool = False,
+    extensions: Iterable[str] | None = None,
+    sort: SortMode | str = SortMode.AUTO,
+    include_signals: bool = False,
+    adapter: str | None = None,
+    sheet: str | None = None,
+    include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
+    on_error: str = "continue",
+    overwrite: bool = False,
+    sidecar_mode: str = "error",
+    progress: Callable[[ProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+    conversion_plan: ConversionPlan | None = None,
+) -> BatchResult:
+    """Batch-convert inputs into one ordered Excel workbook."""
+    if conversion_plan is not None:
+        if type(conversion_plan) is not ConversionPlan:
+            raise OrdifileError(
+                "CONVERSION_PLAN_INVALID", "conversion_plan must be a ConversionPlan or None."
+            )
+        _require_registry(registry)
+        active = create_registry() if registry is None else registry
+        current = plan_conversion(
+            inputs,
+            output,
+            recursive=recursive,
+            extensions=extensions,
+            sort=sort,
+            include_signals=include_signals,
+            adapter=adapter,
+            sheet=sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=peak_table_mapping,
+            peak_table_mapping_set=peak_table_mapping_set,
+            on_error=on_error,
+            overwrite=overwrite,
+            sidecar_mode=sidecar_mode,
+            registry=active,
+        )
+        if current.public_summary_sha256 != conversion_plan.public_summary_sha256 or plan_bindings(
+            current
+        ) != plan_bindings(conversion_plan):
+            raise OrdifileError(
+                "CONVERSION_PLAN_STALE",
+                "The conversion request changed after preflight; refresh the plan.",
+            )
+        return convert_plan(conversion_plan, progress=progress, registry=active)
+    return _convert_impl(
+        inputs,
+        output,
+        recursive=recursive,
+        extensions=extensions,
+        sort=sort,
+        include_signals=include_signals,
+        adapter=adapter,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+        peak_table_mapping=peak_table_mapping,
+        peak_table_mapping_set=peak_table_mapping_set,
+        on_error=on_error,
+        overwrite=overwrite,
+        sidecar_mode=sidecar_mode,
+        progress=progress,
+        registry=registry,
+    )

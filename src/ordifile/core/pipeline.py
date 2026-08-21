@@ -14,16 +14,11 @@ from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
 
-from ordifile.adapters._mapped_table import (
-    GENERIC_PEAK_TABLE_ADAPTER_IDS,
-    PeakMappingResolutionError,
-    resolve_peak_table_mapping,
-)
-from ordifile.adapters.base import DetectionResult, ParseOptions, SourceIdentityPolicy
+from ordifile.adapters.base import ParseOptions, SourceIdentityPolicy
 from ordifile.adapters.registry import AdapterRegistry
-from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON, DetectionOutcome, detect_adapter
+from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON
 from ordifile.core.discovery import discover_files, sha256_file
-from ordifile.core.errors import DetectionError, OrdifileError
+from ordifile.core.errors import OrdifileError
 from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
@@ -38,13 +33,15 @@ from ordifile.core.models import (
     SourceFile,
     integer_is_within_canonical_bound,
 )
-from ordifile.core.peak_mapping import (
-    MAPPED_XLSX_SHEET_MARKER,
-    PeakMappingDriftCategory,
-    PeakMappingDriftDiagnostic,
-    PeakTableFormat,
-)
+from ordifile.core.peak_mapping import MAPPED_XLSX_SHEET_MARKER, PeakMappingDriftDiagnostic
 from ordifile.core.privacy import contains_machine_local_path, scrub_machine_local_paths
+from ordifile.core.routing import (
+    InputRouteError,
+    InputRouteExpectation,
+    input_route_identity,
+    registry_route_identity,
+    resolve_input_route,
+)
 from ordifile.core.sorting import sort_file_results
 from ordifile.core.validation import validate_bundle, validate_bundle_structure
 from ordifile.core.workbook_text import (
@@ -312,24 +309,6 @@ def _bind_mapped_fallback_sample(bundle: DatasetBundle, source: SourceFile) -> D
     )
 
 
-def _mapped_adapter_id(path: Path, source_format: PeakTableFormat) -> str:
-    """Select one existing audited generic reader without content inference."""
-    suffix = path.suffix.casefold()
-    contracts = {
-        PeakTableFormat.CSV: ("generic_csv", frozenset((".csv",))),
-        PeakTableFormat.TSV: ("generic_tsv", frozenset((".tsv", ".txt"))),
-        PeakTableFormat.SEMICOLON: ("generic_semicolon", frozenset((".txt",))),
-        PeakTableFormat.XLSX: ("generic_xlsx", frozenset((".xlsx",))),
-    }
-    adapter_id, extensions = contracts[source_format]
-    if suffix not in extensions:
-        raise DetectionError(
-            "PEAK_MAPPING_FORMAT_MISMATCH",
-            "The input extension does not match the mapping's audited source format.",
-        )
-    return adapter_id
-
-
 def _adapter_source_integrity_issue(bundle: DatasetBundle, source: SourceFile) -> Issue | None:
     """Reject a bounded adapter read that does not match discovery provenance."""
     if len(bundle.sources) != 1:
@@ -484,6 +463,10 @@ def run_pipeline(
     on_error: str = "continue",
     progress: Callable[[ProgressEvent], None] | None = None,
     artifact_output: os.PathLike[str] | None = None,
+    expected_sources: tuple[tuple[str, int, str | None, int | None, tuple[str, ...]], ...]
+    | None = None,
+    expected_routes: tuple[InputRouteExpectation | None, ...] | None = None,
+    expected_registry_signature: tuple[tuple[str, str, str], ...] | None = None,
 ) -> BatchResult:
     """Process each discovered file independently and preserve every outcome."""
     if on_error not in {"continue", "stop"}:
@@ -520,8 +503,32 @@ def run_pipeline(
         max_file_bytes=MAX_INPUT_FILE_BYTES,
         artifact_output=None if artifact_output is None else Path(artifact_output),
     )
+    if expected_sources is not None:
+        actual_sources = tuple(
+            (
+                os.path.abspath(os.fspath(record.source.path)),
+                record.source.size,
+                record.source.sha256,
+                record.source.duplicate_of,
+                tuple(issue.code for issue in record.issues),
+            )
+            for record in discovered_files
+        )
+        if actual_sources != expected_sources:
+            raise OrdifileError(
+                "CONVERSION_PLAN_STALE",
+                "Inputs changed after conversion preflight; refresh the plan before converting.",
+            )
     if progress is not None:
         progress(ProgressEvent("discovery", len(discovered_files), len(discovered_files)))
+    if (
+        expected_registry_signature is not None
+        and registry_route_identity(registry) != expected_registry_signature
+    ):
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "The adapter inventory changed after preflight; refresh the plan before converting.",
+        )
     total_files = len(discovered_files)
 
     def report_processed(item: FileResult, completed: int) -> None:
@@ -537,6 +544,15 @@ def run_pipeline(
             )
 
     for completed, discovered in enumerate(discovered_files, start=1):
+        if (
+            expected_registry_signature is not None
+            and registry_route_identity(registry) != expected_registry_signature
+        ):
+            raise OrdifileError(
+                "CONVERSION_PLAN_STALE",
+                "The adapter inventory changed after preflight; refresh the plan before "
+                "converting.",
+            )
         sha256_alias_owner_ids = _sha256_alias_owner_ids_before_detection(
             discovered.source.path, registry, forced_adapter
         )
@@ -612,113 +628,56 @@ def run_pipeline(
         mapping_structure_fingerprint: str | None = None
         mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
         try:
-            mapping_applied = False
-            parse_for_adapter = options
-            if not mapping_requested:
-                detection = detect_adapter(
+            try:
+                route = resolve_input_route(
                     source.path,
                     registry,
                     forced_adapter=forced_adapter,
+                    parse_options=options,
                     redact_adapter_ids=sha256_alias_owner_ids,
-                    redact_error_reasons=initial_policy is SourceIdentityPolicy.SHA256_ALIAS,
+                    redact_error_reasons=(initial_policy is SourceIdentityPolicy.SHA256_ALIAS),
                 )
-            else:
-                try:
-                    exact = detect_adapter(
-                        source.path,
-                        registry,
-                        redact_adapter_ids=sha256_alias_owner_ids,
-                        redact_error_reasons=True,
-                        excluded_adapter_ids=GENERIC_PEAK_TABLE_ADAPTER_IDS,
+            except InputRouteError as error:
+                mapping_route = error.mapping_route
+                mapping_diagnostics = error.mapping_diagnostics
+                if expected_routes is not None and expected_routes[source.input_order] != (
+                    InputRouteExpectation(
+                        error_code=error.code,
+                        mapping_route=error.mapping_route,
                     )
-                except DetectionError as error:
-                    if error.code != "FORMAT_NOT_DETECTED":
-                        raise
-                    exact = None
-                if exact is not None:
-                    detection = exact
-                    mapping_route = "EXACT_ADAPTER"
-                    parse_for_adapter = replace(
-                        options,
-                        peak_table_mapping=None,
-                        peak_table_mapping_set=None,
-                        peak_table_mapping_profile_id=None,
-                        peak_table_mapping_profile_fingerprint=None,
-                        peak_table_mapping_set_id=None,
+                ):
+                    raise OrdifileError(
+                        "CONVERSION_PLAN_STALE",
+                        "An input route changed after preflight; refresh the plan before "
+                        "converting.",
+                    ) from error
+                raise
+            except Exception as error:
+                error_code = getattr(error, "code", "ROUTING_FAILED")
+                safe_code = error_code if type(error_code) is str else "ROUTING_FAILED"
+                if expected_routes is not None and expected_routes[source.input_order] != (
+                    InputRouteExpectation(error_code=safe_code)
+                ):
+                    raise OrdifileError(
+                        "CONVERSION_PLAN_STALE",
+                        "An input route changed after preflight; refresh the plan before "
+                        "converting.",
+                    ) from error
+                raise
+            detection = route.detection
+            parse_for_adapter = route.parse_options
+            mapping_applied = route.mapping_applied
+            mapping_route = route.mapping_route
+            mapping_profile_id = route.mapping_profile_id
+            mapping_structure_fingerprint = route.mapping_structure_fingerprint
+            if expected_routes is not None:
+                expected_route = expected_routes[source.input_order]
+                if expected_route != InputRouteExpectation(identity=input_route_identity(route)):
+                    raise OrdifileError(
+                        "CONVERSION_PLAN_STALE",
+                        "An input route changed after preflight; refresh the plan before "
+                        "converting.",
                     )
-                elif options.peak_table_mapping is not None:
-                    mapped_id = _mapped_adapter_id(
-                        source.path, options.peak_table_mapping.source_format
-                    )
-                    mapped_adapter = registry.get(mapped_id)
-                    detection = DetectionOutcome(
-                        mapped_adapter,
-                        (
-                            (
-                                mapped_id,
-                                DetectionResult(
-                                    True,
-                                    1.0,
-                                    "Explicit user mapping selected an audited generic container.",
-                                ),
-                            ),
-                        ),
-                    )
-                    mapping_applied = True
-                    mapping_route = "USER_MAPPING"
-                else:
-                    assert options.peak_table_mapping_set is not None
-                    try:
-                        resolved = resolve_peak_table_mapping(
-                            source.path, options.peak_table_mapping_set
-                        )
-                    except PeakMappingResolutionError as error:
-                        mapping_diagnostics = error.diagnostics
-                        mapping_route = {
-                            "PEAK_MAPPING_PROFILE_NOT_MATCHED": (
-                                "SCHEMA_DRIFT_CANDIDATE"
-                                if any(
-                                    PeakMappingDriftCategory.INCOMPATIBLE_STRUCTURE
-                                    not in diagnostic.categories
-                                    for diagnostic in mapping_diagnostics
-                                )
-                                else "NO_MAPPING_MATCH"
-                            ),
-                            "PEAK_MAPPING_PROFILE_AMBIGUOUS": "AMBIGUOUS_MAPPING_PROFILE",
-                            "PEAK_MAPPING_WORKSHEET_AMBIGUOUS": "AMBIGUOUS_WORKSHEET",
-                        }.get(error.code, "MAPPING_VALIDATION_FAILED")
-                        raise
-                    except OrdifileError:
-                        mapping_route = "MAPPING_VALIDATION_FAILED"
-                        raise
-                    mapped_adapter = registry.get(resolved.adapter_id)
-                    detection = DetectionOutcome(
-                        mapped_adapter,
-                        (
-                            (
-                                resolved.adapter_id,
-                                DetectionResult(
-                                    True,
-                                    1.0,
-                                    "A user-approved mapping profile exactly matched the "
-                                    "generic table structure.",
-                                ),
-                            ),
-                        ),
-                    )
-                    mapping_profile_id = resolved.profile.profile_id
-                    mapping_structure_fingerprint = resolved.profile.structural_fingerprint_sha256
-                    parse_for_adapter = replace(
-                        options,
-                        sheet=resolved.sheet,
-                        peak_table_mapping=resolved.profile.mapping,
-                        peak_table_mapping_set=None,
-                        peak_table_mapping_profile_id=mapping_profile_id,
-                        peak_table_mapping_profile_fingerprint=mapping_structure_fingerprint,
-                        peak_table_mapping_set_id=options.peak_table_mapping_set.set_id,
-                    )
-                    mapping_applied = True
-                    mapping_route = "USER_MAPPING_PROFILE"
             selected_adapter_id = detection.adapter.adapter_id
             selected_adapter_version = detection.adapter.adapter_version
             selected_adapter_policy = detection.adapter.descriptor.source_identity_policy
@@ -892,6 +851,31 @@ def run_pipeline(
                     processed.append(result)
         except (KeyboardInterrupt, SystemExit, MemoryError):
             raise
+        except OrdifileError as error:
+            if expected_routes is not None and error.code == "CONVERSION_PLAN_STALE":
+                raise
+            if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
+                probes = _redact_all_probe_reasons(probes)
+            result = FileResult(
+                source,
+                FileStatus.FAILED,
+                selected_adapter_id,
+                selected_adapter_version,
+                issues=_bounded_file_issues(
+                    (
+                        *discovery_issues,
+                        _issue_from_error(
+                            error,
+                            source,
+                            redact_details=source.public_id is not None,
+                        ),
+                    ),
+                    display_source,
+                ),
+                probes=probes,
+            )
+            processed.append(result)
+            stopped = stopped or on_error == "stop"
         except Exception as error:  # per-file boundary isolates ordinary plugin/parser failures
             if initial_policy is SourceIdentityPolicy.SHA256_ALIAS:
                 probes = _redact_all_probe_reasons(probes)
@@ -925,6 +909,15 @@ def run_pipeline(
         )
         processed[-1] = result
         report_processed(result, completed)
+
+    if (
+        expected_registry_signature is not None
+        and registry_route_identity(registry) != expected_registry_signature
+    ):
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "The adapter inventory changed during planned conversion; refresh the plan.",
+        )
     ordered, decision = sort_file_results(tuple(processed), requested_sort)
     return BatchResult(
         ordered,

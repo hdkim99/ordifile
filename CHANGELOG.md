@@ -9,6 +9,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Deterministic route-only conversion preflight through an immutable same-process
+  `ConversionPlan`, public `plan_conversion()` / `convert_plan()` APIs, CLI
+  `convert --dry-run`, and the desktop background workflow. Reviewed plans revalidate
+  source membership/content, adapter/configuration bindings, and output state before
+  using the existing converter; dry-run constructs no canonical rows or output artifacts.
 - Privacy-safe Mapping Schema Drift Diagnostics and an explicit desktop review flow that
   clones a repaired mapping as a new profile. Diagnostics never authorize fuzzy mapping,
   expose raw headers publicly, mutate the parent profile, or bypass exact adapters.
@@ -32,6 +37,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Existing construction call patterns, public conversion function signatures,
   one-dimensional `Peaks`, `Peak_Order_Matrix`, and the adapter API version remain
   compatible.
+
+### Fixed
+
+- Non-overwrite workbook and sidecar finalization now uses an atomic no-clobber publish
+  so a foreign artifact appearing after preflight is never silently replaced.
 
 ## [0.4.0] - 2026-08-18
 
