@@ -44,7 +44,8 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 PyPI에서 현재 공개된 최신 Ordifile release를 설치합니다. 위 PyPI badge에서 현재 공개
 version을 확인할 수 있습니다. `main`의 README에는 [Unreleased](CHANGELOG.md) 기능도
-포함될 수 있으며, `pip install`은 badge에 표시된 공개 version을 설치합니다.
+포함되거나 아직 공개되지 않은 release 준비 내용을 설명할 수 있습니다. `pip install`은
+badge에 표시된 공개 version을 설치합니다.
 
 ```bash
 python -m pip install ordifile

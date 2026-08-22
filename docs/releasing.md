@@ -19,17 +19,20 @@ match reviewed constants before any package-index environment is entered.
 The normal `dry-run` path has read-only repository permission and cannot run TestPyPI,
 attestation, package publication, or GitHub Release jobs. Pull requests never trigger
 the release workflow. The tag path builds once, stores one immutable Actions artifact,
-and tests its wheel on the shared Linux DGX runner with Python 3.14. Hosted Ubuntu jobs
-then publish and verify the same wheel and sdist on TestPyPI, create attestations and a
-draft GitHub Release, publish the same bytes to PyPI, and only then make the GitHub
-Release public. A pull request, ordinary branch push, fork, or `dry-run` cannot publish.
+tests its default wheel on the shared Linux DGX runner, and installs that exact wheel
+with the GUI extra on hosted macOS, all with Python 3.14. Hosted Ubuntu jobs then publish
+and verify the same wheel and sdist on TestPyPI, create attestations and a draft GitHub
+Release, publish the same bytes to PyPI, and only then make the GitHub Release public. A
+pull request, ordinary branch push, fork, or `dry-run` cannot publish.
 
 Only `Validate and build once` and `Wheel smoke / shared DGX / Python 3.14` use the
-self-hosted runner with the `dgx-spark` label. TestPyPI/PyPI publishing, index-byte
-verification, attestation, and GitHub Release jobs use GitHub-hosted Ubuntu. The pinned
-PyPA publisher is a Docker container action; keeping publication hosted means the DGX
-does not need Docker installation, Docker-group membership, socket permission changes,
-or administrator access. Do not use a package-index token as a fallback.
+self-hosted runner with the `dgx-spark` label. `GUI wheel smoke / macOS / Python 3.14`
+uses hosted macOS to install `ordifile[gui]` from the same immutable wheel, create the
+desktop window with the prepared offscreen Qt plugin, and require a normal process exit.
+TestPyPI/PyPI publishing, index-byte verification, attestation, and GitHub Release jobs
+use GitHub-hosted Ubuntu. The pinned PyPA publisher is a Docker container action; keeping
+publication hosted means the DGX does not need unrelated host changes. Do not use a
+package-index token as a fallback.
 
 ## One-time account configuration
 
@@ -117,7 +120,7 @@ Codex or require a maintainer to disclose a PyPI password, recovery code, or API
 2. Set the same strict `X.Y.Z` version in `pyproject.toml` and
    `src/ordifile/_version.py`.
 3. Update `CHANGELOG.md` with the actual release date and accurate supported features,
-   security behavior, and limitations.
+   privacy and data-integrity behavior, and limitations.
 4. Create `docs/releases/vX.Y.Z.md`. The workflow refuses a version without matching
    notes.
 5. Update installation text only when it accurately describes the publication state.
@@ -164,16 +167,17 @@ gh workflow run release.yml --ref main -f mode=dry-run
 gh run watch --exit-status
 ```
 
-The manual run performs all quality, build, checksum, and configured release-runner
-wheel-smoke jobs but has no publishing job. TestPyPI is intentionally not a manual preview channel:
-PyPI indexes do not allow the same version file to be uploaded twice. A pre-release
-candidate that needs index-level testing must use a new PEP 440 pre-release version in
-a future release plan; it must not consume the final `0.1.0` filename early.
+The manual run performs all quality, build, checksum, default-wheel, and macOS GUI-extra
+smoke jobs but has no publishing job. TestPyPI is intentionally not a manual preview
+channel: PyPI indexes do not allow the same version file to be uploaded twice. A
+pre-release candidate that needs index-level testing must use a new PEP 440 pre-release
+version in a future release plan; it must not consume the final version filename early.
 
 Before tagging, independently confirm all of the following:
 
 - the release commit is on `origin/main` and normal CI is green;
 - the dry-run Release workflow is green;
+- the exact wheel's default and macOS GUI-extra smoke jobs are green;
 - PyPI and TestPyPI still have the expected `ordifile` ownership state;
 - both trusted-publisher records contain the exact fields above;
 - both GitHub environments and required approvals are active;

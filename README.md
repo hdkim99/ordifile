@@ -45,7 +45,8 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 Install the latest published Ordifile release from PyPI. The PyPI badge above shows the
 currently available version. The README on `main` may also describe capabilities listed
-under [Unreleased](CHANGELOG.md); `pip install` provides the version shown by the badge.
+under [Unreleased](CHANGELOG.md) or prepared for a not-yet-published release; `pip install`
+provides the version shown by the badge.
 
 ```bash
 python -m pip install ordifile
