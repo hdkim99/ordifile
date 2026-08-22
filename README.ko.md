@@ -43,23 +43,22 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 ## 설치
 
 PyPI에서 현재 공개된 최신 Ordifile release를 설치합니다. 위 PyPI badge에서 현재 공개
-version을 확인할 수 있습니다.
+version을 확인할 수 있습니다. `main`의 README에는 [Unreleased](CHANGELOG.md) 기능도
+포함될 수 있으며, `pip install`은 badge에 표시된 공개 version을 설치합니다.
 
 ```bash
-python -m pip install --no-cache-dir ordifile
+python -m pip install ordifile
 ```
 
-Experimental desktop interface는 Ordifile v0.4.0에 처음 포함됩니다. PyPI badge가
-v0.4.0 이상을 표시하기 전에는 source checkout을 사용해 주세요. 기존 CLI 설치에 Qt
-runtime dependency를 추가하지 않도록 optional extra로 분리했습니다.
+Experimental desktop interface는 optional extra로 제공하므로 기본 CLI/API 설치에는
+Qt runtime dependency가 추가되지 않습니다.
 
 ```bash
-python -m pip install -e ".[gui]"
+python -m pip install "ordifile[gui]"
 ordifile-gui
 ```
 
-v0.4.0 공개 후에는 `python -m pip install 'ordifile[gui]'`로 같은 interface를 설치할 수
-있습니다. 이는 Python package GUI이며 standalone `.exe` 또는 `.app`은 아닙니다.
+이는 Python package GUI이며 standalone `.exe` 또는 `.app`은 아닙니다.
 
 ## 빠른 시작
 
@@ -83,7 +82,12 @@ Output: Ordifile_Result.xlsx
 Successful files: 3
 Files with warnings: 0
 Failed files: 0
+Skipped files: 0
 Duplicate files: 0
+Samples: 3
+Peaks: 3
+Scientific signal series: 0
+Structural record series: 0
 Sort requested: filename
 Sort used: filename
 Sort reason: User requested filename ordering.
@@ -551,8 +555,9 @@ Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored
 
 ## 개발
 
-Python 3.11–3.14를 대상으로 합니다. 필수 test, release build, wheel smoke, 실제
-external fixture workflow는 공유 Linux DGX self-hosted runner에서 Python 3.14로
+Python 3.11–3.14를 대상으로 합니다. 필수 quality, release build, wheel smoke,
+실제 external fixture workflow는 공유 Linux DGX self-hosted runner에서 Python
+3.14로 실행하고, 같은 runner에서 Python 3.11–3.13의 coverage 없는 전체 test도
 실행합니다. TestPyPI/PyPI publish, byte verification, attestation, GitHub Release
 publish는 GitHub-hosted Ubuntu에서 실행합니다. Core CI에는 Windows/macOS matrix가
 없습니다. 유지관리자가 수동 실행하는 standalone prototype 경로는 기존 runner 저장소가

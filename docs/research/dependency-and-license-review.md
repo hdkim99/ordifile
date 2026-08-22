@@ -1,6 +1,6 @@
 # Dependency and license review
 
-- Research dates: 2026-08-15 through 2026-08-18
+- Research dates: 2026-08-15 through 2026-08-23
 - Scope: minimal runtime/build/test dependencies, Python/OS policy, GUI candidates,
   release actions, GC reader candidates, and redistribution implications.
 - Source details: exact titles, owners, source types, dates when available, URLs, and
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | [openpyxl 3.1.5](https://openpyxl.readthedocs.io/en/stable/) | Official docs; released 2024-06-28 | [MIT/Expat](https://foss.heptapod.net/openpyxl/openpyxl/-/blob/branch/default/LICENCE.rst) | Read XLSX with `read_only=True`; never evaluate formulas. |
 | [defusedxml 0.7.1](https://pypi.org/project/defusedxml/) | Recommended by current openpyxl security docs | [PSF](https://github.com/tiran/defusedxml/blob/main/LICENSE) | Harden XML parsing; ZIP preflight remains separately required. |
-| [et-xmlfile 2.0.0](https://pypi.org/project/et-xmlfile/) | openpyxl direct dependency; released 2024-10-25 | [MIT](https://foss.heptapod.net/openpyxl/et_xmlfile/-/blob/branch/default/LICENCE.rst) | Transitive runtime dependency. |
+| [et-xmlfile 2.0.0](https://pypi.org/project/et-xmlfile/) | Directly constrained by Ordifile and required by openpyxl; released 2024-10-25 | [MIT](https://foss.heptapod.net/openpyxl/et_xmlfile/-/blob/branch/default/LICENCE.rst) | Runtime dependency. |
 | [XlsxWriter 3.2.9](https://pypi.org/project/xlsxwriter/) | Active pure-Python writer with constant-memory mode | [BSD-2-Clause](https://github.com/jmcnamara/XlsxWriter/blob/main/LICENSE.txt) | Deterministic, streaming-style XLSX output. |
 | [olefile 0.47](https://pypi.org/project/olefile/) | Pure-Python universal wheel; imported under CPython 3.14 during review | [BSD/PIL-style](https://github.com/decalage2/olefile/blob/v0.47/LICENSE.txt) | Strict read-only CFB access for the exact Experimental Shimadzu profile; adapter-owned size, inventory, and stream limits still apply. |
 
@@ -36,7 +36,8 @@ MIT-declared HPLC/RID file is documentation-only grammar evidence and does not e
 the GC runtime profile.
 
 Development tools selected after inspecting their current package metadata are
-Hatchling (MIT), build 1.5.0 (MIT; 1.5.1 was yanked at the research date), pytest
+Hatchling 1.31.0 (MIT, exact isolated-build pin), build 1.5.0 (MIT; 1.5.1 was yanked at
+the research date), pytest
 (MIT), pytest-cov (MIT), Ruff (MIT), mypy (MIT), and pip-audit (Apache-2.0).
 The exact `types-olefile 0.47.0.20260508` Apache-2.0 stub is development-only and
 must not appear in wheel runtime metadata.
@@ -50,9 +51,11 @@ as CPython-supported releases, Python 3.10 approaching October 2026 end-of-life,
 the runtime dependency install and repository checks pass in CI for each version.
 
 Linux, Windows, and macOS remain package support targets. Current continuous CI runs
-Python 3.14 on the shared DGX self-hosted Linux ARM64 runner; it is not a current
-cross-platform matrix. The v0.1.0 release record separately preserves the historical
-Ubuntu, Windows, and macOS validation that preceded the DGX-only CI policy.
+the required quality and package job on Python 3.14 and the full test suite without
+coverage on Python 3.11–3.13, all on the shared DGX self-hosted Linux ARM64 runner. This
+is a Python compatibility matrix, not a current cross-platform matrix. The v0.1.0
+release record separately preserves the historical Ubuntu, Windows, and macOS
+validation that preceded the DGX-only CI policy.
 
 ## GUI comparison and decision
 
@@ -85,6 +88,9 @@ Exception applies to qualifying generated target code; it does not weaken the co
 license. Before any public Windows distribution, the exact linked Zig/MinGW/libc/compiler
 runtime provenance, notices and source obligations must be resolved. PyInstaller 6.22.2
 onedir remains a documented fallback and is not installed by the primary build lock.
+The exact standalone build environment also pins `ordered-set==4.1.0` (MIT) and
+`zstandard==0.25.0` (BSD-3-Clause). They are build-only environment dependencies, not
+Ordifile wheel runtime dependencies or separately distributed prototype components.
 
 Windows and macOS candidates are native onedir/`.app` ZIPs. Onefile, MSI, DMG, signing,
 notarization and release publication are excluded. The candidate is explicitly

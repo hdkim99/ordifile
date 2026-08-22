@@ -144,3 +144,41 @@ jobs:
       - name: Clean workspace after job
         if: always()
         run: python scripts/ci/clean_workspace.py --workspace . --phase post
+
+  python-compatibility:
+    name: CI / Python ${{ matrix.python }} compatibility
+    runs-on: [self-hosted, dgx-spark]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    env:
+      PIP_NO_CACHE_DIR: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Clean workspace before job
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated job environment
+        run: python scripts/ci/run_in_venv.py create --github-runner
+      - name: Install and test the supported Python version
+        run: |
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install --upgrade pip
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip install -e ".[dev]"
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pytest --no-cov
+          python scripts/ci/run_in_venv.py run --github-runner -- -m pip check
+      - name: Remove isolated job environment
+        if: always()
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Clean workspace after job
+        if: always()
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post

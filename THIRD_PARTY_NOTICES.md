@@ -78,6 +78,8 @@ These tools are used to develop, verify, or document the project; they are not r
 | types-olefile | 0.47.0.20260508 | Apache-2.0 | [Project](https://pypi.org/project/types-olefile/) · [License](https://github.com/python/typeshed/blob/main/LICENSE) |
 | Matplotlib | 3.11.1 | PSF-based | [Project](https://matplotlib.org/) · [License](https://matplotlib.org/stable/project/license.html) |
 | Nuitka | 4.1.3 | AGPL-3.0 build tool; generated target covered by the exact Nuitka Runtime Library Exception | [Project](https://pypi.org/project/Nuitka/4.1.3/) · [License and exception](https://github.com/Nuitka/Nuitka/tree/4.1.3) |
+| ordered-set | 4.1.0 | MIT; standalone build environment only | [Project](https://pypi.org/project/ordered-set/4.1.0/) · [License](https://github.com/rspeer/ordered-set/blob/release/4.1.0/MIT-LICENSE) |
+| zstandard | 0.25.0 | BSD-3-Clause; standalone build environment only | [Project](https://pypi.org/project/zstandard/0.25.0/) · [License](https://github.com/indygreg/python-zstandard/blob/0.25.0/LICENSE) |
 | Zig | 0.16.0 | Top-level MIT; job-local Windows build tool only; linked MinGW-w64/libc/compiler-runtime inventory unresolved for public distribution | [Official download](https://ziglang.org/download/#release-0.16.0) · [License](https://codeberg.org/ziglang/zig/src/tag/0.16.0/LICENSE) · [MinGW-w64/libc notices](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/libc/mingw/COPYING) |
 
 Python itself is distributed under the Python Software Foundation License. GitHub

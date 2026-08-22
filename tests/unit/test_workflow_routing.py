@@ -56,19 +56,23 @@ def test_execution_jobs_use_the_shared_dgx_except_hosted_release_publication() -
     assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
 
 
-def test_ci_is_one_read_only_python_314_job_for_main_and_pull_requests() -> None:
+def test_ci_is_read_only_and_covers_supported_python_versions() -> None:
     ci = _workflow("ci.yml")
-    assert _job_count(ci) == 1
+    assert _job_count(ci) == 2
     assert ci.count("name: CI / required") == 1
+    assert "name: CI / Python ${{ matrix.python }} compatibility" in ci
     assert "pull_request:\n    branches: [main]" in ci
     assert "workflow_dispatch:" in ci
     assert "group: ordifile-ci-${{ github.event.pull_request.number || github.ref }}" in ci
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in ci
     assert 'python-version: "3.14"' in ci
+    assert 'python: ["3.11", "3.12", "3.13"]' in ci
+    assert "python-version: ${{ matrix.python }}" in ci
     assert "fetch-depth: 0" in ci
     assert "scripts/ci/verify_contributor_attribution.py" in ci
     assert 'event-name "$ORDIFILE_EVENT_NAME"' in ci
-    assert "matrix:" not in ci
+    assert "-m pytest --no-cov" in ci
+    assert "-m pip check" in ci
     assert "permissions:\n  contents: read" in ci
     for forbidden in (
         "secrets.",

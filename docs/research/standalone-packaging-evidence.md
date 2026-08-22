@@ -1,9 +1,9 @@
 # Standalone packaging evidence
 
-- Review date: 2026-08-18 through 2026-08-19
+- Review date: 2026-08-18 through 2026-08-23
 - Versions evaluated: Python 3.13.15 and 3.14.3, python-build-standalone 20260203,
   PySide6-Essentials/shiboken6 6.11.2, Nuitka 4.1.3, Zig 0.16.0,
-  PyInstaller 6.22.2, Briefcase 0.4.4
+  ordered-set 4.1.0, zstandard 0.25.0, PyInstaller 6.22.2, Briefcase 0.4.4
 - Scope: official deployment, package metadata and license sources only
 
 ## Evidence
@@ -22,6 +22,7 @@
 | [Nuitka 4.1.3 Zig private-download path](https://github.com/Nuitka/Nuitka/blob/4.1.3/nuitka/utils/PrivatePipSpace.py) | If no Zig executable is found, the pinned backend may request an unpinned `ziglang` package. | Put only the verified job-local Zig directory first in the Nuitka subprocess PATH, keep standard input closed, and fail unless the private compiler report identifies the exact Zig path with separate Nuitka MSVC and MinGW modes disabled. |
 | [Zig 0.16.0 release notes](https://ziglang.org/download/0.16.0/release-notes.html), [Windows default ABI](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/std/Target.zig), [link scheduling](https://codeberg.org/ziglang/zig/src/tag/0.16.0/src/Compilation.zig), and [MinGW-w64/libc notices](https://codeberg.org/ziglang/zig/src/tag/0.16.0/lib/libc/mingw/COPYING) | Zig's Windows default ABI is GNU and its toolchain provides MinGW-w64 CRT/import-library inputs. Nuitka's `mingw_mode=False` only excludes Nuitka's separate MinGW compiler mode. | Do not install a host MinGW toolchain or use `--mingw64`, but do not claim that generated Windows bytes are MinGW-free. Before public distribution, inventory exact linked Zig/MinGW/libc/compiler-runtime provenance and satisfy all applicable notices and source obligations. |
 | [Nuitka license](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE.txt) and [runtime exception](https://github.com/Nuitka/Nuitka/blob/4.1.3/LICENSE-RUNTIME.txt) | Compiler is AGPL-3.0; the additional permission applies to qualifying generated target code and does not weaken compiler copyleft. | Bundle the byte-identical runtime exception; describe Nuitka as an AGPL build tool. |
+| [ordered-set 4.1.0](https://pypi.org/project/ordered-set/4.1.0/) and [zstandard 0.25.0](https://pypi.org/project/zstandard/0.25.0/) | The exact standalone build environment uses these MIT and BSD-3-Clause packages. They are build-only pins, not Ordifile wheel dependencies or separately distributed prototype components. | Keep both versions exact in the standalone build lock and retain their license classification in the project dependency record. |
 | [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) | PySide6/shiboken6 offer LGPL-3.0/GPL/commercial alternatives and include Qt modules under their applicable terms. | Select LGPL-3.0 and inventory the exact native components. |
 | [Qt open-source obligations](https://www.qt.io/development/open-source-lgpl-obligations) | Qt's guidance calls out notice, source, modification, replacement/relinking and installation-information considerations. | Make these hard pre-publication gates. |
 | [Qt for Python 6.11.2 sources](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.2-src/) and [Qt 6.11.2 sources](https://download.qt.io/official_releases/qt/6.11/6.11.2/single/) | Official corresponding-source locations exist for the selected version. | Candidate source locations only; archive/hash before public release. |
@@ -69,11 +70,16 @@ The exact installed Nuitka 4.1.3 runtime-exception bytes have SHA-256
 has SHA-256
 `a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c`.
 
-A local unsigned macOS arm64 `.app` bundle was produced from the reviewed configuration
-and passed checkout-free packaged-window smoke, registry inventory for all 11 built-in
-adapters, all 12 public-safe synthetic inputs, generic UTF-8 and UTF-8-BOM, YoungIn
-CP949 Result, workbook reopen, overwrite refusal, and six-sheet scientific equivalence.
-This is prototype evidence only. A superseded Windows exact-head attempt reached native deployment
+A same-source automated native prototype milestone produced unsigned Windows x86-64 and
+macOS arm64 candidates. Both passed checkout-free packaged-window smoke, registry
+inventory for the then-current 11 built-in adapters, all 12 then-current public-safe
+synthetic inputs, generic UTF-8 and UTF-8-BOM, YoungIn CP949 Result, workbook reopen,
+overwrite refusal, and six-sheet scientific equivalence. This is prototype evidence
+only. Later source/package smoke now covers the current 12-adapter/13-automatic-input
+inventory, explicit Mapping/Mapping Set/Recipe preflight and conversion, and conditional
+1D/2D workbook semantics. No later native candidate was produced, so those current-source
+checks do not expand the earlier native evidence. A superseded Windows attempt reached
+native deployment
 but produced a partial `.dist` containing only injected licenses and no executable;
 downstream artifact-only validation rejected it. Review of the pinned PySide frontend
 and Nuitka output lifecycle showed why a backend exception can leave that state while
@@ -82,11 +88,10 @@ rejects the caught-exception marker, and validates the platform entry point befo
 license injection or manifest generation. The former MSVC-oriented path was then
 retired without installing Visual Studio, Build Tools, MSVC, or a Windows SDK. The
 replacement Windows path uses the exact build-only Zig archive and direct Nuitka
-invocation described above. Compatibility of the complete Python 3.14.3, PySide6
-6.11.2, Nuitka 4.1.3, Zig 0.16.0, and Ordifile combination remains unresolved until
-the exact-head Windows compiler, minimal PySide, full bundle, scientific, and GUI
-smokes pass. Signed Windows trust, macOS notarization, and signed/hardened replacement
-of LGPL components are not inferred from these results.
+invocation described above. The Windows compiler, minimal PySide, full-bundle,
+scientific, and GUI smokes passed for the same-source automated native prototype
+milestone described above. Signed Windows trust, macOS notarization, and signed/hardened
+replacement of LGPL components are not inferred from these results.
 
 ## Exclusions
 
