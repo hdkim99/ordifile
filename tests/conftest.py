@@ -16,10 +16,15 @@ from typing import Any
 _QT_TEST_PLUGIN_ROOT: Path | None = None
 
 
+def _is_macos() -> bool:
+    """Return whether the current test process runs on macOS."""
+    return sys.platform == "darwin"
+
+
 def _prepare_macos_qt_offscreen_plugin() -> None:
     """Copy the Qt test plugin without macOS file metadata before GUI collection."""
     global _QT_TEST_PLUGIN_ROOT
-    if sys.platform != "darwin" or os.environ.get("QT_PLUGIN_PATH"):
+    if not _is_macos() or os.environ.get("QT_PLUGIN_PATH"):
         return
     specification = importlib.util.find_spec("PySide6")
     locations = specification.submodule_search_locations if specification is not None else None
