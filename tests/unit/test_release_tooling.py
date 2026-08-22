@@ -29,6 +29,8 @@ def _source_tree(path: Path, version: str = "0.1.0", *, gui: bool = True) -> Pat
         else "\n"
     )
     (path / "pyproject.toml").write_text(
+        '[build-system]\nrequires = ["hatchling==1.31.0"]\n'
+        'build-backend = "hatchling.build"\n\n'
         f'[project]\nname = "ordifile"\nversion = "{version}"\n'
         f'\n[project.scripts]\nordifile = "ordifile.cli.main:main"{gui_contract}',
         encoding="utf-8",
@@ -470,6 +472,21 @@ def test_release_verifier_preserves_historical_cli_only_artifact_contract(
     )
 
     assert smoke_calls == [False]
+
+
+def test_release_verifier_rejects_unreviewed_build_backend_range(tmp_path: Path) -> None:
+    source = _source_tree(tmp_path / "source")
+    pyproject = source / "pyproject.toml"
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8").replace(
+            'requires = ["hatchling==1.31.0"]',
+            'requires = ["hatchling>=1.31,<2"]',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(release.ReleaseVerificationError, match="exact reviewed Hatchling"):
+        release.verify_source_build_contract(source)
 
 
 @pytest.mark.parametrize(

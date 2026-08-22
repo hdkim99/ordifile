@@ -52,10 +52,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Isolated package builds now use the exact reviewed Hatchling 1.31.0 backend, and the
+  release verifier rejects an unreviewed build-backend range.
+- Continuous integration now runs the full test suite on Python 3.11–3.13 in addition
+  to the required Python 3.14 quality and package job.
 - macOS desktop tests now prepare a clean temporary Qt offscreen plugin location before
   creating `QApplication`, preventing repeated Python termination reports during test setup.
 - Non-overwrite workbook and sidecar finalization now uses an atomic no-clobber publish
   so a foreign artifact appearing after preflight is never silently replaced.
+
+### Documentation
+
+- Updated the public installation instructions for the current PyPI CLI/API and optional
+  desktop extra, and synchronized the quick-start output with the count-only conversion
+  summary.
 
 ## [0.4.0] - 2026-08-18
 

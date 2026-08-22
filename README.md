@@ -44,24 +44,22 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 ## Install
 
 Install the latest published Ordifile release from PyPI. The PyPI badge above shows the
-currently available version.
+currently available version. The README on `main` may also describe capabilities listed
+under [Unreleased](CHANGELOG.md); `pip install` provides the version shown by the badge.
 
 ```bash
-python -m pip install --no-cache-dir ordifile
+python -m pip install ordifile
 ```
 
-The Experimental desktop interface is first included in Ordifile v0.4.0. Until the
-PyPI badge shows v0.4.0 or newer, use a source checkout. The optional extra keeps
-existing CLI installations free of a Qt runtime dependency:
+The Experimental desktop interface is available through an optional extra, which keeps
+default CLI/API installations free of a Qt runtime dependency:
 
 ```bash
-python -m pip install -e ".[gui]"
+python -m pip install "ordifile[gui]"
 ordifile-gui
 ```
 
-After v0.4.0 is published, the same interface can be installed with
-`python -m pip install 'ordifile[gui]'`. This is a Python-package GUI, not a standalone
-`.exe` or `.app`.
+This is a Python-package GUI, not a standalone `.exe` or `.app`.
 
 ## Quick start
 
@@ -85,7 +83,12 @@ Output: Ordifile_Result.xlsx
 Successful files: 3
 Files with warnings: 0
 Failed files: 0
+Skipped files: 0
 Duplicate files: 0
+Samples: 3
+Peaks: 6
+Scientific signal series: 0
+Structural record series: 0
 Sort requested: filename
 Sort used: filename
 Sort reason: User requested filename ordering.
@@ -561,9 +564,10 @@ Excel file. See [the exact generic format contract](https://github.com/hdkim99/o
 
 ## Development
 
-Ordifile targets Python 3.11–3.14. Required tests, release builds, wheel smoke tests,
-and external real-fixture workflows target Python 3.14 on a shared Linux DGX
-self-hosted runner. TestPyPI/PyPI publishing, byte verification, attestations, and
+Ordifile targets Python 3.11–3.14. The required quality, release-build, wheel-smoke, and
+external real-fixture jobs target Python 3.14 on a shared Linux DGX self-hosted runner;
+the same runner also executes the full test suite without coverage on Python 3.11–3.13.
+TestPyPI/PyPI publishing, byte verification, attestations, and
 GitHub Release publication use GitHub-hosted Ubuntu. Core CI has no Windows or macOS
 matrix. The maintainer-triggered standalone prototype path targets Windows x86-64
 through an exact-SHA reusable workflow called by the existing runner's same-owner

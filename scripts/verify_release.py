@@ -33,6 +33,10 @@ LEGACY_NAME = "labconvert"
 CONSOLE_ENTRY_POINT = "ordifile.cli.main:main"
 GUI_CONSOLE_ENTRY_POINT = "ordifile.desktop.app:main"
 GUI_EXTRA_REQUIREMENT = "pyside6-essentials==6.11.2; extra == 'gui'"
+EXPECTED_BUILD_SYSTEM = {
+    "requires": ["hatchling==1.31.0"],
+    "build-backend": "hatchling.build",
+}
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*)\."
@@ -125,6 +129,21 @@ def _read_project(source_root: Path) -> dict[str, object]:
     if type(project) is not dict:
         raise ReleaseVerificationError("pyproject project table must be a mapping")
     return project
+
+
+def verify_source_build_contract(source_root: Path) -> None:
+    """Require the exact reviewed build backend used by isolated package builds."""
+    try:
+        parsed = tomllib.loads((source_root / "pyproject.toml").read_text(encoding="utf-8"))
+        build_system = parsed["build-system"]
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+        raise ReleaseVerificationError(
+            "pyproject.toml has no readable build-system table"
+        ) from error
+    if build_system != EXPECTED_BUILD_SYSTEM:
+        raise ReleaseVerificationError(
+            "pyproject build-system must use the exact reviewed Hatchling version"
+        )
 
 
 def _read_pyproject(source_root: Path) -> tuple[str, str]:
@@ -785,6 +804,7 @@ def verify_release(
             "source root and dist directory must be existing directories"
         )
     verify_source_version(source_root, expected_version, tag)
+    verify_source_build_contract(source_root)
     wheels = tuple(sorted(dist_dir.glob(f"{PROJECT_NAME}-{expected_version}-*.whl")))
     sdists = tuple(sorted(dist_dir.glob(f"{PROJECT_NAME}-{expected_version}.tar.gz")))
     if len(wheels) != 1 or len(sdists) != 1:
