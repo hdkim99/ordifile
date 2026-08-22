@@ -932,13 +932,151 @@ jobs:
         if: always()
         run: python scripts/ci/clean_workspace.py --workspace . --phase post
 
+  gui-smoke:
+    name: GUI wheel smoke / macOS / Python 3.14
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out release source for bounded cleanup
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Clean persistent workspace before job
+        run: python scripts/ci/clean_workspace.py --workspace . --phase pre
+      - name: Create isolated job environment
+        run: python scripts/ci/run_in_venv.py create --github-runner
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ordifile-distributions-${{ github.run_id }}
+          path: release-artifact
+      - name: Verify downloaded checksums and distributions
+        shell: >-
+          python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import hashlib
+          from pathlib import Path
+
+          root = Path("release-artifact")
+          packages = root / "packages"
+          manifest = {}
+          for line in (root / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              expected, filename = line.split(maxsplit=1)
+              if filename in manifest:
+                  raise SystemExit(f"Duplicate checksum entry for {filename}")
+              manifest[filename] = expected
+              path = packages / filename
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"Checksum mismatch for {filename}")
+          entries = tuple(packages.iterdir())
+          actual_files = {path.name for path in entries if path.is_file()}
+          if any(not path.is_file() for path in entries) or len(manifest) != 2 or actual_files != set(manifest):
+              raise SystemExit("Publish package set must be exactly the checksummed wheel and sdist")
+      - name: Install and exercise the wheel with the GUI extra
+        shell: >-
+          python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        env:
+          EXPECTED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          import importlib.metadata
+          import importlib.util
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import sysconfig
+          import tempfile
+          from pathlib import Path
+
+          wheel = next(Path("release-artifact/packages").glob("*.whl")).resolve()
+          requirement = f"ordifile[gui] @ {wheel.as_uri()}"
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", "--no-cache-dir", requirement]
+          )
+          subprocess.check_call([sys.executable, "-m", "pip", "check"])
+          if importlib.metadata.version("ordifile") != os.environ["EXPECTED_VERSION"]:
+              raise SystemExit("Installed GUI wheel version does not match the release version")
+          for distribution in ("PySide6-Essentials", "shiboken6"):
+              if importlib.metadata.version(distribution) != "6.11.2":
+                  raise SystemExit(f"Unexpected {distribution} version")
+
+          scripts = Path(sysconfig.get_path("scripts"))
+          gui_entrypoint = scripts / "ordifile-gui"
+          if not gui_entrypoint.is_file():
+              raise SystemExit("Installed wheel did not provide the ordifile-gui entry point")
+          specification = importlib.util.find_spec("PySide6")
+          locations = specification.submodule_search_locations if specification else None
+          if not locations:
+              raise SystemExit("Installed GUI extra did not provide PySide6")
+          package_root = Path(next(iter(locations)))
+          plugin = package_root / "Qt" / "plugins" / "platforms" / "libqoffscreen.dylib"
+          if not plugin.is_file():
+              raise SystemExit("PySide6 offscreen platform plugin is unavailable")
+
+          gui_smoke = """
+          from PySide6.QtCore import QTimer
+          from ordifile.desktop.app import create_application
+          from ordifile.desktop.window import MainWindow
+
+          app = create_application([])
+          window = MainWindow()
+          required = (
+              window.load_recipe_button,
+              window.save_recipe_button,
+              window.load_mapping_set_button,
+              window.refresh_preflight_button,
+          )
+          if window.windowTitle() != "Ordifile" or any(widget is None for widget in required):
+              raise SystemExit("Installed GUI resources are incomplete")
+          window.show()
+          QTimer.singleShot(50, window.close)
+          QTimer.singleShot(50, app.quit)
+          if app.exec() != 0:
+              raise SystemExit("Installed GUI did not exit normally")
+          """
+          with tempfile.TemporaryDirectory(prefix="ordifile-gui-wheel-smoke-") as raw_temp:
+              work = Path(raw_temp)
+              plugin_root = work / "qt-plugins"
+              platforms = plugin_root / "platforms"
+              platforms.mkdir(parents=True)
+              shutil.copyfile(plugin, platforms / plugin.name)
+              environment = os.environ.copy()
+              environment.update(
+                  {
+                      "PYTHONNOUSERSITE": "1",
+                      "PYTHONPATH": "",
+                      "QT_QPA_PLATFORM": "offscreen",
+                      "QT_PLUGIN_PATH": os.fspath(plugin_root),
+                  }
+              )
+              subprocess.check_call(
+                  [sys.executable, "-c", gui_smoke],
+                  cwd=work,
+                  env=environment,
+              )
+      - name: Remove isolated job environment
+        if: always()
+        run: python scripts/ci/run_in_venv.py remove --github-runner
+      - name: Clean persistent workspace after job
+        if: always()
+        run: python scripts/ci/clean_workspace.py --workspace . --phase post
+
   publish-testpypi:
     name: Publish the same distributions to TestPyPI
     if: >-
       github.repository == 'hdkim99/ordifile' &&
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v')
-    needs: [build, smoke]
+    needs: [build, smoke, gui-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:

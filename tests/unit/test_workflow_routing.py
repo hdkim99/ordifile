@@ -53,7 +53,8 @@ def test_execution_jobs_use_the_shared_dgx_except_hosted_release_publication() -
 
     release = _workflow("release.yml")
     assert release.count("runs-on: [self-hosted, dgx-spark]") == 2
-    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
+    assert release.count("runs-on: macos-15") == 1
+    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 3
 
 
 def test_ci_is_read_only_and_covers_supported_python_versions() -> None:
@@ -103,7 +104,7 @@ def test_ci_is_read_only_and_covers_supported_python_versions() -> None:
         assert command in ci
 
 
-def test_release_uses_dgx_for_build_and_hosted_ubuntu_for_publication() -> None:
+def test_release_uses_dgx_for_build_hosted_macos_for_gui_and_ubuntu_for_publication() -> None:
     release = _workflow("release.yml")
     assert "  pull_request:" not in release
     assert 'python-version: "3.14"' in release
@@ -115,7 +116,13 @@ def test_release_uses_dgx_for_build_and_hosted_ubuntu_for_publication() -> None:
     assert "mode == 'promote-existing'" in release
     assert "mode == 'finalize-existing'" in release
     assert release.count("runs-on: [self-hosted, dgx-spark]") == 2
-    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 2
+    assert release.count("runs-on: macos-15") == 1
+    assert release.count("runs-on: ubuntu-latest") == _job_count(release) - 3
+    assert "GUI wheel smoke / macOS / Python 3.14" in release
+    assert "ordifile[gui] @" in release
+    assert '"QT_QPA_PLATFORM": "offscreen"' in release
+    assert "shutil.copyfile(plugin, platforms / plugin.name)" in release
+    assert "needs: [build, smoke, gui-smoke]" in release
 
 
 def test_agilent_external_fixture_is_maintainer_controlled_and_non_persistent() -> None:
@@ -212,7 +219,7 @@ def test_workflows_use_job_local_environments_and_bounded_cleanup() -> None:
     for name in WORKFLOW_NAMES:
         workflow = _workflow(name)
         jobs = _job_count(workflow)
-        persistent_jobs = 9 if name == "release.yml" else jobs
+        persistent_jobs = 10 if name == "release.yml" else jobs
         assert workflow.count("Create isolated job environment") == persistent_jobs
         assert workflow.count("Remove isolated job environment") == persistent_jobs
         assert workflow.count("--phase pre") == persistent_jobs

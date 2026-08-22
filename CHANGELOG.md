@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-23
+
 ### Added
 
 - Strict local `ConversionRecipe` JSON for repeated laboratory workflows. Recipes persist
@@ -52,6 +54,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Release publication now requires the exact built wheel to pass both the default Linux
+  smoke and a macOS Python 3.14 GUI-extra install, window-creation, and clean-exit smoke
+  before TestPyPI can receive the distributions.
 - Isolated package builds now use the exact reviewed Hatchling 1.31.0 backend, and the
   release verifier rejects an unreviewed build-backend range.
 - Continuous integration now runs the full test suite on Python 3.11–3.13 in addition

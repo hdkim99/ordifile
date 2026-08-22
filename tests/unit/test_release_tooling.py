@@ -635,7 +635,9 @@ def test_release_workflow_resolves_every_installed_cli_without_path() -> None:
         ), name
         assert 'shutil.which("ordifile")' not in block, name
 
-    assert workflow.count('scripts = Path(sysconfig.get_path("scripts"))') == 3
+    assert workflow.count('scripts = Path(sysconfig.get_path("scripts"))') == 4
+    assert 'gui_entrypoint = scripts / "ordifile-gui"' in workflow
+    assert "if not gui_entrypoint.is_file():" in workflow
     assert 'shutil.which("ordifile")' not in workflow
 
 
