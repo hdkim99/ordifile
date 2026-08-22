@@ -86,7 +86,7 @@ Failed files: 0
 Skipped files: 0
 Duplicate files: 0
 Samples: 3
-Peaks: 3
+Peaks: 6
 Scientific signal series: 0
 Structural record series: 0
 Sort requested: filename
