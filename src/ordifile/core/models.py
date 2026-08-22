@@ -274,6 +274,8 @@ class ConversionOptions:
     execution_mode: ConversionExecutionMode = ConversionExecutionMode.DIRECT
     conversion_plan_schema_version: int | None = None
     conversion_plan_public_summary_sha256: str | None = None
+    conversion_recipe_schema_version: int | None = None
+    conversion_recipe_public_fingerprint_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

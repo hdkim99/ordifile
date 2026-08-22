@@ -15,6 +15,7 @@ from ordifile import (
     ConversionPlanEntryStatus,
     ConversionPlanProblem,
     ConversionPlanReadiness,
+    ConversionRecipe,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingSet,
@@ -251,16 +252,24 @@ def preflight_selection(
     )
     try:
         validate_request(request)
-        plan = _ordifile_api.plan_conversion(
-            request.inputs,
-            request.output,
-            sort=request.sort,
-            on_error="continue",
-            overwrite=False,
-            peak_table_mapping=request.peak_table_mapping,
-            peak_table_mapping_set=request.peak_table_mapping_set,
-            progress=progress,
-        )
+        if request.recipe is not None:
+            plan = _ordifile_api.plan_recipe(
+                request.inputs,
+                request.output,
+                recipe=request.recipe,
+                progress=progress,
+            )
+        else:
+            plan = _ordifile_api.plan_conversion(
+                request.inputs,
+                request.output,
+                sort=request.sort,
+                on_error="continue",
+                overwrite=False,
+                peak_table_mapping=request.peak_table_mapping,
+                peak_table_mapping_set=request.peak_table_mapping_set,
+                progress=progress,
+            )
     except (KeyboardInterrupt, SystemExit, MemoryError):
         return _interrupted_report()
     except Exception as error:
@@ -342,16 +351,24 @@ def convert_selection(
     )
     try:
         validate_request(request)
-        result = _ordifile_api.convert(
-            request.inputs,
-            request.output,
-            sort=request.sort,
-            on_error="continue",
-            overwrite=False,
-            peak_table_mapping=request.peak_table_mapping,
-            peak_table_mapping_set=request.peak_table_mapping_set,
-            progress=progress,
-        )
+        if request.recipe is not None:
+            result = _ordifile_api.convert_recipe(
+                request.inputs,
+                request.output,
+                recipe=request.recipe,
+                progress=progress,
+            )
+        else:
+            result = _ordifile_api.convert(
+                request.inputs,
+                request.output,
+                sort=request.sort,
+                on_error="continue",
+                overwrite=False,
+                peak_table_mapping=request.peak_table_mapping,
+                peak_table_mapping_set=request.peak_table_mapping_set,
+                progress=progress,
+            )
     except (KeyboardInterrupt, SystemExit, MemoryError):
         return _interrupted_report()
     except Exception as error:
@@ -413,6 +430,16 @@ def save_mapping_set(
 ) -> None:
     """Save a data-only reusable mapping set through the public package interface."""
     ordifile.save_peak_table_mapping_set(mapping_set, path, overwrite=overwrite)
+
+
+def load_recipe(path: Path) -> ConversionRecipe:
+    """Load a data-only conversion recipe through the public package interface."""
+    return ordifile.load_conversion_recipe(path)
+
+
+def save_recipe(recipe: ConversionRecipe, path: Path, *, overwrite: bool = False) -> None:
+    """Save a data-only conversion recipe through the public package interface."""
+    ordifile.save_conversion_recipe(recipe, path, overwrite=overwrite)
 
 
 def details_text(report: DesktopBatchReport) -> str:

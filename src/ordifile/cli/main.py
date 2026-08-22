@@ -12,9 +12,17 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Never
 
-from ordifile import __version__, summarize_conversion
+from ordifile import __version__, load_conversion_recipe, summarize_conversion
 from ordifile.adapters.base import SupportStatus
-from ordifile.api import convert, get_format_report, inspect_file, plan_conversion
+from ordifile.api import (
+    convert,
+    convert_recipe,
+    get_format_report,
+    inspect_file,
+    plan_conversion,
+    plan_recipe,
+)
+from ordifile.core.errors import OrdifileError
 from ordifile.core.models import BatchOutcome, SeriesKind
 from ordifile.core.peak_mapping import load_peak_table_mapping, load_peak_table_mapping_set
 from ordifile.core.planning import ConversionPlanReadiness
@@ -29,6 +37,8 @@ _CONFIGURATION_ERROR_CODES = frozenset(
         "ADAPTER_NOT_FOUND",
         "CONVERSION_PLAN_OVERWRITE_UNSUPPORTED",
         "CONVERSION_PLAN_TOO_LARGE",
+        "CONVERSION_RECIPE_INVALID",
+        "CONVERSION_RECIPE_OPTION_CONFLICT",
         "NO_INPUTS",
         "ON_ERROR_INVALID",
         "OUTPUT_DIRECTORY_MISSING",
@@ -100,7 +110,7 @@ def _yes_no(value: bool) -> str:
     return "Yes" if value else "No"
 
 
-def _add_parse_options(parser: argparse.ArgumentParser) -> None:
+def _add_parse_options(parser: argparse.ArgumentParser, *, include_recipe: bool = False) -> None:
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(
         "--adapter",
@@ -113,6 +123,7 @@ def _add_parse_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--include-hidden-sheets",
         action="store_true",
+        default=None if include_recipe else False,
         help="Include hidden XLSX sheets when detecting a compatible sheet.",
     )
     selection.add_argument(
@@ -125,6 +136,12 @@ def _add_parse_options(parser: argparse.ArgumentParser) -> None:
         type=Path,
         help="Route mixed generic tables with reusable exact-structure mapping profiles.",
     )
+    if include_recipe:
+        parser.add_argument(
+            "--recipe",
+            type=Path,
+            help="Load a strict local recipe; inputs and output remain runtime values.",
+        )
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -177,12 +194,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--sort",
         choices=("auto", "acquired_at", "sequence", "filename", "input_order"),
-        default="auto",
+        default=None,
         help="Requested file order (default: auto).",
     )
     convert_parser.add_argument(
         "--recursive",
         action="store_true",
+        default=None,
         help="Discover files below input folders recursively.",
     )
     convert_parser.add_argument(
@@ -193,12 +211,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--include-signals",
         action="store_true",
+        default=None,
         help="Write parsed signal series without interpolation.",
     )
     convert_parser.add_argument(
         "--sheet-mode",
         choices=("split", "sidecar-csv"),
-        default="split",
+        default=None,
         help=(
             "Split data across workbook sheets, or use integrity-recorded CSV sidecars "
             "when a single cell cannot fit (default: split)."
@@ -207,12 +226,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--on-error",
         choices=("continue", "stop"),
-        default="continue",
+        default=None,
         help="Continue after a file failure or stop the batch before export (default: continue).",
     )
     convert_parser.add_argument(
         "--overwrite",
         action="store_true",
+        default=None,
         help="Replace an existing output workbook. Inputs are never overwritten.",
     )
     convert_parser.add_argument(
@@ -220,7 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Build and print a route-only conversion plan without creating a workbook.",
     )
-    _add_parse_options(convert_parser)
+    _add_parse_options(convert_parser, include_recipe=True)
     return parser
 
 
@@ -437,28 +457,74 @@ def _print_batch_detection_evidence(result: object) -> None:
 
 def _run_convert(args: argparse.Namespace) -> int:
     print(f"Input paths: {len(args.inputs)}")
-    mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
-    mapping_set = (
-        load_peak_table_mapping_set(args.peak_mapping_set) if args.peak_mapping_set else None
-    )
+    recipe = load_conversion_recipe(args.recipe) if args.recipe else None
+    if recipe is not None:
+        conflicting = any(
+            value is not None
+            for value in (
+                args.sort,
+                args.recursive,
+                args.extension,
+                args.include_signals,
+                args.sheet_mode,
+                args.on_error,
+                args.overwrite,
+                args.adapter,
+                args.sheet,
+                args.include_hidden_sheets,
+                args.peak_mapping,
+                args.peak_mapping_set,
+            )
+        )
+        if conflicting:
+            raise OrdifileError(
+                "CONVERSION_RECIPE_OPTION_CONFLICT",
+                "--recipe cannot be combined with separate conversion behavior options.",
+            )
+        recursive = False
+        sort = "auto"
+        include_signals = False
+        sheet_mode = "split"
+        on_error = "continue"
+        overwrite = False
+        include_hidden_sheets = False
+        mapping = None
+        mapping_set = None
+        active_mapping_set = recipe.peak_table_mapping_set
+    else:
+        recursive = bool(args.recursive)
+        sort = args.sort or "auto"
+        include_signals = bool(args.include_signals)
+        sheet_mode = args.sheet_mode or "split"
+        on_error = args.on_error or "continue"
+        overwrite = bool(args.overwrite)
+        include_hidden_sheets = bool(args.include_hidden_sheets)
+        mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
+        mapping_set = (
+            load_peak_table_mapping_set(args.peak_mapping_set) if args.peak_mapping_set else None
+        )
+        active_mapping_set = mapping_set
 
     if args.dry_run:
-        plan = plan_conversion(
-            args.inputs,
-            args.output,
-            recursive=args.recursive,
-            extensions=args.extension,
-            sort=args.sort,
-            include_signals=args.include_signals,
-            adapter=args.adapter,
-            sheet=args.sheet,
-            include_hidden_sheets=args.include_hidden_sheets,
-            peak_table_mapping=mapping,
-            peak_table_mapping_set=mapping_set,
-            on_error=args.on_error,
-            overwrite=args.overwrite,
-            sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
-        )
+        if recipe is not None:
+            plan = plan_recipe(args.inputs, args.output, recipe=recipe)
+        else:
+            plan = plan_conversion(
+                args.inputs,
+                args.output,
+                recursive=recursive,
+                extensions=args.extension,
+                sort=sort,
+                include_signals=include_signals,
+                adapter=args.adapter,
+                sheet=args.sheet,
+                include_hidden_sheets=include_hidden_sheets,
+                peak_table_mapping=mapping,
+                peak_table_mapping_set=mapping_set,
+                on_error=on_error,
+                overwrite=overwrite,
+                sidecar_mode="csv" if sheet_mode == "sidecar-csv" else "error",
+            )
         plan_summary = plan.summary
         print("Dry run: no workbook or sidecar was created.")
         print(f"Plan schema: {plan.schema_version}")
@@ -517,23 +583,31 @@ def _run_convert(args: argparse.Namespace) -> int:
         elif stage == "export_complete":
             print(f"Output ready: {_terminal_safe(getattr(event, 'source_file', 'workbook'))}")
 
-    result = convert(
-        args.inputs,
-        args.output,
-        recursive=args.recursive,
-        extensions=args.extension,
-        sort=args.sort,
-        include_signals=args.include_signals,
-        adapter=args.adapter,
-        sheet=args.sheet,
-        include_hidden_sheets=args.include_hidden_sheets,
-        peak_table_mapping=mapping,
-        peak_table_mapping_set=mapping_set,
-        on_error=args.on_error,
-        overwrite=args.overwrite,
-        sidecar_mode="csv" if args.sheet_mode == "sidecar-csv" else "error",
-        progress=print_progress,
-    )
+    if recipe is not None:
+        result = convert_recipe(
+            args.inputs,
+            args.output,
+            recipe=recipe,
+            progress=print_progress,
+        )
+    else:
+        result = convert(
+            args.inputs,
+            args.output,
+            recursive=recursive,
+            extensions=args.extension,
+            sort=sort,
+            include_signals=include_signals,
+            adapter=args.adapter,
+            sheet=args.sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=mapping,
+            peak_table_mapping_set=mapping_set,
+            on_error=on_error,
+            overwrite=overwrite,
+            sidecar_mode="csv" if sheet_mode == "sidecar-csv" else "error",
+            progress=print_progress,
+        )
     status = {
         BatchOutcome.SUCCESS: "success",
         BatchOutcome.PARTIAL_SUCCESS: "partial success",
@@ -556,7 +630,7 @@ def _run_convert(args: argparse.Namespace) -> int:
     print(f"Sort used: {_terminal_safe(result.sort.effective.value)}")
     print(f"Sort reason: {_terminal_safe(result.sort.reason)}")
     print(f"Sheets: {', '.join(_terminal_safe(sheet) for sheet in result.sheets)}")
-    if mapping_set is not None:
+    if active_mapping_set is not None:
         exact_count = sum(item.mapping_route == "EXACT_ADAPTER" for item in result.files)
         used_profiles = {
             item.mapping_profile_id

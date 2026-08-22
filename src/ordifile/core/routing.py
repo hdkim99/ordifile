@@ -114,6 +114,7 @@ def resolve_input_route(
     *,
     forced_adapter: str | None,
     parse_options: ParseOptions,
+    preserve_exact_adapter_precedence: bool = False,
     redact_adapter_ids: frozenset[str] = frozenset(),
     redact_error_reasons: bool = False,
 ) -> InputRouteDecision:
@@ -123,6 +124,24 @@ def resolve_input_route(
         or parse_options.peak_table_mapping_set is not None
     )
     if not mapping_requested:
+        if forced_adapter is not None and preserve_exact_adapter_precedence:
+            try:
+                exact_owner = detect_adapter(
+                    path,
+                    registry,
+                    redact_adapter_ids=redact_adapter_ids,
+                    redact_error_reasons=redact_error_reasons,
+                    excluded_adapter_ids=GENERIC_PEAK_TABLE_ADAPTER_IDS,
+                )
+            except DetectionError as error:
+                if error.code != "FORMAT_NOT_DETECTED":
+                    raise
+            else:
+                return InputRouteDecision(
+                    exact_owner,
+                    parse_options,
+                    mapping_route="EXACT_ADAPTER",
+                )
         detection = detect_adapter(
             path,
             registry,

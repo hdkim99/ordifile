@@ -189,6 +189,51 @@ if plan.is_executable:
     result = convert_plan(plan)
 ```
 
+### 연구실 변환 Recipe 재사용
+
+`ConversionRecipe`는 **어떤 scientific file을 변환하는지**가 아니라 **어떻게
+변환하는지**를 저장합니다. Strict하고 bounded된 UTF-8 JSON이며 discovery, routing,
+sorting, signal, failure, sidecar와 선택적 embedded Mapping/Mapping Set 설정만 포함합니다.
+Input/output path, overwrite 승인, source identity, plan, scientific row는 저장하지 않습니다.
+Schema v1의 최대 크기는 8 MiB이며 embedded Mapping Set은 기존 4 MiB/32-profile 제한을
+그대로 유지합니다. 알 수 없는 key, 중복 key, 잘못된 형식은 거부합니다.
+
+```console
+ordifile convert new-experiment/ --recipe laboratory-recipe.json \
+  --output results.xlsx --dry-run
+ordifile convert new-experiment/ --recipe laboratory-recipe.json \
+  --output results.xlsx
+```
+
+Recipe conversion은 항상 기존 `ConversionPlan`을 만들고 재검증합니다. Exact adapter
+우선권, exact Mapping Profile matching, drift diagnostic, ambiguity failure를 우회하지
+않습니다. Recipe에 저장된 adapter는 exact-profile adapter가 input을 소유하지 않을 때만
+검토됩니다. Input과 output은 runtime에 별도로 지정합니다. Effective configuration을
+명확히 유지하기 위해 `--recipe`는 `--recursive`, `--sort`, `--adapter`, `--sheet`, mapping
+flag 같은 별도 behavior option과 함께 사용할 수 없습니다. `--dry-run`과 `--verbose`는
+runtime 표시 선택으로 유지됩니다. Recipe는 overwrite 승인을 저장하지 않습니다.
+
+Embedded mapping에는 exact header, worksheet title, unit, local label, 사용자 제공
+manufacturer/software 선언이 들어갈 수 있습니다. Recipe JSON은 privacy-bearing local
+configuration으로 관리하고 public issue에 첨부하지 마세요. Exact semantic SHA-256은
+local-only입니다. Plan과 workbook의 Recipe-specific provenance는 Recipe schema와
+privacy-safe public fingerprint로 제한됩니다. 기존 scientific 및 Mapping provenance는
+기존 workbook contract를 유지합니다. 단, Recipe에 embedded된 single Mapping의 private
+semantic digest는 기록하지 않습니다. 어떤 Recipe digest도 vendor 지원이나 workbook byte
+identity를 증명하지 않습니다.
+
+```python
+from ordifile import ConversionRecipe, save_conversion_recipe
+from ordifile.api import convert_plan, plan_recipe
+from ordifile.core.models import SortMode
+
+recipe = ConversionRecipe(sort=SortMode.INPUT_ORDER)
+save_conversion_recipe(recipe, "laboratory-recipe.json")
+plan = plan_recipe("new-experiment", "results.xlsx", recipe=recipe)
+if plan.is_executable:
+    result = convert_plan(plan)
+```
+
 ## Experimental proprietary adapter
 
 | 형식 경계 | Metadata | Peaks | 출력 | 상태 | 실제 fixture |
@@ -293,6 +338,8 @@ ordifile convert ./exports --recursive --sort acquired_at --include-signals \
 ordifile convert ./exports --extension .csv --extension .xlsx \
   --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
 ordifile convert ./exports --recursive --output Ordifile_Result.xlsx --dry-run
+ordifile convert ./exports --recipe laboratory-recipe.json \
+  --output Ordifile_Result.xlsx --dry-run
 ```
 
 주요 동작은 다음과 같습니다.
@@ -307,6 +354,8 @@ ordifile convert ./exports --recursive --output Ordifile_Result.xlsx --dry-run
   사용자 확인 mapping을 적용합니다.
 - `--peak-mapping-set FILE.json`은 서로 다른 generic template을 재사용 가능한 exact 구조
   profile로 routing하며 `--adapter`, `--peak-mapping`과 동시에 사용할 수 없습니다.
+- `--recipe FILE.json`은 self-contained local configuration을 불러오고 항상 preflight를
+  사용합니다. Input/output은 runtime 값이며 별도 behavior flag는 거부됩니다.
 - signal이 있어도 `--include-signals`를 지정해야 workbook에 기록합니다.
 - `--verbose`는 검출 근거와 상세 구조화 진단을 표시합니다.
 
@@ -353,6 +402,11 @@ bounded schema 규칙으로 정합니다. Scientific numeric cell은 Excel `Gene
 sample/peak/series의 count-only 완료 요약도 기록합니다. Revalidated preflight에서 실행된
 conversion은 plan schema와 public plan-summary SHA-256만 기록하며 plan 자체는 포함하지
 않습니다.
+Conversion Recipe를 사용하면 Recipe-specific Manifest provenance에는 Recipe schema version과
+public-safe configuration fingerprint만 추가됩니다. 기존 scientific 및 Mapping provenance는
+기존 contract를 유지하지만 Recipe에 embedded된 single Mapping의 private semantic digest는
+반복 기록하지 않습니다. Recipe JSON, local Recipe path/label, exact local Recipe semantic
+digest, raw mapped header, raw Recipe worksheet title은 포함하지 않습니다.
 
 Excel 제한에 도달하기 전에 행과 열을 결정적인 numbered sheet로 나눕니다. 데이터를
 조용히 자르지 않습니다. Workbook 저장이 실용적이지 않으면

@@ -564,6 +564,34 @@ def _run_isolated_python(site: Path, cwd: Path, arguments: list[str]) -> None:
         )
 
 
+def _create_clean_wheel_recipe(site: Path, cwd: Path, name: str) -> None:
+    """Create one neutral Recipe through the extracted wheel public API."""
+    bootstrap = (
+        "import pathlib,sys;"
+        f"site=pathlib.Path({str(site)!r}).resolve();"
+        "sys.path.insert(0,str(site));"
+        "from ordifile import ConversionRecipe,save_conversion_recipe;"
+        f"save_conversion_recipe(ConversionRecipe(),pathlib.Path({name!r}))"
+    )
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    environment.pop("PYTHONHOME", None)
+    environment["PYTHONNOUSERSITE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", bootstrap],
+        cwd=cwd,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise ReleaseVerificationError(
+            "clean-wheel Recipe creation failed: "
+            f"stdout={completed.stdout[-1000:]!r}, stderr={completed.stderr[-1000:]!r}"
+        )
+
+
 def _run_missing_gui_extra_smoke(site: Path, cwd: Path) -> None:
     """Verify the GUI entry module fails cleanly when PySide6 is unavailable."""
     bootstrap = f"""
@@ -698,6 +726,40 @@ def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
             raise ReleaseVerificationError(
                 "clean-wheel dry run created an output or temporary artifact"
             )
+        recipe_name = "Conversion_Recipe.json"
+        _create_clean_wheel_recipe(site, cwd, recipe_name)
+        recipe_dry_run_output = cwd / "Recipe_Preflight_Result.xlsx"
+        _run_isolated_python(
+            site,
+            cwd,
+            [
+                "convert",
+                source.name,
+                "--recipe",
+                recipe_name,
+                "--output",
+                recipe_dry_run_output.name,
+                "--dry-run",
+            ],
+        )
+        if recipe_dry_run_output.exists() or tuple(cwd.glob(".ordifile_*")):
+            raise ReleaseVerificationError(
+                "clean-wheel Recipe dry run created an output or temporary artifact"
+            )
+        recipe_output = cwd / "Recipe_Result.xlsx"
+        _run_isolated_python(
+            site,
+            cwd,
+            [
+                "convert",
+                source.name,
+                "--recipe",
+                recipe_name,
+                "--output",
+                recipe_output.name,
+            ],
+        )
+        _verify_smoke_workbook(recipe_output)
         _run_isolated_python(
             site,
             cwd,

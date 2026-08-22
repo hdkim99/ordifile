@@ -12,7 +12,9 @@ import pytest
 from ordifile import (
     ColumnSelector,
     ConversionPlanEntryStatus,
+    ConversionPlanReadiness,
     ConversionPlanRoute,
+    ConversionRecipe,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
@@ -251,6 +253,32 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
     assert report.summary.peak_records == 0
 
 
+def test_convert_selection_calls_public_recipe_conversion_with_frozen_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = ConversionRecipe(sort=SortMode.FILENAME, display_label="Daily conversion")
+    output = tmp_path / "result.xlsx"
+    request = DesktopRequest((tmp_path / "input.csv",), output, recipe=recipe)
+    calls: list[tuple[object, object, dict[str, object]]] = []
+
+    def convert(inputs: object, destination: object, **kwargs: object) -> BatchResult:
+        calls.append((inputs, destination, kwargs))
+        return _batch(FileStatus.SUCCESS, output=output)
+
+    monkeypatch.setattr(public_api, "convert_recipe", convert)
+
+    report = services.convert_selection(request)
+
+    assert calls == [
+        (
+            request.inputs,
+            output,
+            {"recipe": recipe, "progress": None},
+        )
+    ]
+    assert report.outcome is BatchOutcome.SUCCESS
+
+
 def test_desktop_services_forward_one_frozen_mapping_to_preview_and_conversion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -423,6 +451,62 @@ def test_mapping_set_load_and_save_use_public_root_exports(
     services.save_mapping_set(mapping_set, path, overwrite=True)
 
     assert saved == [(mapping_set, path, True)]
+
+
+def test_recipe_load_and_save_use_public_root_exports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = ConversionRecipe(display_label="Daily conversion")
+    path = tmp_path / "recipe.json"
+    saved: list[tuple[ConversionRecipe, Path, bool]] = []
+    monkeypatch.setattr(
+        "ordifile.desktop.services.ordifile.load_conversion_recipe",
+        lambda value: recipe,
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.services.ordifile.save_conversion_recipe",
+        lambda value, destination, *, overwrite: saved.append(
+            (value, Path(destination), overwrite)
+        ),
+    )
+
+    assert services.load_recipe(path) is recipe
+    services.save_recipe(recipe, path, overwrite=True)
+
+    assert saved == [(recipe, path, True)]
+
+
+def test_preflight_selection_passes_only_the_frozen_recipe_behavior(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = ConversionRecipe(sort=SortMode.FILENAME, display_label="Daily conversion")
+    request = DesktopRequest(
+        (tmp_path / "input.csv",),
+        tmp_path / "result.xlsx",
+        recipe=recipe,
+    )
+    calls: list[dict[str, object]] = []
+    plan: Any = SimpleNamespace(
+        entries=(),
+        readiness=ConversionPlanReadiness.BLOCKED,
+        summary=SimpleNamespace(routable=0, failed=0, duplicates=0),
+    )
+
+    def preflight(*_args: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        return plan
+
+    monkeypatch.setattr(public_api, "plan_recipe", preflight)
+
+    report = services.preflight_selection(request)
+
+    assert report.plan is plan
+    assert calls == [
+        {
+            "recipe": recipe,
+            "progress": None,
+        }
+    ]
 
 
 def test_preview_peak_table_uses_public_bounded_preview_api(

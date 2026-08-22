@@ -18,14 +18,22 @@ from typing import Any, cast
 
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 
-from ordifile import __version__, clone_peak_table_mapping_profile
+from ordifile import (
+    ConversionRecipe,
+    __version__,
+    clone_peak_table_mapping_profile,
+    load_conversion_recipe,
+    save_conversion_recipe,
+)
 from ordifile.api import (
     convert,
     convert_plan,
+    convert_recipe,
     get_format_report,
     inspect_inputs,
     list_formats,
     plan_conversion,
+    plan_recipe,
     preview_peak_table,
 )
 from ordifile.core.peak_mapping import (
@@ -40,7 +48,7 @@ from ordifile.core.peak_mapping import (
     save_peak_table_mapping_set,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SCIENTIFIC_SHEETS = (
     "Samples",
     "Peak_Matrix",
@@ -69,6 +77,7 @@ MAPPING_NAME = "peak-mapping.json"
 MAPPED_SET_CSV_NAME = "mapped-template-a.csv"
 MAPPED_SET_XLSX_NAME = "mapped-template-b.xlsx"
 MAPPING_SET_NAME = "peak-mapping-set.json"
+RECIPE_NAME = "conversion-recipe.json"
 CP949_PROBE_TEXT = "합성 보고서"
 GENERATED_INPUTS = (
     (
@@ -326,6 +335,11 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         set_id="profile-set-33333333333333333333333333333333",
     )
     save_peak_table_mapping_set(mapping_set, output / MAPPING_SET_NAME)
+    recipe = ConversionRecipe(
+        peak_table_mapping_set=mapping_set,
+        display_label="Synthetic mapping-set recipe",
+    )
+    save_conversion_recipe(recipe, output / RECIPE_NAME)
 
     generated_paths: list[Path] = []
     generated_expectations: dict[str, str] = {}
@@ -382,6 +396,15 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
         if mapped_set_result.failure_count:
             raise ValueError("Synthetic mapping-set standalone conversion failed.")
         mapped_set_digest, mapped_set_sheets = semantic_digest(mapped_set_workbook_path)
+        recipe_workbook_path = Path(temporary) / "recipe-expected.xlsx"
+        recipe_result = convert_recipe(
+            (mapped_set_csv, mapped_set_xlsx),
+            recipe_workbook_path,
+            recipe=recipe,
+        )
+        if recipe_result.failure_count:
+            raise ValueError("Synthetic recipe standalone conversion failed.")
+        recipe_digest, recipe_sheets = semantic_digest(recipe_workbook_path)
     expected = {
         "schema_version": SCHEMA_VERSION,
         "ordifile_version": __version__,
@@ -412,6 +435,12 @@ def create_smoke_kit(output: Path, generator_root: Path) -> None:
             "mapping_set_fingerprint": mapping_set.structural_fingerprint_sha256,
             "scientific_sheets": list(mapped_set_sheets),
             "semantic_sha256": mapped_set_digest,
+        },
+        "recipe": {
+            "file_sha256": _sha256(output / RECIPE_NAME),
+            "public_fingerprint": recipe.public_fingerprint_sha256,
+            "scientific_sheets": list(recipe_sheets),
+            "semantic_sha256": recipe_digest,
         },
     }
     _write_json(output / EXPECTED_NAME, expected)
@@ -502,6 +531,17 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         "mapping_set_fingerprint"
     ):
         raise ValueError("The standalone mapping-set structure differs from the baseline.")
+    recipe_expected = expected.get("recipe")
+    recipe_path = kit / RECIPE_NAME
+    if (
+        type(recipe_expected) is not dict
+        or not recipe_path.is_file()
+        or _sha256(recipe_path) != recipe_expected.get("file_sha256")
+    ):
+        raise ValueError("The standalone recipe kit failed its checksum.")
+    recipe = load_conversion_recipe(recipe_path)
+    if recipe.public_fingerprint_sha256 != recipe_expected.get("public_fingerprint"):
+        raise ValueError("The standalone recipe fingerprint differs from the baseline.")
     inspected = inspect_inputs(tuple(paths), sort="input_order")
     detected = [item.adapter_id for item in inspected.files]
     if detected != expected_detection or inspected.failure_count:
@@ -610,6 +650,23 @@ def run_smoke(kit: Path, output: Path, report_path: Path) -> None:
         mapped_set_sheets
     ) != mapped_set_expected.get("scientific_sheets"):
         raise ValueError("The packaged mapping-set workbook differs from the source baseline.")
+    with tempfile.TemporaryDirectory(prefix="ordifile-standalone-recipe-") as temporary:
+        recipe_output = Path(temporary) / "recipe.xlsx"
+        recipe_plan = plan_recipe(
+            (mapped_set_csv, mapped_set_xlsx),
+            recipe_output,
+            recipe=recipe,
+        )
+        if recipe_plan.summary.mapping_profiles != 2 or recipe_output.exists():
+            raise ValueError("The packaged recipe preflight did not route exactly.")
+        recipe_result = convert_plan(recipe_plan)
+        if recipe_result.failure_count:
+            raise ValueError("The packaged recipe conversion failed.")
+        recipe_digest, recipe_sheets = semantic_digest(recipe_output)
+    if recipe_digest != recipe_expected.get("semantic_sha256") or list(
+        recipe_sheets
+    ) != recipe_expected.get("scientific_sheets"):
+        raise ValueError("The packaged recipe workbook differs from the source baseline.")
     _write_json(
         report_path,
         {

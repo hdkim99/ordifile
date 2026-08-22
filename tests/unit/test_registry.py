@@ -49,6 +49,18 @@ class FakeEntryPoint:
         return self._loaded
 
 
+def test_parse_options_additions_preserve_adapter_api_v1_positional_slots() -> None:
+    options = ParseOptions("Results", True, None, None, "profile", "fingerprint", "set")
+
+    assert options.sheet == "Results"
+    assert options.include_hidden_sheets is True
+    assert options.peak_table_mapping_profile_id == "profile"
+    assert options.peak_table_mapping_profile_fingerprint == "fingerprint"
+    assert options.peak_table_mapping_set_id == "set"
+    assert options.worksheet_provenance is None
+    assert options.include_mapping_semantic_sha256 is True
+
+
 def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> None:
     assert ENTRY_POINT_GROUP == "ordifile.adapters"
     descriptors = create_registry(include_external=False).descriptors()

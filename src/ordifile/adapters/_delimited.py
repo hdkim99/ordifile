@@ -245,6 +245,7 @@ class DelimitedAdapter:
                             options.peak_table_mapping_profile_fingerprint
                         ),
                         mapping_set_id=options.peak_table_mapping_set_id,
+                        include_mapping_semantic_sha256=(options.include_mapping_semantic_sha256),
                     )
                 return parse_rows(
                     path,

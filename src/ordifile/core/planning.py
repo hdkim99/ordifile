@@ -10,7 +10,7 @@ import json
 import os
 import re
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import NoReturn, SupportsIndex
@@ -21,6 +21,7 @@ from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.discovery import DiscoveryRecord, discover_files, sha256_file
 from ordifile.core.errors import ExportError, OrdifileError
 from ordifile.core.peak_mapping import (
+    MAPPED_XLSX_SHEET_MARKER,
     PeakMappingDriftDiagnostic,
     PeakTableMapping,
     PeakTableMappingSet,
@@ -146,6 +147,8 @@ class ConversionPlanOptions:
     mapping_set_id: str | None
     mapping_set_schema_version: int | None
     mapping_set_public_fingerprint: str | None
+    recipe_schema_version: int | None
+    recipe_public_fingerprint_sha256: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,13 +217,16 @@ class _PlanBindings:
     adapter: str | None
     sheet: str | None
     include_hidden_sheets: bool
-    peak_table_mapping: PeakTableMapping | None
-    peak_table_mapping_set: PeakTableMappingSet | None
+    peak_table_mapping: PeakTableMapping | None = field(compare=False, repr=False)
+    peak_table_mapping_set: PeakTableMappingSet | None = field(compare=False, repr=False)
     on_error: str
     overwrite: bool
     sidecar_mode: str
     registry_signature: tuple[tuple[str, str, str], ...]
     mapping_signature: tuple[object, ...]
+    recipe_schema_version: int | None
+    recipe_public_fingerprint_sha256: str | None
+    recipe_semantic_sha256: str | None
     sources: tuple[_SourceBinding, ...]
     output_snapshot: _OutputBinding
 
@@ -474,6 +480,8 @@ def _public_summary_digest(
             "mapping_set_id": options.mapping_set_id,
             "mapping_set_schema_version": options.mapping_set_schema_version,
             "mapping_set_public_fingerprint": options.mapping_set_public_fingerprint,
+            "recipe_schema_version": options.recipe_schema_version,
+            "recipe_public_fingerprint_sha256": options.recipe_public_fingerprint_sha256,
         },
         "entries": [
             {
@@ -557,6 +565,9 @@ def build_conversion_plan(
     on_error: str,
     overwrite: bool,
     sidecar_mode: str,
+    recipe_schema_version: int | None,
+    recipe_public_fingerprint_sha256: str | None,
+    recipe_semantic_sha256: str | None,
     progress: Callable[[PlanProgressEvent], None] | None = None,
 ) -> ConversionPlan:
     """Build one bounded route-only plan without canonical rows or output artifacts."""
@@ -573,7 +584,13 @@ def build_conversion_plan(
 
     parse_options = ParseOptions(
         sheet=sheet,
+        worksheet_provenance=(
+            MAPPED_XLSX_SHEET_MARKER
+            if recipe_schema_version is not None and sheet is not None
+            else None
+        ),
         include_hidden_sheets=include_hidden_sheets,
+        include_mapping_semantic_sha256=recipe_schema_version is None,
         peak_table_mapping=peak_table_mapping,
         peak_table_mapping_set=peak_table_mapping_set,
     )
@@ -628,6 +645,7 @@ def build_conversion_plan(
                     registry,
                     forced_adapter=adapter,
                     parse_options=parse_options,
+                    preserve_exact_adapter_precedence=recipe_schema_version is not None,
                 )
                 adapter_id = decision.detection.adapter.adapter_id
                 adapter_version = decision.detection.adapter.adapter_version
@@ -779,6 +797,8 @@ def build_conversion_plan(
             if peak_table_mapping_set is not None
             else None
         ),
+        recipe_schema_version=recipe_schema_version,
+        recipe_public_fingerprint_sha256=recipe_public_fingerprint_sha256,
     )
     public_summary_sha256 = _public_summary_digest(
         entry_tuple,
@@ -804,6 +824,9 @@ def build_conversion_plan(
         sidecar_mode=sidecar_mode,
         registry_signature=planned_registry_signature,
         mapping_signature=_mapping_signature(peak_table_mapping, peak_table_mapping_set),
+        recipe_schema_version=recipe_schema_version,
+        recipe_public_fingerprint_sha256=recipe_public_fingerprint_sha256,
+        recipe_semantic_sha256=recipe_semantic_sha256,
         sources=tuple(source_bindings),
         output_snapshot=output_binding(frozen_output),
     )

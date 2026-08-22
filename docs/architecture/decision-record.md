@@ -297,15 +297,34 @@ to the workbook layout.
     excludes identifiers and scientific values. Revalidated-plan conversions add only the plan
     schema and public summary SHA-256 to Manifest; direct conversions record `DIRECT`, and no
     plan JSON or private binding is embedded.
+47. Repeated laboratory settings use one bounded, strict UTF-8 `ConversionRecipe` rather than
+    a serialized plan, project database, or external Mapping Set path. Schema v1 stores only
+    stable conversion behavior and optionally embeds one explicit Mapping or one Mapping Set;
+    runtime inputs, output, overwrite authorization, source identities, and scientific rows are
+    excluded. Recipe conversion uses the same implementation as `plan_conversion()` through
+    the typed `plan_recipe()` boundary and is
+    executed only through `convert_plan()`, so exact-adapter ownership, exact Mapping matching,
+    drift diagnostics, ambiguity handling, and freshness checks remain authoritative. A stored
+    adapter is considered only after exact-profile ownership finds no owner. CLI Recipe use
+    rejects separate behavior flags instead of merging hidden precedence. The private exact
+    semantic SHA-256 is used only for local equality. Recipe-specific Plan and Manifest
+    provenance uses Recipe schema plus a public-safe fingerprint that excludes exact headers,
+    worksheet titles, local labels, and user-provided mapping text. Existing scientific and
+    public-safe Mapping Set provenance keeps its workbook contract; a Recipe-embedded single
+    Mapping does not repeat its private semantic digest. A saved Recipe is never changed
+    automatically after local settings or Mapping repair.
 
 ## Public boundaries
 
 - `ordifile.api`: `inspect_file`, `inspect_inputs`, `preview_peak_table`,
-  `list_formats`, `get_format_report`, `plan_conversion`, `convert_plan`, `convert`
+  `list_formats`, `get_format_report`, `plan_conversion`, `plan_recipe`, `convert_plan`,
+  `convert_recipe`, `convert`
 - `ordifile.core.models`: canonical immutable values, structured issues,
   `ProgressEvent`, `BatchOutcome`, and immutable `ConversionOptions`
 - `ordifile.core.peak_mapping`: strict data-only mapping, local preview value, and
   deterministic mapping identity
+- `ordifile.core.recipe`: strict local Conversion Recipe model, serialization, and separate
+  private semantic/public fingerprint identities
 - `ordifile.adapters.base`: `FormatAdapter` protocol and descriptors
 - `ordifile.exporters.base`: exporter protocol
 - `ordifile.cli`: presentation and exit-code mapping only

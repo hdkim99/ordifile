@@ -31,6 +31,13 @@ from ordifile.core.planning import (
     ConversionPlanSummary,
     PlanProgressEvent,
 )
+from ordifile.core.recipe import (
+    CONVERSION_RECIPE_SCHEMA_VERSION,
+    MAX_CONVERSION_RECIPE_BYTES,
+    ConversionRecipe,
+    load_conversion_recipe,
+    save_conversion_recipe,
+)
 from ordifile.core.summary import (
     CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION,
     ConversionResultSummary,
@@ -40,6 +47,7 @@ from ordifile.core.summary import (
 __all__ = [
     "ColumnSelector",
     "CONVERSION_RESULT_SUMMARY_SCHEMA_VERSION",
+    "CONVERSION_RECIPE_SCHEMA_VERSION",
     "ConversionPlan",
     "ConversionPlanEntry",
     "ConversionPlanEntryStatus",
@@ -50,6 +58,8 @@ __all__ = [
     "ConversionPlanSummary",
     "ConversionExecutionMode",
     "ConversionResultSummary",
+    "ConversionRecipe",
+    "MAX_CONVERSION_RECIPE_BYTES",
     "PeakMappingDriftCategory",
     "PeakMappingDriftDiagnostic",
     "PeakTableFormat",
@@ -62,7 +72,9 @@ __all__ = [
     "clone_peak_table_mapping_profile",
     "load_peak_table_mapping",
     "load_peak_table_mapping_set",
+    "load_conversion_recipe",
     "save_peak_table_mapping",
     "save_peak_table_mapping_set",
+    "save_conversion_recipe",
     "summarize_conversion",
 ]
