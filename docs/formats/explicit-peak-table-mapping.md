@@ -70,8 +70,10 @@ Missing optional properties mean “not mapped.” The serializer writes a norma
 with every optional property present, including exact mapped and ignored header selectors,
 units, and optional user-supplied manufacturer/software. It stores no source data rows or
 source paths. Its path-independent semantic SHA-256 is stored in conversion provenance.
-This semantic digest applies to direct single-mapping mode; Mapping Set provenance uses the
-separate public-safe structural fingerprint described below.
+This semantic digest applies only to direct single-mapping mode. A Recipe-embedded single
+Mapping keeps that exact digest local and uses the Recipe public fingerprint for public
+provenance. Mapping Set provenance uses the separate public-safe structural fingerprint
+described below.
 
 The desktop interface provides the same mapping model. Preview and conversion receive
 the same immutable mapping value; the UI does not contain a second CSV or XLSX parser.
@@ -161,6 +163,30 @@ plan as stale. GUI mapping repair therefore invalidates the displayed plan and r
 preflight. The plan does not cache a `DatasetBundle` or authorize later overwrite, and it is
 not a persisted job file. Sort results, parsed validity, scientific row counts, sheet
 segmentation, and optional sidecars are deferred to the existing parse/export pipeline.
+
+## Reusable laboratory Conversion Recipes
+
+A strict local `ConversionRecipe` connects repeated workflow settings to the same preflight
+path. It can embed one explicit Mapping or one Mapping Set together with stable discovery,
+sorting, signal, worksheet, failure, and sidecar choices. It never stores scientific inputs,
+source/output paths, overwrite authorization, `ConversionPlan` state, or canonical rows.
+
+Recipe JSON is privacy-bearing local configuration because embedded mappings may contain
+exact headers, worksheet titles, units, local labels, and user-provided provenance. The exact
+Recipe semantic SHA-256 remains local and is used only for configuration equality.
+Recipe-specific public plan and workbook provenance contains only schema version and a
+public-safe fingerprint that omits those private values. Existing scientific provenance and
+public-safe Mapping Set provenance keeps its established workbook contract; the direct
+single-Mapping semantic digest is not repeated for a Recipe-embedded Mapping. Neither Recipe
+identity establishes vendor compatibility or predicts workbook contents.
+
+Loading a Recipe does not apply mappings directly. Runtime inputs and output are combined with
+the immutable Recipe, the existing conversion preflight performs exact-adapter-first routing,
+through `plan_recipe()`, and `convert_plan()` repeats freshness checks before parsing. A stored
+adapter is considered only when no exact-profile adapter owns the input. Template
+drift remains diagnostic
+only; a repaired Mapping Profile changes a new in-memory Recipe only after explicit user action,
+and the previously saved Recipe file is never updated automatically.
 
 ## Mapping semantics
 

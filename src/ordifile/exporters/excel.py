@@ -6,11 +6,8 @@
 from __future__ import annotations
 
 import csv
-import ctypes
-import errno
 import math
 import os
-import platform
 import re
 import stat
 import tempfile
@@ -27,6 +24,7 @@ import xlsxwriter  # type: ignore[import-untyped]
 from ordifile import __version__
 from ordifile.core.discovery import paths_alias, sha256_file
 from ordifile.core.errors import ExportError, ExportLimitError
+from ordifile.core.file_publish import rename_no_replace
 from ordifile.core.models import (
     MAX_CANONICAL_INTEGER_DECIMAL_DIGITS,
     BatchResult,
@@ -53,6 +51,8 @@ from ordifile.core.workbook_text import (
 MAX_EXCEL_ROWS = 1_048_576
 MAX_EXCEL_COLUMNS = 16_384
 MAX_EXCEL_CELL_CHARACTERS = 32_767
+
+_rename_no_replace = rename_no_replace
 MAX_EXCEL_SHEET_NAME = 31
 MAX_WORKBOOK_SHEETS = 512
 _FORBIDDEN_SHEET = re.compile(r"[\[\]:*?/\\]")
@@ -1215,6 +1215,25 @@ def _manifest_data(
                 ),
             )
         )
+    if result.options.conversion_recipe_public_fingerprint_sha256 is not None:
+        rows.extend(
+            (
+                (
+                    "conversion_recipe_schema_version",
+                    result.options.conversion_recipe_schema_version,
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "conversion_recipe_public_fingerprint_sha256",
+                    result.options.conversion_recipe_public_fingerprint_sha256,
+                    None,
+                    None,
+                    None,
+                ),
+            )
+        )
     rows.extend(
         (
             "sidecar",
@@ -1290,67 +1309,6 @@ def _backup_path(final: Path) -> Path:
     backup = Path(raw_path)
     backup.unlink()
     return backup
-
-
-def _raise_rename_error(result: int, source: Path, destination: Path) -> None:
-    if result == 0:
-        return
-    error_number = ctypes.get_errno()
-    if error_number == errno.EEXIST:
-        raise FileExistsError(error_number, os.strerror(error_number), destination)
-    raise OSError(
-        error_number,
-        os.strerror(error_number),
-        f"{source!s} -> {destination!s}",
-    )
-
-
-def _rename_no_replace(source: Path, destination: Path) -> None:
-    """Atomically consume ``source`` without replacing ``destination``."""
-    if os.name == "nt":  # pragma: no cover - exercised by Windows CI
-        os.rename(source, destination)
-        return
-
-    library = ctypes.CDLL(None, use_errno=True)
-    encoded_source = os.fsencode(source)
-    encoded_destination = os.fsencode(destination)
-    current_platform = platform.system()
-    if current_platform == "Darwin":  # pragma: no branch - platform-specific
-        rename_exclusive = library.renamex_np
-        rename_exclusive.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-        rename_exclusive.restype = ctypes.c_int
-        _raise_rename_error(
-            rename_exclusive(encoded_source, encoded_destination, 0x00000004),
-            source,
-            destination,
-        )
-        return
-    if current_platform == "Linux":  # pragma: no cover - exercised by Linux CI
-        try:
-            rename_exclusive = library.renameat2
-        except AttributeError as error:
-            raise OSError(
-                errno.ENOTSUP,
-                "Atomic no-replace publication is unavailable on this platform.",
-            ) from error
-        rename_exclusive.argtypes = [
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_uint,
-        ]
-        rename_exclusive.restype = ctypes.c_int
-        _raise_rename_error(
-            rename_exclusive(-100, encoded_source, -100, encoded_destination, 1),
-            source,
-            destination,
-        )
-        return
-    raise OSError(
-        errno.ENOTSUP,
-        "Atomic no-replace publication is unavailable on this platform.",
-    )
 
 
 def _open_private_transaction_directory(

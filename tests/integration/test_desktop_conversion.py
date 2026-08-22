@@ -14,6 +14,7 @@ from ordifile import (
     ColumnSelector,
     ConversionPlanProblem,
     ConversionPlanRoute,
+    ConversionRecipe,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
@@ -77,6 +78,39 @@ def test_desktop_preflight_executes_the_exact_immutable_plan(tmp_path: Path) -> 
         assert "Peaks" in workbook.sheetnames
     finally:
         workbook.close()
+
+
+def test_desktop_recipe_preflight_executes_embedded_mapping_snapshot(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "neutral-result.csv"
+    source.write_text("Time,Integrated\n1.25,100\n2.5,250\n", encoding="utf-8")
+    output = tmp_path / "recipe-result.xlsx"
+    mapping = PeakTableMapping(
+        ColumnSelector("Time", 1),
+        ColumnSelector("Integrated", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    recipe = ConversionRecipe(
+        peak_table_mapping=mapping,
+        display_label="Daily neutral table",
+    )
+    request = DesktopRequest((source,), output, recipe=recipe)
+
+    preflight = preflight_selection(request)
+
+    assert preflight.plan is not None and preflight.plan.is_executable
+    assert preflight.plan.entries[0].route is ConversionPlanRoute.USER_MAPPING
+
+    converted = convert_preflight_plan(preflight.plan)
+
+    assert converted.outcome is BatchOutcome.SUCCESS
+    assert converted.summary is not None
+    assert converted.summary.peak_records == 2
+    assert output.is_file()
+    peaks = _sheet_values(output, "Peaks")
+    assert len(peaks) == 3
 
 
 def test_desktop_preflight_blocks_a_source_changed_before_conversion(tmp_path: Path) -> None:

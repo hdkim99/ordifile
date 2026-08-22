@@ -24,6 +24,7 @@ from ordifile.core.peak_mapping import (
     save_peak_table_mapping,
     save_peak_table_mapping_set,
 )
+from ordifile.core.recipe import ConversionRecipe, save_conversion_recipe
 
 
 def _write_peak_table(path: Path, sample_id: str = "sample") -> None:
@@ -944,3 +945,112 @@ def test_structured_input_error_has_actionable_message_without_traceback(
     captured = capsys.readouterr()
     assert "Error [INPUT_NOT_FOUND]: The input path does not exist." in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_cli_recipe_dry_run_and_conversion_reuse_embedded_mapping_set(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "private-source.csv"
+    source.write_text("RT,Area\n1.5,20\n", encoding="utf-8")
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("RT", 1),
+            ColumnSelector("Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+        ),
+        "PRIVATE-LOCAL-LABEL",
+    )
+    recipe = ConversionRecipe(
+        peak_table_mapping_set=PeakTableMappingSet((profile,)),
+        display_label="PRIVATE-RECIPE-LABEL",
+    )
+    recipe_path = tmp_path / "private-laboratory-recipe.json"
+    save_conversion_recipe(recipe, recipe_path)
+    output = tmp_path / "result.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--recipe",
+                str(recipe_path),
+                "--output",
+                str(output),
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
+    dry_run = capsys.readouterr().out
+    assert "Mapping profile: 1" in dry_run
+    assert "PRIVATE-LOCAL-LABEL" not in dry_run
+    assert "PRIVATE-RECIPE-LABEL" not in dry_run
+    assert recipe_path.name not in dry_run
+    assert not output.exists()
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--recipe",
+                str(recipe_path),
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    rendered = capsys.readouterr().out
+    assert "Peaks: 1" in rendered
+    assert output.is_file()
+    assert "PRIVATE-LOCAL-LABEL" not in rendered
+    assert "PRIVATE-RECIPE-LABEL" not in rendered
+    assert recipe_path.name not in rendered
+
+
+@pytest.mark.parametrize(
+    "option",
+    [
+        ("--recursive",),
+        ("--sort", "input_order"),
+        ("--extension", "csv"),
+        ("--include-signals",),
+        ("--sheet-mode", "sidecar-csv"),
+        ("--on-error", "stop"),
+        ("--sheet", "Results"),
+        ("--include-hidden-sheets",),
+        ("--overwrite",),
+        ("--adapter", "generic_csv"),
+        ("--peak-mapping", "unused-mapping.json"),
+        ("--peak-mapping-set", "unused-mapping-set.json"),
+    ],
+)
+def test_cli_recipe_rejects_separate_behavior_options(
+    option: tuple[str, ...],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source.csv"
+    _write_peak_table(source)
+    recipe_path = tmp_path / "recipe.json"
+    save_conversion_recipe(ConversionRecipe(), recipe_path)
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source),
+                "--recipe",
+                str(recipe_path),
+                "--output",
+                str(tmp_path / "result.xlsx"),
+                *option,
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert "CONVERSION_RECIPE_OPTION_CONFLICT" in captured.err

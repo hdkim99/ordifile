@@ -51,6 +51,8 @@ class ParseOptions:
     peak_table_mapping_profile_id: str | None = None
     peak_table_mapping_profile_fingerprint: str | None = None
     peak_table_mapping_set_id: str | None = None
+    worksheet_provenance: str | None = None
+    include_mapping_semantic_sha256: bool = True
 
 
 @dataclass(frozen=True, slots=True)

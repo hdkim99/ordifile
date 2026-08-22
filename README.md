@@ -192,6 +192,51 @@ if plan.is_executable:
     result = convert_plan(plan)
 ```
 
+### Reuse a laboratory conversion recipe
+
+A `ConversionRecipe` stores **how to convert**, not which scientific files to convert.
+It is strict, bounded UTF-8 JSON containing stable discovery, routing, sorting, signal,
+failure, sidecar, and optional embedded Mapping/Mapping Set settings. Inputs, output paths,
+overwrite authorization, source identities, plans, and scientific rows are never stored.
+Schema v1 allows at most 8 MiB; embedded Mapping Sets retain their existing 4 MiB and
+32-profile limits. Unknown, duplicate, or malformed fields are rejected.
+
+```console
+ordifile convert new-experiment/ --recipe laboratory-recipe.json \
+  --output results.xlsx --dry-run
+ordifile convert new-experiment/ --recipe laboratory-recipe.json \
+  --output results.xlsx
+```
+
+Recipe conversion always builds and revalidates the existing `ConversionPlan`; it cannot
+bypass exact-adapter precedence, exact Mapping Profile matching, drift diagnostics, or
+ambiguity failures. Runtime inputs and output are required separately. To keep the effective
+configuration deterministic, a stored adapter is considered only when no exact-profile adapter
+owns the input. `--recipe` cannot be combined with separate behavior options such
+as `--recursive`, `--sort`, `--adapter`, `--sheet`, or mapping flags. `--dry-run` and
+`--verbose` remain runtime presentation choices. A Recipe never carries overwrite authority.
+
+Embedded mappings may contain exact headers, worksheet titles, units, local labels, and
+user-provided manufacturer/software declarations. Treat Recipe JSON as privacy-bearing local
+configuration and do not attach it to public issues. Its exact semantic SHA-256 is local-only.
+Recipe-specific Plan and workbook provenance is limited to the Recipe schema and privacy-safe
+public fingerprint. Existing scientific and public-safe Mapping Set provenance keeps its
+established workbook contract. A direct single-Mapping semantic digest remains direct-only and
+is not recorded for a Recipe-embedded Mapping. Neither Recipe digest proves vendor support or
+predicts workbook bytes.
+
+```python
+from ordifile import ConversionRecipe, save_conversion_recipe
+from ordifile.api import convert_plan, plan_recipe
+from ordifile.core.models import SortMode
+
+recipe = ConversionRecipe(sort=SortMode.INPUT_ORDER)
+save_conversion_recipe(recipe, "laboratory-recipe.json")
+plan = plan_recipe("new-experiment", "results.xlsx", recipe=recipe)
+if plan.is_executable:
+    result = convert_plan(plan)
+```
+
 ## Experimental proprietary adapters
 
 | Format boundary | Metadata | Peaks | Output | Status | Real fixture |
@@ -300,6 +345,8 @@ ordifile convert ./exports --recursive --sort acquired_at --include-signals \
 ordifile convert ./exports --extension .csv --extension .xlsx \
   --sheet-mode sidecar-csv --output Ordifile_Result.xlsx
 ordifile convert ./exports --recursive --output Ordifile_Result.xlsx --dry-run
+ordifile convert ./exports --recipe laboratory-recipe.json \
+  --output Ordifile_Result.xlsx --dry-run
 ```
 
 Important behavior:
@@ -314,6 +361,8 @@ Important behavior:
   matching generic tables in the batch;
 - `--peak-mapping-set FILE.json` routes mixed generic templates with reusable exact-
   structure profiles; it is mutually exclusive with `--adapter` and `--peak-mapping`;
+- `--recipe FILE.json` loads one self-contained local configuration and always uses
+  preflight; input/output remain runtime values and separate behavior flags are rejected;
 - signals are parsed when present but written only with `--include-signals`;
 - `--verbose` adds detection evidence and detailed structured diagnostics.
 
@@ -360,6 +409,11 @@ rules rather than scanning private values. Scientific numeric cells retain Excel
 The Manifest also records count-only sample/peak/series totals. Conversions executed from
 a revalidated preflight record only the plan schema and public plan-summary SHA-256; the
 plan itself is never embedded.
+When a Conversion Recipe is used, Recipe-specific Manifest provenance adds only its schema
+version and public-safe configuration fingerprint. Existing scientific and Mapping provenance
+keeps its established contract, except that a Recipe-embedded single Mapping does not repeat
+its private semantic digest. Manifest never embeds the Recipe JSON, local Recipe path or label,
+exact local Recipe semantic digest, raw mapped headers, or raw Recipe worksheet title.
 
 Rows and columns are split into deterministic numbered sheets before Excel limits are
 reached. Data is never silently truncated. If workbook storage is impractical,

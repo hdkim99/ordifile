@@ -428,6 +428,7 @@ def parse_mapped_peak_rows(
     mapping_profile_id: str | None = None,
     mapping_profile_fingerprint: str | None = None,
     mapping_set_id: str | None = None,
+    include_mapping_semantic_sha256: bool = True,
 ) -> DatasetBundle:
     """Transform one clean table using only user-confirmed semantic selectors."""
     iterator = iter(rows)
@@ -671,16 +672,17 @@ def parse_mapped_peak_rows(
         ),
     ]
     if mapping_profile_id is None:
-        metadata.append(
-            MetadataEntry(
-                sample_id,
-                source.name,
-                namespace,
-                "mapping_sha256",
-                mapping.semantic_sha256,
-                source="canonical:user_supplied_mapping.sha256",
+        if include_mapping_semantic_sha256:
+            metadata.append(
+                MetadataEntry(
+                    sample_id,
+                    source.name,
+                    namespace,
+                    "mapping_sha256",
+                    mapping.semantic_sha256,
+                    source="canonical:user_supplied_mapping.sha256",
+                )
             )
-        )
     else:
         metadata.extend(
             (

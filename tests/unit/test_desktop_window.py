@@ -17,11 +17,12 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QApplication, QDialog, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from ordifile import (
     ColumnSelector,
     ConversionPlanProblem,
+    ConversionRecipe,
     ConversionResultSummary,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
@@ -32,7 +33,7 @@ from ordifile import (
     PlanProgressEvent,
 )
 from ordifile.api import plan_conversion
-from ordifile.core.models import BatchOutcome, ProgressEvent
+from ordifile.core.models import BatchOutcome, ProgressEvent, SortMode
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopFileReport,
@@ -274,6 +275,11 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.review_mapping_button.accessibleName() == ("Review selected schema drift mapping")
     assert window.refresh_preflight_button.accessibleName() == "Refresh conversion preflight"
     assert window.preflight_summary_label.accessibleName() == "Conversion preflight summary"
+    assert window.load_recipe_button.accessibleName() == "Load conversion recipe JSON"
+    assert window.save_recipe_button.accessibleName() == (
+        "Save current conversion settings as recipe JSON"
+    )
+    assert window.recipe_status_label.accessibleName() == "Conversion recipe status"
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -369,6 +375,8 @@ def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplic
         window.add_mapping_profile_button,
         window.rename_mapping_profile_button,
         window.remove_mapping_profile_button,
+        window.load_recipe_button,
+        window.save_recipe_button,
         window.remove_button,
         window.clear_button,
         window.input_table,
@@ -383,6 +391,207 @@ def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplic
         _next_expected_widget(current, expected) is following
         for current, following in pairwise(expected_order)
     )
+    window.close()
+
+
+def test_window_loads_recipe_atomically_and_shows_only_bounded_local_status(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    mapping_set = _mapping_set(label="Daily mapping")
+    recipe = ConversionRecipe(
+        recursive=True,
+        extensions=(".csv",),
+        sort=SortMode.FILENAME,
+        include_signals=True,
+        peak_table_mapping_set=mapping_set,
+        on_error="stop",
+        sidecar_mode="csv",
+        display_label="Daily recipe",
+    )
+    private_path = tmp_path / "private-recipe-name.json"
+    requests: list[object] = []
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: requests.append(object()))
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getOpenFileName",
+        lambda *_args, **_kwargs: (str(private_path), ""),
+    )
+    monkeypatch.setattr("ordifile.desktop.window.load_recipe", lambda _path: recipe)
+
+    window._load_conversion_recipe()
+
+    assert window.conversion_recipe is recipe
+    assert window.peak_table_mapping_set is mapping_set
+    assert window.mapping_set_active
+    assert window.sort_combo.currentData() == "filename"
+    request = window._current_preflight_request()
+    assert request.recipe is recipe
+    assert request.sort == "auto"
+    assert request.peak_table_mapping is None
+    assert request.peak_table_mapping_set is None
+    assert bool(window.recipe_modified) is False
+    assert len(requests) == 1
+    rendered = window.recipe_status_label.text()
+    assert "Daily recipe" in rendered
+    assert "saved" in rendered
+    assert "recursive on" in rendered
+    assert "mapping set with 1 profile" in rendered
+    assert private_path.name not in rendered
+    window.close()
+
+
+def test_recipe_dirty_state_excludes_runtime_paths_and_saves_only_explicitly(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    recipe = ConversionRecipe(sort=SortMode.AUTO, display_label="Daily recipe")
+    destination = tmp_path / "saved-recipe.json"
+    saved: list[tuple[ConversionRecipe, Path, bool]] = []
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.save_recipe",
+        lambda value, path, *, overwrite: saved.append((value, path, overwrite)),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(destination), ""),
+    )
+    window._apply_conversion_recipe(recipe)
+
+    window.output_edit.setText(str(tmp_path / "runtime-only.xlsx"))
+    window.add_paths((tmp_path / "runtime-only.csv",))
+
+    assert bool(window.recipe_modified) is False
+    assert saved == []
+
+    window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
+
+    assert bool(window.recipe_modified) is True
+    assert "modified (not saved)" in window.recipe_status_label.text()
+    assert saved == []
+
+    window._save_current_recipe()
+
+    assert saved == [(window.conversion_recipe, destination, False)]
+    assert bool(window.recipe_modified) is False
+    assert "saved" in window.recipe_status_label.text()
+    window.close()
+
+
+def test_recipe_save_cancel_has_no_mutation_or_write(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    recipe = ConversionRecipe(display_label="Daily recipe")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window._apply_conversion_recipe(recipe)
+    window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
+    before = window.conversion_recipe
+    assert bool(window.recipe_modified) is True
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: ("", ""),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.save_recipe",
+        lambda *_args, **_kwargs: pytest.fail("cancel must not write a recipe"),
+    )
+
+    window._save_current_recipe()
+
+    assert window.conversion_recipe is before
+    assert bool(window.recipe_modified) is True
+    window.close()
+
+
+def test_recipe_save_does_not_replace_an_existing_local_file(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    destination = tmp_path / "existing-recipe.json"
+    destination.write_bytes(b"existing-local-content")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(destination), ""),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QMessageBox.question",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.No,
+    )
+
+    window._save_current_recipe()
+
+    assert destination.read_bytes() == b"existing-local-content"
+    assert window.status_label.text() == "Conversion recipe was not saved."
+    assert window.conversion_recipe is None
+    window.close()
+
+
+def test_mapping_set_repair_marks_loaded_recipe_modified(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    original_set = _mapping_set(label="Original")
+    recipe = ConversionRecipe(peak_table_mapping_set=original_set)
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window._apply_conversion_recipe(recipe)
+    assert bool(window.recipe_modified) is False
+    repaired_profile = PeakTableMappingProfile(_mapping(unit="s"), "Repaired")
+    repaired_set = replace(
+        original_set,
+        profiles=(*original_set.profiles, repaired_profile),
+    )
+
+    window._set_peak_mapping_set(
+        repaired_set,
+        activate=True,
+        selected_profile_id=repaired_profile.profile_id,
+    )
+
+    assert bool(window.recipe_modified) is True
+    assert window.conversion_recipe is not None
+    assert window.conversion_recipe.peak_table_mapping_set is repaired_set
+    window.close()
+
+
+def test_recipe_change_rejects_stale_background_preflight_report(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    first = ConversionRecipe(sort=SortMode.FILENAME, display_label="First")
+    second = ConversionRecipe(sort=SortMode.INPUT_ORDER, display_label="Second")
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    window.add_paths((source,))
+    window._apply_conversion_recipe(first)
+    window._preview_request = window._current_preflight_request()
+    window._preview_generation = window._preflight_generation
+    window._apply_conversion_recipe(second)
+    stale = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        files=(
+            DesktopFileReport(
+                "stale.csv",
+                "Generic CSV (Verified)",
+                "generic_csv",
+                DesktopInputStatus.SUCCESS,
+            ),
+        ),
+        success_count=1,
+    )
+
+    window._on_preview_complete(stale)
+
+    queued = window.input_table.item(0, 0)
+    assert queued is not None and queued.text() != "stale.csv"
+    assert window.conversion_recipe is second
     window.close()
 
 
@@ -1256,6 +1465,8 @@ def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
     assert not window.add_mapping_profile_button.isEnabled()
     assert not window.rename_mapping_profile_button.isEnabled()
     assert not window.remove_mapping_profile_button.isEnabled()
+    assert not window.load_recipe_button.isEnabled()
+    assert not window.save_recipe_button.isEnabled()
     assert not window.drift_candidate_combo.isEnabled()
     assert not window.review_mapping_button.isEnabled()
     assert not window.refresh_preflight_button.isEnabled()

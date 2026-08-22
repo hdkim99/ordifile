@@ -72,9 +72,11 @@ def _source_identity_policy_before_detection(
     path: Path,
     registry: AdapterRegistry,
     forced_adapter: str | None,
+    *,
+    preserve_exact_adapter_precedence: bool = False,
 ) -> SourceIdentityPolicy:
     """Return the most private policy known without inspecting source content."""
-    if forced_adapter is not None:
+    if forced_adapter is not None and not preserve_exact_adapter_precedence:
         return registry.get(forced_adapter).descriptor.source_identity_policy
     suffix = path.suffix.casefold()
     owners = tuple(
@@ -94,9 +96,11 @@ def _sha256_alias_owner_ids_before_detection(
     path: Path,
     registry: AdapterRegistry,
     forced_adapter: str | None,
+    *,
+    preserve_exact_adapter_precedence: bool = False,
 ) -> frozenset[str]:
     """Return suffix owners whose probe evidence requires selective redaction."""
-    if forced_adapter is not None:
+    if forced_adapter is not None and not preserve_exact_adapter_precedence:
         adapter = registry.get(forced_adapter)
         if adapter.descriptor.source_identity_policy is SourceIdentityPolicy.SHA256_ALIAS:
             return frozenset((adapter.adapter_id,))
@@ -459,6 +463,7 @@ def run_pipeline(
     extensions: Iterable[str] | None = None,
     sort: SortMode | str = SortMode.AUTO,
     forced_adapter: str | None = None,
+    preserve_exact_adapter_precedence: bool = False,
     parse_options: ParseOptions | None = None,
     on_error: str = "continue",
     progress: Callable[[ProgressEvent], None] | None = None,
@@ -554,13 +559,19 @@ def run_pipeline(
                 "converting.",
             )
         sha256_alias_owner_ids = _sha256_alias_owner_ids_before_detection(
-            discovered.source.path, registry, forced_adapter
+            discovered.source.path,
+            registry,
+            forced_adapter,
+            preserve_exact_adapter_precedence=preserve_exact_adapter_precedence,
         )
         initial_policy = (
             SourceIdentityPolicy.SHA256_ALIAS
             if mapping_requested
             else _source_identity_policy_before_detection(
-                discovered.source.path, registry, forced_adapter
+                discovered.source.path,
+                registry,
+                forced_adapter,
+                preserve_exact_adapter_precedence=preserve_exact_adapter_precedence,
             )
         )
         source = _apply_source_identity(discovered.source, initial_policy)
@@ -634,6 +645,7 @@ def run_pipeline(
                     registry,
                     forced_adapter=forced_adapter,
                     parse_options=options,
+                    preserve_exact_adapter_precedence=preserve_exact_adapter_precedence,
                     redact_adapter_ids=sha256_alias_owner_ids,
                     redact_error_reasons=(initial_policy is SourceIdentityPolicy.SHA256_ALIAS),
                 )

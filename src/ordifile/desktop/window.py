@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QMainWindow,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
@@ -42,6 +43,7 @@ from ordifile import (
     ConversionPlanProblem,
     ConversionPlanReadiness,
     ConversionPlanRoute,
+    ConversionRecipe,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableMapping,
@@ -51,7 +53,7 @@ from ordifile import (
     PlanProgressEvent,
     clone_peak_table_mapping_profile,
 )
-from ordifile.core.models import BatchOutcome, ProgressEvent
+from ordifile.core.models import BatchOutcome, ProgressEvent, SortMode
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopFileReport,
@@ -63,11 +65,13 @@ from ordifile.desktop.services import (
     details_text,
     load_mapping,
     load_mapping_set,
+    load_recipe,
     presentation_error,
     safe_display_name,
     safe_preview_text,
     save_mapping,
     save_mapping_set,
+    save_recipe,
 )
 from ordifile.desktop.workers import ConversionWorker, PreviewWorker
 
@@ -111,6 +115,8 @@ class MainWindow(QMainWindow):
         self._last_output: Path | None = None
         self._peak_table_mapping: PeakTableMapping | None = None
         self._peak_table_mapping_set: PeakTableMappingSet | None = None
+        self._conversion_recipe: ConversionRecipe | None = None
+        self._recipe_baseline_json: str | None = None
         self._displayed_files: tuple[DesktopFileReport, ...] = ()
         self._displayed_inputs: tuple[Path, ...] = ()
         self._displayed_mapping_set: PeakTableMappingSet | None = None
@@ -226,6 +232,21 @@ class MainWindow(QMainWindow):
         self.mapping_set_label.setWordWrap(True)
         mapping_set_layout.addWidget(self.mapping_set_label, 3, 0, 1, 6)
         root.addWidget(mapping_set_group)
+
+        recipe_group = QGroupBox("Conversion recipe")
+        recipe_layout = QHBoxLayout(recipe_group)
+        self.load_recipe_button = QPushButton("Load Recip&e…")
+        self.load_recipe_button.setAccessibleName("Load conversion recipe JSON")
+        self.save_recipe_button = QPushButton("Save Current Settings as Rec&ipe…")
+        self.save_recipe_button.setAccessibleName("Save current conversion settings as recipe JSON")
+        recipe_layout.addWidget(self.load_recipe_button)
+        recipe_layout.addWidget(self.save_recipe_button)
+        recipe_layout.addStretch()
+        self.recipe_status_label = QLabel("Recipe: none")
+        self.recipe_status_label.setAccessibleName("Conversion recipe status")
+        self.recipe_status_label.setWordWrap(True)
+        recipe_layout.addWidget(self.recipe_status_label, stretch=1)
+        root.addWidget(recipe_group)
 
         detected_header = QHBoxLayout()
         detected_label = QLabel("Conversion &preflight:")
@@ -347,6 +368,8 @@ class MainWindow(QMainWindow):
         self.add_mapping_profile_button.clicked.connect(self._add_current_mapping_profile)
         self.rename_mapping_profile_button.clicked.connect(self._rename_mapping_profile)
         self.remove_mapping_profile_button.clicked.connect(self._remove_mapping_profile)
+        self.load_recipe_button.clicked.connect(self._load_conversion_recipe)
+        self.save_recipe_button.clicked.connect(self._save_current_recipe)
         self.selection_list.itemSelectionChanged.connect(self._update_mapping_controls)
         self.input_table.itemSelectionChanged.connect(self._mapping_drift_row_changed)
         self.drift_candidate_combo.currentIndexChanged.connect(self._update_drift_candidate_detail)
@@ -355,7 +378,7 @@ class MainWindow(QMainWindow):
         self.refresh_preflight_button.clicked.connect(self._request_preview)
         self.convert_button.clicked.connect(self._start_conversion)
         self.open_output_button.clicked.connect(self._open_output)
-        self.sort_combo.currentIndexChanged.connect(self._request_preview)
+        self.sort_combo.currentIndexChanged.connect(self._sort_changed)
         self.output_edit.textChanged.connect(self._request_preview)
 
         self.setTabOrder(self.add_files_button, self.add_folder_button)
@@ -371,7 +394,9 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.save_mapping_set_button, self.add_mapping_profile_button)
         self.setTabOrder(self.add_mapping_profile_button, self.rename_mapping_profile_button)
         self.setTabOrder(self.rename_mapping_profile_button, self.remove_mapping_profile_button)
-        self.setTabOrder(self.remove_mapping_profile_button, self.remove_button)
+        self.setTabOrder(self.remove_mapping_profile_button, self.load_recipe_button)
+        self.setTabOrder(self.load_recipe_button, self.save_recipe_button)
+        self.setTabOrder(self.save_recipe_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.input_table)
         self.setTabOrder(self.input_table, self.refresh_preflight_button)
@@ -398,6 +423,20 @@ class MainWindow(QMainWindow):
     def peak_table_mapping_set(self) -> PeakTableMappingSet | None:
         """Expose the immutable reusable mapping set for interface tests."""
         return self._peak_table_mapping_set
+
+    @property
+    def conversion_recipe(self) -> ConversionRecipe | None:
+        """Expose the immutable active recipe snapshot for interface tests."""
+        return self._conversion_recipe
+
+    @property
+    def recipe_modified(self) -> bool:
+        """Return whether local recipe settings differ from the last load or save."""
+        return (
+            self._conversion_recipe is not None
+            and self._recipe_baseline_json is not None
+            and self._conversion_recipe.to_json() != self._recipe_baseline_json
+        )
 
     @property
     def mapping_set_active(self) -> bool:
@@ -454,7 +493,68 @@ class MainWindow(QMainWindow):
         self.add_mapping_profile_button.setEnabled(idle and has_mapping)
         self.rename_mapping_profile_button.setEnabled(idle and has_profile)
         self.remove_mapping_profile_button.setEnabled(idle and has_profile)
+        self.load_recipe_button.setEnabled(idle)
+        self.save_recipe_button.setEnabled(idle)
         self._update_convert_enabled()
+
+    def _refresh_recipe_status(self) -> None:
+        recipe = self._conversion_recipe
+        if recipe is None:
+            self.recipe_status_label.setText("Recipe: none")
+            return
+        label = (
+            safe_preview_text(recipe.display_label)
+            if recipe.display_label is not None
+            else "unnamed local recipe"
+        )
+        state = "modified (not saved)" if self.recipe_modified else "saved"
+        if recipe.peak_table_mapping_set is not None:
+            mapping_mode = (
+                f"mapping set with {len(recipe.peak_table_mapping_set.profiles)} profile(s)"
+            )
+        elif recipe.peak_table_mapping is not None:
+            mapping_mode = "single mapping"
+        else:
+            mapping_mode = "automatic routing"
+        fixed_options = (
+            f"sort {recipe.sort.value}; recursive {'on' if recipe.recursive else 'off'}; "
+            f"{len(recipe.extensions)} extension filter(s); "
+            f"signals {'on' if recipe.include_signals else 'off'}; "
+            f"{'fallback adapter; ' if recipe.adapter is not None else ''}"
+            f"{'worksheet selected; ' if recipe.sheet is not None else ''}"
+            f"hidden sheets {'on' if recipe.include_hidden_sheets else 'off'}; "
+            f"errors {recipe.on_error}; sidecars {recipe.sidecar_mode}"
+        )
+        self.recipe_status_label.setText(
+            f"Recipe: {label} — {state}. {mapping_mode}; {fixed_options}."
+        )
+
+    def _sync_active_recipe_from_controls(self) -> None:
+        recipe = self._conversion_recipe
+        if recipe is None:
+            return
+        mapping, mapping_set = self._active_peak_mappings()
+        mapping_changed = (
+            mapping != recipe.peak_table_mapping or mapping_set != recipe.peak_table_mapping_set
+        )
+        adapter = recipe.adapter
+        sheet = recipe.sheet
+        include_hidden_sheets = recipe.include_hidden_sheets
+        if mapping_changed and (mapping is not None or mapping_set is not None):
+            adapter = None
+        if mapping_set is not None or mapping_changed:
+            sheet = None
+            include_hidden_sheets = False
+        self._conversion_recipe = replace(
+            recipe,
+            sort=SortMode(self._sort_value()),
+            adapter=adapter,
+            sheet=sheet,
+            include_hidden_sheets=include_hidden_sheets,
+            peak_table_mapping=mapping,
+            peak_table_mapping_set=mapping_set,
+        )
+        self._refresh_recipe_status()
 
     def _refresh_mapping_status(self) -> None:
         set_active = self.mapping_set_active
@@ -478,11 +578,20 @@ class MainWindow(QMainWindow):
                 "Exact vendor adapters remain authoritative."
             )
 
-    def _set_peak_mapping(self, mapping: PeakTableMapping | None) -> None:
+    def _set_peak_mapping(
+        self,
+        mapping: PeakTableMapping | None,
+        *,
+        request_preview: bool = True,
+        sync_recipe: bool = True,
+    ) -> None:
         self._peak_table_mapping = mapping
+        if sync_recipe:
+            self._sync_active_recipe_from_controls()
         self._refresh_mapping_status()
         self._update_mapping_controls()
-        self._request_preview()
+        if request_preview:
+            self._request_preview()
 
     def _set_peak_mapping_set(
         self,
@@ -490,6 +599,8 @@ class MainWindow(QMainWindow):
         *,
         activate: bool | None = None,
         selected_profile_id: str | None = None,
+        request_preview: bool = True,
+        sync_recipe: bool = True,
     ) -> None:
         self._peak_table_mapping_set = mapping_set
         self.mapping_set_combo.blockSignals(True)
@@ -513,9 +624,12 @@ class MainWindow(QMainWindow):
         self.use_mapping_set_checkbox.blockSignals(True)
         self.use_mapping_set_checkbox.setChecked(checked)
         self.use_mapping_set_checkbox.blockSignals(False)
+        if sync_recipe:
+            self._sync_active_recipe_from_controls()
         self._refresh_mapping_status()
         self._update_mapping_controls()
-        self._request_preview()
+        if request_preview:
+            self._request_preview()
 
     def _active_peak_mappings(
         self,
@@ -525,6 +639,12 @@ class MainWindow(QMainWindow):
         return self._peak_table_mapping, None
 
     def _current_preflight_request(self) -> DesktopRequest:
+        if self._conversion_recipe is not None:
+            return DesktopRequest(
+                inputs=self._selection.paths,
+                output=Path(self.output_edit.text()),
+                recipe=self._conversion_recipe,
+            )
         active_mapping, active_mapping_set = self._active_peak_mappings()
         return DesktopRequest(
             inputs=self._selection.paths,
@@ -533,6 +653,104 @@ class MainWindow(QMainWindow):
             peak_table_mapping=active_mapping,
             peak_table_mapping_set=active_mapping_set,
         )
+
+    def _apply_conversion_recipe(self, recipe: ConversionRecipe) -> None:
+        """Apply one validated immutable recipe and refresh preflight exactly once."""
+        self._conversion_recipe = recipe
+        self._recipe_baseline_json = recipe.to_json()
+        self.sort_combo.blockSignals(True)
+        self.sort_combo.setCurrentIndex(self.sort_combo.findData(recipe.sort.value))
+        self.sort_combo.blockSignals(False)
+        self._peak_table_mapping = recipe.peak_table_mapping
+        self._set_peak_mapping_set(
+            recipe.peak_table_mapping_set,
+            activate=recipe.peak_table_mapping_set is not None,
+            request_preview=False,
+            sync_recipe=False,
+        )
+        self._refresh_mapping_status()
+        self._refresh_recipe_status()
+        self._update_mapping_controls()
+        self._request_preview()
+
+    def _load_conversion_recipe(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Load conversion recipe",
+            str(Path.home()),
+            "Conversion recipe JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            recipe = load_recipe(Path(path))
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Recipe load failed [{code}]: {message}")
+            return
+        self._apply_conversion_recipe(recipe)
+        self.status_label.setText("Conversion recipe loaded. Runtime input and output stay local.")
+
+    def _current_settings_recipe(self) -> ConversionRecipe:
+        if self._conversion_recipe is not None:
+            self._sync_active_recipe_from_controls()
+            assert self._conversion_recipe is not None
+            return self._conversion_recipe
+        mapping, mapping_set = self._active_peak_mappings()
+        return ConversionRecipe(
+            sort=SortMode(self._sort_value()),
+            peak_table_mapping=mapping,
+            peak_table_mapping_set=mapping_set,
+        )
+
+    def _save_current_recipe(self) -> None:
+        path, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Save current conversion settings as recipe",
+            str(Path.cwd() / "conversion-recipe.json"),
+            "Conversion recipe JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            recipe = self._current_settings_recipe()
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Recipe creation failed [{code}]: {message}")
+            return
+        destination = Path(path)
+        if destination.suffix.casefold() != ".json":
+            destination = destination.with_suffix(".json")
+        overwrite = False
+        if destination.exists():
+            answer = QMessageBox.question(
+                self,
+                "Replace conversion recipe?",
+                "A local file already exists at the selected destination. Replace it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                self.status_label.setText("Conversion recipe was not saved.")
+                return
+            overwrite = True
+        try:
+            save_recipe(recipe, destination, overwrite=overwrite)
+        except Exception as error:
+            code, message = presentation_error(error)
+            self.status_label.setText(f"Recipe save failed [{code}]: {message}")
+            return
+        was_active = self._conversion_recipe is not None
+        self._conversion_recipe = recipe
+        self._recipe_baseline_json = recipe.to_json()
+        self._refresh_recipe_status()
+        if not was_active:
+            self._request_preview()
+        self.status_label.setText("Current conversion settings saved as a local recipe.")
+
+    def _sort_changed(self, *_unused: object) -> None:
+        self._sync_active_recipe_from_controls()
+        self._request_preview()
 
     def _invalidate_preflight(self, message: str) -> None:
         self._preflight_generation += 1
@@ -909,7 +1127,9 @@ class MainWindow(QMainWindow):
             self.use_mapping_set_checkbox.setChecked(False)
             self.use_mapping_set_checkbox.blockSignals(False)
             return
+        self._sync_active_recipe_from_controls()
         self._refresh_mapping_status()
+        self._refresh_recipe_status()
         self._update_mapping_controls()
         self.status_label.setText(
             "Reusable mapping set enabled for batch routing."
@@ -1478,6 +1698,8 @@ class MainWindow(QMainWindow):
             self.add_mapping_profile_button,
             self.rename_mapping_profile_button,
             self.remove_mapping_profile_button,
+            self.load_recipe_button,
+            self.save_recipe_button,
             self.drift_candidate_combo,
             self.review_mapping_button,
             self.refresh_preflight_button,

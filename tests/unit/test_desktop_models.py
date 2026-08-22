@@ -7,6 +7,7 @@ import pytest
 
 from ordifile import (
     ColumnSelector,
+    ConversionRecipe,
     PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
@@ -131,6 +132,36 @@ def test_desktop_request_preserves_optional_frozen_mapping_set(tmp_path: Path) -
 
     assert request.peak_table_mapping is None
     assert request.peak_table_mapping_set is mapping_set
+
+
+def test_desktop_request_preserves_optional_frozen_conversion_recipe(tmp_path: Path) -> None:
+    recipe = ConversionRecipe()
+
+    request = DesktopRequest(
+        (tmp_path / "input.csv",),
+        tmp_path / "result.xlsx",
+        recipe=recipe,
+    )
+
+    assert request.recipe is recipe
+
+
+def test_request_validation_rejects_recipe_with_separate_behavior_settings(
+    tmp_path: Path,
+) -> None:
+    recipe = ConversionRecipe()
+
+    with pytest.raises(RequestValidationError) as caught:
+        validate_request(
+            DesktopRequest(
+                (tmp_path / "input.csv",),
+                tmp_path / "result.xlsx",
+                sort="filename",
+                recipe=recipe,
+            )
+        )
+
+    assert caught.value.code == "CONVERSION_RECIPE_OPTION_CONFLICT"
 
 
 def test_request_validation_rejects_simultaneous_single_mapping_and_set(

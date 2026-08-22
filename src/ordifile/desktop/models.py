@@ -16,6 +16,7 @@ from ordifile import (
     ConversionPlanEntryStatus,
     ConversionPlanProblem,
     ConversionPlanRoute,
+    ConversionRecipe,
     ConversionResultSummary,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
@@ -53,6 +54,7 @@ class DesktopRequest:
     sort: str = "auto"
     peak_table_mapping: PeakTableMapping | None = None
     peak_table_mapping_set: PeakTableMappingSet | None = None
+    recipe: ConversionRecipe | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,4 +193,13 @@ def validate_request(request: DesktopRequest) -> None:
         raise RequestValidationError(
             "PEAK_MAPPING_MODE_CONFLICT",
             "Choose either one explicit mapping or a reusable mapping set, not both.",
+        )
+    if request.recipe is not None and (
+        request.sort != "auto"
+        or request.peak_table_mapping is not None
+        or request.peak_table_mapping_set is not None
+    ):
+        raise RequestValidationError(
+            "CONVERSION_RECIPE_OPTION_CONFLICT",
+            "A conversion recipe cannot be combined with separate desktop behavior settings.",
         )

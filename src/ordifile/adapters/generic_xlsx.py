@@ -542,12 +542,13 @@ class GenericXlsxAdapter:
                             values.append(cell.value)
                     yield values
 
+            worksheet_provenance = options.worksheet_provenance or str(part.title)
             if options.peak_table_mapping is None:
                 bundle = parse_rows(
                     path,
                     selected_rows(),
-                    namespace=f"adapter:{self.adapter_id}:sheet:{part.title}",
-                    source_label=str(part.title),
+                    namespace=f"adapter:{self.adapter_id}:sheet:{worksheet_provenance}",
+                    source_label=worksheet_provenance,
                     formula_cells=formula_cells,
                     cell_sources=cell_sources,
                 )
@@ -560,10 +561,11 @@ class GenericXlsxAdapter:
                     mapping_profile_id=options.peak_table_mapping_profile_id,
                     mapping_profile_fingerprint=(options.peak_table_mapping_profile_fingerprint),
                     mapping_set_id=options.peak_table_mapping_set_id,
+                    include_mapping_semantic_sha256=(options.include_mapping_semantic_sha256),
                 )
                 return bundle
             sample_id = bundle.samples[0].sample_id
-            namespace = f"adapter:{self.adapter_id}:sheet:{part.title}"
+            namespace = f"adapter:{self.adapter_id}:sheet:{worksheet_provenance}"
             extra_metadata: list[MetadataEntry] = []
             extra_issues: list[Issue] = []
             formula_extra_rows: set[int] = set()

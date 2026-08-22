@@ -50,6 +50,7 @@ from ordifile.core.planning import (
     output_binding,
     plan_bindings,
 )
+from ordifile.core.recipe import ConversionRecipe
 from ordifile.core.routing import InputRouteExpectation
 from ordifile.exporters.excel import ExcelExporter
 
@@ -142,6 +143,97 @@ def _require_peak_mapping_set(value: object) -> None:
         )
 
 
+def _require_conversion_recipe(value: object, *, optional: bool = True) -> None:
+    if value is None and optional:
+        return
+    if type(value) is not ConversionRecipe:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID",
+            "recipe must be a ConversionRecipe.",
+        )
+
+
+def _apply_conversion_recipe(
+    recipe: ConversionRecipe | None,
+    *,
+    recursive: bool,
+    extensions: Iterable[str] | None,
+    sort: SortMode | str,
+    include_signals: bool,
+    adapter: str | None,
+    sheet: str | None,
+    include_hidden_sheets: bool,
+    peak_table_mapping: PeakTableMapping | None,
+    peak_table_mapping_set: PeakTableMappingSet | None,
+    on_error: str,
+    overwrite: bool,
+    sidecar_mode: str,
+) -> tuple[
+    bool,
+    Iterable[str] | None,
+    SortMode | str,
+    bool,
+    str | None,
+    str | None,
+    bool,
+    PeakTableMapping | None,
+    PeakTableMappingSet | None,
+    str,
+    bool,
+    str,
+]:
+    """Apply one recipe only when no behavior option competes with it."""
+    _require_conversion_recipe(recipe)
+    if recipe is None:
+        return (
+            recursive,
+            extensions,
+            sort,
+            include_signals,
+            adapter,
+            sheet,
+            include_hidden_sheets,
+            peak_table_mapping,
+            peak_table_mapping_set,
+            on_error,
+            overwrite,
+            sidecar_mode,
+        )
+    conflicts = (
+        recursive
+        or extensions is not None
+        or sort not in {SortMode.AUTO, SortMode.AUTO.value}
+        or include_signals
+        or adapter is not None
+        or sheet is not None
+        or include_hidden_sheets
+        or peak_table_mapping is not None
+        or peak_table_mapping_set is not None
+        or on_error != "continue"
+        or overwrite
+        or sidecar_mode != "error"
+    )
+    if conflicts:
+        raise OrdifileError(
+            "CONVERSION_RECIPE_OPTION_CONFLICT",
+            "A recipe cannot be combined with separate behavior or overwrite options.",
+        )
+    return (
+        recipe.recursive,
+        recipe.extensions or None,
+        recipe.sort,
+        recipe.include_signals,
+        recipe.adapter,
+        recipe.sheet,
+        recipe.include_hidden_sheets,
+        recipe.peak_table_mapping,
+        recipe.peak_table_mapping_set,
+        recipe.on_error,
+        False,
+        recipe.sidecar_mode,
+    )
+
+
 def _validate_peak_mapping_options(
     mapping: PeakTableMapping | None,
     mapping_set: PeakTableMappingSet | None = None,
@@ -171,9 +263,14 @@ def _validate_peak_mapping_options(
         )
 
 
-def _public_sheet_option(mapping: PeakTableMapping | None, sheet: str | None) -> str | None:
-    """Return a fixed marker instead of a private mapped worksheet title."""
-    if mapping is not None and sheet is not None:
+def _public_sheet_option(
+    mapping: PeakTableMapping | None,
+    sheet: str | None,
+    *,
+    recipe_active: bool = False,
+) -> str | None:
+    """Return a fixed marker instead of a private mapped or Recipe worksheet title."""
+    if sheet is not None and (mapping is not None or recipe_active):
         return MAPPED_XLSX_SHEET_MARKER
     return sheet
 
@@ -540,6 +637,8 @@ def _convert_impl(
     expected_output_binding: object | None = None,
     conversion_plan_schema_version: int | None = None,
     conversion_plan_public_summary_sha256: str | None = None,
+    conversion_recipe_schema_version: int | None = None,
+    conversion_recipe_public_fingerprint_sha256: str | None = None,
 ) -> BatchResult:
     """Batch-convert inputs into one ordered Excel workbook."""
     _require_bool("recursive", recursive)
@@ -593,9 +692,16 @@ def _convert_impl(
         extensions=normalized_extensions,
         sort=requested_sort,
         forced_adapter=adapter,
+        preserve_exact_adapter_precedence=conversion_recipe_schema_version is not None,
         parse_options=ParseOptions(
             sheet=sheet,
+            worksheet_provenance=(
+                MAPPED_XLSX_SHEET_MARKER
+                if conversion_recipe_schema_version is not None and sheet is not None
+                else None
+            ),
             include_hidden_sheets=include_hidden_sheets,
+            include_mapping_semantic_sha256=(conversion_recipe_schema_version is None),
             peak_table_mapping=peak_table_mapping,
             peak_table_mapping_set=peak_table_mapping_set,
         ),
@@ -657,14 +763,20 @@ def _convert_impl(
             sort=result.sort.requested,
             include_signals=include_signals,
             adapter=adapter,
-            sheet=_public_sheet_option(peak_table_mapping, sheet),
+            sheet=_public_sheet_option(
+                peak_table_mapping,
+                sheet,
+                recipe_active=conversion_recipe_schema_version is not None,
+            ),
             include_hidden_sheets=include_hidden_sheets,
             on_error=on_error,
             overwrite=overwrite,
             sidecar_mode=sidecar_mode,
             output_name=output_path.name,
             peak_table_mapping_sha256=(
-                peak_table_mapping.semantic_sha256 if peak_table_mapping is not None else None
+                peak_table_mapping.semantic_sha256
+                if peak_table_mapping is not None and conversion_recipe_schema_version is None
+                else None
             ),
             peak_table_mapping_schema_version=(
                 peak_table_mapping.schema_version if peak_table_mapping is not None else None
@@ -695,6 +807,10 @@ def _convert_impl(
             ),
             conversion_plan_schema_version=conversion_plan_schema_version,
             conversion_plan_public_summary_sha256=conversion_plan_public_summary_sha256,
+            conversion_recipe_schema_version=conversion_recipe_schema_version,
+            conversion_recipe_public_fingerprint_sha256=(
+                conversion_recipe_public_fingerprint_sha256
+            ),
         ),
     )
     if progress is not None:
@@ -731,6 +847,95 @@ def plan_conversion(
     registry: AdapterRegistry | None = None,
 ) -> ConversionPlan:
     """Build a route-only immutable plan without canonical rows or output artifacts."""
+    return _plan_conversion_impl(
+        inputs,
+        output,
+        recursive=recursive,
+        extensions=extensions,
+        sort=sort,
+        include_signals=include_signals,
+        adapter=adapter,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+        peak_table_mapping=peak_table_mapping,
+        peak_table_mapping_set=peak_table_mapping_set,
+        on_error=on_error,
+        overwrite=overwrite,
+        sidecar_mode=sidecar_mode,
+        progress=progress,
+        registry=registry,
+        recipe=None,
+    )
+
+
+def plan_recipe(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
+    *,
+    recipe: ConversionRecipe,
+    progress: Callable[[PlanProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+) -> ConversionPlan:
+    """Build a conversion plan from one validated local Recipe and runtime paths."""
+    _require_conversion_recipe(recipe, optional=False)
+    return _plan_conversion_impl(
+        inputs,
+        output,
+        progress=progress,
+        registry=registry,
+        recipe=recipe,
+    )
+
+
+def _plan_conversion_impl(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
+    *,
+    recursive: bool = False,
+    extensions: Iterable[str] | None = None,
+    sort: SortMode | str = SortMode.AUTO,
+    include_signals: bool = False,
+    adapter: str | None = None,
+    sheet: str | None = None,
+    include_hidden_sheets: bool = False,
+    peak_table_mapping: PeakTableMapping | None = None,
+    peak_table_mapping_set: PeakTableMappingSet | None = None,
+    on_error: str = "continue",
+    overwrite: bool = False,
+    sidecar_mode: str = "error",
+    progress: Callable[[PlanProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+    recipe: ConversionRecipe | None = None,
+) -> ConversionPlan:
+    """Shared implementation for direct and Recipe-backed preflight."""
+    (
+        recursive,
+        extensions,
+        sort,
+        include_signals,
+        adapter,
+        sheet,
+        include_hidden_sheets,
+        peak_table_mapping,
+        peak_table_mapping_set,
+        on_error,
+        overwrite,
+        sidecar_mode,
+    ) = _apply_conversion_recipe(
+        recipe,
+        recursive=recursive,
+        extensions=extensions,
+        sort=sort,
+        include_signals=include_signals,
+        adapter=adapter,
+        sheet=sheet,
+        include_hidden_sheets=include_hidden_sheets,
+        peak_table_mapping=peak_table_mapping,
+        peak_table_mapping_set=peak_table_mapping_set,
+        on_error=on_error,
+        overwrite=overwrite,
+        sidecar_mode=sidecar_mode,
+    )
     _require_bool("recursive", recursive)
     _require_bool("include_signals", include_signals)
     _require_bool("include_hidden_sheets", include_hidden_sheets)
@@ -791,6 +996,11 @@ def plan_conversion(
         on_error=on_error,
         overwrite=overwrite,
         sidecar_mode=sidecar_mode,
+        recipe_schema_version=recipe.schema_version if recipe is not None else None,
+        recipe_public_fingerprint_sha256=(
+            recipe.public_fingerprint_sha256 if recipe is not None else None
+        ),
+        recipe_semantic_sha256=recipe.semantic_sha256 if recipe is not None else None,
         progress=progress,
     )
 
@@ -831,6 +1041,9 @@ def convert_plan(
             on_error=bindings.on_error,
             overwrite=bindings.overwrite,
             sidecar_mode=bindings.sidecar_mode,
+            recipe_schema_version=bindings.recipe_schema_version,
+            recipe_public_fingerprint_sha256=bindings.recipe_public_fingerprint_sha256,
+            recipe_semantic_sha256=bindings.recipe_semantic_sha256,
         )
     except (KeyboardInterrupt, SystemExit, MemoryError):
         raise
@@ -880,6 +1093,8 @@ def convert_plan(
             expected_output_binding=fresh_bindings.output_snapshot,
             conversion_plan_schema_version=plan.schema_version,
             conversion_plan_public_summary_sha256=plan.public_summary_sha256,
+            conversion_recipe_schema_version=bindings.recipe_schema_version,
+            conversion_recipe_public_fingerprint_sha256=(bindings.recipe_public_fingerprint_sha256),
         )
     except ExportError as error:
         if error.code in {
@@ -965,3 +1180,33 @@ def convert(
         progress=progress,
         registry=registry,
     )
+
+
+def convert_recipe(
+    inputs: str | os.PathLike[str] | Sequence[str | os.PathLike[str]],
+    output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
+    *,
+    recipe: ConversionRecipe,
+    progress: Callable[[ProgressEvent], None] | None = None,
+    registry: AdapterRegistry | None = None,
+    conversion_plan: ConversionPlan | None = None,
+) -> BatchResult:
+    """Preflight, revalidate, and convert with one strict local Recipe."""
+    _require_conversion_recipe(recipe, optional=False)
+    if conversion_plan is not None and type(conversion_plan) is not ConversionPlan:
+        raise OrdifileError(
+            "CONVERSION_PLAN_INVALID", "conversion_plan must be a ConversionPlan or None."
+        )
+    _require_registry(registry)
+    active = create_registry() if registry is None else registry
+    current = plan_recipe(inputs, output, recipe=recipe, registry=active)
+    if conversion_plan is None:
+        conversion_plan = current
+    elif current.public_summary_sha256 != conversion_plan.public_summary_sha256 or plan_bindings(
+        current
+    ) != plan_bindings(conversion_plan):
+        raise OrdifileError(
+            "CONVERSION_PLAN_STALE",
+            "The conversion request changed after preflight; refresh the plan.",
+        )
+    return convert_plan(conversion_plan, progress=progress, registry=active)

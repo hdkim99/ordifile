@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Strict local `ConversionRecipe` JSON for repeated laboratory workflows. Recipes persist
+  stable conversion behavior and optional embedded Mapping/Mapping Set configuration without
+  source/output paths, overwrite authority, plans, or scientific rows. API, CLI, desktop,
+  preflight revalidation, Manifest provenance, and installed-package smoke share the same typed
+  contract; exact adapters and exact Mapping matching remain authoritative, and a stored adapter
+  is considered only when no exact-profile adapter owns an input.
 - Researcher-oriented workbook presentation without a duplicate summary sheet: `Samples`
   opens as the active tab, existing typed sheets gain deterministic frozen identity columns,
   bounded widths, header styling, and useful filters, while numeric scientific cells retain
@@ -46,6 +52,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- macOS desktop tests now prepare a clean temporary Qt offscreen plugin location before
+  creating `QApplication`, preventing repeated Python termination reports during test setup.
 - Non-overwrite workbook and sidecar finalization now uses an atomic no-clobber publish
   so a foreign artifact appearing after preflight is never silently replaced.
 
