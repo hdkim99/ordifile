@@ -4,7 +4,7 @@ project_dir = @PROJECT_DIR@
 input_file = Ordifile.py
 exec_directory = @EXEC_DIRECTORY@
 project_file =
-icon =
+icon = @APP_ICON@
 
 [python]
 python_path = @PYTHON_PATH@
@@ -19,4 +19,4 @@ plugins = platforms
 [nuitka]
 macos.permissions =
 mode = standalone
-extra_args = --quiet --noinclude-qt-translations --noinclude-qt-plugins=tls @STATIC_LIBPYTHON@
+extra_args = --quiet --include-data-files=ordifile-icon.png=ordifile-icon.png --noinclude-qt-translations --noinclude-qt-plugins=tls @STATIC_LIBPYTHON@

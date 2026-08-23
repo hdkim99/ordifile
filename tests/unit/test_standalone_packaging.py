@@ -8,6 +8,7 @@ import inspect
 import json
 import os
 import platform
+import plistlib
 import stat
 import subprocess
 import sys
@@ -90,6 +91,9 @@ def test_build_lock_and_deployment_template_pin_primary_toolchain() -> None:
     assert "Nuitka==4.1.3" in spec
     assert "mode = standalone" in spec
     assert "input_file = Ordifile.py" in spec
+    assert "icon = @APP_ICON@" in spec
+    assert "--include-data-files=ordifile-icon.png=ordifile-icon.png" in spec
+    assert "--include-package-data=ordifile.desktop" not in spec
     assert "--noinclude-qt-plugins=tls" in spec
     assert "--nofollow-import-to=PySide6.QtNetwork" not in spec
     assert "@STATIC_LIBPYTHON@" in spec
@@ -204,6 +208,8 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
         "[StringComparison]::OrdinalIgnoreCase)" in windows_job
     )
     assert "Test-Path -LiteralPath $executablePath -PathType Leaf" in windows_job
+    assert "[OrdifileIconInventory]::ExtractIconEx" in windows_job
+    assert "Packaged Ordifile executable icon is unavailable." in windows_job
     assert "--bundle $bundleRoot" in windows_job
     assert windows_job.index("--bundle $bundleRoot") < windows_job.index("--standalone-smoke")
     assert "repository: hdkim99/ordifile" in windows_job
@@ -274,6 +280,9 @@ def test_workflow_is_manual_native_and_uploads_path_free_evidence_only() -> None
     assert 'python_bin="${runtime}/bin/python3.14"' in macos_job
     assert 'target="macos-arm64"' in macos_job
     assert 'target="macos-x86_64"' not in macos_job
+    assert "CFBundleIconFile" in macos_job
+    assert 'test "${icon_name}" = "Ordifile.icns"' in macos_job
+    assert "/usr/bin/iconutil -c iconset" in macos_job
     assert "print(platform.machine())" in macos_job
     assert "print(sys.prefix)" in macos_job
     assert "print(sys.executable)" in macos_job
@@ -596,7 +605,9 @@ def test_rendered_spec_resolves_only_known_temporary_markers(tmp_path: Path) -> 
     assert "@EXEC_DIRECTORY@" not in text
     assert "@PYTHON_PATH@" not in text
     assert "@STATIC_LIBPYTHON@" not in text
+    assert "@APP_ICON@" not in text
     assert str(tmp_path / "stage") in text
+    assert "icon = Ordifile.icns" in text
     assert "--static-libpython=no" in text
 
     standalone_build._render_spec(
@@ -606,7 +617,50 @@ def test_rendered_spec_resolves_only_known_temporary_markers(tmp_path: Path) -> 
         tmp_path / "result",
         target="windows-x86_64",
     )
-    assert "--static-libpython=no" in destination.read_text(encoding="utf-8")
+    windows = destination.read_text(encoding="utf-8")
+    assert "--static-libpython=no" in windows
+    assert "icon = ordifile.ico" in windows
+
+
+def test_macos_application_icon_requires_exact_bundle_metadata_and_bytes(tmp_path: Path) -> None:
+    bundle = tmp_path / "Ordifile.app"
+    resources = bundle / "Contents" / "Resources"
+    resources.mkdir(parents=True)
+    expected = tmp_path / "Ordifile.icns"
+    expected.write_bytes(b"icns\0\0\0\x0cdata")
+    (resources / expected.name).write_bytes(expected.read_bytes())
+    plist = bundle / "Contents" / "Info.plist"
+    plist.write_bytes(plistlib.dumps({"CFBundleIconFile": expected.name}))
+
+    standalone_build._validate_macos_application_icon(bundle, expected)
+
+    (resources / expected.name).write_bytes(b"different")
+    with pytest.raises(ValueError, match="icon metadata"):
+        standalone_build._validate_macos_application_icon(bundle, expected)
+
+
+@pytest.mark.parametrize(
+    ("target", "relative"),
+    [
+        ("windows-x86_64", Path("ordifile-icon.png")),
+        ("macos-arm64", Path("Contents/MacOS/ordifile-icon.png")),
+    ],
+)
+def test_standalone_runtime_icon_requires_exact_regular_bytes(
+    tmp_path: Path, target: str, relative: Path
+) -> None:
+    bundle = tmp_path / ("Ordifile.app" if target.startswith("macos-") else "Ordifile.dist")
+    candidate = bundle / relative
+    candidate.parent.mkdir(parents=True)
+    expected = tmp_path / "expected.png"
+    expected.write_bytes(b"synthetic runtime icon")
+    candidate.write_bytes(expected.read_bytes())
+
+    standalone_build._validate_standalone_runtime_icon(bundle, expected, target)
+
+    candidate.write_bytes(b"different")
+    with pytest.raises(ValueError, match="runtime icon"):
+        standalone_build._validate_standalone_runtime_icon(bundle, expected, target)
 
 
 def test_native_target_gate_accepts_only_current_host() -> None:

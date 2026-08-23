@@ -271,6 +271,30 @@ jobs:
             throw "Standalone manifest executable path is invalid."
           }
           $executables = @((Get-Item -LiteralPath $executablePath))
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class OrdifileIconInventory {
+            [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+            public static extern uint ExtractIconEx(
+              string fileName,
+              int iconIndex,
+              IntPtr largeIcon,
+              IntPtr smallIcon,
+              uint iconCount
+            );
+          }
+          "@
+          $iconCount = [OrdifileIconInventory]::ExtractIconEx(
+            $executables[0].FullName,
+            -1,
+            [IntPtr]::Zero,
+            [IntPtr]::Zero,
+            0
+          )
+          if ($iconCount -lt 1) {
+            throw "Packaged Ordifile executable icon is unavailable."
+          }
           python scripts/ci/run_in_venv.py run --github-runner -- scripts/standalone/verify.py `
             --bundle $bundleRoot `
             --manifest (Join-Path $candidate "standalone-manifest.json") `
