@@ -1,7 +1,7 @@
 # YOUNG IN Chromass GC format investigation
 
 - Research and access dates: 2026-08-16; raw intake 2026-08-17; Result export intake
-  2026-08-18
+  2026-08-18; direct scientific semantics revalidation 2026-08-24
 - Status: `RAW_CONVERSION_GO`; `RESULT_TABLE_CSV_EXPERIMENTAL_GO`;
   `RAW_SCIENTIFIC_SEMANTICS_PENDING`; `VERIFIED_RAW_STATUS_BLOCKED_BY_CURVE_ORACLE`
 - Canonical project identifier: `youngin_chromass`
@@ -314,6 +314,13 @@ The exact observed YoungIn PRM raw-record boundary and the separate exact standa
 Result Table boundary are now implemented. A same-run unbunched chromatogram curve,
 broader fixtures and scientific raw time/scaling/unit evidence remain the next
 priority for promotion beyond Experimental raw structural conversion.
+
+The 2026-08-24 local revalidation reproduced all 23 PRM files, 43 current blocks and
+563,240 records and re-opened both paired Result exports. `DStep=1` and `MinTicks=600`
+support a `1/600 min` interval candidate at all six exported peak RTs, but Result rows
+cannot establish time origin or a full record-to-curve mapping. Direct time/signal and
+PRM-derived peak promotion therefore remain NO_GO; no numerical integration or peak
+detection is substituted for the missing curve and stored-result evidence.
 
 ## Minimum verification before “Verified”
 

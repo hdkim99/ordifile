@@ -1,6 +1,6 @@
 # Requesting YOUNG IN Chromass GC fixtures
 
-- Prepared: 2026-08-16
+- Prepared: 2026-08-16; narrowed after local revalidation 2026-08-24
 - Status: local research request; do not attach files to a public issue
 - Target: paired evidence needed to promote the Experimental raw-record adapter
 
@@ -23,6 +23,27 @@ populated TCD sections and one explicit empty FID section; this is signal-layout
 evidence, not Verified detector semantics. The bridge remains optional local tooling.
 The native files and generated exports remain `ACCEPT_EXTERNAL_ONLY` and must not be
 attached to Issue #2.
+
+## Immediate blocking evidence
+
+Do not request another broad YoungIn fixture set for the current decoder decision. The
+23 PRM files and two paired Result Tables are already available. The exact missing oracle
+is one or, preferably, two same-run chromatogram exports from PRMs already in that set:
+
+1. one TCD-containing PRM exported as detector-specific AIA/CDF and as full-range CHR or
+   TXT with X Axis enabled and Time Step zero, with the Global Filter/Bunching state
+   disabled where possible and always recorded; and
+2. if available, one `FID` + `TCD` PRM exported the same way to verify channel order and
+   channel-specific response behavior.
+
+Record the selected signal(s), All Data versus Displayed Data, X Axis setting, Time Step,
+Global Filter/Bunching state, displayed X/Y units and software build. The CDF should retain
+its declared retention unit, actual sampling interval and detector unit. These files are
+local validation oracles only and must remain outside Git and public artifacts.
+
+The existing Result Table exports do not need to be regenerated for this gate. They test
+explicit peaks; they cannot replace the full curve needed to verify every PRM time and
+response point.
 
 ## Minimum useful set
 

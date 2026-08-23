@@ -18,8 +18,8 @@
       ["TCD"]
     ],
     "detector_identity_verified": false,
-    "retention_time_status": "unsupported",
-    "physical_scaling_status": "unsupported",
+    "retention_time_status": "no-go-pending-same-run-curve-oracle",
+    "physical_scaling_status": "no-go-pending-same-run-curve-oracle",
     "physical_unit_status": "unknown"
   },
   "decoded_records": {
@@ -40,6 +40,9 @@
     "native_duplicate_payloads": "all 43 RAWData6 and PRMData pairs byte-identical",
     "declared_count_equation": "all 43 RAWSize values equal decompressed length divided by four",
     "openchrom": "unavailable: current proprietary converter is GUI-installed and has no public automated headless import path",
-    "paired_official_export": "pending"
+    "paired_result_exports": "2 owner-controlled exports paired to distinct PRM identities; 6 explicit RT/Area/Height rows",
+    "candidate_time_interval": "DStep / MinTicks = 1/600 min; consistent with 6/6 Result RT values at export precision but not promoted without full-curve comparison",
+    "paired_chromatogram_curve_exports": 0,
+    "latest_local_revalidation": "2026-08-24: 23 files, 43 blocks and 563240 records reproduced"
   }
 }

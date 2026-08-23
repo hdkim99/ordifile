@@ -338,6 +338,17 @@ to the workbook layout.
     The desktop exposes them contextually inside the existing Mapping dialog. No encoding,
     delimiter, header, worksheet, scientific role, unit, footer, locale decimal, or vendor is
     guessed; ambiguous or changed structures fail closed and exact adapters retain ownership.
+50. The observed YL-Clarity `9.0.1.19` PRM profile contains chromatographic stored data, but
+    its current `DStep=1` and `MinTicks=600` fields remain structural candidates rather than
+    public time semantics. Two paired Result Tables support a `1/600 min` interval candidate at
+    six peak RTs, but they do not establish time origin, full point order, response scaling or
+    signal unit. Direct `SCIENTIFIC_SIGNAL` therefore requires a same-run detector-specific CDF
+    plus a full-range, X-axis CHR/TXT comparison with Time Step zero and the
+    Global Filter/Bunching state recorded across multiple PRMs. PRM-derived
+    `PeakRecord` additionally requires a bounded repeatable stored-result grammar matching every
+    exported RT/Area/Height row. Raw integration and automatic peak detection are not substitutes.
+    Until those gates pass, the adapter preserves `DECODED_RECORDS`, the separate Result CSV
+    adapter remains authoritative for explicit peaks, and no YL-Clarity runtime is required.
 
 ## Public boundaries
 

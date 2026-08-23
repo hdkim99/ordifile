@@ -80,6 +80,8 @@ def test_single_channel_raw_records_use_content_identity_and_not_detector_claims
     assert metadata["time_axis_status"] == "not_exposed"
     assert metadata["physical_scaling_status"] == "not_applied"
     assert metadata["signal_unit_status"] == "unresolved"
+    assert metadata["scientific_semantics_status"] == "pending_paired_export"
+    assert metadata["scientific_semantics_evidence_gap"] == "same_run_chromatogram_curve"
     assert bundle.samples[0].detectors == ()
 
 
