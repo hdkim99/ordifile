@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Explicit, bounded **Table Options** for mapped structured Result intake: UTF-8/UTF-8-BOM,
+  CP949, or Windows-1252 text decoding; one-based header-record selection; and visible
+  worksheet selection for multi-sheet XLSX. The approved structure is stored with the
+  Mapping/Profile and reused by Mapping Sets and named Recipes without scientific inference.
 - A bounded local desktop Recipe library using strict existing `ConversionRecipe` JSON,
   opaque storage identifiers, operating-system application configuration locations, atomic
   writes, serialized local mutations, and isolated handling of invalid members. Named Recipes
@@ -17,6 +21,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Generic mapped preview, profile routing, drift review, Preflight, and conversion now share
+  the same explicit table-import settings. Existing default schema-version-1 Mapping JSON and
+  semantic hashes remain unchanged; exact adapters retain ownership and invalid scientific
+  rows are never silently removed.
 - Simplified the desktop interface around the visible researcher workflow
   **Inputs → Output → Preflight → Convert**. Recipe selection and saving are name-based;
   JSON import/export, Mapping controls, Mapping Sets, and sort are progressively disclosed,

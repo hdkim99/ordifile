@@ -371,7 +371,7 @@ def _public_route(adapter_id: str, mapping_route: str | None) -> ConversionPlanR
 
 
 def _mapping_public_fingerprint(mapping: PeakTableMapping) -> str:
-    payload = {
+    payload: dict[str, object] = {
         "domain": "ordifile-conversion-plan-mapping-v1",
         "schema_version": mapping.schema_version,
         "source_format": mapping.source_format.value,
@@ -384,6 +384,8 @@ def _mapping_public_fingerprint(mapping: PeakTableMapping) -> str:
             mapping.secondary_retention_time_unit is not None,
         ),
     }
+    if not mapping.import_settings.is_default:
+        payload["import_settings"] = mapping.import_settings.to_dict()
     return hashlib.sha256(
         json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode(
             "ascii"

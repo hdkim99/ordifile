@@ -19,6 +19,7 @@ from ordifile.core.models import DatasetBundle, FileStatus, PeakRecord, SampleRe
 from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
@@ -351,6 +352,67 @@ def test_mapping_set_reuses_existing_text_container_boundaries(
     assert result.mapping_route == "USER_MAPPING_PROFILE"
     assert result.bundle is not None
     assert (result.bundle.peaks[0].retention_time, result.bundle.peaks[0].area) == (1.5, 20.0)
+
+
+@pytest.mark.researcher_acceptance
+def test_mapping_set_reuses_exact_header_row_without_searching_other_rows(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "preamble.csv"
+    source.write_text(
+        "Instrument,Synthetic\nGenerated,2026-08-23\nRT,Area\n1.5,20\n",
+        encoding="utf-8",
+    )
+    settings = PeakTableImportSettings(header_row=3)
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("RT", 1),
+            ColumnSelector("Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+            import_settings=settings,
+        ),
+        profile_id="profile-44444444444444444444444444444444",
+    )
+
+    result = inspect_file(
+        source,
+        peak_table_mapping_set=PeakTableMappingSet((profile,)),
+    ).file
+
+    assert result.status is FileStatus.SUCCESS
+    assert result.mapping_profile_id == profile.profile_id
+    assert result.bundle is not None
+    assert result.bundle.peaks[0].area == 20.0
+
+
+def test_mapping_set_does_not_apply_same_headers_at_unapproved_header_row(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "changed-preamble.csv"
+    source.write_text("Extra,Metadata\nRT,Area\n1.5,20\n", encoding="utf-8")
+    profile = PeakTableMappingProfile(
+        PeakTableMapping(
+            ColumnSelector("RT", 1),
+            ColumnSelector("Area", 2),
+            "min",
+            PeakTableFormat.CSV,
+            import_settings=PeakTableImportSettings(header_row=3),
+        ),
+        profile_id="profile-55555555555555555555555555555555",
+    )
+
+    result = inspect_file(
+        source,
+        peak_table_mapping_set=PeakTableMappingSet((profile,)),
+    ).file
+
+    assert result.status is FileStatus.FAILED
+    assert result.mapping_route in {
+        "SCHEMA_DRIFT_CANDIDATE",
+        "NO_MAPPING_MATCH",
+        "MAPPING_VALIDATION_FAILED",
+    }
 
 
 def test_mapping_set_ambiguous_profiles_fail_closed_and_isolate_sibling(tmp_path: Path) -> None:

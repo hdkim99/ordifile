@@ -12,9 +12,14 @@ An extension is supporting evidence only. Detection also checks content structur
 documented header. Delimited files above 512 MiB and XLSX archives outside the documented
 archive preflight limits are rejected before unbounded parsing.
 
-The first row is always the header. Delimited text must be UTF-8 or UTF-8 with BOM; encoding
-guessing is deliberately not performed. CSV uses comma, TSV uses tab, and TXT uses semicolon.
-Delimiter auto-guessing is outside the verified v0.1 contract.
+Automatic generic ingestion uses the first row as the header. Delimited text must be UTF-8 or
+UTF-8 with BOM; encoding guessing is deliberately not performed. CSV uses comma, TSV uses tab,
+and TXT uses semicolon. Delimiter auto-guessing is outside the verified contract.
+
+When a structured Result export uses other headers, a bounded preamble, CP949, Windows-1252,
+or several visible XLSX worksheets, use [explicit peak-table mapping](explicit-peak-table-mapping.md).
+Its **Table Options** require the researcher to select the relevant structure; they do not
+change this automatic schema or infer RT, Area, units, or vendor identity.
 
 ## Documented columns
 
@@ -127,7 +132,7 @@ workbook to verify the result.
 This support does not imply compatibility with every vendor's CSV or XLSX schema, and it is not
 support for proprietary raw acquisition containers.
 
-Tables with other clean headers can instead use [explicit peak-table
+Tables with other structured headers can instead use [explicit peak-table
 mapping](explicit-peak-table-mapping.md). That mode requires the user to select RT and Area,
 classify every source column, and confirm units. It does not add aliases to this automatic
 schema and does not verify a vendor format.

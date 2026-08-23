@@ -328,6 +328,16 @@ to the workbook layout.
     rename metadata does not change its semantic identity. The first-use desktop hierarchy is
     one screen with Inputs, Output, Preflight, and Convert always visible, while Mapping,
     Mapping Set, sort, drift review, and details use collapsed or contextual disclosure.
+49. Real-world structured Result intake extends the existing explicit Mapping contract rather
+    than adding a second parser or top-level conversion flags. `PeakTableMapping` owns a strict,
+    bounded `import_settings` value for allowlisted text encoding and one-based header
+    record/row; delimiter remains part of `PeakTableFormat`, and worksheet identity remains the
+    existing Profile/direct/Recipe policy. Default settings are omitted from schema-version-1
+    JSON and fingerprints, preserving existing bytes and semantic hashes. Non-default settings
+    participate in exact profile, Mapping Set, Recipe, and Preflight configuration identity.
+    The desktop exposes them contextually inside the existing Mapping dialog. No encoding,
+    delimiter, header, worksheet, scientific role, unit, footer, locale decimal, or vendor is
+    guessed; ambiguous or changed structures fail closed and exact adapters retain ownership.
 
 ## Public boundaries
 

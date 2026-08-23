@@ -21,6 +21,7 @@ from ordifile.adapters.base import AdapterDescriptor, DetectionResult, ParseOpti
 from ordifile.core.errors import OrdifileError, ParseError
 from ordifile.core.models import DatasetBundle
 from ordifile.core.peak_mapping import (
+    DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
     MAX_PEAK_PREVIEW_CELL_CHARACTERS,
     MAX_PEAK_PREVIEW_CELLS,
     MAX_PEAK_PREVIEW_COLUMNS,
@@ -30,6 +31,7 @@ from ordifile.core.peak_mapping import (
     MAX_PEAK_PREVIEW_TOTAL_CHARACTERS,
     ColumnSelector,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTablePreview,
     peak_preview_display,
 )
@@ -43,6 +45,7 @@ def preview_delimited_peak_table(
     source_format: PeakTableFormat,
     *,
     row_limit: int = 5,
+    import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
 ) -> PeakTablePreview:
     """Return a bounded display preview through the existing audited text boundary."""
     delimiters = {
@@ -69,7 +72,9 @@ def preview_delimited_peak_table(
         )
     try:
         with path.open("rb") as stream:
-            decoder = codecs.getincrementaldecoder("utf-8-sig")("strict")
+            decoder = codecs.getincrementaldecoder(import_settings.text_encoding.codec_name)(
+                "strict"
+            )
             bytes_read = 0
 
             def bounded_lines() -> Iterator[str]:
@@ -91,7 +96,10 @@ def preview_delimited_peak_table(
                     yield decoder.decode(raw_line, final=False)
 
             reader = csv.reader(bounded_lines(), delimiter=delimiter, strict=True)
-            header = next(reader)
+            header: list[str] | None = None
+            for _row_number in range(1, import_settings.header_row + 1):
+                header = next(reader)
+            assert header is not None
             while header and header[-1] == "":
                 header.pop()
             if not header:
@@ -147,7 +155,7 @@ def preview_delimited_peak_table(
     except UnicodeDecodeError as error:
         raise ParseError(
             "TEXT_ENCODING_UNSUPPORTED",
-            "Delimited input must be valid UTF-8 or UTF-8 with BOM.",
+            "The input cannot be read with the selected text encoding.",
         ) from error
     except (OSError, csv.Error) as error:
         raise ParseError("DELIMITED_PARSE_FAILED", "Could not preview delimited input.") from error
@@ -155,6 +163,7 @@ def preview_delimited_peak_table(
         source_format,
         tuple(header),
         tuple(rows),
+        import_settings=import_settings,
     )
 
 
@@ -223,22 +232,31 @@ class DelimitedAdapter:
                 f"Delimited input exceeds the {MAX_DELIMITED_BYTES}-byte safety limit.",
             )
         try:
-            with path.open("r", encoding="utf-8-sig", errors="strict", newline="") as stream:
-                if options.peak_table_mapping is not None:
+            mapping = options.peak_table_mapping
+            encoding = (
+                mapping.import_settings.text_encoding.codec_name
+                if mapping is not None
+                else "utf-8-sig"
+            )
+            with path.open("r", encoding=encoding, errors="strict", newline="") as stream:
+                if mapping is not None:
                     expected = {
                         ",": PeakTableFormat.CSV,
                         "\t": PeakTableFormat.TSV,
                         ";": PeakTableFormat.SEMICOLON,
                     }[self.delimiter]
-                    if options.peak_table_mapping.source_format is not expected:
+                    if mapping.source_format is not expected:
                         raise ParseError(
                             "PEAK_MAPPING_FORMAT_MISMATCH",
                             "The mapping source format does not match the selected text reader.",
                         )
+                    reader = csv.reader(stream, delimiter=self.delimiter, strict=True)
+                    for _row_number in range(1, mapping.import_settings.header_row):
+                        next(reader)
                     return parse_mapped_peak_rows(
                         path,
-                        csv.reader(stream, delimiter=self.delimiter, strict=True),
-                        options.peak_table_mapping,
+                        reader,
+                        mapping,
                         namespace=f"adapter:{self.adapter_id}:user_mapping",
                         mapping_profile_id=options.peak_table_mapping_profile_id,
                         mapping_profile_fingerprint=(
@@ -246,6 +264,7 @@ class DelimitedAdapter:
                         ),
                         mapping_set_id=options.peak_table_mapping_set_id,
                         include_mapping_semantic_sha256=(options.include_mapping_semantic_sha256),
+                        source_header_row=mapping.import_settings.header_row,
                     )
                 return parse_rows(
                     path,
@@ -256,7 +275,12 @@ class DelimitedAdapter:
         except UnicodeDecodeError as error:
             raise ParseError(
                 "TEXT_ENCODING_UNSUPPORTED",
-                "Delimited input must be valid UTF-8 or UTF-8 with BOM.",
+                "The input cannot be read with the selected text encoding.",
+            ) from error
+        except StopIteration as error:
+            raise ParseError(
+                "MISSING_HEADER",
+                "The selected header row is beyond the available text table.",
             ) from error
         except (OSError, csv.Error) as error:
             raise ParseError(

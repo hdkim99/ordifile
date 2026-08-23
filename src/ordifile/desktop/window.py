@@ -47,6 +47,7 @@ from ordifile import (
     ConversionRecipe,
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
+    PeakTableFormat,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
@@ -119,6 +120,7 @@ class MainWindow(QMainWindow):
         self._conversion_worker: ConversionWorker | None = None
         self._last_output: Path | None = None
         self._peak_table_mapping: PeakTableMapping | None = None
+        self._peak_table_mapping_sheet: str | None = None
         self._peak_table_mapping_set: PeakTableMappingSet | None = None
         self._conversion_recipe: ConversionRecipe | None = None
         self._recipe_baseline_sha256: str | None = None
@@ -738,7 +740,13 @@ class MainWindow(QMainWindow):
         include_hidden_sheets = recipe.include_hidden_sheets
         if mapping_changed and (mapping is not None or mapping_set is not None):
             adapter = None
-        if mapping_set is not None or mapping_changed:
+        if mapping_set is not None:
+            sheet = None
+            include_hidden_sheets = False
+        elif mapping is not None:
+            sheet = self._peak_table_mapping_sheet
+            include_hidden_sheets = False
+        elif mapping_changed:
             sheet = None
             include_hidden_sheets = False
         self._conversion_recipe = replace(
@@ -778,10 +786,14 @@ class MainWindow(QMainWindow):
         self,
         mapping: PeakTableMapping | None,
         *,
+        sheet: str | None = None,
         request_preview: bool = True,
         sync_recipe: bool = True,
     ) -> None:
         self._peak_table_mapping = mapping
+        self._peak_table_mapping_sheet = (
+            sheet if mapping is not None and mapping.source_format is PeakTableFormat.XLSX else None
+        )
         if sync_recipe:
             self._sync_active_recipe_from_controls()
         self._refresh_mapping_status()
@@ -848,6 +860,7 @@ class MainWindow(QMainWindow):
             sort=self._sort_value(),
             peak_table_mapping=active_mapping,
             peak_table_mapping_set=active_mapping_set,
+            sheet=self._peak_table_mapping_sheet if active_mapping is not None else None,
         )
 
     def _apply_conversion_recipe(
@@ -861,6 +874,9 @@ class MainWindow(QMainWindow):
         self.sort_combo.setCurrentIndex(self.sort_combo.findData(recipe.sort.value))
         self.sort_combo.blockSignals(False)
         self._peak_table_mapping = recipe.peak_table_mapping
+        self._peak_table_mapping_sheet = (
+            recipe.sheet if recipe.peak_table_mapping is not None else None
+        )
         self._set_peak_mapping_set(
             recipe.peak_table_mapping_set,
             activate=recipe.peak_table_mapping_set is not None,
@@ -880,6 +896,7 @@ class MainWindow(QMainWindow):
         mapping, mapping_set = self._active_peak_mappings()
         return ConversionRecipe(
             sort=SortMode(self._sort_value()),
+            sheet=self._peak_table_mapping_sheet if mapping is not None else None,
             peak_table_mapping=mapping,
             peak_table_mapping_set=mapping_set,
         )
@@ -1239,6 +1256,7 @@ class MainWindow(QMainWindow):
                 dialog.mapping.declared_headers,
                 (),
                 dialog.preview_worksheet_title,
+                import_settings=dialog.mapping.import_settings,
             )
             updated = clone_peak_table_mapping_profile(
                 original_set,
@@ -1270,7 +1288,10 @@ class MainWindow(QMainWindow):
             return
         dialog = PeakMappingDialog(source, mapping=self._peak_table_mapping, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.mapping is not None:
-            self._set_peak_mapping(dialog.mapping)
+            self._set_peak_mapping(
+                dialog.mapping,
+                sheet=dialog.preview_worksheet_title,
+            )
             if self.mapping_set_active:
                 self.status_label.setText(
                     "Current mapping updated but the mapping set remains active. "
@@ -1407,7 +1428,11 @@ class MainWindow(QMainWindow):
         if not accepted:
             return
         try:
-            profile = PeakTableMappingProfile(mapping, display_label=label.strip())
+            profile = PeakTableMappingProfile(
+                mapping,
+                display_label=label.strip(),
+                worksheet_title=self._peak_table_mapping_sheet,
+            )
             mapping_set = self._peak_table_mapping_set
             if mapping_set is None:
                 updated = PeakTableMappingSet((profile,))

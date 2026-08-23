@@ -12,7 +12,10 @@ from pathlib import Path
 
 from ordifile.adapters._delimited import preview_delimited_peak_table
 from ordifile.adapters.base import AdapterDescriptor, ParseOptions
-from ordifile.adapters.generic_xlsx import preview_xlsx_peak_table
+from ordifile.adapters.generic_xlsx import (
+    list_xlsx_peak_table_worksheets,
+    preview_xlsx_peak_table,
+)
 from ordifile.adapters.registry import (
     MAX_EXTENSION_FILTER_MANIFEST_CHARACTERS,
     MAX_EXTENSION_FILTERS,
@@ -38,9 +41,11 @@ from ordifile.core.peak_mapping import (
     MAPPED_XLSX_SHEET_MARKER,
     MAX_PEAK_PREVIEW_ROWS,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingSet,
     PeakTablePreview,
+    PeakTableTextEncoding,
 )
 from ordifile.core.pipeline import run_pipeline
 from ordifile.core.planning import (
@@ -363,6 +368,7 @@ def preview_peak_table(
     *,
     sheet: str | None = None,
     row_limit: int = 5,
+    import_settings: PeakTableImportSettings | None = None,
 ) -> PeakTablePreview:
     """Read a bounded local header/row preview through existing generic readers."""
     if type(source_format) is not PeakTableFormat:
@@ -373,6 +379,20 @@ def preview_peak_table(
             f"row_limit must be from 1 through {MAX_PEAK_PREVIEW_ROWS}.",
         )
     _require_optional_text("sheet", sheet)
+    if import_settings is not None and type(import_settings) is not PeakTableImportSettings:
+        raise OrdifileError(
+            "OPTION_TYPE_INVALID",
+            "import_settings must be a PeakTableImportSettings value or None.",
+        )
+    settings = import_settings or PeakTableImportSettings()
+    if (
+        source_format is PeakTableFormat.XLSX
+        and settings.text_encoding is not PeakTableTextEncoding.UTF8
+    ):
+        raise OrdifileError(
+            "PEAK_MAPPING_IMPORT_SETTINGS_INVALID",
+            "Text encoding is available only for delimited peak tables.",
+        )
     candidate = Path(path)
     if candidate.is_symlink():
         raise OrdifileError("SYMLINK_REJECTED", "Peak-table preview does not follow symlinks.")
@@ -397,13 +417,23 @@ def preview_peak_table(
             "The input extension does not match the selected audited source format.",
         )
     if source_format is PeakTableFormat.XLSX:
-        preview = preview_xlsx_peak_table(candidate, sheet=sheet, row_limit=row_limit)
+        preview = preview_xlsx_peak_table(
+            candidate,
+            sheet=sheet,
+            row_limit=row_limit,
+            import_settings=settings,
+        )
     else:
         if sheet is not None:
             raise OrdifileError(
                 "PEAK_MAPPING_SHEET_INVALID", "sheet is available only for XLSX mappings."
             )
-        preview = preview_delimited_peak_table(candidate, source_format, row_limit=row_limit)
+        preview = preview_delimited_peak_table(
+            candidate,
+            source_format,
+            row_limit=row_limit,
+            import_settings=settings,
+        )
     try:
         source_sha256 = sha256_file(candidate)
         after = candidate.stat()
@@ -420,6 +450,33 @@ def preview_peak_table(
             "The peak-table preview source changed while it was being inspected.",
         )
     return replace(preview, source_sha256=source_sha256)
+
+
+def list_peak_table_worksheets(
+    path: str | os.PathLike[str],
+    *,
+    include_hidden: bool = False,
+) -> tuple[str, ...]:
+    """List audited XLSX worksheet titles for explicit local selection."""
+    _require_bool("include_hidden", include_hidden)
+    candidate = Path(path)
+    if candidate.is_symlink():
+        raise OrdifileError("SYMLINK_REJECTED", "Worksheet selection does not follow symlinks.")
+    if not candidate.is_file() or candidate.suffix.casefold() != ".xlsx":
+        raise OrdifileError(
+            "PEAK_MAPPING_FORMAT_MISMATCH",
+            "Worksheet selection requires one XLSX file.",
+        )
+    worksheets = list_xlsx_peak_table_worksheets(
+        candidate,
+        include_hidden=include_hidden,
+    )
+    if not worksheets:
+        raise OrdifileError(
+            "XLSX_NO_VISIBLE_SHEET",
+            "The workbook has no visible worksheet available for mapping.",
+        )
+    return worksheets
 
 
 def inspect_file(

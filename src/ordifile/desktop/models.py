@@ -20,6 +20,7 @@ from ordifile import (
     ConversionResultSummary,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingSet,
 )
@@ -55,6 +56,7 @@ class DesktopRequest:
     peak_table_mapping: PeakTableMapping | None = None
     peak_table_mapping_set: PeakTableMappingSet | None = None
     recipe: ConversionRecipe | None = None
+    sheet: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +68,7 @@ class DesktopPeakTablePreview:
     rows: tuple[tuple[str, ...], ...]
     sheet: str | None = None
     source_sha256: str | None = None
+    import_settings: PeakTableImportSettings = PeakTableImportSettings()
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +78,7 @@ class DesktopPeakTablePreviewReport:
     preview: DesktopPeakTablePreview | None = None
     error_code: str | None = None
     error_message: str | None = None
+    available_worksheets: tuple[str, ...] = ()
 
     @property
     def is_error(self) -> bool:
@@ -194,10 +198,20 @@ def validate_request(request: DesktopRequest) -> None:
             "PEAK_MAPPING_MODE_CONFLICT",
             "Choose either one explicit mapping or a reusable mapping set, not both.",
         )
+    if request.sheet is not None and (
+        request.peak_table_mapping is None
+        or request.peak_table_mapping.source_format is not PeakTableFormat.XLSX
+        or request.peak_table_mapping_set is not None
+    ):
+        raise RequestValidationError(
+            "PEAK_MAPPING_SHEET_INVALID",
+            "A selected worksheet requires one explicit XLSX peak mapping.",
+        )
     if request.recipe is not None and (
         request.sort != "auto"
         or request.peak_table_mapping is not None
         or request.peak_table_mapping_set is not None
+        or request.sheet is not None
     ):
         raise RequestValidationError(
             "CONVERSION_RECIPE_OPTION_CONFLICT",
