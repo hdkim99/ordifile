@@ -92,7 +92,8 @@ def test_build_lock_and_deployment_template_pin_primary_toolchain() -> None:
     assert "mode = standalone" in spec
     assert "input_file = Ordifile.py" in spec
     assert "icon = @APP_ICON@" in spec
-    assert "--include-package-data=ordifile.desktop" in spec
+    assert "--include-data-files=ordifile-icon.png=ordifile-icon.png" in spec
+    assert "--include-package-data=ordifile.desktop" not in spec
     assert "--noinclude-qt-plugins=tls" in spec
     assert "--nofollow-import-to=PySide6.QtNetwork" not in spec
     assert "@STATIC_LIBPYTHON@" in spec
@@ -636,6 +637,30 @@ def test_macos_application_icon_requires_exact_bundle_metadata_and_bytes(tmp_pat
     (resources / expected.name).write_bytes(b"different")
     with pytest.raises(ValueError, match="icon metadata"):
         standalone_build._validate_macos_application_icon(bundle, expected)
+
+
+@pytest.mark.parametrize(
+    ("target", "relative"),
+    [
+        ("windows-x86_64", Path("ordifile-icon.png")),
+        ("macos-arm64", Path("Contents/MacOS/ordifile-icon.png")),
+    ],
+)
+def test_standalone_runtime_icon_requires_exact_regular_bytes(
+    tmp_path: Path, target: str, relative: Path
+) -> None:
+    bundle = tmp_path / ("Ordifile.app" if target.startswith("macos-") else "Ordifile.dist")
+    candidate = bundle / relative
+    candidate.parent.mkdir(parents=True)
+    expected = tmp_path / "expected.png"
+    expected.write_bytes(b"synthetic runtime icon")
+    candidate.write_bytes(expected.read_bytes())
+
+    standalone_build._validate_standalone_runtime_icon(bundle, expected, target)
+
+    candidate.write_bytes(b"different")
+    with pytest.raises(ValueError, match="runtime icon"):
+        standalone_build._validate_standalone_runtime_icon(bundle, expected, target)
 
 
 def test_native_target_gate_accepts_only_current_host() -> None:

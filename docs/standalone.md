@@ -137,12 +137,15 @@ Python/Nuitka standalone probe, and a minimal PySide6/Nuitka standalone-window p
 before the full build. The full Windows command is direct
 `python -m nuitka --standalone --enable-plugin=pyside6 --zig
 --experimental=force-dependencies-pefile
---include-package-data=ordifile.desktop
+--include-data-files=ordifile-icon.png=ordifile-icon.png
 --windows-icon-from-ico=ordifile.ico
 --nofollow-import-to=PySide6.QtNetwork
 --noinclude-qt-plugins=tls
 --noinclude-qt-plugins=networkinformation`; only
-that subprocess receives PATH prefixed with the reviewed Zig directory, with inherited
+the fixed runtime PNG is copied beside the native executable and validated byte-for-byte.
+This avoids a case-insensitive macOS bundle collision between the `Ordifile` executable
+and an `ordifile/` package-data directory. Only that subprocess receives PATH prefixed
+with the reviewed Zig directory, with inherited
 `CC` and `CXX` removed. `CFLAGS=-march=x86_64` applies the baseline mitigation proposed
 in open Nuitka issue #3987; it does not establish portability on generic or older
 x86-64 machines. The private SCons report must prove Nuitka Zig mode, disabled separate

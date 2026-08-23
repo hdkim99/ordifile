@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
+from pathlib import Path
+
 import pytest
 from PySide6.QtGui import QIcon
 
@@ -38,3 +41,18 @@ def test_missing_or_corrupt_runtime_icon_is_nonfatal(monkeypatch: pytest.MonkeyP
     assert create_application([]).windowIcon().isNull()
     monkeypatch.setattr(resources, "_read_application_icon", lambda: b"not a png")
     assert resources.load_application_icon() is None
+
+
+def test_standalone_runtime_icon_is_used_when_package_data_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_application([])
+    standalone = tmp_path / "ordifile-icon.png"
+    standalone.write_bytes(
+        (files("ordifile.desktop") / "assets" / "ordifile-icon-512.png").read_bytes()
+    )
+    monkeypatch.setattr(resources, "_read_packaged_application_icon", lambda: None)
+    monkeypatch.setattr(resources, "_standalone_application_icon_path", lambda: standalone)
+    icon = resources.load_application_icon()
+    assert icon is not None
+    assert not icon.isNull()

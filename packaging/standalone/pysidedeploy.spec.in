@@ -19,4 +19,4 @@ plugins = platforms
 [nuitka]
 macos.permissions =
 mode = standalone
-extra_args = --quiet --include-package-data=ordifile.desktop --noinclude-qt-translations --noinclude-qt-plugins=tls @STATIC_LIBPYTHON@
+extra_args = --quiet --include-data-files=ordifile-icon.png=ordifile-icon.png --noinclude-qt-translations --noinclude-qt-plugins=tls @STATIC_LIBPYTHON@
