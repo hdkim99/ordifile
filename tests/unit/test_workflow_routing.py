@@ -64,6 +64,8 @@ def test_ci_is_read_only_and_covers_supported_python_versions() -> None:
     assert "name: CI / Python ${{ matrix.python }} compatibility" in ci
     assert "pull_request:\n    branches: [main]" in ci
     assert "workflow_dispatch:" in ci
+    assert ci.count("github.actor == github.repository_owner") == 2
+    assert ci.count("github.event.pull_request.head.repo.full_name == github.repository") == 2
     assert "group: ordifile-ci-${{ github.event.pull_request.number || github.ref }}" in ci
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in ci
     assert 'python-version: "3.14"' in ci
