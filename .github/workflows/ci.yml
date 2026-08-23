@@ -136,6 +136,82 @@ jobs:
                   workbook.close()
           assert importlib.util.find_spec("labconvert") is None
           assert not executable.with_name("labconvert").exists()
+      - name: Exercise installed wheel GUI and local Recipe library
+        shell: python scripts/ci/run_in_venv.py run --github-runner -- {0}
+        run: |
+          import os
+          import pathlib
+          import subprocess
+          import sys
+          import tempfile
+          import venv
+
+          wheel = next(pathlib.Path("dist").glob("*.whl")).resolve()
+          with tempfile.TemporaryDirectory(
+              prefix="ordifile-ci-gui-wheel-", dir=os.environ["RUNNER_TEMP"]
+          ) as raw_temporary:
+              temporary = pathlib.Path(raw_temporary)
+              environment_root = temporary / "venv"
+              venv.EnvBuilder(with_pip=True).create(environment_root)
+              executable = environment_root / "bin" / "python"
+              subprocess.check_call(
+                  [
+                      str(executable),
+                      "-m",
+                      "pip",
+                      "install",
+                      "--no-cache-dir",
+                      f"ordifile[gui] @ {wheel.as_uri()}",
+                  ]
+              )
+              subprocess.check_call([str(executable), "-m", "pip", "check"])
+              smoke = """
+          from PySide6.QtCore import QTimer
+          from ordifile import ConversionRecipe
+          from ordifile.desktop.app import create_application
+          from ordifile.desktop.recipe_library import RecipeLibrary
+          from ordifile.desktop.window import MainWindow
+
+          app = create_application([])
+          library = RecipeLibrary.standard()
+          stored = library.create(ConversionRecipe(), "Installed wheel smoke")
+          window = MainWindow()
+          index = window.recipe_combo.findData(stored.recipe_id)
+          if index < 1:
+              raise SystemExit("Installed GUI did not discover the saved Recipe")
+          window.recipe_combo.setCurrentIndex(index)
+          window.recipe_combo.activated.emit(index)
+          required = (
+              window.recipe_combo,
+              window.save_recipe_button,
+              window.manage_recipes_button,
+              window.refresh_preflight_button,
+              window.convert_button,
+          )
+          if app.applicationName() != "Ordifile" or any(widget is None for widget in required):
+              raise SystemExit("Installed GUI resources are incomplete")
+          if window.conversion_recipe is None:
+              raise SystemExit("Installed GUI did not apply the selected Recipe")
+          window.show()
+          QTimer.singleShot(50, window.close)
+          QTimer.singleShot(50, app.quit)
+          if app.exec() != 0:
+              raise SystemExit("Installed GUI did not exit normally")
+          """
+              environment = os.environ.copy()
+              environment.update(
+                  {
+                      "PYTHONNOUSERSITE": "1",
+                      "PYTHONPATH": "",
+                      "QT_QPA_PLATFORM": "offscreen",
+                      "XDG_CONFIG_HOME": os.fspath(temporary / "config"),
+                  }
+              )
+              subprocess.check_call(
+                  [str(executable), "-c", smoke],
+                  cwd=temporary,
+                  env=environment,
+              )
       - name: Audit dependencies
         run: python scripts/ci/run_in_venv.py run --github-runner -- -m pip_audit
       - name: Remove isolated job environment

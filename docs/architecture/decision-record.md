@@ -313,6 +313,19 @@ to the workbook layout.
     public-safe Mapping Set provenance keeps its workbook contract; a Recipe-embedded single
     Mapping does not repeat its private semantic digest. A saved Recipe is never changed
     automatically after local settings or Mapping repair.
+48. The desktop presents a Conversion Recipe as a named saved setup while preserving the
+    existing public JSON contract for CLI/API use and portability. A private GUI-only,
+    index-free library stores at most 64 strict Recipe JSON files under the platform's
+    `QStandardPaths.AppConfigLocation` using opaque identifiers; display labels never become
+    filenames. Existing bounded loaders and atomic savers remain authoritative. Invalid members
+    are isolated, and short mutation operations use one local library lock so revision checks
+    cannot be interleaved with another Ordifile desktop write. Unavailable storage disables only
+    Recipe-library actions, and no fallback location, cloud synchronization, telemetry,
+    source/output path, or scientific row is added.
+    Selecting or semantically modifying a Recipe invalidates the reviewed Preflight plan; local
+    rename metadata does not change its semantic identity. The first-use desktop hierarchy is
+    one screen with Inputs, Output, Preflight, and Convert always visible, while Mapping,
+    Mapping Set, sort, drift review, and details use collapsed or contextual disclosure.
 
 ## Public boundaries
 

@@ -31,6 +31,7 @@ def create_application(argv: Sequence[str] | None = None) -> QApplication:
         if existing is not None
         else QApplication(list(sys.argv if argv is None else argv))
     )
+    application.setApplicationName("Ordifile")
     icon = load_application_icon()
     if icon is not None:
         application.setWindowIcon(icon)

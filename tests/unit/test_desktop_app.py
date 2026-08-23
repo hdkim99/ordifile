@@ -8,6 +8,14 @@ import pytest
 from ordifile.desktop import app
 
 
+def test_gui_bootstrap_sets_stable_application_name_before_window_creation() -> None:
+    pytest.importorskip("PySide6")
+
+    application = app.create_application([])
+
+    assert application.applicationName() == "Ordifile"
+
+
 def test_missing_gui_extra_returns_bounded_helpful_error(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

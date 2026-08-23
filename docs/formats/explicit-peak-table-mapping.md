@@ -188,6 +188,14 @@ drift remains diagnostic
 only; a repaired Mapping Profile changes a new in-memory Recipe only after explicit user action,
 and the previously saved Recipe file is never updated automatically.
 
+In the desktop interface, a Recipe is presented as a named **saved setup**, not as a JSON
+file. **Save Current…** stores the reviewed settings under a local name, while **Manage…**
+provides rename, duplicate, delete, and optional JSON import/export. The index-free library
+uses the operating system's application configuration location and opaque storage IDs; a
+display label is never used as a filename. One invalid stored Recipe is isolated so other
+valid Recipes and direct conversion remain available. JSON remains the portable CLI/API
+format, not a requirement for ordinary desktop use.
+
 ## Mapping semantics
 
 `retention_time_column`, `area_column`, `retention_time_unit`, and `source_format` are

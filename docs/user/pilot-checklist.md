@@ -64,17 +64,32 @@ public issue without reviewing every field.
 
 ## 3. Desktop pilot
 
+First use:
+
 1. Select **Add Folder** and choose `examples/pilot/inputs`.
-2. Load `examples/pilot/laboratory.recipe.json`.
-3. Choose a new `.xlsx` output path.
-4. Select **Refresh Preflight** and confirm two Mapping Profile routes. Changing the
-   output or effective settings invalidates the previous preview.
-5. Convert; do not expect Recipe loading alone to start scientific conversion.
-6. Open the output and review `Samples` and `Import_Log` first.
+2. Choose a new `.xlsx` output path.
+3. Select **Refresh Preflight** and review the routing table.
+4. Convert, then open the output and review `Samples` and `Import_Log` first.
+
+To reuse this laboratory setup without managing JSON in normal GUI use:
+
+1. Open **Manage…**, choose **Import Recipe…**, and import
+   `examples/pilot/laboratory.recipe.json` once.
+2. Select its local name in **Recipe (optional)**.
+3. Add the experiment folder and choose a new output.
+4. Select **Refresh Preflight** and confirm two Mapping Profile routes. Selecting a Recipe,
+   changing its effective settings, changing inputs, or changing output invalidates the
+   previous preview.
+5. Convert. Recipe selection never starts conversion or bypasses Preflight.
+
+After configuring a new Mapping or Mapping Set, **Save Current…** asks only for a local
+Recipe name. Use **Manage… → Export Recipe…** only when moving that strict JSON to another
+computer or a CLI/API workflow.
 
 The GUI uses the same Mapping, Recipe, Preflight, and conversion contracts as the CLI.
 It does not silently overwrite an existing workbook or silently save changes back to a
-loaded Recipe.
+loaded Recipe. The local Recipe library may contain private headers or labels, but it stores
+no measured rows, input paths, or output paths.
 
 ## 4. Review the workbook
 

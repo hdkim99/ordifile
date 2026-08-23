@@ -116,10 +116,20 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 
 ## Experimental desktop interface
 
-선택형 desktop interface는 **Add Files**, **Add Folder**, local file-manager drag and
-drop을 제공하며, CLI와 동일한 공개 registry와 pipeline으로 authoritative format
-inspection을 수행합니다. 기존 5개 sort mode와 `.xlsx` output을 선택하면 background
-worker가 변환하고 파일별 성공·경고·실패와 progress를 계속 표시합니다.
+선택형 desktop interface의 첫 workflow는 **Inputs → Output → Preflight → Convert**
+4단계로 항상 보입니다. **Add Files**, **Add Folder** 또는 local file-manager drag and
+drop으로 input을 추가하고 `.xlsx` output을 선택한 뒤, authoritative routing table을
+검토하고 background worker로 변환합니다. 파일별 성공·경고·실패와 progress는 계속
+표시됩니다. Mapping, Mapping Set, sort, drift review와 diagnostic detail은 첫 화면을
+복잡하게 만들지 않도록 접힌 영역 또는 필요한 상황에서만 표시됩니다.
+
+반복 작업에서는 이름으로 저장된 **Recipe (optional)**를 고른 뒤 같은 4단계를
+사용합니다. **Save Current…**는 Recipe 이름만 묻고 JSON file dialog를 열지 않습니다.
+**Manage…**에서 rename, duplicate, delete와 advanced import/export를 사용할 수 있습니다.
+일반 GUI 사용자는 JSON을 직접 만들거나 위치를 관리할 필요가 없습니다. Saved Recipe는
+운영체제 표준 application configuration 위치에 local로 저장되며, 선택 후에도 새
+Preflight 검토 없이는 변환할 수 없습니다. Private column label이나 사용자 metadata가
+포함될 수 있지만 measured row와 source/output path는 저장하지 않습니다.
 
 ![합성 공개 입력을 사용한 실제 Ordifile desktop interface](docs/assets/ordifile-desktop.png)
 
