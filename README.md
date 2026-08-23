@@ -117,11 +117,20 @@ The source files remain unchanged. Natural filename ordering keeps `sample_2` be
 
 ## Experimental desktop interface
 
-The optional desktop interface provides **Add Files**, **Add Folder**, and local
-file-manager drag and drop, followed by authoritative format inspection through the
-same public registry and pipeline used by the CLI. Choose one of the five existing
-sort modes and an `.xlsx` output, then convert in a background worker while progress
-and per-file success, warning, or failure remain visible.
+The optional desktop interface keeps the first workflow to four visible steps:
+**Inputs → Output → Preflight → Convert**. Use **Add Files**, **Add Folder**, or local
+file-manager drag and drop, choose an `.xlsx` output, review the authoritative routing
+table, and convert in a background worker. Progress and per-file success, warning, or
+failure remain visible. Mapping, Mapping Set, sort, drift review, and diagnostic details
+remain available through collapsed or contextual controls instead of crowding first use.
+
+For repeated work, choose a named local **Recipe (optional)**, then use the same four
+steps. **Save Current…** asks only for a Recipe name; it does not open a JSON file dialog.
+**Manage…** provides rename, duplicate, delete, and advanced import/export portability.
+GUI users do not need to create or locate JSON files. Saved Recipes use the operating
+system's application configuration location, remain local, and are never applied without
+a fresh Preflight review. They may contain private column labels or user metadata, but
+never measured rows or source/output paths.
 
 ![The implemented Ordifile desktop interface using synthetic public-safe inputs](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-desktop.png)
 

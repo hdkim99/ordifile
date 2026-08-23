@@ -29,6 +29,8 @@ the full test suite.
 | H | One workbook keeps 1D and 2D peaks, matrices, coordinates, and units separate | Scenario A plus the LECO exact pipeline assertions |
 | I | Valid, malformed, and unsupported inputs produce an explicit partial result | `test_valid_malformed_and_unsupported_files_preserve_partial_workbook` |
 | J | Dry run creates no workbook, existing output is not silently replaced, and source bytes are unchanged | `test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact`; `test_overwrite_and_input_output_protection` |
+| K | A desktop user saves a repeated setup by name, restarts, and reuses it without a JSON dialog | `test_save_first_named_recipe_uses_no_json_dialog_and_persists_after_restart` |
+| L | Selecting a named desktop Recipe applies its immutable settings and requires a new Preflight review | `test_window_selects_named_recipe_and_requires_explicit_preflight_refresh` |
 
 The README Quick Start output is also selected so the copyable first-use claim remains
 consistent with the generated workbook.

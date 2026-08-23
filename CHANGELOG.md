@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- A bounded local desktop Recipe library using strict existing `ConversionRecipe` JSON,
+  opaque storage identifiers, operating-system application configuration locations, atomic
+  writes, serialized local mutations, and isolated handling of invalid members. Named Recipes
+  can be saved, selected, renamed, duplicated, deleted, imported, and exported without storing
+  scientific rows or runtime source/output paths.
+
+### Changed
+
+- Simplified the desktop interface around the visible researcher workflow
+  **Inputs → Output → Preflight → Convert**. Recipe selection and saving are name-based;
+  JSON import/export, Mapping controls, Mapping Sets, and sort are progressively disclosed,
+  while drift review and diagnostic details appear contextually. Existing Recipe schema,
+  CLI/API behavior, exact-adapter precedence, Mapping exact matching, and Preflight freshness
+  checks are unchanged.
+
 ## [0.5.0] - 2026-08-23
 
 ### Added

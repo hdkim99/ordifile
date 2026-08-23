@@ -1036,8 +1036,9 @@ jobs:
               if pixmap.isNull() or pixmap.width() != size or pixmap.height() != size:
                   raise SystemExit("Installed GUI application icon size is unavailable")
           required = (
-              window.load_recipe_button,
+              window.recipe_combo,
               window.save_recipe_button,
+              window.manage_recipes_button,
               window.load_mapping_set_button,
               window.refresh_preflight_button,
           )

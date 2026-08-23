@@ -15,8 +15,9 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from ordifile import (
@@ -40,6 +41,7 @@ from ordifile.desktop.models import (
     DesktopInputStatus,
     DesktopRequest,
 )
+from ordifile.desktop.recipe_library import RecipeLibrary
 from ordifile.desktop.services import preflight_selection
 from ordifile.desktop.window import MainWindow, local_paths_from_urls
 from ordifile.desktop.workers import ConversionWorker, PreviewWorker
@@ -275,11 +277,14 @@ def test_window_has_keyboard_labels_accessible_names_and_offline_copy(
     assert window.review_mapping_button.accessibleName() == ("Review selected schema drift mapping")
     assert window.refresh_preflight_button.accessibleName() == "Refresh conversion preflight"
     assert window.preflight_summary_label.accessibleName() == "Conversion preflight summary"
-    assert window.load_recipe_button.accessibleName() == "Load conversion recipe JSON"
-    assert window.save_recipe_button.accessibleName() == (
-        "Save current conversion settings as recipe JSON"
-    )
+    assert window.recipe_combo.accessibleName() == "Saved conversion recipe"
+    assert window.save_recipe_button.accessibleName() == ("Save current settings as a named Recipe")
+    assert window.manage_recipes_button.accessibleName() == "Manage saved conversion recipes"
     assert window.recipe_status_label.accessibleName() == "Conversion recipe status"
+    assert not window.mapping_advanced_group.isVisible()
+    assert not window.advanced_options_container.isVisible()
+    assert not window.drift_group.isVisible()
+    assert not window.details.isVisible()
     central = window.centralWidget()
     assert central is not None
     assert any(
@@ -360,30 +365,27 @@ def test_blocked_output_plan_disables_conversion(
     window.close()
 
 
-def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplication) -> None:
+def test_window_primary_controls_have_explicit_keyboard_focus_order(app: QApplication) -> None:
     del app
     window = MainWindow()
     expected_order = (
-        window.map_peaks_button,
-        window.load_mapping_button,
-        window.save_mapping_button,
-        window.clear_mapping_button,
-        window.use_mapping_set_checkbox,
-        window.mapping_set_combo,
-        window.load_mapping_set_button,
-        window.save_mapping_set_button,
-        window.add_mapping_profile_button,
-        window.rename_mapping_profile_button,
-        window.remove_mapping_profile_button,
-        window.load_recipe_button,
+        window.add_files_button,
+        window.add_folder_button,
+        window.selection_list,
+        window.recipe_combo,
         window.save_recipe_button,
+        window.manage_recipes_button,
         window.remove_button,
         window.clear_button,
+        window.mapping_toggle_button,
+        window.output_edit,
+        window.output_button,
+        window.advanced_options_button,
         window.input_table,
         window.refresh_preflight_button,
-        window.drift_candidate_combo,
-        window.review_mapping_button,
-        window.sort_combo,
+        window.convert_button,
+        window.open_output_button,
+        window.details_toggle_button,
     )
     expected = set(expected_order)
 
@@ -394,7 +396,8 @@ def test_window_mapping_controls_have_explicit_keyboard_focus_order(app: QApplic
     window.close()
 
 
-def test_window_loads_recipe_atomically_and_shows_only_bounded_local_status(
+@pytest.mark.researcher_acceptance
+def test_window_selects_named_recipe_and_requires_explicit_preflight_refresh(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del app
@@ -409,35 +412,30 @@ def test_window_loads_recipe_atomically_and_shows_only_bounded_local_status(
         sidecar_mode="csv",
         display_label="Daily recipe",
     )
-    private_path = tmp_path / "private-recipe-name.json"
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(recipe, "Daily recipe")
     requests: list[object] = []
-    window = MainWindow()
+    window = MainWindow(recipe_library=library)
     monkeypatch.setattr(window, "_request_preview", lambda *_args: requests.append(object()))
-    monkeypatch.setattr(
-        "ordifile.desktop.window.QFileDialog.getOpenFileName",
-        lambda *_args, **_kwargs: (str(private_path), ""),
-    )
-    monkeypatch.setattr("ordifile.desktop.window.load_recipe", lambda _path: recipe)
 
-    window._load_conversion_recipe()
+    window._select_saved_recipe(window.recipe_combo.findData(stored.recipe_id))
 
-    assert window.conversion_recipe is recipe
-    assert window.peak_table_mapping_set is mapping_set
+    assert window.conversion_recipe == stored.recipe
+    assert window.peak_table_mapping_set == mapping_set
     assert window.mapping_set_active
     assert window.sort_combo.currentData() == "filename"
     request = window._current_preflight_request()
-    assert request.recipe is recipe
+    assert request.recipe == stored.recipe
     assert request.sort == "auto"
     assert request.peak_table_mapping is None
     assert request.peak_table_mapping_set is None
     assert bool(window.recipe_modified) is False
-    assert len(requests) == 1
+    assert requests == []
+    assert window._current_plan() is None
+    assert "Refresh preflight" in window.preflight_summary_label.text()
+    assert window.recipe_combo.currentText() == "Daily recipe"
     rendered = window.recipe_status_label.text()
-    assert "Daily recipe" in rendered
-    assert "saved" in rendered
-    assert "recursive on" in rendered
-    assert "mapping set with 1 profile" in rendered
-    assert private_path.name not in rendered
+    assert rendered == "Saved"
     window.close()
 
 
@@ -446,101 +444,104 @@ def test_recipe_dirty_state_excludes_runtime_paths_and_saves_only_explicitly(
 ) -> None:
     del app
     recipe = ConversionRecipe(sort=SortMode.AUTO, display_label="Daily recipe")
-    destination = tmp_path / "saved-recipe.json"
-    saved: list[tuple[ConversionRecipe, Path, bool]] = []
-    window = MainWindow()
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(recipe, "Daily recipe")
+    window = MainWindow(recipe_library=library)
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
-    monkeypatch.setattr(
-        "ordifile.desktop.window.save_recipe",
-        lambda value, path, *, overwrite: saved.append((value, path, overwrite)),
-    )
-    monkeypatch.setattr(
-        "ordifile.desktop.window.QFileDialog.getSaveFileName",
-        lambda *_args, **_kwargs: (str(destination), ""),
-    )
-    window._apply_conversion_recipe(recipe)
+    window._apply_conversion_recipe(stored.recipe, recipe_id=stored.recipe_id)
 
     window.output_edit.setText(str(tmp_path / "runtime-only.xlsx"))
     window.add_paths((tmp_path / "runtime-only.csv",))
 
     assert bool(window.recipe_modified) is False
-    assert saved == []
+    assert library.get(stored.recipe_id) == stored
 
     window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
 
     assert bool(window.recipe_modified) is True
-    assert "modified (not saved)" in window.recipe_status_label.text()
-    assert saved == []
+    assert "Modified" in window.recipe_status_label.text()
+    assert library.get(stored.recipe_id) == stored
 
-    window._save_current_recipe()
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Daily recipe", True),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QMessageBox.question",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Yes,
+    )
 
-    assert saved == [(window.conversion_recipe, destination, False)]
+    assert window._save_current_recipe()
+
+    assert library.get(stored.recipe_id).recipe.sort is SortMode.FILENAME
+    stored_text = (tmp_path / "recipes" / f"{stored.recipe_id}.json").read_text(encoding="utf-8")
+    assert "runtime-only" not in stored_text
     assert bool(window.recipe_modified) is False
-    assert "saved" in window.recipe_status_label.text()
+    assert "Saved" in window.recipe_status_label.text()
     window.close()
 
 
 def test_recipe_save_cancel_has_no_mutation_or_write(
-    app: QApplication, monkeypatch: pytest.MonkeyPatch
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del app
     recipe = ConversionRecipe(display_label="Daily recipe")
-    window = MainWindow()
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(recipe, "Daily recipe")
+    window = MainWindow(recipe_library=library)
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
-    window._apply_conversion_recipe(recipe)
+    window._apply_conversion_recipe(stored.recipe, recipe_id=stored.recipe_id)
     window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
     before = window.conversion_recipe
     assert bool(window.recipe_modified) is True
     monkeypatch.setattr(
-        "ordifile.desktop.window.QFileDialog.getSaveFileName",
-        lambda *_args, **_kwargs: ("", ""),
-    )
-    monkeypatch.setattr(
-        "ordifile.desktop.window.save_recipe",
-        lambda *_args, **_kwargs: pytest.fail("cancel must not write a recipe"),
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("", False),
     )
 
-    window._save_current_recipe()
+    assert not window._save_current_recipe()
 
     assert window.conversion_recipe is before
     assert bool(window.recipe_modified) is True
     window.close()
 
 
-def test_recipe_save_does_not_replace_an_existing_local_file(
+def test_recipe_save_does_not_silently_replace_an_existing_name(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del app
-    destination = tmp_path / "existing-recipe.json"
-    destination.write_bytes(b"existing-local-content")
-    window = MainWindow()
+    library = RecipeLibrary(tmp_path / "recipes")
+    existing = library.create(ConversionRecipe(sort=SortMode.FILENAME), "Existing")
+    window = MainWindow(recipe_library=library)
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
     monkeypatch.setattr(
-        "ordifile.desktop.window.QFileDialog.getSaveFileName",
-        lambda *_args, **_kwargs: (str(destination), ""),
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Existing", True),
     )
     monkeypatch.setattr(
         "ordifile.desktop.window.QMessageBox.question",
         lambda *_args, **_kwargs: QMessageBox.StandardButton.No,
     )
 
-    window._save_current_recipe()
+    assert not window._save_current_recipe()
 
-    assert destination.read_bytes() == b"existing-local-content"
-    assert window.status_label.text() == "Conversion recipe was not saved."
+    assert library.get(existing.recipe_id) == existing
+    assert "choose a new name" in window.status_label.text()
     assert window.conversion_recipe is None
     window.close()
 
 
 def test_mapping_set_repair_marks_loaded_recipe_modified(
-    app: QApplication, monkeypatch: pytest.MonkeyPatch
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del app
     original_set = _mapping_set(label="Original")
     recipe = ConversionRecipe(peak_table_mapping_set=original_set)
-    window = MainWindow()
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(recipe, "Mapping workflow")
+    window = MainWindow(recipe_library=library)
     monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
-    window._apply_conversion_recipe(recipe)
+    window._apply_conversion_recipe(stored.recipe, recipe_id=stored.recipe_id)
     assert bool(window.recipe_modified) is False
     repaired_profile = PeakTableMappingProfile(_mapping(unit="s"), "Repaired")
     repaired_set = replace(
@@ -557,6 +558,163 @@ def test_mapping_set_repair_marks_loaded_recipe_modified(
     assert bool(window.recipe_modified) is True
     assert window.conversion_recipe is not None
     assert window.conversion_recipe.peak_table_mapping_set is repaired_set
+    window.close()
+
+
+@pytest.mark.researcher_acceptance
+def test_save_first_named_recipe_uses_no_json_dialog_and_persists_after_restart(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    library = RecipeLibrary(tmp_path / "recipes")
+    window = MainWindow(recipe_library=library)
+    window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Weekly GC analysis", True),
+    )
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: pytest.fail("normal GUI save must not open a JSON dialog"),
+    )
+
+    assert window._save_current_recipe()
+    assert window.recipe_combo.currentText() == "Weekly GC analysis"
+    assert len(library.snapshot().entries) == 1
+    window.close()
+
+    restarted = MainWindow(recipe_library=RecipeLibrary(tmp_path / "recipes"))
+    assert restarted.recipe_combo.findText("Weekly GC analysis") >= 1
+    restarted.close()
+
+
+def test_recipe_selection_cancel_preserves_modified_settings(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    library = RecipeLibrary(tmp_path / "recipes")
+    first = library.create(ConversionRecipe(), "First")
+    second = library.create(ConversionRecipe(sort=SortMode.INPUT_ORDER), "Second")
+    window = MainWindow(recipe_library=library)
+    window._select_saved_recipe(window.recipe_combo.findData(first.recipe_id))
+    window.sort_combo.setCurrentIndex(window.sort_combo.findData("filename"))
+    assert window.recipe_modified
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QMessageBox.warning",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Cancel,
+    )
+
+    window._select_saved_recipe(window.recipe_combo.findData(second.recipe_id))
+
+    assert window.recipe_combo.currentData() == first.recipe_id
+    assert window.conversion_recipe is not None
+    assert window.conversion_recipe.sort is SortMode.FILENAME
+    assert window.recipe_modified
+    window.close()
+
+
+def test_deleted_active_recipe_keeps_in_memory_settings_without_association(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(ConversionRecipe(sort=SortMode.FILENAME), "Daily")
+    window = MainWindow(recipe_library=library)
+    window._select_saved_recipe(window.recipe_combo.findData(stored.recipe_id))
+    before = window.conversion_recipe
+    library.delete(stored.recipe_id, expected_revision_sha256=stored.revision_sha256)
+
+    window._recipe_manager_finished(0)
+
+    assert window.conversion_recipe is before
+    assert window.recipe_combo.currentData() is None
+    assert "Unsaved settings" in window.recipe_status_label.text()
+    window.close()
+
+
+def test_active_recipe_rename_changes_display_only_and_keeps_effective_request(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(ConversionRecipe(sort=SortMode.FILENAME), "Daily")
+    window = MainWindow(recipe_library=library)
+    window._select_saved_recipe(window.recipe_combo.findData(stored.recipe_id))
+    before = window._current_preflight_request()
+    semantic_sha256 = window.conversion_recipe.semantic_sha256 if window.conversion_recipe else ""
+
+    library.rename(stored.recipe_id, "GC 주간 분석")
+    window._recipe_manager_finished(0)
+
+    assert window.recipe_combo.currentText() == "GC 주간 분석"
+    assert window.conversion_recipe is not None
+    assert window.conversion_recipe.semantic_sha256 == semantic_sha256
+    assert window._current_preflight_request() == before
+    assert not window.recipe_modified
+    window.close()
+
+
+def test_unavailable_recipe_library_does_not_block_direct_conversion(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    unavailable = tmp_path / "not-a-directory"
+    unavailable.write_text("local", encoding="utf-8")
+    window = MainWindow(recipe_library=RecipeLibrary(unavailable))
+
+    assert not window.recipe_combo.isEnabled()
+    assert not window.save_recipe_button.isEnabled()
+    assert not window.manage_recipes_button.isEnabled()
+    assert window.add_files_button.isEnabled()
+    assert window.output_edit.isEnabled()
+    assert "Direct conversion remains available" in window.recipe_status_label.text()
+    window.close()
+
+
+@pytest.mark.parametrize("size", [(1280, 720), (1366, 768)])
+def test_primary_four_step_workflow_is_visible_with_advanced_sections_collapsed(
+    app: QApplication, tmp_path: Path, size: tuple[int, int]
+) -> None:
+    width, height = size
+    window = MainWindow(recipe_library=RecipeLibrary(tmp_path / "recipes"))
+    window.resize(width, height)
+    window.show()
+    app.processEvents()
+
+    assert all(
+        widget.isVisible()
+        for widget in (
+            window.step_inputs,
+            window.recipe_combo,
+            window.step_output,
+            window.output_edit,
+            window.step_preflight,
+            window.refresh_preflight_button,
+            window.step_convert,
+            window.convert_button,
+        )
+    )
+    assert not window.mapping_advanced_group.isVisible()
+    assert not window.advanced_options_container.isVisible()
+    assert not window.details.isVisible()
+    assert window.height() <= height
+    window.close()
+
+
+def test_collapsed_advanced_controls_are_skipped_by_keyboard_focus(
+    app: QApplication, tmp_path: Path
+) -> None:
+    window = MainWindow(recipe_library=RecipeLibrary(tmp_path / "recipes"))
+    window.show()
+    app.processEvents()
+    window.mapping_toggle_button.setFocus()
+
+    QTest.keyClick(window, Qt.Key.Key_Tab)
+    app.processEvents()
+
+    assert window.focusWidget() is window.output_edit
+    assert not window.map_peaks_button.isVisible()
+    assert not window.sort_combo.isVisible()
     window.close()
 
 
@@ -858,6 +1016,7 @@ def test_window_requires_explicit_drift_candidate_selection(
 
     window.input_table.selectRow(0)
 
+    assert not window.drift_group.isHidden()
     route = window.input_table.item(0, 3)
     assert route is not None and route.text() == "Schema changed — review required"
     assert window.drift_candidate_combo.count() == 3
@@ -1403,6 +1562,7 @@ def test_window_distinguishes_conversion_outcomes(
     if outcome is not BatchOutcome.FAILED:
         assert "36 peak(s)" in window.status_label.text()
     assert window.open_output_button.isEnabled()
+    assert window.details.isHidden() is (outcome is BatchOutcome.SUCCESS)
     window.close()
 
 
@@ -1465,8 +1625,9 @@ def test_conversion_disables_mapping_set_controls(app: QApplication) -> None:
     assert not window.add_mapping_profile_button.isEnabled()
     assert not window.rename_mapping_profile_button.isEnabled()
     assert not window.remove_mapping_profile_button.isEnabled()
-    assert not window.load_recipe_button.isEnabled()
+    assert not window.recipe_combo.isEnabled()
     assert not window.save_recipe_button.isEnabled()
+    assert not window.manage_recipes_button.isEnabled()
     assert not window.drift_candidate_combo.isEnabled()
     assert not window.review_mapping_button.isEnabled()
     assert not window.refresh_preflight_button.isEnabled()

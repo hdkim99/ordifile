@@ -99,6 +99,10 @@ def test_ci_is_read_only_and_covers_supported_python_versions() -> None:
         '"convert",',
         "load_workbook",
         'find_spec("labconvert")',
+        "Exercise installed wheel GUI and local Recipe library",
+        "RecipeLibrary.standard()",
+        "window.recipe_combo",
+        '"XDG_CONFIG_HOME"',
         "-m pip_audit",
     ):
         assert command in ci
@@ -122,6 +126,9 @@ def test_release_uses_dgx_for_build_hosted_macos_for_gui_and_ubuntu_for_publicat
     assert "ordifile[gui] @" in release
     assert '"QT_QPA_PLATFORM": "offscreen"' in release
     assert "shutil.copyfile(plugin, platforms / plugin.name)" in release
+    assert "window.recipe_combo" in release
+    assert "window.manage_recipes_button" in release
+    assert "window.load_recipe_button" not in release
     assert "needs: [build, smoke, gui-smoke]" in release
 
 
