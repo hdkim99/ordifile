@@ -126,10 +126,11 @@ to the workbook layout.
     research categories rather than runtime adapters, completed Clarity `.prm` and recovery
     `.raw` are distinct lifecycles, and no proprietary format appears in the support list before
     a lawful fixture and passing adapter tests exist.
-29. All Actions jobs use one shared Linux DGX self-hosted runner selected by the `dgx-spark`
-    label. CI uses one Python version and no operating-system matrix. Public-fork
-    workflows require maintainer approval and receive read-only repository permission,
-    no publishing secrets, no OIDC permission, and no release environment. Release
+29. Core Actions jobs use one shared Linux DGX self-hosted runner selected by the
+    `dgx-spark` label. Public-fork jobs are skipped and never execute on that runner;
+    reviewed external changes must be reproduced on a same-repository branch. Ordinary
+    CI receives read-only repository permission, no publishing secrets, no OIDC
+    permission, and no release environment. Release
     publishing remains restricted to tag-only jobs with scoped OIDC Trusted Publishing.
 30. Adapter descriptors distinguish Verified, Experimental, and external
     fixture-declared evidence levels. Signal series distinguish scientific signals from

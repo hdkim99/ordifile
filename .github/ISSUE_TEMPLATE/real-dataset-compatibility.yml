@@ -1,0 +1,75 @@
+name: Real dataset compatibility
+description: Report a documented format or public laboratory dataset that Ordifile cannot process as expected.
+title: "compatibility: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload unpublished, confidential, proprietary, licensed, identifying, or sensitive source files, screenshots, workbooks, mapping/Recipe JSON, or detailed logs. Share only a sanitized schema/header or minimal synthetic reproducer.
+  - type: input
+    id: version
+    attributes:
+      label: Ordifile version
+      placeholder: "ordifile --version"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python version, operating system, and installation method
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface
+      options: [CLI, GUI, Python API]
+    validations:
+      required: true
+  - type: input
+    id: instrument
+    attributes:
+      label: Instrument / vendor / export software
+      description: Omit serial numbers and institutional identifiers.
+    validations:
+      required: true
+  - type: input
+    id: file_type
+    attributes:
+      label: Input file type and documented format/profile
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior and sanitized error/status code
+    validations:
+      required: true
+  - type: dropdown
+    id: shareable
+    attributes:
+      label: Can the data be shared publicly under clear redistribution terms?
+      options: [Yes, No, Unsure]
+    validations:
+      required: true
+  - type: input
+    id: public_source
+    attributes:
+      label: Public dataset DOI / URL, if applicable
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducer or sanitized header/schema
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public-data safety
+      options:
+        - label: I uploaded no private data, credentials, paths, identifiers, proprietary files, detailed logs, mapping/Recipe JSON, or generated workbooks.
+          required: true

@@ -596,7 +596,8 @@ platform 모두 native candidate binary는 올리지 않고 path-free evidence�
 Windows fallback은 없습니다.
 Windows dispatch 전에는 caller assignment, capability label, online 상태를
 확인해야 하며 personal workstation에서는 실행하도록 승인하지 않습니다. 외부 fork의
-core workflow는 유지관리자의 승인 후 공유 Linux runner에서 실행되며 read-only 저장소 권한만
+core job은 공유 Linux runner에서 항상 skip됩니다. 유지관리자가 외부 변경을 검토한 뒤
+same-repository branch에서 재현할 때만 일반 CI를 실행하며, 이 CI는 read-only 저장소 권한만
 받고 배포 secret이나 OIDC 권한은 받지 않습니다. Runner 가용성은 GitHub Actions에서
 확인하는 운영 상태이며, 이 설명은 구성 대상을 뜻할 뿐 현재 online 상태를 보장하지
 않습니다.

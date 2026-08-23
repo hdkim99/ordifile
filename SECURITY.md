@@ -41,10 +41,11 @@ include exploit details or affected data in that issue.
   a workbook and multiple sidecars one filesystem-wide transaction, so users should
   treat the Manifest as the authoritative artifact list.
 - A passing dependency audit does not replace source review or data-integrity testing.
-- GitHub Actions runs on a shared Linux DGX self-hosted runner. Public-fork workflows
-  require maintainer approval, run with read-only repository permission, and receive no
-  publishing secrets, OIDC permission, or release environment. Maintainers review
-  workflow and executable changes before approving outside-contributor runs.
+- GitHub Actions runs on a shared Linux DGX self-hosted runner. Public-fork jobs are
+  deliberately skipped and never execute there. Maintainers review workflow and
+  executable changes before reproducing an outside contribution on a same-repository
+  branch; ordinary CI has read-only repository permission and receives no publishing
+  secrets, OIDC permission, or release environment.
 
 The exact v0.1 input and resource contract is documented in
 [`docs/formats/generic-tabular.md`](docs/formats/generic-tabular.md).

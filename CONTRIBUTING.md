@@ -48,11 +48,28 @@ pip-audit
 - Use English for code, APIs, CLI text, commit titles, issues, and pull requests.
 - AI-assisted contributions are permitted, but automated tools must not be listed as
   commit authors or co-authors; attribution belongs to the human contributors.
-- Public-fork workflows require maintainer approval before they run on the shared DGX
-  self-hosted runner. Review workflow, dependency, script, binary, symlink, network,
-  credential, and hidden-control-character changes before approval. Pull-request jobs
-  receive read-only repository access and no publishing secrets, OIDC permission, or
-  release environment.
+- Public-fork jobs are deliberately skipped and never run on the shared DGX self-hosted
+  runner. Review workflow, dependency, script, binary, symlink, network, credential,
+  and hidden-control-character changes before reproducing an external contribution on
+  a same-repository branch. Pull-request jobs receive read-only repository access and
+  no publishing secrets, OIDC permission, or release environment.
+
+## Scientific behavior changes
+
+A pull request that changes measured-field parsing, unit preservation, source identity,
+retention coordinates, ordering, mapping, aggregation, or workbook semantics must state:
+
+- the exact data definition and transformation, including units and assumptions;
+- a primary format specification, public dataset DOI, or other authoritative evidence;
+- whether existing exported values or row relationships change and why;
+- a hand-checkable, synthetic, or legally usable regression with success and failure
+  paths; and
+- how the behavior is preserved through CLI, GUI/preflight, canonical models, and export.
+
+Passing `pytest` alone does not establish scientific correctness. Public-data-derived
+fixtures must identify source, license, checksum, and reduction method. Never change an
+expected value without explaining whether the previous implementation, test, definition,
+fixture, or numerical precision was wrong.
 
 ## Adapter contributions
 

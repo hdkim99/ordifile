@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use Ordifile in research, please cite this software."
+title: "Ordifile"
+type: software
+version: 0.5.0
+date-released: 2026-08-23
+license: Apache-2.0
+repository-code: "https://github.com/hdkim99/ordifile"
+authors:
+  - family-names: "Kim"
+    given-names: "Peter"

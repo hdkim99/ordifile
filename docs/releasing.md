@@ -127,9 +127,10 @@ Codex or require a maintainer to disclose a PyPI password, recovery code, or API
 6. Open a pull request, require the normal CI and independent review, and merge without
    bypassing branch protection.
 
-Normal pull-request quality, package, and wheel checks belong to `ci.yml`. Internal and
-approved public-fork changes use the shared DGX runner with read-only repository
-permission. Pull-request jobs cannot publish. A green pull-request check does not replace
+Normal pull-request quality, package, and wheel checks belong to `ci.yml`. Internal
+branches use the shared DGX runner with read-only repository permission. Public-fork
+jobs are skipped; reviewed external changes must be reproduced on a same-repository
+branch. Pull-request jobs cannot publish. A green pull-request check does not replace
 the post-merge release dry run from the exact current `origin/main` commit.
 
 Adapter protocol versions are not automatically the package version. Do not change

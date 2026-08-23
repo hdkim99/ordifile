@@ -10,6 +10,20 @@ body:
       description: Describe the research workflow problem, not only a preferred implementation.
     validations:
       required: true
+  - type: input
+    id: instrument
+    attributes:
+      label: Instrument or data format involved
+  - type: input
+    id: public_data
+    attributes:
+      label: Public example dataset DOI / URL
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current manual workaround
+    validations:
+      required: true
   - type: textarea
     id: proposal
     attributes:
@@ -21,3 +35,12 @@ body:
     attributes:
       label: Data-integrity considerations
       description: Note any sorting, mapping, aggregation, truncation, or unit implications.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public-data safety
+      options:
+        - label: I included no confidential data, personal information, credentials, proprietary files, internal paths, or private configuration.
+          required: true

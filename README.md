@@ -20,8 +20,8 @@ evidence exists; other structured tables require explicit user mapping.
 Ordifile is not a CDS replacement, acquisition controller, peak detector, compound
 identification or RT-alignment engine, statistics suite, quantitation/calibration engine,
 cloud platform, or LIMS. It does not infer missing scientific meaning. See the
-[product concept](docs/product-concept.md), [researcher documentation](docs/README.md),
-and [pilot checklist](docs/user/pilot-checklist.md) before evaluating it with laboratory
+[product concept](https://github.com/hdkim99/ordifile/blob/main/docs/product-concept.md), [researcher documentation](https://github.com/hdkim99/ordifile/blob/main/docs/README.md),
+and [pilot checklist](https://github.com/hdkim99/ordifile/blob/main/docs/user/pilot-checklist.md) before evaluating it with laboratory
 exports.
 
 Ordifile's proprietary-format direction is **result-first**: evidence-backed retention
@@ -59,7 +59,7 @@ sample_1.csv   sample_2.tsv   exported_peaks.xlsx
 
 Install the latest published Ordifile release from PyPI. The PyPI badge above shows the
 currently available version. The README on `main` may also describe capabilities listed
-under [Unreleased](CHANGELOG.md) or prepared for a not-yet-published release; `pip install`
+under [Unreleased](https://github.com/hdkim99/ordifile/blob/main/CHANGELOG.md) or prepared for a not-yet-published release; `pip install`
 provides the version shown by the badge.
 
 ```bash
@@ -140,7 +140,7 @@ Add buttons, visible labels, keyboard focus order, and accessible names provide 
 keyboard path equivalent to drag and drop. Forced cancellation is intentionally
 omitted until the public core can preserve workbook transaction safety during
 cancellation. Issue #6 now has a maintainer-only unsigned standalone prototype,
-documented in the [standalone runbook](docs/standalone.md). No `.exe` or `.app` is
+documented in the [standalone runbook](https://github.com/hdkim99/ordifile/blob/main/docs/standalone.md). No `.exe` or `.app` is
 publicly released: publisher identity, signing, notarization, LGPL
 replacement/relinking evidence and the final redistribution gate remain blocked. The
 Python-package interface above is the supported installation path.
@@ -158,6 +158,17 @@ Python-package interface above is the supported installation path.
 schema](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabular.md). It does not mean arbitrary vendor exports.
 An extension is supporting evidence only; Ordifile also checks content and schema.
 Run `ordifile formats` to see the adapters installed in the current environment.
+
+## Selected public real-data validation
+
+Selected narrowly bounded Experimental adapters have been exercised against
+checksum-pinned public research datasets and external fixtures. The validation checks
+exact detection/parsing boundaries, measured fields and units, canonical records, and
+workbook round trips; it is not broad vendor conformance. Sources, DOI/URLs, licenses,
+checksums, exact files, access dates, and excluded or conditional candidates are recorded
+in the [public source register](https://github.com/hdkim99/ordifile/blob/main/docs/research/source-register.md). External source files
+are not silently bundled into the package, and each format page separates fixture-backed
+capability from unsupported versions or workflows.
 
 ### Map an unsupported peak table explicitly
 
@@ -177,7 +188,7 @@ units, compounds, or vendors. Manufacturer/software values are user-supplied pro
 not verified compatibility, and this workflow does not add a vendor to the support table.
 Mapping Sets reuse several user-approved templates by exact format/header structure in one
 batch; zero or multiple matches fail rather than falling back. See the
-[explicit mapping contract](docs/formats/explicit-peak-table-mapping.md).
+[explicit mapping contract](https://github.com/hdkim99/ordifile/blob/main/docs/formats/explicit-peak-table-mapping.md).
 When a saved structure drifts, bounded diagnostics explain fixed structural differences but
 never apply a candidate. Desktop review can create a new user-confirmed profile while keeping
 the original template available.
@@ -352,7 +363,7 @@ the existing one-dimensional matrix remains unchanged. Software version is exter
 dataset provenance rather than an embedded byte marker, detector/channel are not
 invented, and spectra are not claimed as supported mass-spectral data. Broader LECO,
 ChromaTOF, Sync, CSV, TXT, or GCxGC support is not claimed. See the
-[exact capability and safety boundary](docs/formats/leco-chromatof-472-gcxgc-result-txt.md).
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/leco-chromatof-472-gcxgc-result-txt.md).
 
 ## CLI
 
@@ -487,7 +498,7 @@ evidence, structured errors, a redistributable or synthetic fixture, capability-
 tests, and license review.
 
 Actual Result exports should follow the [privacy-first fixture intake
-guide](docs/contributing/result-fixture-intake.md).
+guide](https://github.com/hdkim99/ordifile/blob/main/docs/contributing/result-fixture-intake.md).
 
 Start with [Adding a format adapter](https://github.com/hdkim99/ordifile/blob/main/docs/formats/adding-an-adapter.md). Installed
 third-party adapters execute Python code and must be treated as trusted software.
@@ -533,7 +544,7 @@ The bridge rejects output inside a Git worktree unless it is below Ordifile's fi
   unsafe code points become `~uXXXXXX;` and a literal `~` is doubled. Privacy-sensitive
   adapters can instead request a core-owned `source-<full SHA-256>` alias; this also
   applies to API/CLI/progress and malformed-file issues. Input paths, bytes and hashes
-  remain unchanged. See the [source identity policy](docs/architecture/source-identity-policy.md).
+  remain unchanged. See the [source identity policy](https://github.com/hdkim99/ordifile/blob/main/docs/architecture/source-identity-policy.md).
 - CLI output renders terminal control and bidirectional-format characters as visible,
   single-line escapes while preserving normal Unicode and Windows paths.
 - XLSX packages pass ZIP, relationship, Content-Type, XML namespace, coordinate,
@@ -586,6 +597,18 @@ These practical bounds are Ordifile safety policies, not claims about every vali
 Excel file. See [the exact generic format contract](https://github.com/hdkim99/ordifile/blob/main/docs/formats/generic-tabular.md) and
 [the architecture decision](https://github.com/hdkim99/ordifile/blob/main/docs/architecture/decision-record.md).
 
+## Related scientific tools
+
+These are related independent repositories, not a fully integrated suite:
+
+- [Ordifile](https://github.com/hdkim99/ordifile) — this instrument-data conversion tool
+- [ReactorCheck](https://github.com/hdkim99/ReactorCheck) — catalytic reactor metrics and QC
+- [TPxLab](https://github.com/hdkim99/TPxLab) — temperature-programmed signal and peak analysis
+- [OperandoMerge](https://github.com/hdkim99/OperandoMerge) — heterogeneous timeline alignment
+
+Direct interoperability is planned only where public schemas and real workflow evidence
+justify it.
+
 ## Development
 
 Ordifile targets Python 3.11–3.14. The required quality, release-build, wheel-smoke, and
@@ -603,9 +626,10 @@ workflow runs only an allowlisted same-repository branch whose selected SHA, req
 reviewed commit, workflow SHA, and checkout all match. It has no GitHub-hosted Windows fallback.
 Caller assignment, capability labels, and online state must be confirmed before
 dispatch; the workflow is not authorized for a personal workstation.
-Public-fork core workflows require maintainer approval before they run on the shared
-Linux runner and
-receive read-only repository permission without publishing secrets or OIDC permission.
+Public-fork core jobs are deliberately skipped and never run on the shared Linux runner.
+Maintainers review an external change before reproducing it on a same-repository branch;
+ordinary CI receives read-only repository permission without publishing secrets or OIDC
+permission.
 Runner availability is an operational setting visible in GitHub Actions; this describes
 the configured target, not a guarantee that the runner is currently online.
 
@@ -621,6 +645,7 @@ pip-audit
 ```
 
 See [CONTRIBUTING.md](https://github.com/hdkim99/ordifile/blob/main/CONTRIBUTING.md),
+[CITATION.cff](https://github.com/hdkim99/ordifile/blob/main/CITATION.cff),
 [SECURITY.md](https://github.com/hdkim99/ordifile/blob/main/SECURITY.md), the
 [release runbook](https://github.com/hdkim99/ordifile/blob/main/docs/releasing.md),
 [GC fixture research](https://github.com/hdkim99/ordifile/blob/main/docs/research/gc-fixture-search.md),

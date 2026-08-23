@@ -21,3 +21,11 @@
 ## Data integrity
 
 <!-- State how the change avoids silent truncation or reinterpretation. -->
+
+## Scientific behavior
+
+<!-- State measured-field definitions, units, assumptions, references/DOIs, and whether existing exported results change. Write "No scientific behavior change" when applicable. -->
+
+- [ ] Scientific/data-semantic changes include independent numerical or fixture evidence.
+- [ ] Public-data-derived fixtures identify source, license, checksum, and reduction method.
+- [ ] CLI, GUI/preflight, canonical records, and workbook output remain consistent.

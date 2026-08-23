@@ -1,0 +1,49 @@
+name: Scientific definition or result question
+description: Ask about measured fields, units, ordering, mapping, or workbook semantics.
+title: "science: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach confidential files or measured rows. Use a hand-checkable synthetic example.
+  - type: input
+    id: analysis
+    attributes:
+      label: Field / transformation / output
+      placeholder: "retention time, area unit, source order, Peak_Matrix, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected_definition
+    attributes:
+      label: Expected definition or relationship
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed result
+    validations:
+      required: true
+  - type: input
+    id: basis
+    attributes:
+      label: Input basis and units
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Format reference, public dataset DOI, and relevant field definition
+  - type: textarea
+    id: example
+    attributes:
+      label: Hand-checkable minimal example
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public-data safety
+      options:
+        - label: This report contains no confidential measurements, identifiers, credentials, paths, or proprietary files.
+          required: true
