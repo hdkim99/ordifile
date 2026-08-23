@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.15"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
-authors = [{ name = "hdkim99" }]
+authors = [{ name = "Peter Kim" }]
 keywords = ["chromatography", "excel", "gc", "laboratory", "scientific-data"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -52,9 +52,11 @@ ordifile = "ordifile.cli.main:main"
 ordifile-gui = "ordifile.desktop.app:main"
 
 [project.urls]
+Homepage = "https://github.com/hdkim99/ordifile"
 Documentation = "https://github.com/hdkim99/ordifile#readme"
 Issues = "https://github.com/hdkim99/ordifile/issues"
 Repository = "https://github.com/hdkim99/ordifile"
+Releases = "https://github.com/hdkim99/ordifile/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ordifile"]
