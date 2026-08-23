@@ -21,6 +21,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Clarified that the exact observed YoungIn YL-Clarity PRM profile contains stored
+  chromatographic data while direct time, response and peak semantics remain gated by a
+  same-run curve oracle. Additive runtime metadata now distinguishes that missing curve
+  evidence from the already available paired Result Table evidence while preserving the
+  existing status value; no scientific values changed.
 - Generic mapped preview, profile routing, drift review, Preflight, and conversion now share
   the same explicit table-import settings. Existing default schema-version-1 Mapping JSON and
   semantic hashes remain unchanged; exact adapters retain ownership and invalid scientific

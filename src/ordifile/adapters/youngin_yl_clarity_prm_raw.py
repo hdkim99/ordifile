@@ -156,6 +156,11 @@ class YoungInYlClarityPrmRawAdapter:
             ("signal_unit_status", "unresolved", None),
             ("peak_table_status", "unsupported", None),
             ("scientific_semantics_status", "pending_paired_export", None),
+            (
+                "scientific_semantics_evidence_gap",
+                "same_run_chromatogram_curve",
+                None,
+            ),
         ]
         for index, channel in enumerate(decoded.channels, start=1):
             prefix = f"structural_channel_{index:03d}"

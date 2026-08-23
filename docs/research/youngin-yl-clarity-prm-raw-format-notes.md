@@ -1,7 +1,7 @@
 # YoungIn YL-Clarity PRM raw-record format notes
 
-- Date: 2026-08-17
-- Status: `RAW_CONVERSION_GO`; scientific semantics pending
+- Date: 2026-08-24
+- Status: `RAW_CONVERSION_GO`; `DIRECT_SCIENTIFIC_DECODER_NO_GO_PENDING_CURVE_ORACLE`
 - Scope: one observed YL-Clarity `9.0.1.19` completed-PRM profile
 - Fixture policy: 23 owner-supplied files, local-only and not redistributable
 
@@ -32,6 +32,11 @@ digest are public reference facts, and the local external test asserts that full
 digest. Native bytes, original per-file names and per-file source hashes remain local
 and are not placed in Git or release artifacts.
 
+The owner archive and both paired Result exports were re-opened locally on 2026-08-24.
+All 23 PRM files, 43 current blocks, 563,240 records, record-count distributions and
+stored-label layouts reproduced the tracked reference. Original files were read-only and
+no private basename, path, metadata value or measured value was added to public output.
+
 ## Structural grammar
 
 Every file starts with the same four bytes, `5a a5 00 08`. The value is an observed
@@ -57,6 +62,13 @@ each block their compressed bytes are identical. `RAWSize` and the second struct
 size candidate both equal the decompressed length divided by four. The observed step
 and tick candidates are fixed structural values but are not converted into time.
 
+All observed blocks store `DStep=1` and `MinTicks=600`. The evidence-guided candidate
+interval `DStep / MinTicks = 1/600 min` is consistent, at the Result export's precision,
+with all six RT values in the two paired Result Tables and places all six peaks within the
+corresponding record ranges. This is supporting evidence for a candidate interval only.
+Result rows do not establish time origin or compare every stored record to an official
+curve, so the candidate is not emitted as retention time.
+
 The gzip payload is an array of little-endian IEEE-754 binary32 values. All observed
 records are finite. Reinterpreting the same bytes as big-endian produces non-finite and
 implausibly large values and is rejected by the evidence.
@@ -81,6 +93,13 @@ detector-specific scaling or units.
 
 The current OpenChrom converter could not be run in a privacy-safe automated local
 mode. This is recorded as `Unavailable`, not as negative parser evidence.
+
+Official DataApex documentation separates `export_results` from `prm_export`. A future
+curve oracle should use the same PRM and include (1) detector-specific AIA/CDF carrying
+the declared retention unit, actual sampling interval and detector unit, and (2) a
+  full-range text or multidetector export with X axis enabled and Time Step zero or below
+  the sampling interval. Global Filter/Bunching should be disabled where possible and its
+  state must always be recorded; text export alone is not treated as a bit-exact raw oracle.
 
 ## Peak-result audit and vendor-export bridge
 
@@ -127,21 +146,23 @@ Raw-signal extraction remains optional and separate.
 | Stored channel-label separation | Experimental |
 | Maintainer FID/TCD fixture grouping | Local external oracle only; not runtime output |
 | Independently verified detector identity | Unverified |
-| Retention-time axis | Unsupported |
-| Physical/display scaling | Unsupported |
+| Retention-time axis | NO_GO pending same-run full-curve comparison |
+| Physical/display scaling | NO_GO pending same-run full-curve comparison |
 | Physical unit | Unknown |
-| Peak table in PRM raw | Unsupported |
+| Peak table in PRM raw | NO_GO; no repeatable stored result grammar established |
 | Standalone Result Table CSV | Experimental GO for the exact owner-validated profile |
 | Batch PRM to one workbook | Experimental GO |
-| Verified scientific chromatogram | Blocked by paired export |
+| Verified scientific chromatogram | Blocked by same-run curve oracle |
 | Vendor Result export bridge | Local-only ready; actual Result exports received |
 
 ## Verified promotion inputs
 
 - a same-run YL-Clarity/Clarity Result Table exported through GUI **Export Data** or
-  `export_results` as CSV, TXT, XLS or XLSX, as the primary RT/area oracle;
-- a separate same-run `prm_export` CDF, CHR, TXT or ASC chromatogram curve for signal
-  and time-axis verification;
+  `export_results` as CSV, TXT, XLS or XLSX, as the primary RT/area oracle (two paired
+  Result exports are already available);
+- a separate same-run `prm_export` detector-specific CDF plus a full-range, X-axis CHR
+  or TXT chromatogram curve with Time Step zero and the Global Filter/Bunching state
+  disabled where possible and always recorded for signal and time-axis verification;
 - independent PRM runs with different lengths and detector configurations;
 - exact agreement for point count, full value sequence and channel identity;
 - retention-time origin and interval confirmation;
@@ -157,6 +178,7 @@ Raw-signal extraction remains optional and separate.
 - [DataApex: Export Data](https://www.dataapex.com/documentation/Content/Help/020-instrument/020.050-setting/020.050-export-data.htm)
 - [DataApex: Result Table](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.060-results/030.060-result-table.htm)
 - [DataApex: `prm_export`](https://www.dataapex.com/documentation/Content/Help/110-technical-specifications/110.020-command-line-parameters/110.020-command-line-parameters.htm)
+- [DataApex: AIA import fields](https://www.clarityguide.dataapex.com/documentation/Content/Help/030-chromatogram/030.010-file/030.010-import-aia.htm)
 - [YOUNGIN: YL-Clarity configuration guidance](https://file.younglin.com/Service_Note/23_YCM_Service_Note_SNSW-202112-02.pdf)
 - [OpenChrom format catalogue](https://www.openchrom.net/)
 - [OpenChrom converter installer](https://converter.openchrom.net/)

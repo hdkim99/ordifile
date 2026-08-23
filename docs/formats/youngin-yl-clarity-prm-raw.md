@@ -6,9 +6,10 @@
 - Real-fixture evidence: 23 owner-supplied, local-only completed `.PRM` files
 - Scientific chromatogram status: not verified
 
-This adapter is a structural converter, not a calibrated chromatogram reader. It
-preserves the ordered native binary32 records from one exact observed PRM profile and
-keeps every scientific interpretation that lacks evidence out of the output.
+PRM contains stored chromatographic data. This adapter currently exposes that data as a
+structural converter, not yet as a calibrated chromatogram reader. It preserves the
+ordered native binary32 records from one exact observed PRM profile and keeps every
+scientific interpretation that lacks evidence out of the output.
 
 ## Output
 
@@ -69,7 +70,9 @@ archive and native PRM files are neither committed nor uploaded as Actions artif
 OpenChrom publicly lists a separately distributed proprietary DataApex FID PRM
 converter, but its current public application has no automated headless import path and
 the converter is not bundled or used by Ordifile. DataApex documents official PRM
-export routes; an independently confirmed same-run export has not yet been supplied.
+export routes. Two same-run Result Table exports establish the separate explicit
+peak-result path, but no same-run full chromatogram curve has yet been supplied to
+verify the PRM record-to-time and record-to-response relationship.
 
 The following remain unsupported or unresolved:
 
@@ -81,6 +84,8 @@ The following remain unsupported or unresolved:
 - profiles other than the exact observed producer/layout;
 - acquisition/recovery `.RAW`, Autochro, GC-MS, directory grouping and write support.
 
-Promotion to Verified requires paired official output and additional independent PRM
-runs that confirm time, scaling, unit and detector semantics. See the
+Promotion to a direct scientific signal requires a same-run full-range, unbunched curve
+oracle and full point comparison across independent PRM runs. Peak promotion separately
+requires a repeatable stored result structure; Ordifile will not create vendor Area by
+re-integrating the raw curve. See the
 [research notes](../research/youngin-yl-clarity-prm-raw-format-notes.md).

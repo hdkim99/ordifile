@@ -60,8 +60,9 @@ from becoming a broad support claim.
 10. The owner-supplied intake authorizes local validation of 23 completed PRM files.
     Their exact producer marker, bounded typed properties, duplicate gzip blocks,
     record-count equations, finite binary32 payloads and stored FID/TCD labels support
-    an Experimental structural adapter. Paired official export remains mandatory for
-    Verified scientific semantics, not for deterministic raw-record conversion.
+    an Experimental structural adapter. Two paired Result Tables establish a separate
+    peak-result path; a same-run chromatogram curve remains mandatory for direct
+    scientific signal semantics, not for deterministic raw-record conversion.
 11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
     single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
     A paired same-run ASCII chromatogram and an independent byte decoder validate the
@@ -85,7 +86,7 @@ from becoming a broad support claim.
 ## Deferred
 
 - YoungIn PRM scientific-signal output and Verified promotion remain
-  `BLOCKED_BY_PAIRED_EXPORT`; the narrow raw-record adapter is not blocked.
+  `BLOCKED_BY_SAME_RUN_CURVE_ORACLE`; the narrow raw-record adapter is not blocked.
 - Clarity `.raw` recovery inspection or salvage.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.
@@ -127,12 +128,12 @@ The YoungIn raw-conversion track is Experimental GO after the 2026-08-17 local i
 The 23 completed PRM files establish one exact producer/layout profile, 43 bounded
 duplicate-validated raw blocks, stored FID/TCD labels and deterministic binary32
 records. `SeriesKind.DECODED_RECORDS` keeps those values separate from scientific
-signals. Retention time, detector verification, scaling, units and peaks remain
-unsupported or unresolved. A maintainer-only local vendor-export bridge is ready to
-generate paired Result Table evidence from temporary PRM copies, but the exact OEM
-pilot cannot run until a YL-Clarity installation is available. Bridge execution is
-permitted only under a normal license. The bridge does not itself expand public
-support. The support matrix continues to separate
+signals. Retention time, detector verification, scaling, units and PRM-derived peaks
+remain unsupported or unresolved. A maintainer-only local vendor-export bridge has
+generated two paired Result Tables from temporary PRM copies through a normally licensed
+installation. It does not yet generate the same-run chromatogram curve required for
+time/scaling validation, and it does not itself expand public support. The support matrix
+continues to separate
 YL-Clarity from Autochro, completed PRM from recovery RAW, and the exact observed
 profile from broad YoungIn claims.
 
