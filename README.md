@@ -172,7 +172,7 @@ capability from unsupported versions or workflows.
 
 ### Map an unsupported peak table explicitly
 
-If a clean CSV, TSV, semicolon-TXT, or audited XLSX Result table has explicit RT and
+If a structured CSV, TSV, semicolon-TXT, or audited XLSX Result table has explicit RT and
 Area columns but no exact-profile adapter, choose those columns with **Map Peak
 Columns** in the desktop interface or reuse a mapping JSON in the CLI:
 
@@ -189,6 +189,9 @@ not verified compatibility, and this workflow does not add a vendor to the suppo
 Mapping Sets reuse several user-approved templates by exact format/header structure in one
 batch; zero or multiple matches fail rather than falling back. See the
 [explicit mapping contract](https://github.com/hdkim99/ordifile/blob/main/docs/formats/explicit-peak-table-mapping.md).
+If the local preview does not show the actual peak table, open **Table Options** to select a
+bounded text encoding, header record, or visible worksheet. These settings are stored with the
+Mapping/Profile and can be reused through a named Recipe; they never infer scientific roles.
 When a saved structure drifts, bounded diagnostics explain fixed structural differences but
 never apply a candidate. Desktop review can create a new user-confirmed profile while keeping
 the original template available.
@@ -554,9 +557,10 @@ The bridge rejects output inside a Git worktree unless it is below Ordifile's fi
 ## Limits
 
 - One input file represents one sample.
-- Generic delimited-text input is UTF-8 or UTF-8 with BOM. Exact proprietary text
-  adapters use only their documented fixture-backed encoding. Delimiters are fixed per
-  adapter; guessing is not supported.
+- Automatic generic delimited-text input is UTF-8 or UTF-8 with BOM. Explicit mapped intake can
+  select UTF-8, CP949, or Windows-1252 and a bounded header record. Exact proprietary text
+  adapters use only their documented fixture-backed encoding. Delimiters remain fixed per
+  container; encoding and delimiter guessing are not supported.
 - Extension filters are normalized to lowercase dotted ASCII before discovery. At most
   32 unique filters are accepted; each has at most 32 ASCII characters after the
   leading dot, and the Manifest form is capped at 1,024 characters.

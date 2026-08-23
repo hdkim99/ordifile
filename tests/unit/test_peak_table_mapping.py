@@ -14,7 +14,9 @@ from ordifile.core.peak_mapping import (
     MAX_PEAK_MAPPING_BYTES,
     ColumnSelector,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
+    PeakTableTextEncoding,
     load_peak_table_mapping,
     save_peak_table_mapping,
 )
@@ -40,6 +42,70 @@ def test_mapping_json_round_trip_is_deterministic() -> None:
     assert restored == original
     assert restored.semantic_sha256 == original.semantic_sha256
     assert restored.mapped_roles == ("retention_time", "area", "peak_number")
+
+
+def test_default_import_settings_preserve_schema_one_json_and_semantic_hash() -> None:
+    original = mapping()
+
+    assert "import_settings" not in original.to_dict()
+    assert original.semantic_sha256 == (
+        "0cfcc34585095dd60d3fbc65aeb73a1e8d38b6d09f61cb0d1db3fbaa533f5e19"
+    )
+
+
+def test_explicit_import_settings_round_trip_and_change_semantic_identity() -> None:
+    original = mapping()
+    configured = PeakTableMapping(
+        original.retention_time_column,
+        original.area_column,
+        original.retention_time_unit,
+        original.source_format,
+        area_unit=original.area_unit,
+        peak_index_column=original.peak_index_column,
+        ignored_columns=original.ignored_columns,
+        import_settings=PeakTableImportSettings(PeakTableTextEncoding.CP949, 6),
+    )
+
+    restored = PeakTableMapping.from_json(configured.to_json())
+
+    assert restored == configured
+    assert restored.to_dict()["import_settings"] == {
+        "text_encoding": "cp949",
+        "header_row": 6,
+    }
+    assert restored.semantic_sha256 != original.semantic_sha256
+
+
+def test_import_settings_accept_documented_header_row_maximum() -> None:
+    settings = PeakTableImportSettings(header_row=100)
+
+    assert settings.header_row == 100
+
+
+@pytest.mark.parametrize("header_row", (0, 101, True))
+def test_import_settings_reject_invalid_header_row(header_row: object) -> None:
+    with pytest.raises(OrdifileError, match="header_row"):
+        PeakTableImportSettings.from_value({"text_encoding": "utf-8-sig", "header_row": header_row})
+
+
+def test_import_settings_reject_unknown_encoding_and_fields() -> None:
+    with pytest.raises(OrdifileError, match="text_encoding"):
+        PeakTableImportSettings.from_value({"text_encoding": "auto", "header_row": 1})
+    with pytest.raises(OrdifileError, match="exactly"):
+        PeakTableImportSettings.from_value(
+            {"text_encoding": "utf-8-sig", "header_row": 1, "guess": True}
+        )
+
+
+def test_xlsx_mapping_rejects_text_encoding_setting() -> None:
+    with pytest.raises(OrdifileError, match="only for text"):
+        PeakTableMapping(
+            ColumnSelector("RT", 1),
+            ColumnSelector("Area", 2),
+            "min",
+            PeakTableFormat.XLSX,
+            import_settings=PeakTableImportSettings(PeakTableTextEncoding.CP949, 1),
+        )
 
 
 def test_mapping_rejects_duplicate_json_keys() -> None:

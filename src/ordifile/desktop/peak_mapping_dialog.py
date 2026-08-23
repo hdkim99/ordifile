@@ -21,13 +21,20 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableImportSettings,
+    PeakTableMapping,
+    PeakTableTextEncoding,
+)
 from ordifile.desktop.models import DesktopPeakTablePreview, DesktopPeakTablePreviewReport
 from ordifile.desktop.services import presentation_error, safe_display_name, safe_preview_text
 from ordifile.desktop.workers import PeakTablePreviewWorker
@@ -37,6 +44,12 @@ _FORMAT_LABELS = {
     PeakTableFormat.TSV: "TSV (tab-separated)",
     PeakTableFormat.SEMICOLON: "TXT (semicolon-separated)",
     PeakTableFormat.XLSX: "XLSX workbook",
+}
+
+_ENCODING_LABELS = {
+    PeakTableTextEncoding.UTF8: "UTF-8 / UTF-8 with BOM",
+    PeakTableTextEncoding.CP949: "Korean Windows (CP949)",
+    PeakTableTextEncoding.WINDOWS_1252: "Western Windows (1252)",
 }
 
 _COLUMN_FIELDS = (
@@ -126,6 +139,35 @@ class PeakMappingDialog(QDialog):
         format_row.addWidget(self.reload_button)
         root.addLayout(format_row)
 
+        self.table_options_button = QPushButton("&Table Options")
+        self.table_options_button.setCheckable(True)
+        self.table_options_button.setAccessibleName("Show explicit table import options")
+        root.addWidget(self.table_options_button)
+        self.table_options_container = QWidget()
+        table_options_form = QFormLayout(self.table_options_container)
+        self.encoding_combo = QComboBox()
+        self.encoding_combo.setAccessibleName("Text encoding")
+        for encoding, label in _ENCODING_LABELS.items():
+            self.encoding_combo.addItem(label, encoding.value)
+        self.header_row_spin = QSpinBox()
+        self.header_row_spin.setAccessibleName("Header row")
+        self.header_row_spin.setRange(1, 100)
+        self.header_row_spin.setValue(1)
+        self.worksheet_combo = QComboBox()
+        self.worksheet_combo.setAccessibleName("Mapped XLSX worksheet")
+        self.worksheet_combo.addItem("Choose a worksheet", None)
+        table_options_form.addRow("Text &encoding:", self.encoding_combo)
+        table_options_form.addRow("&Header row:", self.header_row_spin)
+        table_options_form.addRow("&Worksheet:", self.worksheet_combo)
+        table_options_help = QLabel(
+            "Choose how to read the table structure. These settings do not assign RT, Area, "
+            "units, or vendor identity."
+        )
+        table_options_help.setWordWrap(True)
+        table_options_form.addRow(table_options_help)
+        self.table_options_container.setVisible(False)
+        root.addWidget(self.table_options_container)
+
         self.preview_status = QLabel("Preview has not been loaded.")
         self.preview_status.setAccessibleName("Peak table preview status")
         self.preview_status.setWordWrap(True)
@@ -203,6 +245,10 @@ class PeakMappingDialog(QDialog):
 
         self.reload_button.clicked.connect(self.load_preview)
         self.format_combo.currentIndexChanged.connect(self._format_changed)
+        self.table_options_button.toggled.connect(self.table_options_container.setVisible)
+        self.encoding_combo.currentIndexChanged.connect(self._table_options_changed)
+        self.header_row_spin.valueChanged.connect(self._table_options_changed)
+        self.worksheet_combo.currentIndexChanged.connect(self._worksheet_changed)
         self.buttons.accepted.connect(self._accept_mapping)
         self.buttons.rejected.connect(self.reject)
         self.retention_time_combo.currentIndexChanged.connect(self._update_validity)
@@ -215,6 +261,10 @@ class PeakMappingDialog(QDialog):
 
         focus_widgets: tuple[QWidget, ...] = (
             self.format_combo,
+            self.table_options_button,
+            self.encoding_combo,
+            self.header_row_spin,
+            self.worksheet_combo,
             self.reload_button,
             self.preview_table,
             self.retention_time_combo,
@@ -236,6 +286,8 @@ class PeakMappingDialog(QDialog):
             index = self._find_data_index(self.format_combo, mapping.source_format.value)
             if index >= 0:
                 self.format_combo.setCurrentIndex(index)
+            self._restore_import_settings(mapping.import_settings)
+        self._update_table_option_availability()
         if self.format_combo.count() == 0:
             self.preview_status.setText(
                 "This file extension is not available for explicit peak-table mapping."
@@ -275,6 +327,77 @@ class PeakMappingDialog(QDialog):
         except ValueError:
             return None
 
+    def _import_settings(self) -> PeakTableImportSettings:
+        raw_encoding = self.encoding_combo.currentData()
+        encoding = (
+            PeakTableTextEncoding(raw_encoding)
+            if isinstance(raw_encoding, str)
+            else PeakTableTextEncoding.UTF8
+        )
+        if self._source_format() is PeakTableFormat.XLSX:
+            encoding = PeakTableTextEncoding.UTF8
+        return PeakTableImportSettings(encoding, self.header_row_spin.value())
+
+    def _restore_import_settings(self, settings: PeakTableImportSettings) -> None:
+        encoding_index = self._find_data_index(
+            self.encoding_combo,
+            settings.text_encoding.value,
+        )
+        self.encoding_combo.blockSignals(True)
+        if encoding_index >= 0:
+            self.encoding_combo.setCurrentIndex(encoding_index)
+        self.encoding_combo.blockSignals(False)
+        self.header_row_spin.blockSignals(True)
+        self.header_row_spin.setValue(settings.header_row)
+        self.header_row_spin.blockSignals(False)
+
+    def _selected_worksheet(self) -> str | None:
+        value = self.worksheet_combo.currentData()
+        return value if isinstance(value, str) else self._sheet
+
+    def _populate_worksheets(self, worksheets: tuple[str, ...]) -> None:
+        selected = self._selected_worksheet()
+        self.worksheet_combo.blockSignals(True)
+        self.worksheet_combo.clear()
+        self.worksheet_combo.addItem("Choose a worksheet", None)
+        for title in worksheets:
+            self.worksheet_combo.addItem(safe_preview_text(title), title)
+        index = self._find_data_index(self.worksheet_combo, selected)
+        if index < 0 and len(worksheets) == 1:
+            index = 1
+        self.worksheet_combo.setCurrentIndex(max(0, index))
+        self.worksheet_combo.blockSignals(False)
+        current = self.worksheet_combo.currentData()
+        self._sheet = current if isinstance(current, str) else None
+
+    def _update_table_option_availability(self) -> None:
+        is_xlsx = self._source_format() is PeakTableFormat.XLSX
+        self.encoding_combo.setEnabled(not is_xlsx)
+        self.worksheet_combo.setEnabled(is_xlsx)
+
+    def _clear_preview_for_option_change(self, message: str) -> None:
+        if self._preview_thread is not None:
+            return
+        self._preview = None
+        self.preview_table.clear()
+        self.preview_table.setRowCount(0)
+        self.preview_table.setColumnCount(0)
+        self._populate_column_combos(())
+        self.preview_status.setText(message)
+        self._update_validity()
+
+    def _table_options_changed(self, _value: int) -> None:
+        self._clear_preview_for_option_change(
+            "Table options changed. Load the bounded preview again."
+        )
+
+    def _worksheet_changed(self, _index: int) -> None:
+        value = self.worksheet_combo.currentData()
+        self._sheet = value if isinstance(value, str) else None
+        self._clear_preview_for_option_change(
+            "Worksheet selection changed. Load the bounded preview again."
+        )
+
     @staticmethod
     def _find_data_index(combo: QComboBox, expected: object) -> int:
         """Find Python item data without relying on QVariant equality conversion."""
@@ -284,6 +407,9 @@ class PeakMappingDialog(QDialog):
         return -1
 
     def _format_changed(self, _index: int) -> None:
+        if self._source_format() is not PeakTableFormat.XLSX:
+            self._sheet = None
+        self._update_table_option_availability()
         self._preview = None
         self.preview_table.clear()
         self.preview_table.setRowCount(0)
@@ -305,12 +431,19 @@ class PeakMappingDialog(QDialog):
         self._update_validity()
         self.reload_button.setEnabled(False)
         self.format_combo.setEnabled(False)
+        self.table_options_button.setEnabled(False)
+        self.table_options_container.setEnabled(False)
         self.preview_status.setText("Loading bounded preview…")
         self._start_preview_worker(source_format)
 
     def _start_preview_worker(self, source_format: PeakTableFormat) -> None:
         thread = QThread(self)
-        worker = PeakTablePreviewWorker(self._source, source_format, self._sheet)
+        worker = PeakTablePreviewWorker(
+            self._source,
+            source_format,
+            self._selected_worksheet(),
+            self._import_settings(),
+        )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.completed.connect(self._on_preview_complete)
@@ -328,12 +461,17 @@ class PeakMappingDialog(QDialog):
             return
         if not isinstance(result, DesktopPeakTablePreviewReport):
             return
+        if result.available_worksheets:
+            self._populate_worksheets(result.available_worksheets)
         if result.is_error or result.preview is None:
             self._preview = None
             self.preview_status.setText(
                 f"Preview failed [{result.error_code}]: {result.error_message}"
             )
             self._populate_column_combos(())
+            if result.error_code == "XLSX_SHEET_SELECTION_REQUIRED":
+                self.table_options_button.setChecked(True)
+                self.worksheet_combo.setFocus()
             self._update_validity()
         else:
             self.set_preview(result.preview)
@@ -347,11 +485,21 @@ class PeakMappingDialog(QDialog):
         self._confirmation_accept_pending = False
         self.reload_button.setEnabled(self.format_combo.count() > 0)
         self.format_combo.setEnabled(True)
+        self.table_options_button.setEnabled(True)
+        self.table_options_container.setEnabled(True)
+        self._update_table_option_availability()
         self.mapping_container.setEnabled(True)
         if accept_pending:
             self.accept()
         else:
             self._update_validity()
+            if (
+                self._source_format() is PeakTableFormat.XLSX
+                and self.table_options_button.isChecked()
+                and self._preview is None
+                and self.worksheet_combo.count() > 1
+            ):
+                self.worksheet_combo.setFocus()
 
     def _on_confirmation_complete(self, result: object) -> None:
         snapshot = self._confirmation_snapshot
@@ -371,12 +519,17 @@ class PeakMappingDialog(QDialog):
             current.source_format is not snapshot.source_format
             or current.headers != snapshot.headers
             or current.sheet != snapshot.sheet
+            or current.import_settings != snapshot.import_settings
             or current.source_sha256 is None
             or current.source_sha256 != snapshot.source_sha256
+            or self._source_format() is not snapshot.source_format
+            or self._import_settings() != snapshot.import_settings
+            or self._selected_worksheet() != snapshot.sheet
         ):
             self._mapping = None
             self.preview_status.setText(
-                "Source changed after preview; reload and review the mapping again."
+                "Source or table options changed after preview; reload and review the mapping "
+                "again."
             )
             return
         self._preview = current
@@ -390,6 +543,20 @@ class PeakMappingDialog(QDialog):
             self._populate_column_combos(())
             self._update_validity()
             return
+        if preview.import_settings != self._import_settings():
+            self.preview_status.setText("Preview table options do not match the current selection.")
+            self._preview = None
+            self._populate_column_combos(())
+            self._update_validity()
+            return
+        if preview.source_format is PeakTableFormat.XLSX and preview.sheet is not None:
+            if self._find_data_index(self.worksheet_combo, preview.sheet) < 0:
+                self._populate_worksheets((preview.sheet,))
+            index = self._find_data_index(self.worksheet_combo, preview.sheet)
+            self.worksheet_combo.blockSignals(True)
+            self.worksheet_combo.setCurrentIndex(index)
+            self.worksheet_combo.blockSignals(False)
+            self._sheet = preview.sheet
         self._preview = preview
         self.preview_table.clear()
         self.preview_table.setColumnCount(len(preview.headers))
@@ -468,6 +635,7 @@ class PeakMappingDialog(QDialog):
         self.secondary_retention_time_unit_edit.setText(mapping.secondary_retention_time_unit or "")
         self.manufacturer_edit.setText(mapping.manufacturer or "")
         self.software_edit.setText(mapping.software or "")
+        self._restore_import_settings(mapping.import_settings)
 
     @staticmethod
     def _optional_text(edit: QLineEdit) -> str | None:
@@ -559,6 +727,7 @@ class PeakMappingDialog(QDialog):
                 manufacturer=self._optional_text(self.manufacturer_edit),
                 software=self._optional_text(self.software_edit),
                 ignored_columns=ignored,
+                import_settings=self._import_settings(),
             )
         except (KeyboardInterrupt, SystemExit, MemoryError):
             raise
@@ -580,6 +749,8 @@ class PeakMappingDialog(QDialog):
         self._confirming = True
         self.reload_button.setEnabled(False)
         self.format_combo.setEnabled(False)
+        self.table_options_button.setEnabled(False)
+        self.table_options_container.setEnabled(False)
         self.mapping_container.setEnabled(False)
         self.apply_button.setEnabled(False)
         self.preview_status.setText("Rechecking the unchanged local source before repair…")

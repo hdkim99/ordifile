@@ -18,10 +18,17 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QWidget
 
-from ordifile import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableImportSettings,
+    PeakTableMapping,
+    PeakTableTextEncoding,
+)
 from ordifile.core.errors import OrdifileError
 from ordifile.desktop.models import DesktopPeakTablePreview, DesktopPeakTablePreviewReport
 from ordifile.desktop.peak_mapping_dialog import PeakMappingDialog, formats_for_path
+from ordifile.desktop.services import preview_peak_table as desktop_preview_peak_table
 from ordifile.desktop.workers import PeakTablePreviewWorker
 
 
@@ -89,6 +96,21 @@ def test_dialog_requires_explicit_rt_area_and_rt_unit(app: QApplication, tmp_pat
     dialog.close()
 
 
+def test_table_options_are_contextual_and_collapsed_by_default(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_text("RT,Area\n1,2\n", encoding="utf-8")
+    dialog = PeakMappingDialog(source, auto_preview=False)
+
+    assert not dialog.table_options_button.isChecked()
+    assert not dialog.table_options_container.isVisible()
+    assert dialog.encoding_combo.currentData() == PeakTableTextEncoding.UTF8.value
+    assert dialog.header_row_spin.value() == 1
+    dialog.close()
+
+
 def test_dialog_has_explicit_keyboard_focus_order(app: QApplication, tmp_path: Path) -> None:
     del app
     source = tmp_path / "result.csv"
@@ -97,6 +119,10 @@ def test_dialog_has_explicit_keyboard_focus_order(app: QApplication, tmp_path: P
 
     expected_order = (
         dialog.format_combo,
+        dialog.table_options_button,
+        dialog.encoding_combo,
+        dialog.header_row_spin,
+        dialog.worksheet_combo,
         dialog.reload_button,
         dialog.preview_table,
         dialog.retention_time_combo,
@@ -150,6 +176,30 @@ def test_dialog_defers_cancel_while_preview_worker_is_active(
     assert dialog.result() == 0
     assert "wait" in dialog.preview_status.text().casefold()
     dialog._preview_thread = None
+    dialog.close()
+
+
+def test_dialog_locks_table_options_during_background_preview(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_text("RT,Area\n1,2\n", encoding="utf-8")
+    dialog = PeakMappingDialog(source, auto_preview=False)
+    thread = QThread(dialog)
+    monkeypatch.setattr(dialog, "_start_preview_worker", lambda *_args: None)
+
+    dialog.load_preview()
+    dialog._preview_thread = thread
+
+    assert not dialog.table_options_button.isEnabled()
+    assert not dialog.table_options_container.isEnabled()
+    assert not dialog.format_combo.isEnabled()
+    dialog._preview_thread = None
+    dialog._preview_finished()
+    assert dialog.table_options_button.isEnabled()
+    assert dialog.table_options_container.isEnabled()
+    assert dialog.encoding_combo.isEnabled()
     dialog.close()
 
 
@@ -223,6 +273,73 @@ def test_dialog_builds_immutable_mapping_and_classifies_every_unselected_column(
     )
     assert mapping.manufacturer == "User entry"
     assert mapping.source_format is PeakTableFormat.CSV
+    dialog.close()
+
+
+def test_dialog_persists_explicit_encoding_and_header_row_in_mapping(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "result.csv"
+    source.write_bytes("머무름시간,Area\n1,2\n".encode("cp949"))
+    dialog = PeakMappingDialog(source, auto_preview=False)
+    dialog.encoding_combo.setCurrentIndex(
+        dialog.encoding_combo.findData(PeakTableTextEncoding.CP949.value)
+    )
+    dialog.header_row_spin.setValue(3)
+    dialog.set_preview(
+        DesktopPeakTablePreview(
+            PeakTableFormat.CSV,
+            ("머무름시간", "Area"),
+            (("1", "2"),),
+            import_settings=PeakTableImportSettings(PeakTableTextEncoding.CP949, 3),
+        )
+    )
+    _select(dialog.retention_time_combo, ColumnSelector("머무름시간", 1))
+    _select(dialog.area_combo, ColumnSelector("Area", 2))
+    dialog.retention_time_unit_edit.setText("min")
+
+    dialog._accept_mapping()
+
+    assert dialog.mapping is not None
+    assert dialog.mapping.import_settings == PeakTableImportSettings(
+        PeakTableTextEncoding.CP949,
+        3,
+    )
+    dialog.close()
+
+
+def test_dialog_requires_explicit_worksheet_for_multi_sheet_xlsx(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    source = tmp_path / "result.xlsx"
+    workbook = openpyxl.Workbook()
+    workbook.active.title = "Notes"
+    workbook.active.append(("Notes",))
+    results = workbook.create_sheet("Results")
+    results.append(("RT", "Area"))
+    results.append((1, 2))
+    workbook.save(source)
+    dialog = PeakMappingDialog(source, auto_preview=False)
+
+    selection = desktop_preview_peak_table(source, PeakTableFormat.XLSX)
+    dialog._on_preview_complete(selection)
+
+    assert selection.error_code == "XLSX_SHEET_SELECTION_REQUIRED"
+    assert dialog.table_options_button.isChecked()
+    assert dialog.worksheet_combo.count() == 3
+    results_index = dialog.worksheet_combo.findData("Results")
+    dialog.worksheet_combo.setCurrentIndex(results_index)
+    report = desktop_preview_peak_table(
+        source,
+        PeakTableFormat.XLSX,
+        sheet="Results",
+    )
+    dialog._on_preview_complete(report)
+
+    assert dialog.preview_worksheet_title == "Results"
+    assert dialog.preview_table.columnCount() == 2
     dialog.close()
 
 
@@ -422,6 +539,37 @@ def test_review_dialog_rejects_source_changed_after_mapping_review(
     assert dialog.mapping is None
     assert "changed after preview" in dialog.preview_status.text().casefold()
     assert dialog.apply_button.isEnabled()
+    dialog.close()
+
+
+def test_review_dialog_rejects_table_options_changed_during_confirmation(
+    app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    source = tmp_path / "changed.csv"
+    source.write_text("RT,Peak Area\n1,2\n", encoding="utf-8")
+    dialog = PeakMappingDialog(source, auto_preview=False, review_mode=True)
+    preview = DesktopPeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area"),
+        (("1", "2"),),
+        source_sha256="1" * 64,
+    )
+    dialog.set_preview(preview)
+    _select(dialog.retention_time_combo, ColumnSelector("RT", 1))
+    _select(dialog.area_combo, ColumnSelector("Peak Area", 2))
+    dialog.retention_time_unit_edit.setText("min")
+    monkeypatch.setattr(dialog, "_start_preview_worker", lambda *_args: None)
+
+    dialog._accept_mapping()
+    assert not dialog.table_options_container.isEnabled()
+    dialog.header_row_spin.setValue(2)
+    dialog._on_confirmation_complete(DesktopPeakTablePreviewReport(preview=preview))
+    dialog._preview_finished()
+
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.mapping is None
+    assert "table options changed" in dialog.preview_status.text().casefold()
     dialog.close()
 
 

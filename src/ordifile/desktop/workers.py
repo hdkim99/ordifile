@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ordifile import ConversionPlan, PeakTableFormat
+from ordifile import ConversionPlan, PeakTableFormat, PeakTableImportSettings
 from ordifile.core.models import BatchOutcome, ProgressEvent
 from ordifile.desktop.models import (
     DesktopBatchReport,
@@ -71,18 +71,25 @@ class PeakTablePreviewWorker(QObject):
         path: Path,
         source_format: PeakTableFormat,
         sheet: str | None = None,
+        import_settings: PeakTableImportSettings | None = None,
     ) -> None:
         super().__init__()
         self._path = path
         self._source_format = source_format
         self._sheet = sheet
+        self._import_settings = import_settings
 
     @Slot()
     def run(self) -> None:
         """Call the public preview service and always release the worker thread."""
         try:
             self.completed.emit(
-                preview_peak_table(self._path, self._source_format, sheet=self._sheet)
+                preview_peak_table(
+                    self._path,
+                    self._source_format,
+                    sheet=self._sheet,
+                    import_settings=self._import_settings,
+                )
             )
         except BaseException:
             self.completed.emit(

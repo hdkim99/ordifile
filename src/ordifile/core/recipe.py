@@ -84,7 +84,7 @@ def _normalize_recipe_extensions(value: object) -> tuple[str, ...]:
 
 
 def _mapping_public_payload(mapping: PeakTableMapping) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "schema_version": mapping.schema_version,
         "source_format": mapping.source_format.value,
         "column_count": len(mapping.declared_headers),
@@ -96,6 +96,9 @@ def _mapping_public_payload(mapping: PeakTableMapping) -> dict[str, object]:
             "secondary_retention_time": mapping.secondary_retention_time_unit is not None,
         },
     }
+    if not mapping.import_settings.is_default:
+        payload["import_settings"] = mapping.import_settings.to_dict()
+    return payload
 
 
 def _mapping_set_semantic_payload(mapping_set: PeakTableMappingSet) -> dict[str, object]:

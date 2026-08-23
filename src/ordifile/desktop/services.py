@@ -17,6 +17,7 @@ from ordifile import (
     ConversionPlanReadiness,
     ConversionRecipe,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingSet,
     PlanProgressEvent,
@@ -266,6 +267,7 @@ def preflight_selection(
                 sort=request.sort,
                 on_error="continue",
                 overwrite=False,
+                sheet=request.sheet,
                 peak_table_mapping=request.peak_table_mapping,
                 peak_table_mapping_set=request.peak_table_mapping_set,
                 progress=progress,
@@ -365,6 +367,7 @@ def convert_selection(
                 sort=request.sort,
                 on_error="continue",
                 overwrite=False,
+                sheet=request.sheet,
                 peak_table_mapping=request.peak_table_mapping,
                 peak_table_mapping_set=request.peak_table_mapping_set,
                 progress=progress,
@@ -384,10 +387,27 @@ def preview_peak_table(
     source_format: PeakTableFormat,
     *,
     sheet: str | None = None,
+    import_settings: PeakTableImportSettings | None = None,
 ) -> DesktopPeakTablePreviewReport:
     """Read a bounded preview through the public API without parsing in the GUI."""
     try:
-        preview = _ordifile_api.preview_peak_table(path, source_format, sheet=sheet)
+        available_worksheets: tuple[str, ...] = ()
+        if source_format is PeakTableFormat.XLSX:
+            available_worksheets = _ordifile_api.list_peak_table_worksheets(path)
+            if sheet is None:
+                if len(available_worksheets) != 1:
+                    return DesktopPeakTablePreviewReport(
+                        error_code="XLSX_SHEET_SELECTION_REQUIRED",
+                        error_message="Choose one worksheet before loading the preview.",
+                        available_worksheets=available_worksheets,
+                    )
+                sheet = available_worksheets[0]
+        preview = _ordifile_api.preview_peak_table(
+            path,
+            source_format,
+            sheet=sheet,
+            import_settings=import_settings,
+        )
     except (KeyboardInterrupt, SystemExit, MemoryError):
         return DesktopPeakTablePreviewReport(
             error_code="OPERATION_INTERRUPTED",
@@ -403,7 +423,9 @@ def preview_peak_table(
             tuple(tuple(str(cell) for cell in row) for row in preview.rows),
             preview.sheet,
             preview.source_sha256,
-        )
+            preview.import_settings,
+        ),
+        available_worksheets=available_worksheets,
     )
 
 

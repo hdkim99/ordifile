@@ -429,6 +429,7 @@ def parse_mapped_peak_rows(
     mapping_profile_fingerprint: str | None = None,
     mapping_set_id: str | None = None,
     include_mapping_semantic_sha256: bool = True,
+    source_header_row: int = 1,
 ) -> DatasetBundle:
     """Transform one clean table using only user-confirmed semantic selectors."""
     iterator = iter(rows)
@@ -462,7 +463,7 @@ def parse_mapped_peak_rows(
             )
         return previous
 
-    for row_number, raw_row in enumerate(iterator, start=2):
+    for row_number, raw_row in enumerate(iterator, start=source_header_row + 1):
         values = list(raw_row)
         if len(values) > len(header) and any(
             value is not None and str(value) != "" for value in values[len(header) :]

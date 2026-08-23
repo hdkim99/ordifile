@@ -13,11 +13,25 @@ from typing import cast
 import openpyxl  # type: ignore[import-untyped]
 import pytest
 
-from ordifile.api import convert, inspect_file, inspect_inputs, preview_peak_table
+from ordifile.adapters.base import ParseOptions
+from ordifile.adapters.generic_csv import GenericCsvAdapter
+from ordifile.api import (
+    convert,
+    inspect_file,
+    inspect_inputs,
+    list_peak_table_worksheets,
+    preview_peak_table,
+)
 from ordifile.core.discovery import sha256_file
-from ordifile.core.errors import OrdifileError
+from ordifile.core.errors import OrdifileError, ParseError
 from ordifile.core.models import FileStatus
-from ordifile.core.peak_mapping import ColumnSelector, PeakTableFormat, PeakTableMapping
+from ordifile.core.peak_mapping import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableImportSettings,
+    PeakTableMapping,
+    PeakTableTextEncoding,
+)
 
 HEADERS = ("Peak No.", "RT result", "Peak area", "Height", "Compound", "Private note")
 ROWS = (
@@ -116,6 +130,148 @@ def test_explicit_xlsx_mapping_reuses_audited_reader(tmp_path: Path) -> None:
     assert result.status is FileStatus.SUCCESS
     assert result.bundle is not None
     assert len(result.bundle.peaks) == 2
+
+
+@pytest.mark.researcher_acceptance
+def test_explicit_header_row_uses_logical_csv_records_and_preserves_values(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "preamble.csv"
+    source.write_text(
+        'Instrument,"Line one\nLine two"\nGenerated,2026-08-23\n'
+        "RT result,Peak area,Notes\n1.25E+1,3.4E+06,kept local\n",
+        encoding="utf-8",
+    )
+    settings = PeakTableImportSettings(header_row=3)
+    mapping = PeakTableMapping(
+        ColumnSelector("RT result", 1),
+        ColumnSelector("Peak area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        area_unit="AU",
+        ignored_columns=(ColumnSelector("Notes", 3),),
+        import_settings=settings,
+    )
+
+    preview = preview_peak_table(
+        source,
+        PeakTableFormat.CSV,
+        import_settings=settings,
+    )
+    result = inspect_file(source, peak_table_mapping=mapping).file
+
+    assert preview.headers == ("RT result", "Peak area", "Notes")
+    assert preview.rows[0][:2] == ("1.25E+1", "3.4E+06")
+    assert result.status is FileStatus.SUCCESS
+    assert result.bundle is not None
+    assert tuple((peak.retention_time, peak.area) for peak in result.bundle.peaks) == (
+        (12.5, 3_400_000.0),
+    )
+
+
+@pytest.mark.parametrize(
+    ("encoding", "header", "note"),
+    (
+        (PeakTableTextEncoding.CP949, "머무름시간", "한글 메모"),
+        (PeakTableTextEncoding.WINDOWS_1252, "Retention", "Café note"),
+    ),
+)
+@pytest.mark.researcher_acceptance
+def test_explicit_text_encoding_is_selected_without_fallback(
+    tmp_path: Path,
+    encoding: PeakTableTextEncoding,
+    header: str,
+    note: str,
+) -> None:
+    source = tmp_path / "encoded.csv"
+    source.write_bytes(f"{header},Area,Note\n1.5,20,{note}\n".encode(encoding.codec_name))
+    settings = PeakTableImportSettings(encoding, 1)
+    mapping = PeakTableMapping(
+        ColumnSelector(header, 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        ignored_columns=(ColumnSelector("Note", 3),),
+        import_settings=settings,
+    )
+
+    preview = preview_peak_table(source, PeakTableFormat.CSV, import_settings=settings)
+    result = inspect_file(source, peak_table_mapping=mapping).file
+
+    assert preview.headers[0] == header
+    assert result.status is FileStatus.SUCCESS
+    assert result.bundle is not None
+    assert result.bundle.peaks[0].retention_time == 1.5
+
+
+def test_wrong_explicit_text_encoding_fails_clearly(tmp_path: Path) -> None:
+    source = tmp_path / "encoded.csv"
+    source.write_bytes("머무름시간,Area\n1,2\n".encode("cp949"))
+
+    with pytest.raises(OrdifileError) as captured:
+        preview_peak_table(source, PeakTableFormat.CSV)
+
+    assert captured.value.code == "TEXT_ENCODING_UNSUPPORTED"
+    assert "selected text encoding" in captured.value.message
+
+
+def test_mapped_numeric_failure_reports_configured_source_row(tmp_path: Path) -> None:
+    source = tmp_path / "preamble.csv"
+    source.write_text(
+        "Instrument,Synthetic\nGenerated,2026-08-23\nRT,Area\ninvalid,20\n",
+        encoding="utf-8",
+    )
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        import_settings=PeakTableImportSettings(header_row=3),
+    )
+
+    with pytest.raises(ParseError) as captured:
+        GenericCsvAdapter().parse(source, ParseOptions(peak_table_mapping=mapping))
+
+    assert captured.value.code == "PEAK_MAPPING_NUMBER_INVALID"
+    assert "Row 4" in captured.value.message
+
+
+@pytest.mark.researcher_acceptance
+def test_xlsx_header_row_and_explicit_worksheet_selection(tmp_path: Path) -> None:
+    source = tmp_path / "multi-sheet.xlsx"
+    workbook = openpyxl.Workbook()
+    notes = workbook.active
+    notes.title = "Notes"
+    notes.append(("Not a result table",))
+    results = workbook.create_sheet("Results")
+    results.append(("Instrument", "Synthetic"))
+    results.append(("Generated", "2026-08-23"))
+    results.append(("RT", "Area"))
+    results.append((1.25, 42))
+    workbook.save(source)
+    settings = PeakTableImportSettings(header_row=3)
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.XLSX,
+        import_settings=settings,
+    )
+
+    assert list_peak_table_worksheets(source) == ("Notes", "Results")
+    preview = preview_peak_table(
+        source,
+        PeakTableFormat.XLSX,
+        sheet="Results",
+        import_settings=settings,
+    )
+    result = inspect_file(source, sheet="Results", peak_table_mapping=mapping).file
+
+    assert preview.headers == ("RT", "Area")
+    assert preview.rows == (("1.25", "42"),)
+    assert result.status is FileStatus.SUCCESS
+    assert result.bundle is not None
+    assert result.bundle.peaks[0].area == 42.0
 
 
 def test_mapped_xlsx_private_sheet_title_is_not_persisted(tmp_path: Path) -> None:
@@ -555,6 +711,10 @@ def test_exact_vendor_owner_is_not_bypassed_by_generic_mapping(tmp_path: Path) -
         ColumnSelector("Area", 2),
         "s",
         PeakTableFormat.TSV,
+        import_settings=PeakTableImportSettings(
+            PeakTableTextEncoding.CP949,
+            header_row=6,
+        ),
     )
 
     result = inspect_file(source, peak_table_mapping=unrelated_mapping).file

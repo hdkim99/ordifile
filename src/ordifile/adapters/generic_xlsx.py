@@ -38,6 +38,7 @@ from ordifile.adapters.base import (
 from ordifile.core.errors import AdapterAmbiguityError, OrdifileError, ParseError
 from ordifile.core.models import DatasetBundle, Issue, MetadataEntry, Severity
 from ordifile.core.peak_mapping import (
+    DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
     MAX_PEAK_PREVIEW_CELL_CHARACTERS,
     MAX_PEAK_PREVIEW_CELLS,
     MAX_PEAK_PREVIEW_COLUMNS,
@@ -45,6 +46,7 @@ from ordifile.core.peak_mapping import (
     MAX_PEAK_PREVIEW_TOTAL_CHARACTERS,
     ColumnSelector,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTablePreview,
     peak_preview_display,
 )
@@ -92,6 +94,18 @@ def preflight_xlsx(path: Path) -> XlsxPackageAudit:
     )
 
 
+def list_xlsx_peak_table_worksheets(
+    path: Path,
+    *,
+    include_hidden: bool = False,
+) -> tuple[str, ...]:
+    """Return the audited worksheet order for explicit local selection."""
+    package = preflight_xlsx(path)
+    return tuple(
+        str(part.title) for part in package.sheets if include_hidden or part.state == "visible"
+    )
+
+
 def _trimmed_header(values: Sequence[object]) -> list[object]:
     header = list(values)
     while header and (header[-1] is None or str(header[-1]) == ""):
@@ -116,6 +130,7 @@ def preview_xlsx_peak_table(
     *,
     sheet: str | None = None,
     row_limit: int = 5,
+    import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
 ) -> PeakTablePreview:
     """Return one bounded worksheet preview after the existing OOXML audit."""
     if type(row_limit) is not int or row_limit < 0 or row_limit > MAX_PEAK_PREVIEW_ROWS:
@@ -157,18 +172,19 @@ def preview_xlsx_peak_table(
                 "PEAK_MAPPING_PREVIEW_COLUMN_LIMIT",
                 f"Peak-table preview supports at most {MAX_PEAK_PREVIEW_COLUMNS} columns.",
             )
+        header_row = import_settings.header_row
         captured = capture_worksheet_cells(
             path,
             package,
             part,
-            capture_max_row=row_limit + 1,
+            capture_max_row=header_row + MAX_PEAK_PREVIEW_ROWS,
         )
         raw_cells = {(cell.row, cell.column): cell for cell in captured.raw_cells}
         worksheet.reset_dimensions()
         header_cells = next(
             worksheet.iter_rows(
-                min_row=1,
-                max_row=1,
+                min_row=header_row,
+                max_row=header_row,
                 min_col=1,
                 max_col=captured.actual_max_column,
             ),
@@ -176,7 +192,7 @@ def preview_xlsx_peak_table(
         )
         header = _trimmed_header([cell.value for cell in header_cells])
         for column_number in range(1, len(header) + 1):
-            raw_header = raw_cells.get((1, column_number))
+            raw_header = raw_cells.get((header_row, column_number))
             if raw_header is None:
                 continue
             if raw_header.formula_present:
@@ -221,8 +237,11 @@ def preview_xlsx_peak_table(
         rows: list[tuple[str, ...]] = []
         if row_limit:
             for row in worksheet.iter_rows(
-                min_row=2,
-                max_row=min(captured.actual_max_row, row_limit + 1),
+                min_row=header_row + 1,
+                max_row=min(
+                    captured.actual_max_row,
+                    header_row + MAX_PEAK_PREVIEW_ROWS,
+                ),
                 min_col=1,
                 max_col=len(header),
             ):
@@ -253,6 +272,7 @@ def preview_xlsx_peak_table(
             tuple("" if value is None else str(value) for value in header),
             tuple(rows),
             str(part.title),
+            import_settings=import_settings,
         )
     finally:
         workbook.close()
@@ -339,16 +359,21 @@ class GenericXlsxAdapter:
 
             compatible: list[tuple[Any, SheetPart, list[object]]] = []
             invalid_schemas: list[ParseError] = []
+            header_row = (
+                options.peak_table_mapping.import_settings.header_row
+                if options.peak_table_mapping is not None
+                else 1
+            )
             for worksheet, part in indexed:
                 audit = part.worksheet
                 worksheet.reset_dimensions()
-                if audit.actual_max_row == 0 or audit.actual_max_column == 0:
+                if audit.actual_max_row < header_row or audit.actual_max_column == 0:
                     header: list[object] = []
                 else:
                     header_cells = next(
                         worksheet.iter_rows(
-                            min_row=1,
-                            max_row=1,
+                            min_row=header_row,
+                            max_row=header_row,
                             min_col=1,
                             max_col=audit.actual_max_column,
                         ),
@@ -403,7 +428,7 @@ class GenericXlsxAdapter:
             raw_cells = {(cell.row, cell.column): cell for cell in captured.raw_cells}
             audited_header = list(header)
             for column_number in range(1, len(audited_header) + 1):
-                raw_header = raw_cells.get((1, column_number))
+                raw_header = raw_cells.get((header_row, column_number))
                 if raw_header is None:
                     if options.peak_table_mapping is not None:
                         raise ParseError(
@@ -450,12 +475,12 @@ class GenericXlsxAdapter:
             def selected_rows() -> Iterable[list[object]]:
                 worksheet.reset_dimensions()
                 rows = worksheet.iter_rows(
-                    min_row=1,
+                    min_row=header_row,
                     max_row=captured.actual_max_row,
                     min_col=1,
                     max_col=captured.actual_max_column,
                 )
-                for row_number, row in enumerate(rows, start=1):
+                for row_number, row in enumerate(rows, start=header_row):
                     values: list[object] = []
                     for column_number, cell in enumerate(row, start=1):
                         raw = raw_cells.get((row_number, column_number))
@@ -562,6 +587,7 @@ class GenericXlsxAdapter:
                     mapping_profile_fingerprint=(options.peak_table_mapping_profile_fingerprint),
                     mapping_set_id=options.peak_table_mapping_set_id,
                     include_mapping_semantic_sha256=(options.include_mapping_semantic_sha256),
+                    source_header_row=header_row,
                 )
                 return bundle
             sample_id = bundle.samples[0].sample_id

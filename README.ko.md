@@ -159,7 +159,7 @@ BLOCKED이며, 위 Python package GUI가 지원되는 설치 경로입니다.
 
 ### 미지원 Peak Table 열을 직접 mapping
 
-정확한 profile adapter가 없어도 정돈된 CSV, TSV, semicolon-TXT 또는 audited XLSX
+정확한 profile adapter가 없어도 구조화된 CSV, TSV, semicolon-TXT 또는 audited XLSX
 Result 표에 RT와 Area 열이 명시되어 있다면 desktop의 **Map Peak Columns** 또는 CLI
 mapping JSON을 사용할 수 있습니다.
 
@@ -176,6 +176,10 @@ ordered matrix → workbook 경로를 사용합니다. RT, Area, unit, compound,
 template을 exact format/header 구조로 한 batch에서 재사용하며, 0개 또는 여러 profile이
 일치하면 fallback 없이 실패합니다. [명시적 mapping 계약](docs/formats/explicit-peak-table-mapping.md)을
 참고해 주세요.
+Local preview가 실제 peak table을 표시하지 않으면 **Table Options**에서 제한된 text
+encoding, header record 또는 visible worksheet를 명시적으로 선택할 수 있습니다. 이 설정은
+Mapping/Profile과 함께 저장되고 이름 기반 Recipe로 재사용되며 scientific 역할을 추론하지
+않습니다.
 저장된 구조가 달라지면 bounded 진단은 고정된 구조 차이만 설명하고 후보를 자동 적용하지
 않습니다. Desktop에서 사용자가 mapping을 다시 확인하면 기존 template을 보존한 채 새
 profile을 만들 수 있습니다.
@@ -536,9 +540,10 @@ Bridge는 Git worktree 내부 output을 거부하며, Ordifile의 고정 ignored
 ## 제한사항
 
 - 입력 파일 하나가 시료 하나를 나타냅니다.
-- 일반 delimited-text 입력은 UTF-8 또는 UTF-8 BOM입니다. Proprietary exact text
-  adapter는 fixture로 검증해 문서화한 encoding만 사용합니다. Adapter별 delimiter가
-  고정되며 자동 추측하지 않습니다.
+- 자동 generic delimited-text 입력은 UTF-8 또는 UTF-8 BOM입니다. 명시적으로 mapping하는
+  intake에서는 UTF-8, CP949, Windows-1252와 bounded header record를 선택할 수 있습니다.
+  Proprietary exact text adapter는 fixture로 검증해 문서화한 encoding만 사용합니다.
+  Container별 delimiter는 고정되며 encoding이나 delimiter를 자동 추측하지 않습니다.
 - Extension filter는 discovery 전에 lowercase dotted ASCII로 정규화합니다. 고유 filter는
   최대 32개이며 선행 점 뒤 ASCII suffix는 각 32자입니다. Manifest 표현은 1,024자로
   제한합니다.

@@ -40,6 +40,7 @@ MAX_PEAK_PREVIEW_CELL_CHARACTERS = 32_767
 MAX_PEAK_PREVIEW_TOTAL_CHARACTERS = 1_000_000
 MAX_PEAK_PREVIEW_LINE_BYTES = 256 * 1024
 MAX_PEAK_PREVIEW_READ_BYTES = 2 * 1024 * 1024
+MAX_PEAK_TABLE_HEADER_ROW = 100
 MAPPED_XLSX_SHEET_MARKER = "USER_SELECTED"
 
 _COLUMN_FIELDS = (
@@ -77,6 +78,78 @@ class PeakTableFormat(StrEnum):
     TSV = "tsv"
     SEMICOLON = "semicolon"
     XLSX = "xlsx"
+
+
+class PeakTableTextEncoding(StrEnum):
+    """Bounded text encodings available to explicit generic mappings."""
+
+    UTF8 = "utf-8-sig"
+    CP949 = "cp949"
+    WINDOWS_1252 = "windows-1252"
+
+    @property
+    def codec_name(self) -> str:
+        """Return the fixed Python codec without performing charset detection."""
+        return self.value
+
+
+@dataclass(frozen=True, slots=True)
+class PeakTableImportSettings:
+    """Explicit structural reading choices; never scientific column meanings."""
+
+    text_encoding: PeakTableTextEncoding = PeakTableTextEncoding.UTF8
+    header_row: int = 1
+
+    def __post_init__(self) -> None:
+        if type(self.text_encoding) is not PeakTableTextEncoding:
+            raise _mapping_error("text_encoding must be utf-8-sig, cp949, or windows-1252.")
+        if (
+            type(self.header_row) is not int
+            or self.header_row < 1
+            or self.header_row > MAX_PEAK_TABLE_HEADER_ROW
+        ):
+            raise _mapping_error(
+                f"header_row must be an integer from 1 through {MAX_PEAK_TABLE_HEADER_ROW}."
+            )
+
+    @property
+    def is_default(self) -> bool:
+        """Return whether the settings preserve the original clean-table contract."""
+        return self.text_encoding is PeakTableTextEncoding.UTF8 and self.header_row == 1
+
+    def to_dict(self) -> dict[str, object]:
+        """Return one deterministic data-only representation."""
+        return {
+            "text_encoding": self.text_encoding.value,
+            "header_row": self.header_row,
+        }
+
+    @classmethod
+    def from_value(cls, value: object) -> PeakTableImportSettings:
+        """Parse a strict optional schema extension."""
+        if type(value) is not dict:
+            raise _mapping_error("import_settings must be an object.")
+        payload = cast(dict[object, object], value)
+        if set(payload) != {"text_encoding", "header_row"}:
+            raise _mapping_error(
+                "import_settings must contain exactly text_encoding and header_row."
+            )
+        raw_encoding = payload["text_encoding"]
+        raw_header_row = payload["header_row"]
+        if type(raw_encoding) is not str:
+            raise _mapping_error("text_encoding must be text.")
+        try:
+            encoding = PeakTableTextEncoding(raw_encoding)
+        except ValueError as error:
+            raise _mapping_error(
+                "text_encoding must be utf-8-sig, cp949, or windows-1252."
+            ) from error
+        if type(raw_header_row) is not int:
+            raise _mapping_error("header_row must be an integer.")
+        return cls(encoding, raw_header_row)
+
+
+DEFAULT_PEAK_TABLE_IMPORT_SETTINGS = PeakTableImportSettings()
 
 
 class PeakMappingDriftCategory(StrEnum):
@@ -162,6 +235,7 @@ class PeakTablePreview:
     rows: tuple[tuple[str, ...], ...]
     sheet: str | None = None
     source_sha256: str | None = None
+    import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS
 
 
 _ROLE_BY_FIELD = {
@@ -278,6 +352,7 @@ class PeakTableMapping:
     software: str | None = None
     ignored_columns: tuple[ColumnSelector, ...] = ()
     schema_version: int = PEAK_MAPPING_SCHEMA_VERSION
+    import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS
 
     def __post_init__(self) -> None:
         if (
@@ -291,6 +366,13 @@ class PeakTableMapping:
             raise _mapping_error("area_column must be a ColumnSelector.")
         if type(self.source_format) is not PeakTableFormat:
             raise _mapping_error("source_format must be csv, tsv, semicolon, or xlsx.")
+        if type(self.import_settings) is not PeakTableImportSettings:
+            raise _mapping_error("import_settings must be a PeakTableImportSettings value.")
+        if (
+            self.source_format is PeakTableFormat.XLSX
+            and self.import_settings.text_encoding is not PeakTableTextEncoding.UTF8
+        ):
+            raise _mapping_error("text_encoding is available only for text peak tables.")
         for name in _COLUMN_FIELDS[2:]:
             value = getattr(self, name)
             if value is not None and type(value) is not ColumnSelector:
@@ -383,6 +465,8 @@ class PeakTableMapping:
         for name in _TEXT_FIELDS:
             payload[name] = getattr(self, name)
         payload["ignored_columns"] = [selector.to_dict() for selector in self.ignored_columns]
+        if not self.import_settings.is_default:
+            payload["import_settings"] = self.import_settings.to_dict()
         return payload
 
     def to_json(self) -> str:
@@ -481,6 +565,9 @@ class PeakTableMapping:
             normalized_format = PeakTableFormat(source_format)
         except ValueError as error:
             raise _mapping_error("source_format must be csv, tsv, semicolon, or xlsx.") from error
+        import_settings = PeakTableImportSettings.from_value(
+            payload.get("import_settings", DEFAULT_PEAK_TABLE_IMPORT_SETTINGS.to_dict())
+        )
         retention_selector = selectors["retention_time_column"]
         area_selector = selectors["area_column"]
         retention_unit = text_values["retention_time_unit"]
@@ -512,6 +599,7 @@ class PeakTableMapping:
             software=text_values["software"],
             ignored_columns=ignored_columns,
             schema_version=schema_version,
+            import_settings=import_settings,
         )
 
     @classmethod
@@ -622,39 +710,41 @@ class PeakTableMappingProfile:
     @property
     def exact_structure_sha256(self) -> str:
         """Return a local-only exact structure digest; never public provenance."""
-        return _canonical_sha256(
-            {
-                "source_format": self.mapping.source_format.value,
-                "headers": self.mapping.declared_headers,
-                "worksheet_title": self.worksheet_title,
-            }
-        )
+        payload: dict[str, object] = {
+            "source_format": self.mapping.source_format.value,
+            "headers": self.mapping.declared_headers,
+            "worksheet_title": self.worksheet_title,
+        }
+        if not self.mapping.import_settings.is_default:
+            payload["import_settings"] = self.mapping.import_settings.to_dict()
+        return _canonical_sha256(payload)
 
     @property
     def structural_fingerprint_sha256(self) -> str:
         """Return a public-safe summary without header labels, values, or local names."""
-        return _canonical_sha256(
-            {
-                "fingerprint_schema_version": PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION,
-                "mapping_schema_version": self.mapping.schema_version,
-                "source_format": self.mapping.source_format.value,
-                "column_count": len(self.mapping.declared_headers),
-                "ordered_roles": self.mapping.structural_roles,
-                "unit_presence": {
-                    "retention_time": True,
-                    "area": self.mapping.area_unit is not None,
-                    "height": self.mapping.height_unit is not None,
-                    "secondary_retention_time": (
-                        self.mapping.secondary_retention_time_unit is not None
-                    ),
-                },
-                "worksheet_policy": (
-                    "EXACT_TITLE" if self.worksheet_title is not None else "SINGLE_VISIBLE"
-                )
-                if self.mapping.source_format is PeakTableFormat.XLSX
-                else "NOT_APPLICABLE",
-            }
-        )
+        payload: dict[str, object] = {
+            "fingerprint_schema_version": PEAK_MAPPING_FINGERPRINT_SCHEMA_VERSION,
+            "mapping_schema_version": self.mapping.schema_version,
+            "source_format": self.mapping.source_format.value,
+            "column_count": len(self.mapping.declared_headers),
+            "ordered_roles": self.mapping.structural_roles,
+            "unit_presence": {
+                "retention_time": True,
+                "area": self.mapping.area_unit is not None,
+                "height": self.mapping.height_unit is not None,
+                "secondary_retention_time": (
+                    self.mapping.secondary_retention_time_unit is not None
+                ),
+            },
+            "worksheet_policy": (
+                "EXACT_TITLE" if self.worksheet_title is not None else "SINGLE_VISIBLE"
+            )
+            if self.mapping.source_format is PeakTableFormat.XLSX
+            else "NOT_APPLICABLE",
+        }
+        if not self.mapping.import_settings.is_default:
+            payload["import_settings"] = self.mapping.import_settings.to_dict()
+        return _canonical_sha256(payload)
 
     @property
     def semantic_sha256(self) -> str:
@@ -671,11 +761,14 @@ class PeakTableMappingProfile:
         source_format: PeakTableFormat,
         headers: tuple[str, ...],
         *,
+        import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
         worksheet_title: str | None = None,
         single_visible_worksheet: bool = False,
     ) -> bool:
         """Match exact local structure without reading any scientific row values."""
         if source_format is not self.mapping.source_format:
+            return False
+        if import_settings != self.mapping.import_settings:
             return False
         if headers != self.mapping.declared_headers:
             return False
@@ -786,6 +879,7 @@ class PeakTableMappingSet:
         source_format: PeakTableFormat,
         headers: tuple[str, ...],
         *,
+        import_settings: PeakTableImportSettings = DEFAULT_PEAK_TABLE_IMPORT_SETTINGS,
         worksheet_title: str | None = None,
         single_visible_worksheet: bool = False,
     ) -> tuple[PeakTableMappingProfile, ...]:
@@ -796,6 +890,7 @@ class PeakTableMappingSet:
             if profile.matches(
                 source_format,
                 headers,
+                import_settings=import_settings,
                 worksheet_title=worksheet_title,
                 single_visible_worksheet=single_visible_worksheet,
             )
@@ -916,6 +1011,11 @@ def clone_peak_table_mapping_profile(
             "PEAK_MAPPING_REPAIR_STRUCTURE_MISMATCH",
             "The repaired mapping does not classify the exact observed table structure.",
         )
+    if repaired_mapping.import_settings != observed_preview.import_settings:
+        raise OrdifileError(
+            "PEAK_MAPPING_REPAIR_IMPORT_SETTINGS_MISMATCH",
+            "The repaired mapping does not use the explicitly previewed table settings.",
+        )
     repaired_mapping.semantic_headers(observed_preview.headers)
     worksheet_title = (
         observed_preview.sheet if repaired_mapping.source_format is PeakTableFormat.XLSX else None
@@ -923,6 +1023,7 @@ def clone_peak_table_mapping_profile(
     existing_matches = mapping_set.match(
         observed_preview.source_format,
         observed_preview.headers,
+        import_settings=observed_preview.import_settings,
         worksheet_title=observed_preview.sheet,
         single_visible_worksheet=observed_preview.source_format is PeakTableFormat.XLSX,
     )
@@ -940,6 +1041,7 @@ def clone_peak_table_mapping_profile(
     matches = updated.match(
         observed_preview.source_format,
         observed_preview.headers,
+        import_settings=observed_preview.import_settings,
         worksheet_title=observed_preview.sheet,
         single_visible_worksheet=observed_preview.source_format is PeakTableFormat.XLSX,
     )

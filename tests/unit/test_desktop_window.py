@@ -654,6 +654,24 @@ def test_active_recipe_rename_changes_display_only_and_keeps_effective_request(
     window.close()
 
 
+def test_loaded_recipe_keeps_existing_non_mapping_worksheet_options(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    recipe = ConversionRecipe(sheet="Results", include_hidden_sheets=True)
+    library = RecipeLibrary(tmp_path / "recipes")
+    stored = library.create(recipe, "Workbook selection")
+    window = MainWindow(recipe_library=library)
+
+    window._apply_conversion_recipe(stored.recipe, recipe_id=stored.recipe_id)
+
+    current = window._current_settings_recipe()
+    assert current.sheet == "Results"
+    assert current.include_hidden_sheets
+    assert not window.recipe_modified
+    window.close()
+
+
 def test_unavailable_recipe_library_does_not_block_direct_conversion(
     app: QApplication, tmp_path: Path
 ) -> None:
@@ -897,6 +915,34 @@ def test_window_adds_renames_and_removes_current_mapping_profile(
     assert window.peak_table_mapping_set is None
     assert not window.use_mapping_set_checkbox.isChecked()
     assert window.peak_table_mapping is mapping
+    window.close()
+
+
+def test_window_preserves_direct_xlsx_worksheet_in_request_recipe_and_profile(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del app
+    window = MainWindow()
+    monkeypatch.setattr(window, "_request_preview", lambda *_args: None)
+    monkeypatch.setattr(
+        "ordifile.desktop.window.QInputDialog.getText",
+        lambda *_args, **_kwargs: ("Result worksheet", True),
+    )
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.XLSX,
+    )
+
+    window._set_peak_mapping(mapping, sheet="Results")
+
+    assert window._current_preflight_request().sheet == "Results"
+    assert window._current_settings_recipe().sheet == "Results"
+    window._add_current_mapping_profile()
+    mapping_set = window.peak_table_mapping_set
+    assert mapping_set is not None
+    assert mapping_set.profiles[0].worksheet_title == "Results"
     window.close()
 
 

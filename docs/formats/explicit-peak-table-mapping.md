@@ -1,34 +1,47 @@
 # Explicit peak-table mapping
 
-Explicit peak-table mapping is a local, user-confirmed import mode for clean result
+Explicit peak-table mapping is a local, user-confirmed import mode for structured result
 tables whose vendor/software profile does not have a built-in Ordifile adapter. It
 does not detect or verify a vendor format.
 
 The initial contract reuses only Ordifile's existing audited generic containers:
 
-- comma-delimited UTF-8 or UTF-8-BOM `.csv`;
-- tab-delimited UTF-8 or UTF-8-BOM `.tsv`, or `.txt` when the mapping declares TSV;
-- semicolon-delimited UTF-8 or UTF-8-BOM `.txt`;
-- Transitional, non-macro `.xlsx`, with one worksheet or an explicit sheet selection.
+- comma-delimited `.csv`;
+- tab-delimited `.tsv`, or `.txt` when the mapping declares TSV;
+- semicolon-delimited `.txt`;
+- Transitional, non-macro `.xlsx`, with a desktop-selected visible worksheet when more than
+  one is available.
 
-The desktop mapping dialog currently accepts an XLSX workbook only when exactly one visible
-worksheet is available. The CLI and Python API can select one worksheet explicitly with
-`--sheet`/`sheet=`. The selected title is used locally to read the workbook but is represented
-in conversion results and the Manifest only by the fixed `USER_SELECTED` marker.
+The desktop **Table Options** section lets the researcher explicitly choose the text encoding,
+one-based header record, and visible XLSX worksheet before mapping scientific columns. Text
+encodings are limited to UTF-8/UTF-8-BOM, Korean Windows (CP949), and Western Windows (1252).
+There is no encoding fallback chain. Delimiters remain fixed by the declared container: comma
+for CSV, tab for TSV, and semicolon for semicolon-TXT. The selected worksheet title is used
+locally but is represented in conversion results and the Manifest only by the fixed
+`USER_SELECTED` marker.
 
-Legacy `.xls`, PDF, arbitrary encodings or delimiters, formulas as scientific values,
-preamble/header guessing, and multiple runs in one table are outside this contract.
+The CLI/API keep the existing direct-mapping behavior: an exact `--sheet`/`sheet=` selection
+is accepted, and without one the audited generic XLSX reader may proceed only when the mapping
+matches exactly one allowed worksheet. Zero or multiple compatible worksheets fail closed.
+
+For delimited text, the header setting selects a bounded logical CSV record, so a quoted
+multi-line preamble field remains one record. For XLSX it selects a bounded worksheet row.
+Ordifile never guesses a header, encoding, delimiter, or scientific role. Legacy `.xls`, PDF,
+arbitrary encodings or delimiters, formulas as scientific values, automatic footer removal,
+locale-decimal guessing, and multiple runs in one table are outside this contract.
 
 ## Workflow
 
 1. Select a structured result file.
-2. Select the exact source columns for retention time and area.
-3. Declare the retention-time unit and confirm the area-unit state.
-4. Optionally map height, compound, peak number, detector, channel, sample, run,
+2. If the preview is not the peak table, open **Table Options** and explicitly select the
+   encoding, header record/row, or worksheet.
+3. Select the exact source columns for retention time and area.
+4. Declare the retention-time unit and confirm the area-unit state.
+5. Optionally map height, compound, peak number, detector, channel, sample, run,
    acquisition time, integration boundaries, or a secondary retention coordinate.
-5. Explicitly ignore every source column that is not mapped.
-6. Save the data-only JSON mapping and reuse it for files from the same table template.
-7. Convert through the ordinary `PeakRecord` and Excel exporter pipeline.
+6. Explicitly ignore every source column that is not mapped.
+7. Save the Mapping/Profile or named Recipe and reuse it for files from the same template.
+8. Convert through Preflight and the ordinary `PeakRecord` and Excel exporter pipeline.
 
 The CLI form is:
 
@@ -66,7 +79,11 @@ For a neutral synthetic table with headers `Peak No.`, `Retention Time`, `Area`,
 }
 ```
 
-Missing optional properties mean “not mapped.” The serializer writes a normalized form
+Missing optional properties mean “not mapped.” Default table-import settings are omitted,
+so existing schema-version-1 JSON and semantic hashes remain unchanged. A non-default mapping
+adds a strict `import_settings` object such as
+`{"text_encoding":"cp949","header_row":6}`. Current Ordifile loads both forms; older Ordifile
+versions can reject the extended form because unknown fields remain fail-closed. The serializer writes a normalized form
 with every optional property present, including exact mapped and ignored header selectors,
 units, and optional user-supplied manufacturer/software. It stores no source data rows or
 source paths. Its path-independent semantic SHA-256 is stored in conversion provenance.
@@ -92,7 +109,8 @@ uses its own schema version 1; existing single-mapping JSON remains loadable unc
 Both documents are strict, non-executable UTF-8 JSON.
 
 Profile selection is exact structural routing, not scientific inference. For text it
-compares the declared container and every decoded header label at its one-based position.
+uses the approved encoding/header setting and compares the declared container and every
+decoded header label at its one-based position.
 CSV, TSV, and semicolon-TXT remain distinct. For XLSX a profile either names one exact
 local worksheet or requires one unambiguous visible worksheet, then compares the ordered
 headers. Filename, directory, vendor name, display label, file hash, row count, and all

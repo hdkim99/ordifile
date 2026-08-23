@@ -18,6 +18,7 @@ from ordifile.core.peak_mapping import (
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMappingProfile,
     PeakTableMappingSet,
 )
@@ -71,6 +72,7 @@ class ResolvedPeakTableMapping:
 class _ObservedPeakTableStructure:
     source_format: PeakTableFormat
     headers: tuple[str, ...]
+    import_settings: PeakTableImportSettings = PeakTableImportSettings()
     worksheet_title: str | None = None
     single_visible_worksheet: bool = False
 
@@ -277,6 +279,8 @@ def _diagnostics(
         for profile in mapping_set.profiles:
             if profile.mapping.source_format is not observed.source_format:
                 continue
+            if profile.mapping.import_settings != observed.import_settings:
+                continue
             diagnostic = _diagnostic(profile, observed)
             key = (diagnostic.profile_id, diagnostic.source_format)
             previous = candidates.get(key)
@@ -294,9 +298,15 @@ def _diagnostics(
 def _text_observation(
     path: Path,
     source_format: PeakTableFormat,
+    import_settings: PeakTableImportSettings,
 ) -> _ObservedPeakTableStructure:
-    preview = preview_delimited_peak_table(path, source_format, row_limit=0)
-    return _ObservedPeakTableStructure(source_format, preview.headers)
+    preview = preview_delimited_peak_table(
+        path,
+        source_format,
+        row_limit=0,
+        import_settings=import_settings,
+    )
+    return _ObservedPeakTableStructure(source_format, preview.headers, import_settings)
 
 
 def _xlsx_observations(
@@ -311,38 +321,58 @@ def _xlsx_observations(
     observations: list[_ObservedPeakTableStructure] = []
     exact_titles = tuple(
         dict.fromkeys(
-            profile.worksheet_title for profile in profiles if profile.worksheet_title is not None
+            (profile.worksheet_title, profile.mapping.import_settings)
+            for profile in profiles
+            if profile.worksheet_title is not None
         )
     )
-    for title in exact_titles:
+    for title, import_settings in exact_titles:
         assert title is not None
         try:
-            preview = preview_xlsx_peak_table(path, sheet=title, row_limit=0)
+            preview = preview_xlsx_peak_table(
+                path,
+                sheet=title,
+                row_limit=0,
+                import_settings=import_settings,
+            )
         except ParseError as error:
             if error.code == "XLSX_SHEET_NOT_FOUND":
                 continue
             raise
         observations.append(
-            _ObservedPeakTableStructure(PeakTableFormat.XLSX, preview.headers, title)
-        )
-    ambiguous_default = False
-    try:
-        preview = preview_xlsx_peak_table(path, row_limit=0)
-    except AdapterAmbiguityError:
-        ambiguous_default = True
-    else:
-        observations.append(
             _ObservedPeakTableStructure(
                 PeakTableFormat.XLSX,
                 preview.headers,
-                preview.sheet,
-                single_visible_worksheet=True,
+                import_settings,
+                title,
             )
         )
+    ambiguous_default = False
+    default_settings = tuple(dict.fromkeys(profile.mapping.import_settings for profile in profiles))
+    for import_settings in default_settings:
+        try:
+            preview = preview_xlsx_peak_table(
+                path,
+                row_limit=0,
+                import_settings=import_settings,
+            )
+        except AdapterAmbiguityError:
+            ambiguous_default = True
+        else:
+            observations.append(
+                _ObservedPeakTableStructure(
+                    PeakTableFormat.XLSX,
+                    preview.headers,
+                    import_settings,
+                    preview.sheet,
+                    single_visible_worksheet=True,
+                )
+            )
     unique = {
         (
             item.source_format,
             item.headers,
+            item.import_settings,
             item.worksheet_title,
             item.single_visible_worksheet,
         ): item
@@ -360,20 +390,32 @@ def resolve_peak_table_mapping(
     errors: list[OrdifileError] = []
     ambiguous_xlsx = False
     for source_format in _candidate_formats(path, mapping_set):
-        try:
-            if source_format is PeakTableFormat.XLSX:
+        if source_format is PeakTableFormat.XLSX:
+            try:
                 xlsx_observations, ambiguous_xlsx = _xlsx_observations(path, mapping_set)
                 observations.extend(xlsx_observations)
-            else:
-                observations.append(_text_observation(path, source_format))
-        except OrdifileError as error:
-            errors.append(error)
+            except OrdifileError as error:
+                errors.append(error)
+        else:
+            settings = tuple(
+                dict.fromkeys(
+                    profile.mapping.import_settings
+                    for profile in mapping_set.profiles
+                    if profile.mapping.source_format is source_format
+                )
+            )
+            for import_settings in settings:
+                try:
+                    observations.append(_text_observation(path, source_format, import_settings))
+                except OrdifileError as error:
+                    errors.append(error)
 
     matches: dict[tuple[str, str | None], ResolvedPeakTableMapping] = {}
     for observed in observations:
         for profile in mapping_set.match(
             observed.source_format,
             observed.headers,
+            import_settings=observed.import_settings,
             worksheet_title=observed.worksheet_title,
             single_visible_worksheet=observed.single_visible_worksheet,
         ):

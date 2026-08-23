@@ -18,6 +18,7 @@ from ordifile import (
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
@@ -242,6 +243,7 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
         "sort": "sequence",
         "on_error": "continue",
         "overwrite": False,
+        "sheet": None,
         "peak_table_mapping": None,
         "peak_table_mapping_set": None,
         "progress": None,
@@ -519,6 +521,7 @@ def test_preview_peak_table_uses_public_bounded_preview_api(
         rows=(("1.2", "10"),),
         sheet=None,
         source_sha256="1" * 64,
+        import_settings=PeakTableImportSettings(),
     )
     calls: list[tuple[object, ...]] = []
 
@@ -530,11 +533,18 @@ def test_preview_peak_table_uses_public_bounded_preview_api(
 
     report = services.preview_peak_table(source, PeakTableFormat.CSV)
 
-    assert calls == [(source, PeakTableFormat.CSV, {"sheet": None})]
+    assert calls == [
+        (
+            source,
+            PeakTableFormat.CSV,
+            {"sheet": None, "import_settings": None},
+        )
+    ]
     assert report.preview is not None
     assert report.preview.headers == ("RT", "Area")
     assert report.preview.rows == (("1.2", "10"),)
     assert report.preview.source_sha256 == "1" * 64
+    assert report.preview.import_settings == PeakTableImportSettings()
 
 
 def test_convert_selection_distinguishes_partial_success(

@@ -21,6 +21,7 @@ from ordifile.core.peak_mapping import (
     PeakMappingDriftCategory,
     PeakMappingDriftDiagnostic,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
@@ -344,6 +345,70 @@ def test_user_confirmed_repair_clones_profile_and_preserves_old_structure() -> N
     assert child.exact_structure_sha256 != parent.exact_structure_sha256
     assert original.match(PeakTableFormat.CSV, parent.mapping.declared_headers) == (parent,)
     assert updated.match(PeakTableFormat.CSV, preview.headers) == (child,)
+
+
+def test_user_confirmed_repair_preserves_explicit_import_settings() -> None:
+    parent = _profile()
+    original = PeakTableMappingSet((parent,))
+    settings = PeakTableImportSettings(header_row=4)
+    preview = PeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area", "Height"),
+        (),
+        import_settings=settings,
+    )
+    repaired = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Peak Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        height_column=ColumnSelector("Height", 3),
+        import_settings=settings,
+    )
+
+    updated = clone_peak_table_mapping_profile(
+        original,
+        parent_profile_id=parent.profile_id,
+        observed_preview=preview,
+        repaired_mapping=repaired,
+        display_label="Preamble profile",
+    )
+
+    assert updated.profiles[-1].mapping.import_settings == settings
+    assert updated.match(
+        PeakTableFormat.CSV,
+        preview.headers,
+        import_settings=settings,
+    ) == (updated.profiles[-1],)
+
+
+def test_repair_rejects_import_settings_not_used_for_preview() -> None:
+    parent = _profile()
+    mapping_set = PeakTableMappingSet((parent,))
+    preview = PeakTablePreview(
+        PeakTableFormat.CSV,
+        ("RT", "Peak Area", "Height"),
+        (),
+        import_settings=PeakTableImportSettings(header_row=3),
+    )
+    repaired = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Peak Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        height_column=ColumnSelector("Height", 3),
+    )
+
+    with pytest.raises(OrdifileError) as captured:
+        clone_peak_table_mapping_profile(
+            mapping_set,
+            parent_profile_id=parent.profile_id,
+            observed_preview=preview,
+            repaired_mapping=repaired,
+            display_label="Rejected",
+        )
+
+    assert captured.value.code == "PEAK_MAPPING_REPAIR_IMPORT_SETTINGS_MISMATCH"
 
 
 def test_repair_rejects_a_new_exact_match_ambiguity() -> None:

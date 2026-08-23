@@ -16,6 +16,7 @@ from ordifile.core.models import ConversionExecutionMode, SortMode
 from ordifile.core.peak_mapping import (
     ColumnSelector,
     PeakTableFormat,
+    PeakTableImportSettings,
     PeakTableMapping,
     PeakTableMappingProfile,
     PeakTableMappingSet,
@@ -120,6 +121,45 @@ def test_recipe_routes_mapping_set_and_convert_runs_mandatory_preflight(tmp_path
     assert "Local template" not in workbook_text
 
 
+@pytest.mark.researcher_acceptance
+def test_recipe_reuses_explicit_table_import_settings_without_duplicate_state(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "preamble.csv"
+    source.write_text(
+        "Instrument,Synthetic\nGenerated,2026-08-23\nRT,Area\n2.5,40\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "result.xlsx"
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        import_settings=PeakTableImportSettings(header_row=3),
+    )
+    profile = PeakTableMappingProfile(
+        mapping,
+        profile_id="profile-66666666666666666666666666666666",
+    )
+    recipe = ConversionRecipe(
+        peak_table_mapping_set=PeakTableMappingSet(
+            (profile,),
+            set_id="profile-set-77777777777777777777777777777777",
+        )
+    )
+
+    restored = ConversionRecipe.from_json(recipe.to_json())
+    plan = plan_recipe(source, output, recipe=restored)
+    result = convert_recipe(source, output, recipe=restored, conversion_plan=plan)
+
+    assert restored.peak_table_mapping_set is not None
+    assert restored.peak_table_mapping_set.profiles[0].mapping.import_settings.header_row == 3
+    assert plan.entries[0].route is ConversionPlanRoute.USER_MAPPING_PROFILE
+    assert result.files[0].bundle is not None
+    assert result.files[0].bundle.peaks[0].area == 40.0
+
+
 def test_recipe_identity_is_part_of_plan_without_changing_default_route(tmp_path: Path) -> None:
     source = tmp_path / "generic.csv"
     source.write_text("sample_id,retention_time,area\na,1,2\n", encoding="utf-8")
@@ -173,6 +213,36 @@ def test_recipe_plan_rejects_mapping_set_repair_until_new_preflight(tmp_path: Pa
         profiles=(*recipe.peak_table_mapping_set.profiles, revised),
     )
     changed = replace(recipe, peak_table_mapping_set=repaired_set)
+
+    with pytest.raises(OrdifileError) as captured:
+        convert_recipe(source, output, recipe=changed, conversion_plan=plan)
+
+    assert captured.value.code == "CONVERSION_PLAN_STALE"
+    assert not output.exists()
+
+
+def test_recipe_plan_rejects_changed_table_import_settings(tmp_path: Path) -> None:
+    source = tmp_path / "template.csv"
+    source.write_text("RT,Area\n1,10\n", encoding="utf-8")
+    output = tmp_path / "result.xlsx"
+    recipe = _recipe()
+    plan = plan_recipe(source, output, recipe=recipe)
+    assert recipe.peak_table_mapping_set is not None
+    profile = recipe.peak_table_mapping_set.profiles[0]
+    changed_profile = replace(
+        profile,
+        mapping=replace(
+            profile.mapping,
+            import_settings=PeakTableImportSettings(header_row=2),
+        ),
+    )
+    changed = replace(
+        recipe,
+        peak_table_mapping_set=replace(
+            recipe.peak_table_mapping_set,
+            profiles=(changed_profile,),
+        ),
+    )
 
     with pytest.raises(OrdifileError) as captured:
         convert_recipe(source, output, recipe=changed, conversion_plan=plan)
