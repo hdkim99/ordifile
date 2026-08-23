@@ -17,10 +17,11 @@ concurrency:
 jobs:
   required:
     name: CI / required
-    # Public fork code must never execute on persistent self-hosted research hardware.
+    # Only owner-authored same-repository PRs may execute on persistent research hardware.
     if: >-
       github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.actor == github.repository_owner &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, dgx-spark]
     timeout-minutes: 60
     env:
@@ -227,10 +228,11 @@ jobs:
 
   python-compatibility:
     name: CI / Python ${{ matrix.python }} compatibility
-    # Apply the same fork-PR security boundary to every DGX job.
+    # Apply the same external/bot PR security boundary to every DGX job.
     if: >-
       github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.actor == github.repository_owner &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, dgx-spark]
     timeout-minutes: 30
     strategy:

@@ -626,8 +626,9 @@ workflow runs only an allowlisted same-repository branch whose selected SHA, req
 reviewed commit, workflow SHA, and checkout all match. It has no GitHub-hosted Windows fallback.
 Caller assignment, capability labels, and online state must be confirmed before
 dispatch; the workflow is not authorized for a personal workstation.
-Public-fork core jobs are deliberately skipped and never run on the shared Linux runner.
-Maintainers review an external change before reproducing it on a same-repository branch;
+Public-fork and bot-authored pull-request jobs are deliberately skipped and never run on
+the shared Linux runner. Maintainers review an external or dependency change before
+reproducing it on an owner-authored same-repository branch;
 ordinary CI receives read-only repository permission without publishing secrets or OIDC
 permission.
 Runner availability is an operational setting visible in GitHub Actions; this describes

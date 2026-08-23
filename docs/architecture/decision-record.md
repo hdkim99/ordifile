@@ -127,8 +127,9 @@ to the workbook layout.
     `.raw` are distinct lifecycles, and no proprietary format appears in the support list before
     a lawful fixture and passing adapter tests exist.
 29. Core Actions jobs use one shared Linux DGX self-hosted runner selected by the
-    `dgx-spark` label. Public-fork jobs are skipped and never execute on that runner;
-    reviewed external changes must be reproduced on a same-repository branch. Ordinary
+    `dgx-spark` label. Public-fork and bot-authored pull-request jobs are skipped and
+    never execute on that runner; reviewed external or dependency changes must be
+    reproduced on an owner-authored same-repository branch. Ordinary
     CI receives read-only repository permission, no publishing secrets, no OIDC
     permission, and no release environment. Release
     publishing remains restricted to tag-only jobs with scoped OIDC Trusted Publishing.

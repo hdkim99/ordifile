@@ -48,10 +48,11 @@ pip-audit
 - Use English for code, APIs, CLI text, commit titles, issues, and pull requests.
 - AI-assisted contributions are permitted, but automated tools must not be listed as
   commit authors or co-authors; attribution belongs to the human contributors.
-- Public-fork jobs are deliberately skipped and never run on the shared DGX self-hosted
-  runner. Review workflow, dependency, script, binary, symlink, network, credential,
-  and hidden-control-character changes before reproducing an external contribution on
-  a same-repository branch. Pull-request jobs receive read-only repository access and
+- Public-fork and bot-authored pull-request jobs are deliberately skipped and never run
+  on the shared DGX self-hosted runner. Review workflow, dependency, script, binary,
+  symlink, network, credential, and hidden-control-character changes before reproducing
+  an external or dependency contribution on an owner-authored same-repository branch.
+  Pull-request jobs receive read-only repository access and
   no publishing secrets, OIDC permission, or release environment.
 
 ## Scientific behavior changes
