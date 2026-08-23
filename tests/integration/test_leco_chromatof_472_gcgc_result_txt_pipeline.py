@@ -4,6 +4,7 @@ import hashlib
 import sys
 from pathlib import Path
 
+import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile.api import convert, inspect_file
@@ -59,6 +60,7 @@ def test_inspect_uses_private_source_alias_and_exact_adapter(tmp_path: Path) -> 
     assert private_name not in repr(inspected)
 
 
+@pytest.mark.researcher_acceptance
 def test_result_only_workbook_preserves_dual_rt_area_height_and_extra_metadata(
     tmp_path: Path,
 ) -> None:
@@ -262,6 +264,7 @@ def test_valid_and_corrupt_leco_result_files_are_isolated(tmp_path: Path) -> Non
         workbook.close()
 
 
+@pytest.mark.researcher_acceptance
 def test_four_vendor_synthetic_results_share_one_1d_and_2d_workbook(tmp_path: Path) -> None:
     agilent = tmp_path / "private-agilent.xml"
     agilent.write_bytes(synthetic_result_xml_bytes())

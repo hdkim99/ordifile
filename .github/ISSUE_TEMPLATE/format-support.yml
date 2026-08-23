@@ -1,12 +1,26 @@
 name: Format support request
 description: Request investigation of a scientific instrument format.
 title: "format: "
-labels: ["format-request", "needs-evidence"]
+labels: ["format-support", "research"]
 body:
   - type: markdown
     attributes:
       value: |
         Warning: do not attach raw/result files, screenshots, mapping JSON, Mapping Set JSON, Conversion Recipe JSON, private conversion plans, detailed dry-run logs, or workbooks to this public issue. Remove personal, sample, patient, organization, path, and instrument identifiers. Maintainers will arrange a private/local intake path when useful. A format is not supported until lawful actual fixtures and tests verify its exact capabilities.
+  - type: input
+    id: ordifile_version
+    attributes:
+      label: Ordifile version
+      placeholder: "Paste the output of: ordifile --version"
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface used
+      options: [CLI, GUI, Python API, Not tried]
+    validations:
+      required: true
   - type: input
     id: vendor
     attributes:
@@ -23,6 +37,7 @@ body:
     id: software
     attributes:
       label: Acquisition or export software version
+      description: Enter Unknown when the exact version is unavailable.
     validations:
       required: true
   - type: input
@@ -56,6 +71,27 @@ body:
         - label: Spectrum
         - label: Other processed results
   - type: dropdown
+    id: generic_mapping
+    attributes:
+      label: Did explicit generic peak-table mapping work?
+      options: [Yes, No, Not tried, Not applicable]
+    validations:
+      required: true
+  - type: input
+    id: retention_time_column
+    attributes:
+      label: Retention-time column and unit
+      description: Enter the visible column label and unit, or Unknown. Do not include measured rows.
+    validations:
+      required: true
+  - type: input
+    id: area_column
+    attributes:
+      label: Area column and unit
+      description: Enter the visible column label and unit, or Unknown. Do not include measured rows.
+    validations:
+      required: true
+  - type: dropdown
     id: fixture
     attributes:
       label: Can you share an anonymized fixture privately?
@@ -83,3 +119,10 @@ body:
       description: Describe the fields, units, channels, and relationships that must be preserved.
     validations:
       required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed personal, sample, organization, local-path, account, and instrument identifiers from this public issue.
+          required: true

@@ -6,13 +6,85 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from ordifile.api import convert, inspect_file
+from ordifile import (
+    load_conversion_recipe,
+    load_peak_table_mapping,
+    load_peak_table_mapping_set,
+)
+from ordifile.api import convert, convert_recipe, inspect_file, plan_recipe
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "synthetic"
 EXAMPLES = Path(__file__).parents[2] / "examples" / "basic"
+PILOT = Path(__file__).parents[2] / "examples" / "pilot"
 EXPECTED_XLSX_SHA256 = "df36be466410ed5c02d75723ec59ed6c896fad2be51ec4bb8f6edcab937fce96"
+
+
+@pytest.mark.researcher_acceptance
+def test_public_safe_pilot_recipe_reopens_with_documented_values(tmp_path: Path) -> None:
+    mapping = load_peak_table_mapping(PILOT / "template-a.mapping.json")
+    mapping_set = load_peak_table_mapping_set(PILOT / "templates.mapping-set.json")
+    recipe = load_conversion_recipe(PILOT / "laboratory.recipe.json")
+    assert recipe.peak_table_mapping_set is not None
+    assert recipe.peak_table_mapping_set.to_dict() == mapping_set.to_dict()
+    assert mapping.to_dict() == mapping_set.profiles[0].mapping.to_dict()
+
+    inputs = PILOT / "inputs"
+    source_bytes = {path: path.read_bytes() for path in sorted(inputs.iterdir())}
+    output = tmp_path / "Pilot_Result.xlsx"
+    plan = plan_recipe(inputs, output, recipe=recipe)
+    result = convert_recipe(inputs, output, recipe=recipe, conversion_plan=plan)
+
+    assert plan.summary.mapping_profiles == 2
+    assert plan.summary.failed == 0
+    assert result.success_count == 2
+    assert result.failure_count == 0
+    assert {path: path.read_bytes() for path in source_bytes} == source_bytes
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert workbook.active.title == "Samples"
+        assert workbook.sheetnames == [
+            "Manifest",
+            "Samples",
+            "Peak_Matrix",
+            "Peak_Order_Matrix",
+            "Peaks",
+            "Metadata",
+            "Import_Log",
+        ]
+        peak_rows = tuple(workbook["Peaks"].iter_rows(values_only=True))
+        headers = tuple(peak_rows[0])
+        columns = {name: headers.index(name) for name in headers}
+        values = {
+            (
+                row[columns["retention_time"]],
+                row[columns["retention_time_unit"]],
+                row[columns["area"]],
+                row[columns["height"]],
+                row[columns["area_unit"]],
+                row[columns["height_unit"]],
+            )
+            for row in peak_rows[1:]
+        }
+        assert values == {
+            (1.25, "min", 10, 2, "pA*s", "pA"),
+            (2.5, "min", 20, 4, "pA*s", "pA"),
+            (30, "s", 100, None, "AU", None),
+            (45, "s", 200, None, "AU", None),
+        }
+        workbook_text = "\n".join(
+            str(value)
+            for sheet in workbook.worksheets
+            for row in sheet.iter_rows(values_only=True)
+            for value in row
+            if value is not None
+        )
+        assert "Neutral laboratory pilot" not in workbook_text
+        assert str(PILOT.resolve()) not in workbook_text
+    finally:
+        workbook.close()
 
 
 def test_committed_xlsx_checksum_matches_fixture_documentation() -> None:

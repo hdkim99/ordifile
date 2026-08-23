@@ -10,6 +10,20 @@
 Batch-convert and consolidate scientific instrument results into one clean, ordered
 and auditable Excel workbook.
 
+## Is Ordifile right for my lab?
+
+Ordifile is for researchers who need to combine explicit chromatography Result or
+structured peak tables locally while preserving measured values, units, source order,
+and per-file outcomes. It supports exact Experimental profiles only where fixture-backed
+evidence exists; other structured tables require explicit user mapping.
+
+Ordifile is not a CDS replacement, acquisition controller, peak detector, compound
+identification or RT-alignment engine, statistics suite, quantitation/calibration engine,
+cloud platform, or LIMS. It does not infer missing scientific meaning. See the
+[product concept](docs/product-concept.md), [researcher documentation](docs/README.md),
+and [pilot checklist](docs/user/pilot-checklist.md) before evaluating it with laboratory
+exports.
+
 Ordifile's proprietary-format direction is **result-first**: evidence-backed retention
 time and area tables from Agilent, Shimadzu, YoungIn and LECO should converge on the same
 `Peaks` / `Peak_Matrix` workbook model. Raw signals are an optional, independently
@@ -87,7 +101,7 @@ Failed files: 0
 Skipped files: 0
 Duplicate files: 0
 Samples: 3
-Peaks: 6
+Peaks: 3
 Scientific signal series: 0
 Structural record series: 0
 Sort requested: filename
@@ -99,7 +113,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 The source files remain unchanged. Natural filename ordering keeps `sample_2` before
 `sample_10`.
 
-![The Samples sheet read back from the generated Ordifile workbook](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-workbook.png)
+![The Samples sheet read back from the separate examples/basic workbook](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-workbook.png)
 
 ## Experimental desktop interface
 

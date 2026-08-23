@@ -10,6 +10,20 @@
 과학 장비 결과를 일괄 변환·통합하여 하나의 깔끔하고 정돈되며 감사 가능한
 Excel workbook으로 만듭니다.
 
+## 우리 연구실에 Ordifile이 적합한가요?
+
+Ordifile은 명시적인 chromatography Result 또는 구조화된 peak table을 local에서
+통합하면서 측정값, unit, source order, 파일별 결과를 보존해야 하는 연구자를 위한
+도구입니다. Fixture 근거가 있는 범위가 좁은 Experimental profile만 exact하게 지원하며,
+그 밖의 구조화된 표는 사용자가 열을 명시적으로 mapping해야 합니다.
+
+Ordifile은 CDS 대체, acquisition control, peak detection, compound identification,
+RT alignment, 통계 분석 suite, quantitation/calibration engine, cloud platform 또는
+LIMS를 목표로 하지 않습니다. 누락된 scientific meaning을 추론하지 않습니다.
+연구실 export로 평가하기 전에 [제품 개념](docs/product-concept.md),
+[연구자 문서](docs/README.md), [파일럿 checklist](docs/user/pilot-checklist.md)를
+확인해 주세요.
+
 Ordifile의 proprietary 형식 방향은 **result-first**입니다. 근거가 확보된 Agilent,
 Shimadzu, YoungIn, LECO retention time·area result를 동일한 `Peaks` / `Peak_Matrix` workbook
 model로 통합하며 raw signal은 별도로 검증하는 선택 기능입니다. Result
@@ -86,7 +100,7 @@ Failed files: 0
 Skipped files: 0
 Duplicate files: 0
 Samples: 3
-Peaks: 6
+Peaks: 3
 Scientific signal series: 0
 Structural record series: 0
 Sort requested: filename
@@ -98,7 +112,7 @@ Sheets: Manifest, Samples, Peak_Matrix, Peaks, Metadata, Import_Log
 입력 파일은 수정하지 않습니다. 자연 파일명 정렬은 `sample_10`보다 `sample_2`를
 먼저 배치합니다.
 
-![생성된 Ordifile workbook에서 다시 읽은 Samples sheet](docs/assets/ordifile-workbook.png)
+![별도의 examples/basic workbook에서 다시 읽은 Samples sheet](docs/assets/ordifile-workbook.png)
 
 ## Experimental desktop interface
 

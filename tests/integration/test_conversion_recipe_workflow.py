@@ -88,6 +88,7 @@ def _workbook_text(path: Path) -> str:
         workbook.close()
 
 
+@pytest.mark.researcher_acceptance
 def test_recipe_routes_mapping_set_and_convert_runs_mandatory_preflight(tmp_path: Path) -> None:
     source = tmp_path / "template-a.csv"
     source.write_text("RT,Area\n1.5,10\n2.5,20\n", encoding="utf-8")
@@ -133,6 +134,7 @@ def test_recipe_identity_is_part_of_plan_without_changing_default_route(tmp_path
     assert recipe_plan.options.recipe_schema_version == 1
 
 
+@pytest.mark.researcher_acceptance
 def test_recipe_plan_rejects_changed_effective_recipe_before_parse(tmp_path: Path) -> None:
     source = tmp_path / "template.csv"
     source.write_text("RT,Area\n1,10\n", encoding="utf-8")
@@ -148,6 +150,7 @@ def test_recipe_plan_rejects_changed_effective_recipe_before_parse(tmp_path: Pat
     assert not output.exists()
 
 
+@pytest.mark.researcher_acceptance
 def test_recipe_plan_rejects_mapping_set_repair_until_new_preflight(tmp_path: Path) -> None:
     source = tmp_path / "template.csv"
     source.write_text("RT,Area\n1,10\n", encoding="utf-8")
@@ -204,6 +207,7 @@ def test_recipe_mapping_profile_display_label_change_is_not_stale(
     assert output.is_file()
 
 
+@pytest.mark.researcher_acceptance
 def test_recipe_reuses_same_profile_for_new_values_and_surfaces_drift(tmp_path: Path) -> None:
     first = tmp_path / "batch-one.csv"
     second = tmp_path / "batch-two.csv"

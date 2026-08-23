@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import openpyxl  # type: ignore[import-untyped]
+import pytest
 
 from ordifile.api import convert_plan, plan_conversion
 from ordifile.core.peak_mapping import (
@@ -18,6 +19,7 @@ from ordifile.core.peak_mapping import (
     PeakTableMappingSet,
 )
 from ordifile.core.planning import (
+    ConversionPlanEntryStatus,
     ConversionPlanProblem,
     ConversionPlanReadiness,
     ConversionPlanRoute,
@@ -76,6 +78,7 @@ def _write_xlsx(path: Path, value: int) -> None:
     workbook.save(path)
 
 
+@pytest.mark.researcher_acceptance
 def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_conversion(
     tmp_path: Path,
 ) -> None:
@@ -136,6 +139,7 @@ def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_convers
             drifted,
             unmapped,
             unsupported,
+            csv_one,
         ),
         output,
         peak_table_mapping_set=mapping_set,
@@ -143,12 +147,13 @@ def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_convers
     )
 
     assert plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES
-    assert plan.summary.total_inputs == 11
+    assert plan.summary.total_inputs == 12
     assert plan.summary.exact_adapters == 4
     assert plan.summary.mapping_profiles == 4
     assert plan.summary.drifted == 1
     assert plan.summary.unmapped == 1
     assert plan.summary.unsupported == 1
+    assert plan.summary.duplicates == 1
     assert plan.summary.failed == 3
     assert [entry.route for entry in plan.entries[:4]] == [ConversionPlanRoute.EXACT_ADAPTER] * 4
     assert [entry.route for entry in plan.entries[4:8]] == [
@@ -157,12 +162,15 @@ def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_convers
     assert plan.entries[8].problem is ConversionPlanProblem.MAPPING_SCHEMA_DRIFT
     assert plan.entries[9].problem is ConversionPlanProblem.UNMAPPED_GENERIC_TABLE
     assert plan.entries[10].problem is ConversionPlanProblem.UNSUPPORTED_FORMAT
+    assert plan.entries[11].problem is ConversionPlanProblem.DUPLICATE_INPUT
+    assert plan.entries[11].status is ConversionPlanEntryStatus.DUPLICATE
     assert not output.exists()
 
     converted = convert_plan(plan)
 
     assert converted.success_count == 8
     assert converted.failure_count == 3
+    assert converted.duplicate_count == 1
     assert output.is_file()
     assert {entry.adapter_id for entry in plan.entries[:4]} == {
         "agilent_chemstation_result_xml",
@@ -180,7 +188,22 @@ def test_mixed_preflight_routes_exact_profiles_and_failures_then_matches_convers
         manifest = dict(
             (row[0], row[1]) for row in workbook["Manifest"].iter_rows(values_only=True)
         )
+        import_rows = tuple(workbook["Import_Log"].iter_rows(values_only=True))
+        import_headers = tuple(import_rows[0])
+        status_index = import_headers.index("status")
+        route_index = import_headers.index("conversion_route")
+        statuses = [row[status_index] for row in import_rows[1:]]
+        routes = [row[route_index] for row in import_rows[1:]]
+        assert statuses.count("success") + statuses.count("warning") == plan.summary.routable
+        assert statuses.count("failed") == plan.summary.failed
+        assert statuses.count("duplicate") == plan.summary.duplicates
+        assert routes.count("EXACT_ADAPTER") == plan.summary.exact_adapters
+        assert routes.count("USER_MAPPING_PROFILE") == plan.summary.mapping_profiles
+        assert "SCHEMA_DRIFT_CANDIDATE" in routes
+        assert "NO_MAPPING_MATCH" in routes
         assert manifest["execution_mode"] == "REVALIDATED_PREFLIGHT"
+        assert manifest["failure_count"] == plan.summary.failed
+        assert manifest["duplicate_count"] == plan.summary.duplicates
         assert manifest["conversion_plan_schema_version"] == plan.schema_version
         assert manifest["conversion_plan_public_summary_sha256"] == plan.public_summary_sha256
     finally:

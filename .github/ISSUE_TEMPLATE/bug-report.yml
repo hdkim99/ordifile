@@ -1,7 +1,7 @@
 name: Bug report
 description: Report reproducible incorrect behavior.
 title: "bug: "
-labels: ["bug", "needs-triage"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Ordifile version
-      placeholder: "0.1.0"
+      placeholder: "Paste the output of: ordifile --version"
     validations:
       required: true
   - type: dropdown
