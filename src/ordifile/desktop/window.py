@@ -198,7 +198,7 @@ class MainWindow(QMainWindow):
         self.selection_list.setObjectName("selectionList")
         self.selection_list.setAccessibleName("Selected files and folders")
         self.selection_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.selection_list.setMaximumHeight(60)
+        self.selection_list.setMaximumHeight(44)
         selected_label.setBuddy(self.selection_list)
         inputs_layout.addWidget(selected_label)
         inputs_layout.addWidget(self.selection_list)
