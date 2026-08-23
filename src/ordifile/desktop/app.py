@@ -23,10 +23,18 @@ def create_application(argv: Sequence[str] | None = None) -> QApplication:
     """Return the existing Qt application or create one without network services."""
     from PySide6.QtWidgets import QApplication
 
+    from ordifile.desktop.resources import load_application_icon
+
     existing = QApplication.instance()
-    if existing is not None:
-        return cast(QApplication, existing)
-    return QApplication(list(sys.argv if argv is None else argv))
+    application = (
+        cast(QApplication, existing)
+        if existing is not None
+        else QApplication(list(sys.argv if argv is None else argv))
+    )
+    icon = load_application_icon()
+    if icon is not None:
+        application.setWindowIcon(icon)
+    return application
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -240,6 +240,16 @@ jobs:
           count="$(printf '%s\n' "${executables}" | sed '/^$/d' | wc -l | tr -d ' ')"
           test "${count}" -eq 1
           bundle="${executables%/Contents/MacOS/Ordifile}"
+          icon_name="$(/usr/bin/plutil -extract CFBundleIconFile raw \
+            "${bundle}/Contents/Info.plist")"
+          test "${icon_name}" = "Ordifile.icns"
+          test -f "${bundle}/Contents/Resources/${icon_name}"
+          /usr/bin/cmp -s \
+            "${bundle}/Contents/Resources/${icon_name}" \
+            "${GITHUB_WORKSPACE}/packaging/standalone/assets/Ordifile.icns"
+          /usr/bin/iconutil -c iconset \
+            "${bundle}/Contents/Resources/${icon_name}" \
+            -o "${scratch}/Ordifile.iconset"
           python3.14 scripts/standalone/verify.py \
             --bundle "${bundle}" \
             --manifest "${candidate}/standalone-manifest.json" \

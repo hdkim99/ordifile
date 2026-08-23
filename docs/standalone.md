@@ -137,6 +137,8 @@ Python/Nuitka standalone probe, and a minimal PySide6/Nuitka standalone-window p
 before the full build. The full Windows command is direct
 `python -m nuitka --standalone --enable-plugin=pyside6 --zig
 --experimental=force-dependencies-pefile
+--include-package-data=ordifile.desktop
+--windows-icon-from-ico=ordifile.ico
 --nofollow-import-to=PySide6.QtNetwork
 --noinclude-qt-plugins=tls
 --noinclude-qt-plugins=networkinformation`; only
@@ -158,7 +160,10 @@ workflow never selects Nuitka's `--mingw64` fallback, and it does not change the
 service, registration, labels or machine PATH. Zig's Windows GNU ABI nevertheless uses
 MinGW-w64/libc build inputs, so exact linked-runtime provenance, notices and source
 obligations remain a hard public-distribution gate. macOS retains the reviewed
-`pyside6-deploy` path.
+`pyside6-deploy` path and supplies the project-owned `Ordifile.icns` through its
+deployment specification. The macOS build verifies the exact ICNS bytes and
+`CFBundleIconFile` metadata; the Windows smoke verifies that the executable has an icon
+resource. Both remain prototype-only checks.
 
 ## What the smoke proves
 
@@ -180,7 +185,8 @@ then runs the packaged executable with `--standalone-smoke`. It verifies:
 - workbook reopen plus ordered equivalence for `Samples`, `Peak_Matrix`, `Peaks`,
   `Peak_Order_Matrix`, conditional `Peak_Order_Matrix_2D`, `Metadata` and `Import_Log`;
 - non-ASCII/space output paths and existing-output refusal without byte changes;
-- an offscreen launch of the packaged existing `QApplication`/`MainWindow` path.
+- an offscreen launch of the packaged existing `QApplication`/`MainWindow` path with a
+  non-null project application/window icon.
 
 Actual instrument files, private exports and vendor executables are never copied into
 the workflow or artifact.

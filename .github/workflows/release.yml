@@ -1029,6 +1029,12 @@ jobs:
 
           app = create_application([])
           window = MainWindow()
+          if app.windowIcon().isNull() or window.windowIcon().isNull():
+              raise SystemExit("Installed GUI application icon is unavailable")
+          for size in (16, 32, 64):
+              pixmap = app.windowIcon().pixmap(size, size)
+              if pixmap.isNull() or pixmap.width() != size or pixmap.height() != size:
+                  raise SystemExit("Installed GUI application icon size is unavailable")
           required = (
               window.load_recipe_button,
               window.save_recipe_button,

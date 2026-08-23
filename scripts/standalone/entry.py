@@ -41,10 +41,13 @@ def _window_smoke() -> int:
     window.show()
     application.processEvents()
     visible = window.isVisible()
+    icon_loaded = not application.windowIcon().isNull() and not window.windowIcon().isNull()
     window.close()
     application.processEvents()
     if not visible:
         raise RuntimeError("The packaged desktop window did not become visible.")
+    if not icon_loaded:
+        raise RuntimeError("The packaged desktop application icon is unavailable.")
     print("Standalone window smoke PASS")
     return 0
 

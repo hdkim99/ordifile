@@ -52,9 +52,21 @@ LICENSE_FILES = ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md")
 SDIST_MAINTAINER_FILES = (
     "scripts/verify_release.py",
     "scripts/fetch_external_fixture.py",
+    "scripts/generate_app_icons.py",
     "scripts/generate_demo_assets.sh",
     "scripts/render_demo_assets.swift",
+    "docs/assets/ordifile-icon.svg",
+    "docs/assets/ordifile-icon-1024.png",
     "tests/fixtures/synthetic/generate_xlsx.py",
+)
+APPLICATION_ICON_SIZES = (16, 24, 32, 48, 64, 128, 256, 512, 1024)
+APPLICATION_ICON_SDIST_FILES = (
+    "packaging/standalone/assets/ordifile.ico",
+    "packaging/standalone/assets/Ordifile.icns",
+    *(
+        f"packaging/standalone/assets/png/ordifile-icon-{size}.png"
+        for size in APPLICATION_ICON_SIZES
+    ),
 )
 STANDALONE_SDIST_FILES = (
     "packaging/standalone/licenses/README.md",
@@ -83,7 +95,9 @@ STANDALONE_SDIST_FILES = (
     "docs/architecture/standalone-packaging-decision.md",
     "docs/research/standalone-packaging-evidence.md",
     "docs/standalone.md",
+    *APPLICATION_ICON_SDIST_FILES,
 )
+WHEEL_APPLICATION_ICON = "ordifile/desktop/assets/ordifile-icon-512.png"
 WHEEL_FORBIDDEN_TOP_LEVEL = frozenset({"scripts", "tests"})
 WINDOWS_RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
@@ -365,6 +379,18 @@ def verify_wheel(path: Path, expected_version: str, source_root: Path) -> None:
                 raise ReleaseVerificationError("wheel contains the legacy package")
             if not any(name.startswith(f"{PROJECT_NAME}/") for name in names):
                 raise ReleaseVerificationError("wheel does not contain the Ordifile package")
+            source_icon = source_root.joinpath(
+                "src", "ordifile", "desktop", "assets", "ordifile-icon-512.png"
+            )
+            if source_icon.is_file():
+                try:
+                    packaged_icon = archive.read(WHEEL_APPLICATION_ICON)
+                except KeyError as error:
+                    raise ReleaseVerificationError(
+                        "wheel does not contain the application icon"
+                    ) from error
+                if packaged_icon != source_icon.read_bytes():
+                    raise ReleaseVerificationError("wheel application icon differs from source")
             dist_info = [
                 name
                 for name in names

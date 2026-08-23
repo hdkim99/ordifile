@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import plistlib
 import shutil
 import stat
 import struct
@@ -54,6 +55,7 @@ BUILD_FAILURE_STAGES = frozenset(
         "archive",
         "bundle-audit",
         "bundle-audit-network-runtime",
+        "bundle-audit-icon",
         "bundle-audit-private-data",
         "bundle-audit-private-home",
         "bundle-audit-private-runtime-executable",
@@ -164,6 +166,7 @@ def _render_spec(
         "@EXEC_DIRECTORY@": executable_dir.as_posix(),
         "@PYTHON_PATH@": Path(sys.executable).as_posix(),
         "@STATIC_LIBPYTHON@": "--static-libpython=no",
+        "@APP_ICON@": "Ordifile.icns" if target.startswith("macos-") else "ordifile.ico",
     }
     for marker, value in replacements.items():
         text = text.replace(marker, value)
@@ -208,6 +211,8 @@ def _windows_nuitka_command(entrypoint: Path, output: Path) -> list[str]:
         f"--output-dir={output}",
         "--standalone",
         "--quiet",
+        "--include-package-data=ordifile.desktop",
+        "--windows-icon-from-ico=ordifile.ico",
         "--noinclude-qt-translations",
         "--noinclude-qt-plugins=tls",
         *WINDOWS_PYSIDE_NETWORK_EXCLUSIONS,
@@ -431,6 +436,28 @@ def _validate_native_entrypoint(bundle: Path, target: str) -> Path:
     return entrypoint
 
 
+def _validate_macos_application_icon(bundle: Path, expected: Path) -> None:
+    """Require the configured icon bytes and metadata in a macOS application bundle."""
+    plist = bundle / "Contents" / "Info.plist"
+    resource = bundle / "Contents" / "Resources" / expected.name
+    try:
+        plist_metadata = plist.stat(follow_symlinks=False)
+        resource_metadata = resource.stat(follow_symlinks=False)
+        metadata = plistlib.loads(plist.read_bytes())
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise ValueError("The macOS application icon metadata is invalid.") from error
+    if (
+        not stat.S_ISREG(plist_metadata.st_mode)
+        or not stat.S_ISREG(resource_metadata.st_mode)
+        or plist.is_symlink()
+        or resource.is_symlink()
+        or not isinstance(metadata, dict)
+        or metadata.get("CFBundleIconFile") != expected.name
+        or resource.read_bytes() != expected.read_bytes()
+    ):
+        raise ValueError("The macOS application icon metadata is invalid.")
+
+
 def _validate_native_target(target: str) -> None:
     machine = (
         os.uname().machine.casefold()
@@ -558,6 +585,11 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
             executable_dir.mkdir()
             shutil.copy2(scripts / "entry.py", temporary_stage / "Ordifile.py")
             shutil.copy2(scripts / "smoke.py", temporary_stage / "smoke.py")
+            icon_name = "ordifile.ico" if target == "windows-x86_64" else "Ordifile.icns"
+            icon_source = packaging / "assets" / icon_name
+            if not icon_source.is_file() or icon_source.is_symlink():
+                raise ValueError("The standalone application icon is unavailable.")
+            shutil.copy2(icon_source, temporary_stage / icon_name)
             if target == "windows-x86_64":
                 build_stage = "deploy"
                 _run_windows_nuitka(temporary_stage / "Ordifile.py", executable_dir)
@@ -576,6 +608,9 @@ def build_candidate(source: Path, output: Path, *, commit: str, target: str) -> 
             bundle = _bundle_candidate(executable_dir, target)
             build_stage = "deploy-output"
             _validate_native_entrypoint(bundle, target)
+            if target.startswith("macos-"):
+                build_stage = "bundle-audit-icon"
+                _validate_macos_application_icon(bundle, temporary_stage / icon_name)
             build_stage = "license-inventory"
             licenses = _license_destination(bundle, target)
             shutil.copytree(packaging / "licenses", licenses)

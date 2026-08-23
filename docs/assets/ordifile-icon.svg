@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 hdkim99; SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="48" y="48" width="928" height="928" rx="216" fill="#0E1728"/>
+  <rect x="590" y="548" width="286" height="286" rx="44" fill="#2EC2D9"/>
+  <path d="M 685 570 V 812 M 780 570 V 812 M 612 650 H 854 M 612 730 H 854"
+        fill="none" stroke="#0E1728" stroke-width="34" stroke-linecap="round"/>
+  <path d="M 154 548 H 222 L 286 446 L 350 548 H 408 L 500 258 L 592 548 H 628
+           L 692 416 L 756 548 H 850"
+        fill="none" stroke="#F4F7FB" stroke-width="68" stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>

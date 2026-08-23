@@ -62,6 +62,8 @@ def test_windows_direct_nuitka_contract_has_no_fallback_or_wrapper() -> None:
     assert "--follow-imports" in command
     assert "--enable-plugin=pyside6" in command
     assert "--standalone" in command
+    assert command.count("--include-package-data=ordifile.desktop") == 1
+    assert command.count("--windows-icon-from-ico=ordifile.ico") == 1
     assert "--static-libpython=no" in command
     assert "--noinclude-qt-translations" in command
     assert "--noinclude-qt-plugins=tls" in command

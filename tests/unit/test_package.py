@@ -53,6 +53,7 @@ def test_built_wheel_contains_only_ordifile_package_and_entry_points(tmp_path: P
     with zipfile.ZipFile(wheels[0]) as archive:
         members = tuple(archive.namelist())
         assert any(name.startswith("ordifile/") for name in members)
+        assert "ordifile/desktop/assets/ordifile-icon-512.png" in members
         assert not any(name.startswith("labconvert/") for name in members)
         entry_point_name = next(
             name for name in members if name.endswith(".dist-info/entry_points.txt")
