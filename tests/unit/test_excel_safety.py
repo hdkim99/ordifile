@@ -56,18 +56,25 @@ def test_formula_looking_strings_are_literal_and_unmodified(tmp_path: Path) -> N
         workbook.close()
 
 
+@pytest.mark.researcher_acceptance
 def test_overwrite_and_input_output_protection(tmp_path: Path) -> None:
     source = tmp_path / "source.csv"
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")
+    source_bytes = source.read_bytes()
     output = tmp_path / "result.xlsx"
     convert(source, output)
+    first_output_bytes = output.read_bytes()
     with pytest.raises(ExportError) as exists:
         convert(source, output)
     assert exists.value.code == "OUTPUT_EXISTS"
+    assert output.read_bytes() == first_output_bytes
+    assert source.read_bytes() == source_bytes
     convert(source, output, overwrite=True)
+    assert source.read_bytes() == source_bytes
     with pytest.raises(ExportError) as same:
         convert(source, source, overwrite=True)
     assert same.value.code == "OUTPUT_IS_INPUT"
+    assert source.read_bytes() == source_bytes
 
 
 @pytest.mark.parametrize("invalid", ("false", 0, 1, None))

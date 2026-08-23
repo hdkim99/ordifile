@@ -73,6 +73,7 @@ def write_xlsx_table(path: Path) -> None:
         (".txt", ";", PeakTableFormat.SEMICOLON, "generic_semicolon"),
     ),
 )
+@pytest.mark.researcher_acceptance
 def test_explicit_text_mapping_creates_ordered_peaks(
     tmp_path: Path,
     suffix: str,
@@ -98,6 +99,7 @@ def test_explicit_text_mapping_creates_ordered_peaks(
     assert "not exported" not in repr(result.bundle)
 
 
+@pytest.mark.researcher_acceptance
 def test_explicit_xlsx_mapping_reuses_audited_reader(tmp_path: Path) -> None:
     source = tmp_path / "private-name.xlsx"
     write_xlsx_table(source)

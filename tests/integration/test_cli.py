@@ -36,6 +36,55 @@ def _write_peak_table(path: Path, sample_id: str = "sample") -> None:
     )
 
 
+@pytest.mark.researcher_acceptance
+def test_readme_quick_start_output_contract(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_root = tmp_path / "ordifile_demo"
+    source_root.mkdir()
+    source_bytes: dict[Path, bytes] = {}
+    for number in (1, 2, 10):
+        source = source_root / f"sample_{number}.csv"
+        source.write_text(
+            "sample_id,retention_time,area,compound\n"
+            f"sample_{number},{number / 10:.1f},{number * 10},demo\n",
+            encoding="utf-8",
+        )
+        source_bytes[source] = source.read_bytes()
+    output = tmp_path / "Ordifile_Result.xlsx"
+
+    assert (
+        main(
+            [
+                "convert",
+                str(source_root),
+                "--sort",
+                "filename",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+
+    rendered = capsys.readouterr().out
+    assert "Successful files: 3" in rendered
+    assert "Samples: 3" in rendered
+    assert "Peaks: 3" in rendered
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert workbook.active.title == "Samples"
+        assert workbook["Samples"].max_row == 4
+        assert workbook["Peaks"].max_row == 4
+    finally:
+        workbook.close()
+    assert {path: path.read_bytes() for path in source_bytes} == source_bytes
+    for readme_name in ("README.md", "README.ko.md"):
+        readme = (Path(__file__).parents[2] / readme_name).read_text(encoding="utf-8")
+        assert "\nPeaks: 3\n" in readme
+
+
 def test_help_exits_successfully(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as caught:
         main(["--help"])
@@ -808,12 +857,14 @@ def test_terminal_renderer_preserves_readable_unicode_and_disambiguates_escapes(
     assert _terminal_safe("\x00\x7f\x85\u2066\u2028") == "\\x00\\x7f\\x85\\u2066\\u2028"
 
 
+@pytest.mark.researcher_acceptance
 def test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source = tmp_path / "private-canary-source.csv"
     output = tmp_path / "private-canary-output.xlsx"
     _write_peak_table(source)
+    source_bytes = source.read_bytes()
 
     assert (
         main(
@@ -840,6 +891,7 @@ def test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact(
     assert "private-canary-output.xlsx" not in rendered
     assert not output.exists()
     assert not list(tmp_path.glob(".ordifile_*"))
+    assert source.read_bytes() == source_bytes
 
 
 def test_convert_dry_run_folder_partial_and_output_block_exit_semantics(

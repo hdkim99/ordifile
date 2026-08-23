@@ -95,6 +95,7 @@ def _synthetic_bytes(generator_name: str, function_name: str) -> bytes:
     return cast(bytes, generator[function_name]())
 
 
+@pytest.mark.researcher_acceptance
 def test_mapping_set_routes_multiple_generic_templates_into_one_workbook(tmp_path: Path) -> None:
     csv_one = tmp_path / "template-a-1.csv"
     csv_two = tmp_path / "template-a-2.csv"
@@ -200,6 +201,7 @@ def test_mapping_set_no_match_fails_without_generic_fallback(tmp_path: Path) -> 
     assert source.name not in repr(result)
 
 
+@pytest.mark.researcher_acceptance
 def test_mapping_set_reports_schema_drift_without_applying_a_candidate(tmp_path: Path) -> None:
     source = tmp_path / "changed.csv"
     source.write_text(
@@ -266,6 +268,7 @@ def test_schema_drift_import_log_contains_only_fixed_categories(tmp_path: Path) 
     assert drift.name not in strings
 
 
+@pytest.mark.researcher_acceptance
 def test_repaired_profile_routes_old_and_new_templates_separately(tmp_path: Path) -> None:
     old = tmp_path / "old.csv"
     new = tmp_path / "new.csv"

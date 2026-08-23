@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,8 +16,17 @@ from ordifile.core.models import BatchOutcome, FileStatus, ProgressEvent
 from ordifile.core.pipeline import run_pipeline
 from ordifile.core.workbook_text import workbook_audit_display
 
+PROJECT_ROOT = Path(__file__).parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "tests" / "fixtures" / "synthetic"))
+from generate_agilent_chemstation_result_xml import (  # noqa: E402
+    synthetic_result_xml_bytes,
+)
 
-def test_one_corrupt_file_does_not_discard_one_hundred_valid_files(tmp_path: Path) -> None:
+
+@pytest.mark.researcher_acceptance
+def test_valid_malformed_and_unsupported_files_preserve_partial_workbook(
+    tmp_path: Path,
+) -> None:
     inputs = tmp_path / "inputs"
     inputs.mkdir()
     for index in range(1, 101):
@@ -25,19 +35,24 @@ def test_one_corrupt_file_does_not_discard_one_hundred_valid_files(tmp_path: Pat
             f"sample_{index},{index},1.0,{index},A\n",
             encoding="utf-8",
         )
-    (inputs / "corrupt.csv").write_bytes(b"\xff\xfe")
+    (inputs / "malformed.xml").write_bytes(synthetic_result_xml_bytes()[:-10])
+    (inputs / "unsupported.bin").write_bytes(b"unsupported")
     result = convert(inputs, tmp_path / "result.xlsx")
     assert result.success_count == 100
-    assert result.failure_count == 1
+    assert result.failure_count == 2
     workbook = load_workbook(result.output_path, read_only=True, data_only=False)
     try:
-        assert workbook["Samples"].max_row == 102
+        assert workbook["Samples"].max_row == 103
         assert workbook["Peaks"].max_row == 101
-        log_status = [
-            row[4] for row in workbook["Import_Log"].iter_rows(min_row=2, values_only=True)
-        ]
-        assert log_status.count("failed") == 1
+        log_rows = tuple(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
+        log_status = [row[4] for row in log_rows]
+        error_codes = [row[6] for row in log_rows if row[4] == "failed"]
+        assert log_status.count("failed") == 2
         assert log_status.count("success") == 100
+        assert set(error_codes) == {
+            "AGILENT_RESULT_XML_MALFORMED",
+            "FORMAT_NOT_DETECTED",
+        }
     finally:
         workbook.close()
 

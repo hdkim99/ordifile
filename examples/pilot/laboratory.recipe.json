@@ -1,0 +1,107 @@
+{
+  "display_label": "Neutral laboratory pilot",
+  "mapping": {
+    "set": {
+      "profiles": [
+        {
+          "display_label": "Neutral template A",
+          "mapping": {
+            "acquisition_time_column": null,
+            "area_column": {
+              "index": 2,
+              "label": "Area"
+            },
+            "area_unit": "pA*s",
+            "channel_column": null,
+            "compound_name_column": {
+              "index": 4,
+              "label": "Compound"
+            },
+            "detector_column": null,
+            "end_time_column": null,
+            "height_column": {
+              "index": 3,
+              "label": "Height"
+            },
+            "height_unit": "pA",
+            "ignored_columns": [],
+            "manufacturer": null,
+            "peak_index_column": null,
+            "peak_name_column": null,
+            "retention_time_column": {
+              "index": 1,
+              "label": "Retention Time"
+            },
+            "retention_time_unit": "min",
+            "run_id_column": null,
+            "sample_id_column": null,
+            "schema_version": 1,
+            "secondary_retention_time_column": null,
+            "secondary_retention_time_unit": null,
+            "software": null,
+            "source_format": "csv",
+            "start_time_column": null
+          },
+          "profile_id": "profile-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema_version": 1,
+          "worksheet_title": null
+        },
+        {
+          "display_label": "Neutral template B",
+          "mapping": {
+            "acquisition_time_column": null,
+            "area_column": {
+              "index": 3,
+              "label": "Integrated Area"
+            },
+            "area_unit": "AU",
+            "channel_column": null,
+            "compound_name_column": null,
+            "detector_column": null,
+            "end_time_column": null,
+            "height_column": null,
+            "height_unit": null,
+            "ignored_columns": [],
+            "manufacturer": null,
+            "peak_index_column": null,
+            "peak_name_column": null,
+            "retention_time_column": {
+              "index": 2,
+              "label": "RT seconds"
+            },
+            "retention_time_unit": "s",
+            "run_id_column": {
+              "index": 1,
+              "label": "Run"
+            },
+            "sample_id_column": null,
+            "schema_version": 1,
+            "secondary_retention_time_column": null,
+            "secondary_retention_time_unit": null,
+            "software": null,
+            "source_format": "tsv",
+            "start_time_column": null
+          },
+          "profile_id": "profile-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "schema_version": 1,
+          "worksheet_title": null
+        }
+      ],
+      "schema_version": 1,
+      "set_id": "profile-set-cccccccccccccccccccccccccccccccc"
+    },
+    "single": null
+  },
+  "options": {
+    "adapter": null,
+    "extensions": [],
+    "include_hidden_sheets": false,
+    "include_signals": false,
+    "on_error": "continue",
+    "recursive": false,
+    "sheet": null,
+    "sidecar_mode": "error",
+    "sort": "input_order"
+  },
+  "schema_version": 1
+}

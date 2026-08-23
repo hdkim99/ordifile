@@ -108,6 +108,9 @@ addopts = [
   "--cov-report=term-missing",
   "--cov-fail-under=85",
 ]
+markers = [
+  "researcher_acceptance: end-to-end public researcher workflow contracts",
+]
 testpaths = ["tests/unit", "tests/integration"]
 
 [tool.coverage.run]
