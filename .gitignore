@@ -45,5 +45,9 @@ fixture-cache/
 *.CH
 *.cdf
 *.CDF
+*.prm
+*.PRM
+*.zip
+*.ZIP
 *.d/
 *.D/

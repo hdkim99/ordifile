@@ -367,6 +367,19 @@ to the workbook layout.
     format-family probe may retain privacy-safe ownership while declaring an unsupported exact
     profile non-routable. Conversion Preflight must block that entry with its structured code;
     it must not promise a routable exact profile that conversion will deterministically reject.
+53. Cross-version YoungIn PRM equivalence work remains research-only until each producer cohort
+    has its own same-run full-curve oracle. A bounded local probe may replace only equal-length,
+    typed producer `Info` prefixes in a temporary copy after the original passes an exact parse;
+    it may then reuse the private structural reader to test counterfactual decoder compatibility.
+    Such a replay is not time, response, detector or unit evidence. The observed 9.0 and 9.1
+    cohorts share current-channel framing, binary32 ordering, size equations and structural
+    `DStep=1` / `MinTicks=600` fields, and masked 9.1 replay reproduces the existing 138,000-point
+    scientific calculation. However, 9.0 has no same-run full-range curve oracle, so its
+    structural-only production route and the exact 9.1 scientific gate remain unchanged.
+    Unknown versions fail closed; common decoder refactoring or 9.0 scientific promotion requires
+    a full N/N 9.0 time-and-signal comparison with explicit units and export settings. Given the
+    preceding 23-file structural comparison, one independent full-range FID+TCD 9.0 curve is the
+    decisive remaining oracle for that decision.
 
 ## Public boundaries
 
