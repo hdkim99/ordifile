@@ -1,9 +1,10 @@
 # YoungIn YL-Clarity PRM raw-record format notes
 
 - Date: 2026-08-24
-- Status: `RAW_CONVERSION_GO`; `DIRECT_SCIENTIFIC_DECODER_NO_GO_PENDING_CURVE_ORACLE`
-- Scope: one observed YL-Clarity `9.0.1.19` completed-PRM profile
-- Fixture policy: 23 owner-supplied files, local-only and not redistributable
+- Status: `STRUCTURAL_GO`; 9.0 `DIRECT_SIGNAL_NO_GO`; 9.1 `DIRECT_SIGNAL_GO`;
+  `DIRECT_PEAKS_NO_GO`
+- Scope: exact observed YL-Clarity `9.0.1.19` and `9.1.0.76` completed-PRM profiles
+- Fixture policy: 28 unique owner-supplied files, local-only and not redistributable
 
 These notes record independently observed file facts. They are not a vendor binary
 specification. No vendor executable, DLL, proprietary OpenChrom converter, GPL source,
@@ -37,21 +38,56 @@ All 23 PRM files, 43 current blocks, 563,240 records, record-count distributions
 stored-label layouts reproduced the tracked reference. Original files were read-only and
 no private basename, path, metadata value or measured value was added to public output.
 
+## Expanded 9.1 paired evidence
+
+A second owner archive passed bounded ZIP validation: ten regular members, five PRM and
+five CP949-compatible tab-delimited composite CSV exports, with no duplicate bytes,
+traversal, links, encryption, nested archives or executable members. Its five PRMs are
+distinct from the earlier 23 and carry the exact `YL-Clarity 9.1.0.76 FULL` producer
+prefix. They add ten current blocks and 138,000 finite records. The combined inventory is
+28 PRMs, 53 current blocks and 701,240 records; the original 23-file structural digest is
+unchanged.
+
+Each new CSV contains a Result section and full-range FID/TCD time-response curves. Content
+comparison, not filenames, gives five unique confirmed pairs. All ten curves contain 13,800
+points. Across 138,000 points, the time text is exactly the five-decimal representation of
+`i * DStep / MinTicks` with zero origin, `DStep=1`, `MinTicks=600` and explicit minute unit.
+The signal relation is identity: every four-decimal exported value is within the
+precision-derived half-unit bound of the corresponding stored binary32 value. Explicit
+headers identify FID as pA and TCD as mV for all five distinct source/export pairs.
+
+The same composite files contain 21 TCD peak rows and five explicit no-peak FID sections.
+They strengthen paired Result evidence but do not match the standalone exact Result CSV
+grammar: their composite prefix and displayed Total semantics differ. The production Result
+adapter therefore remains unchanged at two exports and six canonical peaks. The 21 rows are
+research evidence only and do not change the controlled 225-peak production baseline.
+
+No repeatable bounded stored peak result was found in the five PRMs. Exact RT, Area and
+Height text or little-endian float32/float64 values did not occur as a consistent result
+record, and candidate method neighborhoods remained byte-stable while result values and
+counts changed. Direct PRM Peak/Area/Height stays NO_GO; numerical integration and automatic
+peak detection were not used.
+
 ## Structural grammar
 
-Every file starts with the same four bytes, `5a a5 00 08`. The value is an observed
-signature only; it is not interpreted as software version 8. All files contain a
-bounded UTF-16LE producer prefix for YL-Clarity `9.0.1.19`; the adjacent license/serial
-suffix is sensitive and is never parsed or exposed.
+Every file in the initial 9.0 corpus starts with the same four bytes, `5a a5 00 08`. The
+value is an observed signature only; it is not interpreted as software version 8. Those
+files contain a bounded UTF-16LE producer prefix for YL-Clarity `9.0.1.19`; the adjacent
+license/serial suffix is sensitive and is never parsed or exposed. The separate 9.1
+profile requires the first length-framed `Info` value to carry its exact `9.1.0.76 FULL`
+producer prefix. Every later framed YL-Clarity `Info` value must identify the same exact
+profile; unrelated framed values and unframed byte occurrences do not select a profile.
 
-The active raw blocks occur only after the greatest and last `ChromVersion1` entry.
-The observed revision sequences are `[1]`, `[1, 2]`, or `[1, 2, 3]`, and the revision,
-method and log-data counts agree. DataApex documentation describes the most recent
-stored method as current and historical versions as read-only. Earlier revision
-intervals contain no separate raw snapshot in these files, so the adapter exposes one
-current/global raw set and records the revision boundary as Experimental metadata.
+In the 9.0 corpus, the active raw blocks occur only after the greatest and last
+`ChromVersion1` entry. The observed revision sequences are `[1]`, `[1, 2]`, or
+`[1, 2, 3]`, and the revision, method and log-data counts agree. DataApex documentation
+describes the most recent stored method as current and historical versions as read-only.
+Earlier revision intervals contain no separate raw snapshot in those files, so the
+adapter exposes one current/global raw set and records the revision boundary as
+Experimental metadata. The exact 9.1 scientific profile requires the independently
+observed single current revision.
 
-Each of the 43 active blocks has this source order:
+Each of the 43 active 9.0 blocks has this source order:
 
 ```text
 RAWData6 -> RAWSize -> PRMData -> DetName
@@ -59,24 +95,27 @@ RAWData6 -> RAWSize -> PRMData -> DetName
 
 `RAWData6` and `PRMData` are typed, little-endian-length-prefixed gzip blobs. Within
 each block their compressed bytes are identical. `RAWSize` and the second structural
-size candidate both equal the decompressed length divided by four. The observed step
-and tick candidates are fixed structural values but are not converted into time.
+size candidate both equal the decompressed length divided by four. In 9.0 the observed
+step and tick candidates remain structural values and are not converted into time.
 
-All observed blocks store `DStep=1` and `MinTicks=600`. The evidence-guided candidate
+All observed 9.0 blocks store `DStep=1` and `MinTicks=600`. The evidence-guided candidate
 interval `DStep / MinTicks = 1/600 min` is consistent, at the Result export's precision,
 with all six RT values in the two paired Result Tables and places all six peaks within the
 corresponding record ranges. This is supporting evidence for a candidate interval only.
 Result rows do not establish time origin or compare every stored record to an official
-curve, so the candidate is not emitted as retention time.
+curve, so the 9.0 candidate is not emitted as retention time. For 9.1, the separate
+full-curve oracle validates the same interval, a zero origin and minutes across every
+point in five distinct source/export pairs.
 
 The gzip payload is an array of little-endian IEEE-754 binary32 values. All observed
-records are finite. Reinterpreting the same bytes as big-endian produces non-finite and
-implausibly large values and is rejected by the evidence.
+records in both exact profiles are finite. Reinterpreting the same bytes as big-endian
+produces non-finite and implausibly large values and is rejected by the evidence.
 
 `DetName` is a bounded UTF-16LE field exactly associated with each active block. Only
-the stored labels `FID` and `TCD` occur. The adapter uses these as Experimental native
-channel labels while leaving `SignalSeries.detector` unset. The labels do not authorize
-detector-specific scaling or units.
+the stored labels `FID` and `TCD` occur. In 9.0 the adapter uses these only as
+Experimental native channel labels and leaves `SignalSeries.detector` unset. For the
+separate 9.1 profile, the five paired full curves independently validate FID pA and TCD
+mV channel identity and units at export precision.
 
 ## Independent references
 
@@ -94,12 +133,13 @@ detector-specific scaling or units.
 The current OpenChrom converter could not be run in a privacy-safe automated local
 mode. This is recorded as `Unavailable`, not as negative parser evidence.
 
-Official DataApex documentation separates `export_results` from `prm_export`. A future
-curve oracle should use the same PRM and include (1) detector-specific AIA/CDF carrying
-the declared retention unit, actual sampling interval and detector unit, and (2) a
-  full-range text or multidetector export with X axis enabled and Time Step zero or below
-  the sampling interval. Global Filter/Bunching should be disabled where possible and its
-  state must always be recorded; text export alone is not treated as a bit-exact raw oracle.
+Official DataApex documentation separates `export_results` from `prm_export`. The five
+9.1 full-range composite curves now provide a same-run time/signal oracle for that exact
+profile. A future 9.0 oracle, if pursued, should use the same PRM and include a
+detector-specific AIA/CDF plus a full-range text or multidetector export with X axis
+enabled and Time Step zero or below the sampling interval. Global Filter/Bunching state
+must be recorded; text export is compared at its declared precision rather than treated
+as a bit-exact raw oracle.
 
 ## Peak-result audit and vendor-export bridge
 
@@ -115,7 +155,8 @@ blocks; it is not a peak-result row. Observed `PeakWidth` configuration and `ATi
 peaks. No populated calibration linkage or same-run result companion was present.
 
 DataApex documents separate export paths. `prm_export` creates CDF/CHR/TXT/ASC
-chromatogram curves and is a future signal/time-axis oracle. The GUI **Export Data**
+chromatogram curves and remains a possible future signal/time-axis oracle for the exact
+9.0 profile. The GUI **Export Data**
 Result Table path and command-line `export_results` path export active-chromatogram
 results; the GUI can write result tables to TXT/CSV or XLS/XLSX. DataApex's Result Table
 documentation identifies peak rows and retention-time ordering and explains that the
@@ -145,24 +186,23 @@ Raw-signal extraction remains optional and separate.
 | Deterministic raw binary32 extraction | Experimental GO |
 | Stored channel-label separation | Experimental |
 | Maintainer FID/TCD fixture grouping | Local external oracle only; not runtime output |
-| Independently verified detector identity | Unverified |
-| Retention-time axis | NO_GO pending same-run full-curve comparison |
-| Physical/display scaling | NO_GO pending same-run full-curve comparison |
-| Physical unit | Unknown |
+| Independently verified detector identity | 9.0 unverified; 9.1 FID/TCD full-curve validated |
+| Retention-time axis | 9.0 NO_GO; 9.1 GO in minutes |
+| Physical/display scaling | 9.0 NO_GO; 9.1 identity transformation GO |
+| Physical unit | 9.0 unknown; 9.1 FID pA and TCD mV |
 | Peak table in PRM raw | NO_GO; no repeatable stored result grammar established |
 | Standalone Result Table CSV | Experimental GO for the exact owner-validated profile |
 | Batch PRM to one workbook | Experimental GO |
-| Verified scientific chromatogram | Blocked by same-run curve oracle |
+| Experimental scientific chromatogram | GO for exact 9.1 profile; 9.0 remains blocked |
 | Vendor Result export bridge | Local-only ready; actual Result exports received |
 
-## Verified promotion inputs
+## Remaining promotion inputs
 
 - a same-run YL-Clarity/Clarity Result Table exported through GUI **Export Data** or
   `export_results` as CSV, TXT, XLS or XLSX, as the primary RT/area oracle (two paired
   Result exports are already available);
-- a separate same-run `prm_export` detector-specific CDF plus a full-range, X-axis CHR
-  or TXT chromatogram curve with Time Step zero and the Global Filter/Bunching state
-  disabled where possible and always recorded for signal and time-axis verification;
+- a 9.0-specific same-run full curve only if direct scientific signals are later pursued
+  for that separate producer profile;
 - independent PRM runs with different lengths and detector configurations;
 - exact agreement for point count, full value sequence and channel identity;
 - retention-time origin and interval confirmation;

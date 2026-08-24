@@ -1,0 +1,121 @@
+{
+  "schema": "ordifile.youngin-yl-clarity-prm-scientific-reference.v1",
+  "status": "experimental-direct-signal-exact-profile",
+  "fixture": {
+    "distribution": "owner-supplied-local-only",
+    "archive_size": 1604581,
+    "archive_sha256": "fff59de802b01d1d78e393b66b026fc79b9b736c5cb79b2d72f2b3e841ae72db",
+    "member_count": 10,
+    "expanded_bytes": 4405612,
+    "prm_file_count": 5,
+    "composite_export_count": 5,
+    "native_or_export_bytes_committed": false
+  },
+  "profile": {
+    "producer": "YL-Clarity 9.1.0.76",
+    "history_count": 1,
+    "channel_labels": ["FID", "TCD"],
+    "points_per_channel_per_file": 13800,
+    "current_structural_blocks": 10,
+    "finite_binary32_records": 138000,
+    "retention_time_status": "full-curve-validated",
+    "signal_status": "full-curve-validated",
+    "peak_status": "no-go-no-repeatable-stored-result"
+  },
+  "pairing": {
+    "method": "unique full-series content match; filenames excluded",
+    "confirmed_pairs": [
+      {
+        "prm_sha256": "27b520f097d498c50607100f0d6fb94b8719768d2de7d782b40ffdb874555fc6",
+        "export_sha256": "55a13d97463838cb0c4ba65cfea2a0e3217b95817255b158492fa55df2e37680",
+        "result_rows": 3,
+        "peak_number_sha256": "ad53e8806d17c82d38902738d1d47d96bddaade27513466322efa0f793149dd0",
+        "rt_sha256": "7bbda3cac64c42363c50406362743c01df609c7abb13b63cc3a969392898d914",
+        "area_sha256": "8fa2f6bb4d637f66c281c7bb2ac503b101dbee90024422e8e7039641593ab8d5",
+        "height_sha256": "ad42c2b5c2a78fa8a7c1eba26828a1cc4d9fa9acce880229d0be7d1c386d55d7"
+      },
+      {
+        "prm_sha256": "5965b1ebf7f1315cc721448d394c44217e8a68518dd44621958fdb5f3205e85f",
+        "export_sha256": "75533a14c09e09c1e06134e6fedbc3b10a035b1ae9d0246c9eacb330c80e8868",
+        "result_rows": 4,
+        "peak_number_sha256": "67497b776854008d38c2340e14925a64b36686230bccaa777db68f644196015f",
+        "rt_sha256": "609ab1b5ef9c5331ea70c4ca9c67b67bb95135b52d05b759df36d398efd96336",
+        "area_sha256": "4049e57c3877c29eac5c4bef258b1b4027302cfb8a0cc6d391d11b9fe74c8886",
+        "height_sha256": "87514749477fcc0c8c549ebfcae5134093b87c5f51797cdbe7c99da685ca0146"
+      },
+      {
+        "prm_sha256": "9e35aceb898ad813f44ae104b8ae2f84c911d27b753922c9fce6f660c0e96f4a",
+        "export_sha256": "83c8f59da3b736a2af02d6d3cab56b71eca8f7dd6d1319bc363d78fe0428d08d",
+        "result_rows": 5,
+        "peak_number_sha256": "b5584a1464119498204d2bffb86944984de652acb277cb0d2a6810944ee13350",
+        "rt_sha256": "7b93a8a7ac3ea34d4460694d7da6d5fafa56a1a960b984689bedf3562c825472",
+        "area_sha256": "46868419e31c47b4b7c8a0aacdd6b54b49f4da8594eb7946c6976296f2845200",
+        "height_sha256": "518cb39ffeaae3f5f13e91090850985aa0559d01589742238209cc6ed8b71497"
+      },
+      {
+        "prm_sha256": "b627b3a39d4158a4fc0560ebd486a386a2eac4750a161324db6db8813cc984d8",
+        "export_sha256": "845f9aaadb654010f0490eb40a1c89443b1a0eb059e66dcefb28ff8e5de25e3e",
+        "result_rows": 4,
+        "peak_number_sha256": "67497b776854008d38c2340e14925a64b36686230bccaa777db68f644196015f",
+        "rt_sha256": "11767309f4d4cb1c4ff2d825a34c5e48af402ec1dde45b5d9292fce503918580",
+        "area_sha256": "fcd2a24bdc4fc5a51f007798e0d7d0fd3564173860a30611bfa837db0dfcefd5",
+        "height_sha256": "4545c305f0133ceafc32ed506266a0d91b6c54aaa478cadd9e66882c52d19dca"
+      },
+      {
+        "prm_sha256": "c5196cbafc20fb666734038bac0ae039ed69e7a249eed88646421d341b633c2b",
+        "export_sha256": "765a9266adbabcfb5bd15f41a18cc428ac86b4d03afe7ce65d6993c52f63d3c9",
+        "result_rows": 5,
+        "peak_number_sha256": "b5584a1464119498204d2bffb86944984de652acb277cb0d2a6810944ee13350",
+        "rt_sha256": "86b87e2e05ac6059690928d33078d80694046ddfcb92d6c573aa285e9d55ef6a",
+        "area_sha256": "72d72499713046dc23d665add8e91636fc0d955190c4ae9a4eb48d20382b7bcf",
+        "height_sha256": "0cdc4de670f07bae1275825fa09b072511227e388a14599f4e7206fbd5bda078"
+      }
+    ],
+    "filename_only_pairs": 0,
+    "nonpair_max_fid_matches": 15,
+    "nonpair_max_tcd_matches": 4
+  },
+  "time_oracle": {
+    "formula": "t[i] = 0 + i * DStep / MinTicks",
+    "d_step": 1,
+    "min_ticks": 600,
+    "unit": "min",
+    "compared_points": 138000,
+    "matching_points": 138000,
+    "export_decimal_places": 5
+  },
+  "signal_oracle": {
+    "stored_representation": "finite little-endian IEEE-754 binary32",
+    "transformation": "identity",
+    "fid_unit": "pA",
+    "tcd_unit": "mV",
+    "compared_points": 138000,
+    "matching_points_at_precision": 138000,
+    "export_decimal_places": 4,
+    "precision_derived_absolute_bound": "0.00005001",
+    "export_point_loss_or_response_transform_observed": false
+  },
+  "result_evidence": {
+    "composite_result_rows": 21,
+    "empty_fid_sections": 5,
+    "production_result_adapter_expanded": false,
+    "reason": "composite grammar and displayed Total semantics differ from the exact standalone profile"
+  },
+  "stored_peak_investigation": {
+    "repeatable_bounded_structure": false,
+    "raw_signal_integration_used": false,
+    "automatic_peak_detection_used": false,
+    "direct_peaks": "no-go",
+    "direct_area": "no-go",
+    "direct_height": "no-go"
+  },
+  "privacy_and_interoperability": {
+    "owner_files_in_git": 0,
+    "actions_fixture_artifacts": 0,
+    "measured_values_in_manifest": 0,
+    "absolute_paths_in_manifest": 0,
+    "vendor_binaries_bundled": 0,
+    "vendor_source_copied": 0,
+    "license_or_access_control_changes": 0
+  }
+}

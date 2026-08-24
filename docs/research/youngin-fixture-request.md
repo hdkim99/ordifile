@@ -1,13 +1,14 @@
 # Requesting YOUNG IN Chromass GC fixtures
 
-- Prepared: 2026-08-16; narrowed after local revalidation 2026-08-24
+- Prepared: 2026-08-16; fulfilled for the exact 9.1 signal profile on 2026-08-24
 - Status: local research request; do not attach files to a public issue
-- Target: paired evidence needed to promote the Experimental raw-record adapter
+- Target: historical paired-evidence request; current exact-profile boundaries recorded below
 
-Ordifile's development source tree contains an Experimental structural reader for one
-exact observed YL-Clarity PRM profile. The purpose of this request is to obtain enough
-lawful, privacy-reviewed paired material to validate scientific time, scaling, units
-and detector semantics. It is not a request for broad YOUNG IN Chromass support.
+Ordifile's development source tree contains Experimental readers for the exact observed
+YL-Clarity 9.0 structural and 9.1 scientific-signal PRM profiles. This request originally
+sought enough lawful, privacy-reviewed paired material to validate scientific time,
+scaling, units and detector semantics. That gate is fulfilled only for the exact 9.1
+profile; this is not a request for broad YOUNG IN Chromass support.
 
 ## Intake and export-generation status — 2026-08-18
 
@@ -24,26 +25,23 @@ evidence, not Verified detector semantics. The bridge remains optional local too
 The native files and generated exports remain `ACCEPT_EXTERNAL_ONLY` and must not be
 attached to Issue #2.
 
-## Immediate blocking evidence
+## Current evidence status
 
-Do not request another broad YoungIn fixture set for the current decoder decision. The
-23 PRM files and two paired Result Tables are already available. The exact missing oracle
-is one or, preferably, two same-run chromatogram exports from PRMs already in that set:
+Do not request another broad YoungIn fixture set for the current decoder decision. A later
+owner archive added five distinct exact YL-Clarity 9.1.0.76 FID+TCD PRMs and five same-run
+composite exports. Their full-range curves match all 138,000 PRM time/response points and
+fulfil the direct scientific-signal gate for that exact profile. No CDF/TXT request remains
+open for 9.1.
 
-1. one TCD-containing PRM exported as detector-specific AIA/CDF and as full-range CHR or
-   TXT with X Axis enabled and Time Step zero, with the Global Filter/Bunching state
-   disabled where possible and always recorded; and
-2. if available, one `FID` + `TCD` PRM exported the same way to verify channel order and
-   channel-specific response behavior.
+The separate 9.0.1.19 profile remains structural-only because its scientific equations are
+not inferred from 9.1. If future work specifically targets 9.0 scientific signals, the only
+useful request is a full-range same-run time/signal export from one of the already controlled
+9.0 PRMs, followed by an independent second pair. This is not required for the implemented
+9.1 capability.
 
-Record the selected signal(s), All Data versus Displayed Data, X Axis setting, Time Step,
-Global Filter/Bunching state, displayed X/Y units and software build. The CDF should retain
-its declared retention unit, actual sampling interval and detector unit. These files are
-local validation oracles only and must remain outside Git and public artifacts.
-
-The existing Result Table exports do not need to be regenerated for this gate. They test
-explicit peaks; they cannot replace the full curve needed to verify every PRM time and
-response point.
+The expanded composite exports also contain 21 Result rows. They did not identify a
+repeatable stored RT/Area/Height record in PRM, so no further Result files are currently
+requested and no numerical integration or peak detection is substituted.
 
 ## Minimum useful set
 
@@ -146,7 +144,8 @@ owner's explicit approval.
 >
 > We maintain Ordifile, an Apache-2.0 open-source tool that converts verified
 > scientific-instrument files into an ordered Excel workbook. Ordifile is not
-> affiliated with or endorsed by YOUNG IN Chromass, and it does not currently claim
+> affiliated with or endorsed by YOUNG IN Chromass. It claims only bounded Experimental
+> interoperability for the exact fixture-validated YL-Clarity profiles, not general
 > support for YOUNG IN Chromass products.
 >
 > For interoperability research, could you identify the normal completed acquisition
@@ -161,7 +160,8 @@ owner's explicit approval.
 >
 > We are not requesting license bypasses, proprietary executables, access-controlled
 > documentation, or confidential customer data. Any material would be used only under
-> the terms you specify, and support would not be claimed until reproducible tests pass.
+> the terms you specify, and additional support would not be claimed until reproducible
+> tests pass.
 
 YOUNG IN Chromass, ChroZen, YL-Clarity, AUTOCHRO, and related names are used only to
 identify possible compatibility targets. Ordifile is not affiliated with or endorsed

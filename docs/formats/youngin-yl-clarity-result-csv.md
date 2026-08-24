@@ -31,6 +31,12 @@ section, and four in a second run's TCD section. The latter run also contains on
 explicit empty FID section. The exact local pairing evidence maps both exports to two
 distinct owner PRM sources, but pairing is not a runtime requirement.
 
+Five later owner-controlled files use a different composite Result-plus-full-curve grammar
+and contain 21 additional research-only TCD rows. Their displayed Total semantics differ
+from this profile's exact validation equation. They are therefore not accepted by this
+adapter and do not change its two-export/six-row production evidence count. Their curve
+sections independently validate the exact 9.1 PRM scientific-signal profile.
+
 ## Canonical output
 
 Each numeric source row becomes one source-order `PeakRecord`. `Peak No.` is retained

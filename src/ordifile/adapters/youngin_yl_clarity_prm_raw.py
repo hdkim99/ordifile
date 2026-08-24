@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental raw-record converter for one observed YoungIn YL-Clarity PRM profile."""
+"""Experimental converter for exact observed YoungIn YL-Clarity PRM profiles."""
 
 from __future__ import annotations
 
@@ -41,22 +41,22 @@ def _parse_error(error: YoungInPrmStructureError) -> ParseError:
 
 
 class YoungInYlClarityPrmRawAdapter:
-    """Expose ordered binary32 records without assigning scientific semantics."""
+    """Preserve 9.0 raw records and expose validated 9.1 scientific signals."""
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "youngin_yl_clarity_prm_raw"
-    adapter_version: ClassVar[str] = "0.1.0"
+    adapter_version: ClassVar[str] = "0.2.0"
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
-        "YoungIn YL-Clarity .PRM raw records, observed 9.0.1.19 profile (Experimental)",
+        "YoungIn YL-Clarity .PRM, exact observed 9.0 raw and 9.1 signal profiles (Experimental)",
         (".prm",),
         True,
         False,
         True,
         True,
         SupportStatus.EXPERIMENTAL,
-        (SeriesKind.DECODED_RECORDS,),
+        (SeriesKind.DECODED_RECORDS, SeriesKind.SCIENTIFIC_SIGNAL),
         SourceIdentityPolicy.SHA256_ALIAS,
     )
 
@@ -74,7 +74,7 @@ class YoungInYlClarityPrmRawAdapter:
         return DetectionResult(
             True,
             0.99,
-            "exact observed YL-Clarity 9.0.1.19 PRM raw profile matched with "
+            f"exact observed {parsed.producer_version} PRM profile matched with "
             f"{parsed.structural_channel_count} structural channel(s)",
         )
 
@@ -101,6 +101,7 @@ class YoungInYlClarityPrmRawAdapter:
         safe_source = f"{sample_id}.prm"
         source = SourceFile(path, safe_source, safe_source, size, decoded.source_sha256, None, 0)
         channel_ids = tuple(channel.channel_id for channel in decoded.channels)
+        scientific_profile = decoded.producer_version == "YL-Clarity 9.1.0.76"
         sample = SampleRecord(
             sample_id,
             source,
@@ -109,30 +110,59 @@ class YoungInYlClarityPrmRawAdapter:
             sequence=None,
             instrument=InstrumentMetadata(None, "YoungIn"),
             channels=channel_ids,
-            detectors=(),
+            detectors=(
+                tuple(channel.stored_detector_label for channel in decoded.channels)
+                if scientific_profile
+                else ()
+            ),
             runtime=None,
         )
-        signals = tuple(
-            SignalSeries(
-                sample_id,
-                safe_source,
-                channel.channel_id,
-                None,
-                tuple(range(channel.record_count)),
-                channel.values,
-                x_label="decoded_record_index",
-                x_unit=None,
-                y_label="decoded_raw_binary32",
-                y_unit=None,
-                series_kind=SeriesKind.DECODED_RECORDS,
+        if scientific_profile:
+            signals = tuple(
+                SignalSeries(
+                    sample_id,
+                    safe_source,
+                    channel.channel_id,
+                    channel.stored_detector_label,
+                    tuple(
+                        index * channel.d_step_candidate / channel.min_ticks_candidate
+                        for index in range(channel.record_count)
+                    ),
+                    channel.values,
+                    x_label="retention_time",
+                    x_unit="min",
+                    y_label="detector_response",
+                    y_unit="pA" if channel.stored_detector_label == "FID" else "mV",
+                    series_kind=SeriesKind.SCIENTIFIC_SIGNAL,
+                )
+                for channel in decoded.channels
             )
-            for channel in decoded.channels
-        )
+        else:
+            signals = tuple(
+                SignalSeries(
+                    sample_id,
+                    safe_source,
+                    channel.channel_id,
+                    None,
+                    tuple(range(channel.record_count)),
+                    channel.values,
+                    x_label="decoded_record_index",
+                    x_unit=None,
+                    y_label="decoded_raw_binary32",
+                    y_unit=None,
+                    series_kind=SeriesKind.DECODED_RECORDS,
+                )
+                for channel in decoded.channels
+            )
         values: list[tuple[str, object, str | None]] = [
             ("support_status", "experimental", None),
-            ("representation", "decoded_records", None),
+            (
+                "representation",
+                "scientific_signal" if scientific_profile else "decoded_records",
+                None,
+            ),
             ("profile", decoded.profile, None),
-            ("producer_version", "YL-Clarity 9.0.1.19", None),
+            ("producer_version", decoded.producer_version, None),
             ("history_count", decoded.history_count, None),
             ("selected_history_version", decoded.selected_history_version, None),
             ("history_revision_exposure_status", "latest_revision_only", None),
@@ -148,20 +178,57 @@ class YoungInYlClarityPrmRawAdapter:
                 decoded.aggregate_canonical_be_f32_sha256,
                 None,
             ),
-            ("detector_verified", False, None),
-            ("detector_identity_status", "experimental_stored_native_label", None),
-            ("channel_identity_status", "experimental_stored_native_label", None),
-            ("time_axis_status", "not_exposed", None),
-            ("physical_scaling_status", "not_applied", None),
-            ("signal_unit_status", "unresolved", None),
+            ("detector_verified", scientific_profile, None),
+            (
+                "detector_identity_status",
+                "paired_curve_validated"
+                if scientific_profile
+                else "experimental_stored_native_label",
+                None,
+            ),
+            (
+                "channel_identity_status",
+                "paired_curve_validated"
+                if scientific_profile
+                else "experimental_stored_native_label",
+                None,
+            ),
+            (
+                "time_axis_status",
+                "paired_curve_validated" if scientific_profile else "not_exposed",
+                None,
+            ),
+            (
+                "physical_scaling_status",
+                "identity_validated_at_export_precision" if scientific_profile else "not_applied",
+                None,
+            ),
+            (
+                "signal_unit_status",
+                "paired_curve_validated" if scientific_profile else "unresolved",
+                None,
+            ),
             ("peak_table_status", "unsupported", None),
-            ("scientific_semantics_status", "pending_paired_export", None),
+            (
+                "scientific_semantics_status",
+                "direct_signal_validated" if scientific_profile else "pending_paired_export",
+                None,
+            ),
             (
                 "scientific_semantics_evidence_gap",
-                "same_run_chromatogram_curve",
+                "stored_peak_results" if scientific_profile else "same_run_chromatogram_curve",
                 None,
             ),
         ]
+        if scientific_profile:
+            values.extend(
+                [
+                    ("paired_curve_distinct_pair_count", 5, None),
+                    ("paired_curve_compared_point_count", 138_000, None),
+                    ("paired_curve_time_decimal_places", 5, None),
+                    ("paired_curve_signal_decimal_places", 4, None),
+                ]
+            )
         for index, channel in enumerate(decoded.channels, start=1):
             prefix = f"structural_channel_{index:03d}"
             values.extend(
@@ -184,15 +251,27 @@ class YoungInYlClarityPrmRawAdapter:
             MetadataEntry(sample_id, safe_source, _NAMESPACE, key, value, unit)
             for key, value, unit in values
         )
-        warnings = [
-            Issue(
-                "YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS",
-                "Ordered binary32 records were decoded without verified detector identity, "
-                "time axis, physical scaling, signal units, or peak semantics.",
-                Severity.WARNING,
-                sample_id,
-            ),
-        ]
+        if scientific_profile:
+            warnings = [
+                Issue(
+                    "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL",
+                    "Retention-time and detector-response series were decoded for the exact "
+                    "validated 9.1.0.76 profile; stored peak RT, Area, and Height remain "
+                    "unsupported.",
+                    Severity.WARNING,
+                    sample_id,
+                ),
+            ]
+        else:
+            warnings = [
+                Issue(
+                    "YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS",
+                    "Ordered binary32 records were decoded without verified detector identity, "
+                    "time axis, physical scaling, signal units, or peak semantics.",
+                    Severity.WARNING,
+                    sample_id,
+                ),
+            ]
         if decoded.prior_history_revision_count:
             warnings.append(
                 Issue(

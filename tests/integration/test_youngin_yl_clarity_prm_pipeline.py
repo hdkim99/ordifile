@@ -34,6 +34,29 @@ def test_inspect_and_cli_report_decoded_records_not_scientific_signals(
     assert "Decoded record series: 1" in output
 
 
+def test_inspect_and_cli_report_validated_9_1_scientific_signals(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "scientific.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+
+    inspected = inspect_file(source)
+    assert inspected.file.adapter_id == "youngin_yl_clarity_prm_raw"
+    assert {issue.code for issue in inspected.file.issues} >= {
+        "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL"
+    }
+
+    assert main(["inspect", str(source)]) == 0
+    output = capsys.readouterr().out
+    assert "Scientific signals: 2" in output
+    assert "Decoded record series: 0" in output
+
+
 def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Path) -> None:
     inputs = tmp_path / "inputs"
     inputs.mkdir()
@@ -91,5 +114,34 @@ def test_workbook_does_not_expose_ignored_embedded_metadata(tmp_path: Path) -> N
             for value in row
             if value is not None
         )
+    finally:
+        workbook.close()
+
+
+def test_validated_9_1_profile_writes_scientific_signal_sheets(tmp_path: Path) -> None:
+    source = tmp_path / "scientific.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+    output = tmp_path / "scientific.xlsx"
+
+    result = convert(source, output, include_signals=True)
+
+    assert result.success_count == 1
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert "Signals_FID" in workbook.sheetnames
+        assert "Signals_TCD" in workbook.sheetnames
+        assert not any(name.startswith("Signals_Records_") for name in workbook.sheetnames)
+        fid_rows = list(workbook["Signals_FID"].values)
+        tcd_rows = list(workbook["Signals_TCD"].values)
+        assert [row[9] for row in fid_rows[1:]] == ["pA", "pA"]
+        assert [row[9] for row in tcd_rows[1:]] == ["mV", "mV"]
+        assert [row[4] for row in fid_rows[1:]] == pytest.approx([0.0, 1 / 600])
+        assert "Peaks" in workbook.sheetnames
+        assert list(workbook["Peaks"].iter_rows(min_row=2, values_only=True)) == []
     finally:
         workbook.close()

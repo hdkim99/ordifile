@@ -1,6 +1,7 @@
 # GC adapter boundaries
 
 - Status: Accepted; Agilent v181 and YoungIn YL-Clarity 9.0.1.19 decoded records,
+  YoungIn YL-Clarity 9.1.0.76 scientific signals,
   one Shimadzu LabSolutions 5.82 chromatogram profile, and one Shimadzu GCMSsolution
   QGD TIC profile are Experimental
 - Date: 2026-08-16
@@ -22,8 +23,9 @@ from becoming a broad support claim.
 ## Accepted
 
 1. `youngin_yl_clarity`, `youngin_autochro`, and `youngin_export` remain broad research
-   categories. The runtime ID `youngin_yl_clarity_prm_raw` names only the exact observed
-   YL-Clarity 9.0.1.19 structural profile and is not an umbrella vendor entry.
+   categories. The runtime ID `youngin_yl_clarity_prm_raw` dispatches only the exact observed
+   YL-Clarity 9.0.1.19 structural and 9.1.0.76 scientific-signal profiles; it is not an
+   umbrella vendor entry.
 2. Runtime adapters are named for a verified byte format and version family. A future
    completed Clarity reader may use an ID such as `clarity_prm_<version-family>` only
    after a lawful, self-contained fixture proves its signature and version boundary.
@@ -57,12 +59,12 @@ from becoming a broad support claim.
    y, unknown units, and explicit Experimental warnings. It does not expose retention
    time or apply candidate scaling. See
    [`agilent-chemstation-ch-v181-investigation.md`](../research/agilent-chemstation-ch-v181-investigation.md).
-10. The owner-supplied intake authorizes local validation of 23 completed PRM files.
+10. The initial owner-supplied intake authorizes local validation of 23 completed PRM files.
     Their exact producer marker, bounded typed properties, duplicate gzip blocks,
     record-count equations, finite binary32 payloads and stored FID/TCD labels support
     an Experimental structural adapter. Two paired Result Tables establish a separate
-    peak-result path; a same-run chromatogram curve remains mandatory for direct
-    scientific signal semantics, not for deterministic raw-record conversion.
+    peak-result path. This 9.0.1.19 profile remains structural-only without its own same-run
+    curve oracle.
 11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
     single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
     A paired same-run ASCII chromatogram and an independent byte decoder validate the
@@ -82,11 +84,16 @@ from becoming a broad support claim.
     Experimental status, but detector verification, retention time, physical scaling,
     units and peaks remain unresolved or unsupported. See
     [`youngin-yl-clarity-prm-raw-format-notes.md`](../research/youngin-yl-clarity-prm-raw-format-notes.md).
+14. A second exact boundary covers only YL-Clarity `9.1.0.76` single-history,
+    source-ordered FID/TCD PRMs with equal point counts. Five content-confirmed same-run
+    composite exports validate all 138,000 points, zero-origin `DStep/MinTicks` minutes,
+    identity binary32 response and explicit FID pA/TCD mV units. This profile emits
+    `SCIENTIFIC_SIGNAL`; those equations are not transferred to 9.0 or other generations.
 
 ## Deferred
 
-- YoungIn PRM scientific-signal output and Verified promotion remain
-  `BLOCKED_BY_SAME_RUN_CURVE_ORACLE`; the narrow raw-record adapter is not blocked.
+- YoungIn 9.0 PRM scientific-signal output remains blocked by a profile-specific same-run
+  curve oracle; the narrow 9.1 scientific signal and 9.0 raw-record paths are not blocked.
 - Clarity `.raw` recovery inspection or salvage.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.
@@ -133,9 +140,10 @@ remain unsupported or unresolved. A maintainer-only local vendor-export bridge h
 generated two paired Result Tables from temporary PRM copies through a normally licensed
 installation. It does not yet generate the same-run chromatogram curve required for
 time/scaling validation, and it does not itself expand public support. The support matrix
-continues to separate
-YL-Clarity from Autochro, completed PRM from recovery RAW, and the exact observed
-profile from broad YoungIn claims.
+continues to separate YL-Clarity from Autochro, completed PRM from recovery RAW, and the
+exact observed profile from broad YoungIn claims. The later five-pair 9.1 intake validates
+an additional exact `SCIENTIFIC_SIGNAL` boundary without altering the 9.0 output or adding
+PRM-derived peaks.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because
 its paired same-run LabSolutions ASCII reference validates the sampled time and signal

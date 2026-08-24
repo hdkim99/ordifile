@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Direct scientific FID/TCD signal series for the exact validated YoungIn YL-Clarity
+  `9.1.0.76` PRM profile. Five content-confirmed same-run composite exports match all 138,000
+  time and response points; the existing 9.0 structural-record output remains unchanged and
+  no PRM-derived peaks, Area, Height, integration or peak detection is added.
 - Explicit, bounded **Table Options** for mapped structured Result intake: UTF-8/UTF-8-BOM,
   CP949, or Windows-1252 text decoding; one-based header-record selection; and visible
   worksheet selection for multi-sheet XLSX. The approved structure is stored with the
