@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Bounded structural reader for one observed YoungIn YL-Clarity ``.PRM`` profile.
+"""Bounded structural reader for exact observed YoungIn YL-Clarity ``.PRM`` profiles.
 
 The reader exposes ordered IEEE-754 binary32 records and allowlisted stored channel
 labels only. Candidate fields such as ``MinTicks`` are retained as structural metadata
@@ -22,8 +22,15 @@ from typing import Any
 START_MAGIC = bytes.fromhex("5aa50008")
 FOOTER_MARKER = bytes.fromhex("4d4bfa08")
 FOOTER_BYTES = 20
+INFO_VALUE_KEY = b"\x04Info\x03\xff\xfe\xff"
 PRODUCER_PREFIX_TEXT = "YL-Clarity 9.0.1.19 FULL, SN: "
 PRODUCER_PREFIX = PRODUCER_PREFIX_TEXT.encode("utf-16-le")
+SCIENTIFIC_PRODUCER_PREFIX_TEXT = "YL-Clarity 9.1.0.76 FULL, SN: "
+SCIENTIFIC_PRODUCER_PREFIX = SCIENTIFIC_PRODUCER_PREFIX_TEXT.encode("utf-16-le")
+FAMILY_MARKER = "YL-Clarity ".encode("utf-16-le")
+
+RAW_PROFILE = "YL-Clarity 9.0.1.19 observed PRM raw profile"
+SCIENTIFIC_PROFILE = "YL-Clarity 9.1.0.76 observed PRM scientific-signal profile"
 
 COUNT_KEY = b"\x10CountOfDetectors\x01"
 VERSION_KEY = b"\x0dChromVersion1\x01"
@@ -53,6 +60,7 @@ MAX_UNCOMPRESSED_BLOCK_BYTES = 8 * 1024 * 1024
 MAX_RECORDS_PER_CHANNEL = MAX_UNCOMPRESSED_BLOCK_BYTES // 4
 MAX_HISTORY_COUNT = 3
 MAX_CHANNEL_COUNT = 2
+MAX_INFO_VALUE_COUNT = 64
 
 
 class YoungInPrmStructureError(Exception):
@@ -86,6 +94,7 @@ class YoungInPrmData:
     """Structural facts for the exact observed profile."""
 
     profile: str
+    producer_version: str
     history_count: int
     selected_history_version: int
     prior_history_revision_count: int
@@ -287,6 +296,74 @@ def _canonical_aggregate(payloads: tuple[bytes, ...], *, domain: bytes) -> str:
     return digest.hexdigest()
 
 
+def _framed_info_values(data: bytes, *, boundary: int) -> tuple[bytes, ...]:
+    values: list[bytes] = []
+    for offset in _find_all(data[:boundary], INFO_VALUE_KEY, maximum=MAX_INFO_VALUE_COUNT):
+        length_offset = offset + len(INFO_VALUE_KEY)
+        if length_offset >= boundary:
+            raise _fail(
+                "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+                "A framed Info value is truncated before its bounded length.",
+            )
+        value_start = length_offset + 1
+        value_end = value_start + (data[length_offset] * 2)
+        if value_end > boundary:
+            raise _fail(
+                "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+                "A framed Info value exceeds the bounded PRM profile.",
+            )
+        values.append(data[value_start:value_end])
+    return tuple(values)
+
+
+def _producer_profile(data: bytes, *, boundary: int) -> tuple[str, str]:
+    known_profiles = (
+        (PRODUCER_PREFIX, "YL-Clarity 9.0.1.19", RAW_PROFILE),
+        (
+            SCIENTIFIC_PRODUCER_PREFIX,
+            "YL-Clarity 9.1.0.76",
+            SCIENTIFIC_PROFILE,
+        ),
+    )
+    info_values = _framed_info_values(data, boundary=boundary)
+    if not info_values or not info_values[0].startswith(FAMILY_MARKER):
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The first framed Info value is not an exact YL-Clarity producer.",
+        )
+
+    selected: tuple[str, str] | None = None
+    for index, value in enumerate(info_values):
+        if index > 0 and not value.startswith(FAMILY_MARKER):
+            continue
+        candidate = next(
+            (
+                (version, profile)
+                for prefix, version, profile in known_profiles
+                if value.startswith(prefix)
+            ),
+            None,
+        )
+        if candidate is None:
+            raise _fail(
+                "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+                "A framed YL-Clarity producer value is outside the exact profiles.",
+            )
+        if selected is None:
+            selected = candidate
+        elif candidate != selected:
+            raise _fail(
+                "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+                "Framed YL-Clarity producer values identify conflicting profiles.",
+            )
+    if selected is None:
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The exact observed YL-Clarity producer profile is absent or ambiguous.",
+        )
+    return selected
+
+
 def read_prm(path: Path) -> YoungInPrmData:
     """Read ordered current-revision binary32 records from the observed profile."""
     try:
@@ -320,11 +397,7 @@ def read_prm(path: Path) -> YoungInPrmData:
             "YOUNGIN_PRM_FILE_LENGTH_MISMATCH",
             "The exact footer marker is not at the validated end-relative boundary.",
         )
-    if PRODUCER_PREFIX not in data[:footer_offset]:
-        raise _fail(
-            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
-            "The exact observed YL-Clarity producer profile is absent.",
-        )
+    producer_version, profile = _producer_profile(data, boundary=footer_offset)
 
     version_offsets = _find_all(data[:footer_offset], VERSION_KEY, maximum=MAX_HISTORY_COUNT)
     count_offsets = _find_all(data[:footer_offset], COUNT_KEY, maximum=MAX_HISTORY_COUNT)
@@ -471,6 +544,14 @@ def read_prm(path: Path) -> YoungInPrmData:
             "The stored native channel label sequence is outside the observed profiles.",
             structural_channel_count=channel_count,
         )
+    if producer_version == "YL-Clarity 9.1.0.76" and (
+        history_count != 1 or tuple(stored_labels) != ("FID", "TCD")
+    ):
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The YL-Clarity 9.1.0.76 scientific profile requires its exact observed "
+            "single-history FID/TCD layout.",
+        )
     _validate_nonoverlap(
         [(block.key_offset, block.end_offset) for block in raw_blocks]
         + [(block.key_offset - PRM_METADATA_BYTES, block.end_offset) for block in prm_blocks]
@@ -545,8 +626,19 @@ def read_prm(path: Path) -> YoungInPrmData:
             )
         )
 
+    if (
+        producer_version == "YL-Clarity 9.1.0.76"
+        and len({channel.record_count for channel in channels}) != 1
+    ):
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The YL-Clarity 9.1.0.76 scientific profile requires equal full-range "
+            "record counts for its FID and TCD channels.",
+        )
+
     return YoungInPrmData(
-        profile="YL-Clarity 9.0.1.19 observed PRM raw profile",
+        profile=profile,
+        producer_version=producer_version,
         history_count=history_count,
         selected_history_version=history_count,
         prior_history_revision_count=history_count - 1,
@@ -573,4 +665,12 @@ def has_prm_family_identity(path: Path) -> bool:
         data = path.read_bytes()
     except OSError:
         return False
-    return len(data) == size and data[:4] == START_MAGIC and PRODUCER_PREFIX in data
+    if len(data) != size or data[:4] != START_MAGIC:
+        return False
+    try:
+        return any(
+            value.startswith(FAMILY_MARKER)
+            for value in _framed_info_values(data, boundary=len(data))
+        )
+    except YoungInPrmStructureError:
+        return False

@@ -100,7 +100,10 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert series_kinds["shimadzu_gcmssolution_qgd"] == (SeriesKind.SCIENTIFIC_SIGNAL,)
     assert series_kinds["shimadzu_labsolutions_result_ascii"] == ()
     assert series_kinds["leco_chromatof_gcxgc_result_txt"] == ()
-    assert series_kinds["youngin_yl_clarity_prm_raw"] == (SeriesKind.DECODED_RECORDS,)
+    assert series_kinds["youngin_yl_clarity_prm_raw"] == (
+        SeriesKind.DECODED_RECORDS,
+        SeriesKind.SCIENTIFIC_SIGNAL,
+    )
     assert series_kinds["youngin_yl_clarity_result_csv"] == ()
     assert all(
         kinds == (SeriesKind.SCIENTIFIC_SIGNAL,)

@@ -35,6 +35,12 @@ def _error(path: Path) -> str:
     return caught.value.code
 
 
+def _framed_info(text: str) -> bytes:
+    if len(text) > 255:
+        raise AssertionError("invented test Info value is too long")
+    return binary.INFO_VALUE_KEY + bytes([len(text)]) + text.encode("utf-16-le")
+
+
 def test_descriptor_and_detection_are_exact_and_experimental(tmp_path: Path) -> None:
     adapter = YoungInYlClarityPrmRawAdapter()
     valid = _write(tmp_path / "FID_STD_001.prm")
@@ -43,7 +49,10 @@ def test_descriptor_and_detection_are_exact_and_experimental(tmp_path: Path) -> 
     invalid = _write(tmp_path / "invalid.prm", b"not prm")
 
     assert adapter.descriptor.support_status is SupportStatus.EXPERIMENTAL
-    assert adapter.descriptor.series_kinds == (SeriesKind.DECODED_RECORDS,)
+    assert adapter.descriptor.series_kinds == (
+        SeriesKind.DECODED_RECORDS,
+        SeriesKind.SCIENTIFIC_SIGNAL,
+    )
     assert adapter.probe(valid).confidence == pytest.approx(0.99)
     assert adapter.probe(uppercase_extension).confidence == pytest.approx(0.99)
     assert adapter.parse(uppercase_extension, ParseOptions()).signals
@@ -149,6 +158,115 @@ def test_two_channels_preserve_source_order_and_have_stable_digests(tmp_path: Pa
     assert (
         first_meta["aggregate_canonical_be_f32_sha256"]
         == second_meta["aggregate_canonical_be_f32_sha256"]
+    )
+
+
+def test_validated_9_1_profile_exposes_scientific_time_and_detector_response(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+        channels=((1.25, 2.5, 3.75), (10.0, 20.0, 30.0)),
+    )
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "scientific.prm", data), ParseOptions()
+    )
+
+    assert bundle.samples[0].detectors == ("FID", "TCD")
+    assert bundle.peaks == ()
+    assert [signal.channel for signal in bundle.signals] == [
+        "native_label_FID",
+        "native_label_TCD",
+    ]
+    for signal, detector, unit in zip(bundle.signals, ("FID", "TCD"), ("pA", "mV"), strict=True):
+        assert signal.detector == detector
+        assert signal.x_values == pytest.approx((0.0, 1 / 600, 2 / 600))
+        assert signal.x_label == "retention_time"
+        assert signal.x_unit == "min"
+        assert signal.y_label == "detector_response"
+        assert signal.y_unit == unit
+        assert signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL
+    assert bundle.signals[0].y_values == pytest.approx((1.25, 2.5, 3.75))
+    assert bundle.signals[1].y_values == pytest.approx((10.0, 20.0, 30.0))
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["producer_version"] == "YL-Clarity 9.1.0.76"
+    assert metadata["time_axis_status"] == "paired_curve_validated"
+    assert metadata["physical_scaling_status"] == "identity_validated_at_export_precision"
+    assert metadata["paired_curve_distinct_pair_count"] == 5
+    assert metadata["paired_curve_compared_point_count"] == 138_000
+    assert metadata["paired_curve_time_decimal_places"] == 5
+    assert metadata["paired_curve_signal_decimal_places"] == 4
+    assert metadata["peak_table_status"] == "unsupported"
+    assert {issue.code for issue in bundle.warnings} == {
+        "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL"
+    }
+
+
+@pytest.mark.parametrize(
+    "data",
+    (
+        synthetic_prm_bytes(producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC"),
+        synthetic_prm_bytes(
+            producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+            channels=((1.0,), (2.0,)),
+            history_count=2,
+        ),
+        synthetic_prm_bytes(
+            producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+            channels=((1.0,), (2.0, 3.0)),
+        ),
+    ),
+)
+def test_9_1_scientific_profile_rejects_unobserved_layouts(tmp_path: Path, data: bytes) -> None:
+    assert _error(_write(tmp_path / "unsupported-9-1.prm", data)) == (
+        "YOUNGIN_PRM_PROFILE_UNSUPPORTED"
+    )
+
+
+def test_known_prefix_outside_the_exact_producer_field_cannot_promote_a_profile(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        producer_text="UNRELATED PRODUCT INFO",
+        channels=((1.0, 2.0), (3.0, 4.0)),
+        embedded_private_text=_framed_info(
+            binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "NOT_THE_PRODUCER"
+        ),
+    )
+    path = _write(tmp_path / "embedded-known-prefix.prm", data)
+
+    assert YoungInYlClarityPrmRawAdapter().probe(path).confidence == pytest.approx(0.70)
+    assert _error(path) == "YOUNGIN_PRM_PROFILE_UNSUPPORTED"
+
+
+def test_framed_producer_values_are_consistent_and_fail_closed(tmp_path: Path) -> None:
+    duplicate = synthetic_prm_bytes(
+        embedded_private_text=_framed_info(binary.PRODUCER_PREFIX_TEXT + "DUPLICATE")
+    )
+    assert (
+        YoungInYlClarityPrmRawAdapter()
+        .parse(_write(tmp_path / "duplicate-info.prm", duplicate), ParseOptions())
+        .signals
+    )
+
+    mixed = synthetic_prm_bytes(
+        embedded_private_text=_framed_info(binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "CONFLICT")
+    )
+    assert _error(_write(tmp_path / "mixed-info.prm", mixed)) == ("YOUNGIN_PRM_PROFILE_UNSUPPORTED")
+
+    raw_prefix_only = synthetic_prm_bytes(
+        embedded_private_text=(binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "UNFRAMED").encode(
+            "utf-16-le"
+        )
+    )
+    raw_bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unframed-prefix.prm", raw_prefix_only), ParseOptions()
+    )
+    assert all(signal.series_kind is SeriesKind.DECODED_RECORDS for signal in raw_bundle.signals)
+
+    truncated = synthetic_prm_bytes(embedded_private_text=binary.INFO_VALUE_KEY + b"\xff")
+    assert _error(_write(tmp_path / "truncated-info.prm", truncated)) == (
+        "YOUNGIN_PRM_PROFILE_UNSUPPORTED"
     )
 
 

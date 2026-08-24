@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 START_MAGIC = bytes.fromhex("5aa50008")
 FOOTER_MARKER = bytes.fromhex("4d4bfa08")
+INFO_VALUE_KEY = b"\x04Info\x03\xff\xfe\xff"
 PRODUCER_PREFIX_TEXT = "YL-Clarity 9.0.1.19 FULL, SN: "
 COUNT_KEY = b"\x10CountOfDetectors\x01"
 VERSION_KEY = b"\x0dChromVersion1\x01"
@@ -75,7 +76,10 @@ def synthetic_prm_bytes(
         raise ValueError("stored_labels must match channels")
     versions = history_versions or tuple(range(1, history_count + 1))
     data = bytearray(START_MAGIC)
-    data.extend(bytes(28))
+    if len(producer_text) > 255:
+        raise ValueError("producer_text is too long for the invented framed Info value")
+    data.extend(INFO_VALUE_KEY)
+    data.append(len(producer_text))
     data.extend(producer_text.encode("utf-16-le"))
     data.extend(bytes(16))
     data.extend(embedded_private_text)

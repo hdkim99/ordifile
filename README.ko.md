@@ -276,7 +276,8 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
-| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | chromatographic stored data를 순서 보존 raw binary32 record로 출력, scientific time/scaling/unit 검증 중 | Experimental | 사용자 제공 local-only 파일 23개 |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | chromatographic stored data를 순서 보존 raw binary32 record로 출력, scientific time/scaling/unit 미확정 | Experimental | 사용자 제공 local-only 파일 23개 |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.1.0.76` FID+TCD profile | 과학 데이터 allowlist | 없음 | retention time(min) + direct stored response(FID pA, TCD mV), peak integration 없음 | Experimental | 사용자 제공 local-only 파일 5개 + 같은 run full curve 5개 |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | 과학 데이터 allowlist | source peak 행 | RT1/RT2 (s) + area/height (AU), raw signal 없음 | Experimental | 외부 Dryad CC0 non-human 파일 1개 |
 
@@ -324,17 +325,18 @@ TIC 합 일치를 검증하지만 spectrum을 출력하지 않고 encoded mass�
 않습니다. 다른 QGD version, SIM/MRM, 물질 식별, 정량, 쓰기 기능은 지원한다고
 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md)를 확인해 주세요.
 
-YoungIn PRM에는 chromatographic stored data가 존재합니다. 현재 adapter는 YL-Clarity
-`9.0.1.19` PRM profile 하나를 위한 구조 변환기로, local-only 파일 23개의 현재 block
-43개에서 유한한 stored binary32 record 563,240개를 순서대로 보존합니다. 파일에 저장된
-allowlisted FID/TCD label로 channel을 분리하지만 canonical detector field는 비워 둡니다.
-현재 x는 retention time이 아니라 record ordinal입니다. Scientific time origin/interval,
-physical scaling과 signal unit은 같은 run의 official curve oracle이 더 필요하므로 scaling이나
-unit을 적용하지 않고 PRM에서 peak도 내보내지 않습니다. 사용자가 제공한 FID/TCD grouping은
-local maintainer oracle에만 남고 runtime metadata로 출력되지 않습니다. Runtime sample ID도
-파일명이 아닌 content hash로 생성됩니다. 다른 PRM generation, recovery `.RAW`, Autochro,
-calibrated chromatogram, 쓰기 기능은 지원한다고 주장하지 않습니다. [정확한 기능·안전
-경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
+YoungIn PRM에는 chromatographic stored data가 존재합니다. 하나의 adapter가 두 exact
+producer profile의 경계를 분리합니다. YL-Clarity `9.0.1.19`에서는 local-only 파일 23개의
+현재 block 43개에서 유한한 stored binary32 record 563,240개를 보존하며, record ordinal을
+retention time이라고 부르지 않고 detector/scaling/unit 의미도 미확정으로 유지합니다.
+독립적으로 검증한 YL-Clarity `9.1.0.76` FID+TCD profile에서는 same-run composite export
+5개가 stored point 138,000개 전부와 일치했습니다. Time은 0에서 시작하는
+`i * DStep / MinTicks` 분 단위이며, stored binary32 response를 scaling 없이 FID pA 또는
+TCD mV로 사용합니다. 이 exact profile은 YL-Clarity runtime 없이 scientific `Signals_*`를
+직접 만듭니다. 두 profile 모두 PRM에서 peak, Area, Height를 만들지 않습니다. 반복 가능한
+stored peak-result structure를 찾지 못했으며 curve를 재적분하지도 않습니다. Runtime sample
+ID는 content hash로 생성됩니다. 다른 PRM generation, recovery `.RAW`, Autochro, 쓰기 기능은
+지원하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 
 별도 YoungIn Result adapter는 사용자가 생성한 export 2개로 확정한 정확한
 CP949-compatible tab-delimited Result Table 문법만 읽습니다. PRM 없이 explicit RT(min),
@@ -344,6 +346,9 @@ area(mV.s), height(mV), signal number/name, source order가 있는 실제 행 6�
 않으며 W05를 integration boundary로 해석하지 않고 Total/percentage/empty compound-table
 행도 peak로 만들지 않습니다. Bytes 안에는 OEM/version marker가 없으므로 더 넓은
 YL-Clarity/Clarity CSV 지원은 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md)를 확인해 주세요.
+추가 composite export 5개는 9.1 scientific-curve oracle과 research-only Result row 21개를
+제공했습니다. Composite 문법과 표시 Total 의미가 standalone Result adapter의 exact
+profile과 다르므로 해당 adapter 입력으로 승격하지 않았습니다.
 
 LECO adapter는 Dryad CC0 non-human model-mixture 파일로 확정한 정확한 ChromaTOF
 4.72.0.0 GCxGC tab-delimited Result profile 하나를 읽습니다. Source 100행의 1차·2차원

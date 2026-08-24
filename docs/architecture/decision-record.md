@@ -349,6 +349,16 @@ to the workbook layout.
     exported RT/Area/Height row. Raw integration and automatic peak detection are not substitutes.
     Until those gates pass, the adapter preserves `DECODED_RECORDS`, the separate Result CSV
     adapter remains authoritative for explicit peaks, and no YL-Clarity runtime is required.
+51. YoungIn PRM scientific semantics are dispatched by exact producer profile inside the
+    existing `youngin_yl_clarity_prm_raw` adapter. The validated `9.1.0.76` single-history,
+    source-ordered FID/TCD profile emits canonical `SCIENTIFIC_SIGNAL` series using zero-origin
+    `i * DStep / MinTicks` minutes and identity binary32 response in FID pA / TCD mV. Five
+    content-confirmed same-run composite exports match all 138,000 time and signal points at
+    their declared text precision. The `9.0.1.19` profile retains its exact existing
+    `DECODED_RECORDS` behavior; 9.1 equations are not transferred across the producer boundary.
+    Composite Result rows are research evidence only because their Total semantics do not pass
+    the standalone Result adapter's exact grammar. Neither profile emits PRM-derived peaks,
+    Area or Height, and no integration or peak detection is introduced.
 
 ## Public boundaries
 

@@ -5,6 +5,11 @@
 - Boundary: Experimental standalone Result-only conversion
 - Actual evidence: two owner-generated local-only exports, six total peak rows
 
+An expanded owner intake also contains five composite Result-plus-curve exports with 21
+TCD peak rows. They are analyzed exhaustively as research evidence but remain outside this
+exact standalone grammar because their prefix/layout and displayed Total semantics differ.
+They do not change the adapter's two-export/six-row production evidence count.
+
 ## Evidence boundary
 
 The user generated both exports through the normally used YL-Clarity application. A

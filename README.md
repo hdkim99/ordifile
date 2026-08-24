@@ -287,7 +287,8 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
-| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Chromatographic stored data as ordered raw binary32 records; scientific time/scaling/unit pending | Experimental | 23 owner-supplied local-only files |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | Structural allowlist | No | Chromatographic stored data as ordered raw binary32 records; scientific time/scaling/unit unresolved | Experimental | 23 owner-supplied local-only files |
+| YoungIn YL-Clarity `.PRM`, exact observed `9.1.0.76` FID+TCD profile | Scientific allowlist | No | Retention time (min) + direct stored response (FID pA; TCD mV); no peak integration | Experimental | Five owner-supplied local-only files + five same-run full curves |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
 
@@ -338,16 +339,18 @@ encoded mass values are not called m/z. It does not claim other QGD versions,
 SIM/MRM, identifications, quantitation, or write support. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md).
 
-The YoungIn PRM files contain chromatographic stored data. The adapter is a structural
-converter for one observed YL-Clarity `9.0.1.19` PRM profile: it preserves 563,240 finite
-stored binary32 records from 43 current blocks across 23 local-only files and separates
-the allowlisted FID/TCD labels stored in those files, while leaving the canonical detector
-field unset. The current x coordinate is record ordinal, not retention time. Scientific
-time origin/interval, physical scaling and signal unit still require a same-run official
-curve oracle, so no physical scaling or unit is applied and peaks are not exported from
-PRM. Runtime sample IDs are content-derived, and no filename-derived grouping is exported.
-It does not claim other PRM generations, recovery `.RAW`, Autochro, calibrated
-chromatograms, or write support. See the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).
+YoungIn PRM files contain chromatographic stored data. One adapter keeps two exact producer
+profiles separate. For YL-Clarity `9.0.1.19`, it preserves 563,240 finite stored binary32
+records from 43 current blocks across 23 local-only files; record ordinal is not claimed as
+retention time and detector/scaling/unit semantics remain unresolved. For the independently
+validated YL-Clarity `9.1.0.76` FID+TCD profile, five same-run composite exports match all
+138,000 stored points: time is `i * DStep / MinTicks` from zero in minutes, and the stored
+binary32 response is used without scaling as FID pA or TCD mV. That profile produces
+scientific `Signals_*` rows directly without YL-Clarity at runtime. Neither profile produces
+peaks, Area, or Height from PRM; no repeatable stored peak-result structure was identified,
+and Ordifile does not re-integrate the curve. Runtime sample IDs are content-derived. Other
+PRM generations, recovery `.RAW`, Autochro, and write support remain unsupported. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).
 
 The separate YoungIn Result adapter reads the exact CP949-compatible, tab-delimited
 Result Table grammar established by two owner-generated exports. It preserves six
@@ -358,6 +361,9 @@ promoted to detector identity, W05 is not an integration boundary, and Total,
 percentage and empty compound-table rows are not peaks. The bytes contain no OEM or
 software-version marker, so broader YL-Clarity/Clarity CSV support is not claimed. See
 the [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-result-csv.md).
+Five additional composite exports supplied the 9.1 scientific-curve oracle and 21
+research-only Result rows. They are not accepted by the standalone Result adapter because
+their composite grammar and displayed Total semantics differ from its exact profile.
 
 The LECO adapter reads one exact ChromaTOF 4.72.0.0 GCxGC tab-delimited Result profile
 established by a Dryad CC0 non-human model-mixture file. It preserves all 100 source
