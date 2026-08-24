@@ -107,6 +107,14 @@ curve, so the 9.0 candidate is not emitted as retention time. For 9.1, the separ
 full-curve oracle validates the same interval, a zero origin and minutes across every
 point in five distinct source/export pairs.
 
+The subsequent [cross-version research probe](youngin-yl-clarity-prm-cross-version-equivalence.md)
+replayed all five 9.1 sources after masking only the typed producer field and reproduced
+all 138,000 scientific time and signal points. Across all 28 PRMs, raw framing, binary32
+ordering, size equations and `DStep=1` / `MinTicks=600` placement overlap, while history
+and channel-layout envelopes differ. This is a version-independent structural and formula
+candidate only. No same-run 9.0 full-range curve was found, so 9.0 remains structural-only
+and the exact production version gate remains unchanged.
+
 The gzip payload is an array of little-endian IEEE-754 binary32 values. All observed
 records in both exact profiles are finite. Reinterpreting the same bytes as big-endian
 produces non-finite and implausibly large values and is rejected by the evidence.
