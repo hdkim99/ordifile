@@ -896,6 +896,7 @@ class MainWindow(QMainWindow):
         mapping, mapping_set = self._active_peak_mappings()
         return ConversionRecipe(
             sort=SortMode(self._sort_value()),
+            include_signals=True,
             sheet=self._peak_table_mapping_sheet if mapping is not None else None,
             peak_table_mapping=mapping,
             peak_table_mapping_set=mapping_set,
@@ -1879,14 +1880,22 @@ class MainWindow(QMainWindow):
             self._last_output = report.output_path
             self.open_output_button.setEnabled(True)
         summary = report.summary
-        result_counts = (
-            None
-            if summary is None
-            else (
-                f"{summary.converted_sources} source(s), {summary.sample_records} sample(s), "
-                f"{summary.peak_records} peak(s)"
-            )
-        )
+        result_counts = None
+        if summary is not None:
+            count_parts = [
+                f"{summary.converted_sources} source(s)",
+                f"{summary.sample_records} sample(s)",
+                f"{summary.peak_records} peak(s)",
+            ]
+            if summary.scientific_signal_series:
+                count_parts.append(
+                    f"{summary.scientific_signal_series} scientific signal stream(s)"
+                )
+            if summary.structural_record_series:
+                count_parts.append(
+                    f"{summary.structural_record_series} structural record stream(s)"
+                )
+            result_counts = ", ".join(count_parts)
         if report.is_fatal_error:
             self.status_label.setText(
                 f"Conversion failed [{report.error_code}]: {report.error_message}"

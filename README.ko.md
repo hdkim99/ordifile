@@ -122,6 +122,9 @@ drop으로 input을 추가하고 `.xlsx` output을 선택한 뒤, authoritative 
 검토하고 background worker로 변환합니다. 파일별 성공·경고·실패와 progress는 계속
 표시됩니다. Mapping, Mapping Set, sort, drift review와 diagnostic detail은 첫 화면을
 복잡하게 만들지 않도록 접힌 영역 또는 필요한 상황에서만 표시됩니다.
+Desktop은 파싱된 scientific signal과 structural record series를 workbook에 자동으로
+기록하므로 exact YoungIn 9.1 PRM은 일반 4단계 외에 별도 control이 필요하지 않습니다.
+CLI/API에서는 기존 `--include-signals` / `include_signals=True` 계약을 그대로 사용합니다.
 
 반복 작업에서는 이름으로 저장된 **Recipe (optional)**를 고른 뒤 같은 4단계를
 사용합니다. **Save Current…**는 Recipe 이름만 묻고 JSON file dialog를 열지 않습니다.

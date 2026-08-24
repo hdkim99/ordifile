@@ -14,6 +14,7 @@ import hashlib
 import io
 import os
 import re
+import runpy
 import subprocess
 import sys
 import tarfile
@@ -684,7 +685,12 @@ raise SystemExit(app.main([]))
         )
 
 
-def _verify_smoke_workbook(path: Path) -> None:
+def _verify_smoke_workbook(
+    path: Path,
+    *,
+    required_sheets: frozenset[str] = frozenset(),
+    forbidden_sheets: frozenset[str] = frozenset(),
+) -> None:
     try:
         with zipfile.ZipFile(path) as workbook:
             root = ElementTree.fromstring(workbook.read("xl/workbook.xml"))
@@ -698,6 +704,8 @@ def _verify_smoke_workbook(path: Path) -> None:
     names = {element.attrib.get("name", "") for element in sheets}
     if not MANDATORY_WORKBOOK_SHEETS.issubset(names):
         raise ReleaseVerificationError("smoke workbook is missing mandatory sheets")
+    if not required_sheets.issubset(names) or names.intersection(forbidden_sheets):
+        raise ReleaseVerificationError("smoke workbook has an unexpected signal-sheet inventory")
     samples_index = next(
         index for index, element in enumerate(sheets) if element.attrib.get("name") == "Samples"
     )
@@ -735,6 +743,28 @@ def _verify_smoke_workbook(path: Path) -> None:
         or not filters
     ):
         raise ReleaseVerificationError("smoke workbook Samples presentation is incomplete")
+
+
+def _write_youngin_9_1_smoke_input(path: Path) -> None:
+    """Create one independently synthetic 9.1 PRM outside the extracted wheel."""
+    generator = (
+        Path(__file__).resolve().parents[1]
+        / "tests"
+        / "fixtures"
+        / "synthetic"
+        / "generate_youngin_yl_clarity_prm.py"
+    )
+    namespace = runpy.run_path(str(generator))
+    generate = namespace.get("synthetic_prm_bytes")
+    if not callable(generate):
+        raise ReleaseVerificationError("YoungIn scientific smoke generator is unavailable")
+    data = generate(
+        producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+        channels=((1.0, 2.0), (3.0, 4.0)),
+    )
+    if not isinstance(data, bytes):
+        raise ReleaseVerificationError("YoungIn scientific smoke generator returned invalid data")
+    path.write_bytes(data)
 
 
 def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
@@ -811,6 +841,26 @@ def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
             ["convert", source.name, "--output", "Ordifile_Result.xlsx"],
         )
         _verify_smoke_workbook(cwd / "Ordifile_Result.xlsx")
+        scientific_source = cwd / "youngin-scientific.prm"
+        _write_youngin_9_1_smoke_input(scientific_source)
+        _run_isolated_python(site, cwd, ["inspect", scientific_source.name])
+        scientific_output = cwd / "YoungIn_Scientific_Result.xlsx"
+        _run_isolated_python(
+            site,
+            cwd,
+            [
+                "convert",
+                scientific_source.name,
+                "--include-signals",
+                "--output",
+                scientific_output.name,
+            ],
+        )
+        _verify_smoke_workbook(
+            scientific_output,
+            required_sheets=frozenset({"Signals_FID", "Signals_TCD"}),
+            forbidden_sheets=frozenset({"Signals_Records_FID", "Signals_Records_TCD"}),
+        )
 
 
 def verify_release(

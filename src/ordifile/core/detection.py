@@ -76,6 +76,8 @@ def detect_adapter(
                     SOURCE_IDENTITY_PROBE_REASON
                     if redact_reasons or adapter.adapter_id in reason_redactions
                     else result.reason,
+                    result.routable,
+                    result.failure_code,
                 ),
             )
         )

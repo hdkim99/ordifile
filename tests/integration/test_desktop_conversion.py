@@ -13,6 +13,7 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 from ordifile import (
     ColumnSelector,
     ConversionPlanProblem,
+    ConversionPlanReadiness,
     ConversionPlanRoute,
     ConversionRecipe,
     PeakTableFormat,
@@ -33,6 +34,7 @@ from ordifile.desktop.services import (
 FIXTURE = Path("tests/fixtures/synthetic/generic_peaks.csv")
 PROJECT_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "tests" / "fixtures" / "synthetic"))
+from generate_youngin_yl_clarity_prm import synthetic_prm_bytes  # noqa: E402
 from generate_youngin_yl_clarity_result_csv import (  # noqa: E402
     synthetic_result_csv_bytes,
 )
@@ -78,6 +80,124 @@ def test_desktop_preflight_executes_the_exact_immutable_plan(tmp_path: Path) -> 
         assert "Peaks" in workbook.sheetnames
     finally:
         workbook.close()
+
+
+@pytest.mark.researcher_acceptance
+def test_desktop_converts_9_1_prm_to_scientific_signals_without_extra_controls(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "scientific.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+    output = tmp_path / "scientific.xlsx"
+
+    preflight = preflight_selection(DesktopRequest((source,), output))
+
+    assert preflight.plan is not None
+    assert preflight.plan.readiness is ConversionPlanReadiness.READY
+    assert preflight.plan.options.include_signals is True
+    assert preflight.files[0].plan_route is ConversionPlanRoute.EXACT_ADAPTER
+    assert preflight.files[0].plan_problem is ConversionPlanProblem.NONE
+
+    converted = convert_preflight_plan(preflight.plan)
+
+    assert converted.outcome is BatchOutcome.SUCCESS
+    assert converted.summary is not None
+    assert converted.summary.scientific_signal_series == 2
+    assert converted.summary.peak_records == 0
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert {"Signals_FID", "Signals_TCD"}.issubset(workbook.sheetnames)
+        assert not any(name.startswith("Signals_Records_") for name in workbook.sheetnames)
+        fid_rows = tuple(workbook["Signals_FID"].iter_rows(min_row=2, values_only=True))
+        tcd_rows = tuple(workbook["Signals_TCD"].iter_rows(min_row=2, values_only=True))
+        assert {row[6] for row in fid_rows} == {"min"}
+        assert {row[9] for row in fid_rows} == {"pA"}
+        assert {row[9] for row in tcd_rows} == {"mV"}
+        assert workbook["Peaks"].max_row == 1
+    finally:
+        workbook.close()
+
+
+@pytest.mark.researcher_acceptance
+def test_desktop_keeps_9_1_prm_signals_and_result_peaks_as_independent_sources(
+    tmp_path: Path,
+) -> None:
+    prm = tmp_path / "scientific.prm"
+    prm.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+    result_csv = tmp_path / "result.csv"
+    result_csv.write_bytes(synthetic_result_csv_bytes())
+    output = tmp_path / "mixed-youngin.xlsx"
+
+    preflight = preflight_selection(DesktopRequest((prm, result_csv), output))
+
+    assert preflight.plan is not None and preflight.plan.is_executable
+    assert [item.plan_route for item in preflight.files] == [
+        ConversionPlanRoute.EXACT_ADAPTER,
+        ConversionPlanRoute.EXACT_ADAPTER,
+    ]
+    converted = convert_preflight_plan(preflight.plan)
+    assert converted.summary is not None
+    assert converted.summary.scientific_signal_series == 2
+    assert converted.summary.peak_records == 2
+
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        signal_rows = list(workbook["Signals_FID"].iter_rows(min_row=2, values_only=True))
+        peak_rows = list(workbook["Peaks"].iter_rows(min_row=2, values_only=True))
+        assert len(signal_rows) == 2
+        assert len(peak_rows) == 2
+        assert {row[0] for row in signal_rows}.isdisjoint({row[0] for row in peak_rows})
+        assert {row[1] for row in signal_rows}.isdisjoint({row[1] for row in peak_rows})
+    finally:
+        workbook.close()
+
+
+@pytest.mark.researcher_acceptance
+def test_desktop_preflight_keeps_9_0_structural_and_rejects_unknown_profile(
+    tmp_path: Path,
+) -> None:
+    structural = tmp_path / "structural.prm"
+    structural.write_bytes(synthetic_prm_bytes())
+    unknown = tmp_path / "unknown.prm"
+    unknown.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.2.0.0 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+
+    structural_output = tmp_path / "structural.xlsx"
+    structural_preflight = preflight_selection(DesktopRequest((structural,), structural_output))
+    assert structural_preflight.plan is not None
+    assert structural_preflight.plan.readiness is ConversionPlanReadiness.READY
+    converted = convert_preflight_plan(structural_preflight.plan)
+    assert converted.summary is not None
+    assert converted.summary.scientific_signal_series == 0
+    assert converted.summary.structural_record_series == 1
+    workbook = load_workbook(structural_output, read_only=True, data_only=False)
+    try:
+        assert any(name.startswith("Signals_Records_") for name in workbook.sheetnames)
+        assert not any(name in {"Signals_FID", "Signals_TCD"} for name in workbook.sheetnames)
+    finally:
+        workbook.close()
+
+    unknown_preflight = preflight_selection(DesktopRequest((unknown,), tmp_path / "unknown.xlsx"))
+    assert unknown_preflight.plan is not None
+    assert unknown_preflight.plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES
+    assert unknown_preflight.plan.summary.routable == 0
+    assert unknown_preflight.files[0].plan_route is ConversionPlanRoute.UNROUTED
+    assert unknown_preflight.files[0].plan_problem is ConversionPlanProblem.MALFORMED_INPUT
+    assert "YOUNGIN_PRM_PROFILE_UNSUPPORTED" in unknown_preflight.plan.entries[0].issue_codes
 
 
 def test_desktop_recipe_preflight_executes_embedded_mapping_snapshot(

@@ -359,6 +359,14 @@ to the workbook layout.
     Composite Result rows are research evidence only because their Total semantics do not pass
     the standalone Result adapter's exact grammar. Neither profile emits PRM-derived peaks,
     Area or Height, and no integration or peak detection is introduced.
+52. The desktop always includes canonical signal and decoded-record series in its reviewed
+    conversion plan and workbook, because the one-screen GUI has no signal-export control and
+    silently omitting the only scientific output would make exact signal-only inputs appear
+    empty. Saved Recipes retain their explicit typed `include_signals` value; CLI and API
+    callers remain opt-in through `--include-signals` / `include_signals=True`. A positive
+    format-family probe may retain privacy-safe ownership while declaring an unsupported exact
+    profile non-routable. Conversion Preflight must block that entry with its structured code;
+    it must not promise a routable exact profile that conversion will deterministically reject.
 
 ## Public boundaries
 

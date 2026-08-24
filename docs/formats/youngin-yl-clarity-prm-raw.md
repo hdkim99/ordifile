@@ -33,6 +33,12 @@ Each PRM has one FID and one TCD channel with 13,800 points. Across all five run
 This exact profile produces `Signals_FID` and `Signals_TCD`. Its x axis is retention time
 in minutes; its y values are detector response in pA and mV respectively. It does not
 write duplicate `Signals_Records_*` sheets for this previously unsupported profile.
+The desktop writes these signal sheets automatically through **Inputs → Output → Preflight
+→ Convert**. CLI users request the same rows explicitly:
+
+```console
+ordifile convert run.prm --include-signals --output Ordifile_Result.xlsx
+```
 
 ## Exact detection boundary
 

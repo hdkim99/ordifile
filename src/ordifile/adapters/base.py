@@ -38,6 +38,8 @@ class DetectionResult:
     matched: bool
     confidence: float
     reason: str
+    routable: bool = True
+    failure_code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,6 +31,8 @@ the full test suite.
 | J | Dry run creates no workbook, existing output is not silently replaced, and source bytes are unchanged | `test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact`; `test_overwrite_and_input_output_protection` |
 | K | A desktop user saves a repeated setup by name, restarts, and reuses it without a JSON dialog | `test_save_first_named_recipe_uses_no_json_dialog_and_persists_after_restart` |
 | L | Selecting a named desktop Recipe applies its immutable settings and requires a new Preflight review | `test_window_selects_named_recipe_and_requires_explicit_preflight_refresh` |
+| M | A desktop user converts an exact YoungIn 9.1 PRM directly to FID/TCD scientific signal sheets, while 9.0 remains structural and unknown versions fail Preflight | `test_desktop_converts_9_1_prm_to_scientific_signals_without_extra_controls`; `test_desktop_preflight_keeps_9_0_structural_and_rejects_unknown_profile` |
+| N | YoungIn 9.1 PRM signals and a separate Result export's peaks remain independent sources in one workbook | `test_desktop_keeps_9_1_prm_signals_and_result_peaks_as_independent_sources` |
 
 The README Quick Start output is also selected so the copyable first-use claim remains
 consistent with the generated workbook.

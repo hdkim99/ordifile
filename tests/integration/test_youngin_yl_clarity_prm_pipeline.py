@@ -32,6 +32,12 @@ def test_inspect_and_cli_report_decoded_records_not_scientific_signals(
     output = capsys.readouterr().out
     assert "Scientific signals: 0" in output
     assert "Decoded record series: 1" in output
+    assert "Exact profile: YL-Clarity 9.0.1.19 observed PRM raw profile" in output
+    assert "Channels: 1" in output
+    assert "Scientific signal available: No" in output
+    assert "Retention-time unit: not available" in output
+    assert "Signal units: not available" in output
+    assert "Peak Result availability: unsupported" in output
 
 
 def test_inspect_and_cli_report_validated_9_1_scientific_signals(
@@ -55,6 +61,13 @@ def test_inspect_and_cli_report_validated_9_1_scientific_signals(
     output = capsys.readouterr().out
     assert "Scientific signals: 2" in output
     assert "Decoded record series: 0" in output
+    assert "Exact profile: YL-Clarity 9.1.0.76 observed PRM scientific-signal profile" in output
+    assert "Channels: 2" in output
+    assert "Scientific signal available: Yes" in output
+    assert "Retention-time unit: min" in output
+    assert "Signal units: FID=pA, TCD=mV" in output
+    assert "Scientific signal points: 4" in output
+    assert "Peak Result availability: unsupported" in output
 
 
 def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Path) -> None:
@@ -138,9 +151,35 @@ def test_validated_9_1_profile_writes_scientific_signal_sheets(tmp_path: Path) -
         assert not any(name.startswith("Signals_Records_") for name in workbook.sheetnames)
         fid_rows = list(workbook["Signals_FID"].values)
         tcd_rows = list(workbook["Signals_TCD"].values)
+        assert fid_rows[0] == (
+            "sample_id",
+            "source_file",
+            "channel",
+            "detector",
+            "x",
+            "x_label",
+            "x_unit",
+            "y",
+            "y_label",
+            "y_unit",
+        )
+        assert {row[2] for row in fid_rows[1:]} == {"native_label_FID"}
+        assert {row[3] for row in fid_rows[1:]} == {"FID"}
+        assert {row[5] for row in fid_rows[1:]} == {"retention_time"}
+        assert {row[6] for row in fid_rows[1:]} == {"min"}
+        assert {row[8] for row in fid_rows[1:]} == {"detector_response"}
         assert [row[9] for row in fid_rows[1:]] == ["pA", "pA"]
         assert [row[9] for row in tcd_rows[1:]] == ["mV", "mV"]
         assert [row[4] for row in fid_rows[1:]] == pytest.approx([0.0, 1 / 600])
+        metadata = {
+            row[3]: row[4] for row in workbook["Metadata"].iter_rows(min_row=2, values_only=True)
+        }
+        assert metadata["representation"] == "scientific_signal"
+        assert metadata["producer_version"] == "YL-Clarity 9.1.0.76"
+        assert metadata["peak_table_status"] == "unsupported"
+        import_log = list(workbook["Import_Log"].iter_rows(min_row=2, values_only=True))
+        assert import_log[0][2] == "youngin_yl_clarity_prm_raw"
+        assert "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL" in import_log[0][5]
         assert "Peaks" in workbook.sheetnames
         assert list(workbook["Peaks"].iter_rows(min_row=2, values_only=True)) == []
     finally:

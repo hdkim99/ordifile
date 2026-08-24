@@ -1628,6 +1628,38 @@ def test_window_shows_structured_fatal_error_without_traceback(app: QApplication
     window.close()
 
 
+def test_window_completion_reports_scientific_and_structural_streams(
+    app: QApplication, tmp_path: Path
+) -> None:
+    del app
+    output = tmp_path / "result.xlsx"
+    output.write_bytes(b"xlsx")
+    report = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        success_count=2,
+        output_path=output,
+        summary=ConversionResultSummary(
+            total_sources=2,
+            converted_sources=2,
+            warning_sources=0,
+            failed_sources=0,
+            skipped_sources=0,
+            duplicate_sources=0,
+            sample_records=2,
+            peak_records=0,
+            scientific_signal_series=2,
+            structural_record_series=1,
+        ),
+    )
+    window = MainWindow()
+
+    window._on_conversion_complete(report)
+
+    assert "2 scientific signal stream(s)" in window.status_label.text()
+    assert "1 structural record stream(s)" in window.status_label.text()
+    window.close()
+
+
 def test_window_progress_uses_existing_public_stages(app: QApplication) -> None:
     del app
     window = MainWindow()
