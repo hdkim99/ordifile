@@ -388,6 +388,9 @@ def test_inspect_reports_detection_hash_and_counts(
     assert "Peaks: 1" in output
     assert "Scientific signals: 1" in output
     assert "Decoded record series: 0" in output
+    assert "Exact profile:" not in output
+    assert "Retention-time unit:" not in output
+    assert "Signal units:" not in output
     assert "Detection evidence:" in output
 
 

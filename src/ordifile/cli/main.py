@@ -406,7 +406,7 @@ def _run_inspect(args: argparse.Namespace) -> int:
     print(f"Scientific signals: {scientific_signals}")
     print(f"Decoded record series: {decoded_record_series}")
     print(f"Metadata entries: {len(bundle.metadata) if bundle is not None else 0}")
-    if bundle is not None:
+    if bundle is not None and result.adapter_id == "youngin_yl_clarity_prm_raw":
         _print_scientific_inventory(bundle)
     mapping_route = getattr(result, "mapping_route", None)
     diagnostics = getattr(result, "mapping_diagnostics", ())

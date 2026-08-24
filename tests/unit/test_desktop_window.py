@@ -406,7 +406,7 @@ def test_window_selects_named_recipe_and_requires_explicit_preflight_refresh(
         recursive=True,
         extensions=(".csv",),
         sort=SortMode.FILENAME,
-        include_signals=True,
+        include_signals=False,
         peak_table_mapping_set=mapping_set,
         on_error="stop",
         sidecar_mode="csv",
@@ -426,6 +426,7 @@ def test_window_selects_named_recipe_and_requires_explicit_preflight_refresh(
     assert window.sort_combo.currentData() == "filename"
     request = window._current_preflight_request()
     assert request.recipe == stored.recipe
+    assert request.recipe.include_signals is False
     assert request.sort == "auto"
     assert request.peak_table_mapping is None
     assert request.peak_table_mapping_set is None

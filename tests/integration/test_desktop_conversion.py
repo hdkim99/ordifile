@@ -233,6 +233,32 @@ def test_desktop_recipe_preflight_executes_embedded_mapping_snapshot(
     assert len(peaks) == 3
 
 
+@pytest.mark.researcher_acceptance
+def test_desktop_recipe_preserves_explicit_signal_exclusion(tmp_path: Path) -> None:
+    source = tmp_path / "scientific.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+    output = tmp_path / "recipe-excluded-signals.xlsx"
+    recipe = ConversionRecipe(include_signals=False, display_label="Peaks only")
+
+    preflight = preflight_selection(DesktopRequest((source,), output, recipe=recipe))
+
+    assert preflight.plan is not None and preflight.plan.is_executable
+    assert preflight.plan.options.include_signals is False
+    converted = convert_preflight_plan(preflight.plan)
+    assert converted.summary is not None
+    assert converted.summary.scientific_signal_series == 2
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        assert not any(name.startswith("Signals_") for name in workbook.sheetnames)
+    finally:
+        workbook.close()
+
+
 def test_desktop_preflight_blocks_a_source_changed_before_conversion(tmp_path: Path) -> None:
     source = tmp_path / "private-source.csv"
     source.write_text("sample_id,area\na,1\n", encoding="utf-8")

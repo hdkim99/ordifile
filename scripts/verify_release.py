@@ -690,6 +690,7 @@ def _verify_smoke_workbook(
     *,
     required_sheets: frozenset[str] = frozenset(),
     forbidden_sheets: frozenset[str] = frozenset(),
+    forbidden_sheet_prefixes: frozenset[str] = frozenset(),
 ) -> None:
     try:
         with zipfile.ZipFile(path) as workbook:
@@ -704,7 +705,11 @@ def _verify_smoke_workbook(
     names = {element.attrib.get("name", "") for element in sheets}
     if not MANDATORY_WORKBOOK_SHEETS.issubset(names):
         raise ReleaseVerificationError("smoke workbook is missing mandatory sheets")
-    if not required_sheets.issubset(names) or names.intersection(forbidden_sheets):
+    if (
+        not required_sheets.issubset(names)
+        or names.intersection(forbidden_sheets)
+        or any(name.startswith(prefix) for name in names for prefix in forbidden_sheet_prefixes)
+    ):
         raise ReleaseVerificationError("smoke workbook has an unexpected signal-sheet inventory")
     samples_index = next(
         index for index, element in enumerate(sheets) if element.attrib.get("name") == "Samples"
@@ -859,7 +864,7 @@ def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
         _verify_smoke_workbook(
             scientific_output,
             required_sheets=frozenset({"Signals_FID", "Signals_TCD"}),
-            forbidden_sheets=frozenset({"Signals_Records_FID", "Signals_Records_TCD"}),
+            forbidden_sheet_prefixes=frozenset({"Signals_Records_"}),
         )
 
 

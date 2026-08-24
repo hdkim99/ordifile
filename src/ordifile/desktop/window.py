@@ -1882,16 +1882,18 @@ class MainWindow(QMainWindow):
         summary = report.summary
         result_counts = None
         if summary is not None:
+            plan = self._current_plan()
+            series_included = plan is None or plan.options.include_signals
             count_parts = [
                 f"{summary.converted_sources} source(s)",
                 f"{summary.sample_records} sample(s)",
                 f"{summary.peak_records} peak(s)",
             ]
-            if summary.scientific_signal_series:
+            if series_included and summary.scientific_signal_series:
                 count_parts.append(
                     f"{summary.scientific_signal_series} scientific signal stream(s)"
                 )
-            if summary.structural_record_series:
+            if series_included and summary.structural_record_series:
                 count_parts.append(
                     f"{summary.structural_record_series} structural record stream(s)"
                 )
