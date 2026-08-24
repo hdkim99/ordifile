@@ -648,6 +648,7 @@ def build_conversion_plan(
                     forced_adapter=adapter,
                     parse_options=parse_options,
                     preserve_exact_adapter_precedence=recipe_schema_version is not None,
+                    require_routable=True,
                 )
                 adapter_id = decision.detection.adapter.adapter_id
                 adapter_version = decision.detection.adapter.adapter_version

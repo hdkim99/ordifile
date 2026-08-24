@@ -648,6 +648,7 @@ def run_pipeline(
                     preserve_exact_adapter_precedence=preserve_exact_adapter_precedence,
                     redact_adapter_ids=sha256_alias_owner_ids,
                     redact_error_reasons=(initial_policy is SourceIdentityPolicy.SHA256_ALIAS),
+                    require_routable=expected_routes is not None,
                 )
             except InputRouteError as error:
                 mapping_route = error.mapping_route

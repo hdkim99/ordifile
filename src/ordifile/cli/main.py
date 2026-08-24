@@ -23,7 +23,7 @@ from ordifile.api import (
     plan_recipe,
 )
 from ordifile.core.errors import OrdifileError
-from ordifile.core.models import BatchOutcome, SeriesKind
+from ordifile.core.models import BatchOutcome, DatasetBundle, SeriesKind
 from ordifile.core.peak_mapping import load_peak_table_mapping, load_peak_table_mapping_set
 from ordifile.core.planning import ConversionPlanReadiness
 
@@ -332,6 +332,44 @@ def _print_issues(result: object, *, verbose: bool) -> None:
             print(f"  Context: {context}")
 
 
+def _single_metadata_value(bundle: DatasetBundle, key: str) -> str | None:
+    values = {str(entry.value) for entry in bundle.metadata if entry.key == key}
+    return next(iter(values)) if len(values) == 1 else None
+
+
+def _print_scientific_inventory(bundle: DatasetBundle) -> None:
+    """Print bounded canonical capability details without measured values."""
+    profile = _single_metadata_value(bundle, "profile")
+    if profile is not None:
+        print(f"Exact profile: {_terminal_safe(profile)}")
+    channel_count = sum(len(sample.channels) for sample in bundle.samples)
+    scientific = tuple(
+        signal for signal in bundle.signals if signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL
+    )
+    print(f"Channels: {channel_count}")
+    print(f"Scientific signal available: {_yes_no(bool(scientific))}")
+    if scientific:
+        x_units = tuple(dict.fromkeys(signal.x_unit or "unresolved" for signal in scientific))
+        print(f"Retention-time unit: {_terminal_safe(', '.join(x_units))}")
+        unit_pairs = tuple(
+            dict.fromkeys(
+                f"{signal.detector or signal.channel or 'unresolved'}="
+                f"{signal.y_unit or 'unresolved'}"
+                for signal in scientific
+            )
+        )
+        print(f"Signal units: {_terminal_safe(', '.join(unit_pairs))}")
+        print(f"Scientific signal points: {sum(len(signal.x_values) for signal in scientific)}")
+    else:
+        print("Retention-time unit: not available")
+        print("Signal units: not available")
+    peak_status = _single_metadata_value(bundle, "peak_table_status")
+    if peak_status is not None:
+        print(f"Peak Result availability: {_terminal_safe(peak_status)}")
+    else:
+        print(f"Peak Result availability: {'present' if bundle.peaks else 'no rows'}")
+
+
 def _run_inspect(args: argparse.Namespace) -> int:
     mapping = load_peak_table_mapping(args.peak_mapping) if args.peak_mapping else None
     mapping_set = (
@@ -368,6 +406,8 @@ def _run_inspect(args: argparse.Namespace) -> int:
     print(f"Scientific signals: {scientific_signals}")
     print(f"Decoded record series: {decoded_record_series}")
     print(f"Metadata entries: {len(bundle.metadata) if bundle is not None else 0}")
+    if bundle is not None and result.adapter_id == "youngin_yl_clarity_prm_raw":
+        _print_scientific_inventory(bundle)
     mapping_route = getattr(result, "mapping_route", None)
     diagnostics = getattr(result, "mapping_diagnostics", ())
     print(f"Mapping route: {_terminal_safe(mapping_route or 'none')}")

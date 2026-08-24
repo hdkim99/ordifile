@@ -49,7 +49,7 @@ class YoungInYlClarityPrmRawAdapter:
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
-        "YoungIn YL-Clarity .PRM, exact observed 9.0 raw and 9.1 signal profiles (Experimental)",
+        "YoungIn PRM: exact 9.0 structural-only; 9.1 RT min, FID pA/TCD mV signals",
         (".prm",),
         True,
         False,
@@ -70,7 +70,13 @@ class YoungInYlClarityPrmRawAdapter:
         try:
             parsed = read_prm(path)
         except YoungInPrmStructureError as error:
-            return DetectionResult(True, 0.70, error.message)
+            return DetectionResult(
+                True,
+                0.70,
+                error.message,
+                routable=False,
+                failure_code=error.code,
+            )
         return DetectionResult(
             True,
             0.99,

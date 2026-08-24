@@ -241,6 +241,7 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
         "inputs": request.inputs,
         "output": output,
         "sort": "sequence",
+        "include_signals": True,
         "on_error": "continue",
         "overwrite": False,
         "sheet": None,

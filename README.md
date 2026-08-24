@@ -123,6 +123,9 @@ file-manager drag and drop, choose an `.xlsx` output, review the authoritative r
 table, and convert in a background worker. Progress and per-file success, warning, or
 failure remain visible. Mapping, Mapping Set, sort, drift review, and diagnostic details
 remain available through collapsed or contextual controls instead of crowding first use.
+The desktop writes parsed scientific signals and structural record series automatically,
+so an exact YoungIn 9.1 PRM needs no extra control beyond the ordinary four steps. The
+CLI/API keep their explicit `--include-signals` / `include_signals=True` contract.
 
 For repeated work, choose a named local **Recipe (optional)**, then use the same four
 steps. **Save Current…** asks only for a Recipe name; it does not open a JSON file dialog.

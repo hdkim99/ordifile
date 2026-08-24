@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from openpyxl import Workbook  # type: ignore[import-untyped]
 
 PROJECT_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
@@ -234,6 +235,30 @@ def test_release_artifacts_and_checksums_are_verified_deterministically(
         )
         == 0
     )
+
+
+def test_smoke_workbook_rejects_forbidden_signal_sheet_prefix(tmp_path: Path) -> None:
+    output = tmp_path / "smoke.xlsx"
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for name in sorted(release.MANDATORY_WORKBOOK_SHEETS):
+        sheet = workbook.create_sheet(name)
+        if name == "Samples":
+            sheet.append(("sample_id", "source_file"))
+            sheet.freeze_panes = "C2"
+            sheet.auto_filter.ref = "A1:B1"
+    workbook.create_sheet("Signals_Records_native_label_FI")
+    workbook.active = workbook.sheetnames.index("Samples")
+    workbook.save(output)
+
+    with pytest.raises(
+        release.ReleaseVerificationError,
+        match="unexpected signal-sheet inventory",
+    ):
+        release._verify_smoke_workbook(
+            output,
+            forbidden_sheet_prefixes=frozenset({"Signals_Records_"}),
+        )
 
 
 def test_wheel_rejects_legacy_package_and_record_tampering(tmp_path: Path) -> None:

@@ -108,6 +108,21 @@ def mapped_adapter_id(path: Path, source_format: PeakTableFormat) -> str:
     return adapter_id
 
 
+def _require_routable_detection(detection: DetectionOutcome) -> DetectionOutcome:
+    """Reject a matched owner that already proved its exact profile unusable."""
+    selected = next(
+        probe
+        for adapter_id, probe in detection.probes
+        if adapter_id == detection.adapter.adapter_id
+    )
+    if not selected.routable:
+        raise DetectionError(
+            selected.failure_code or "EXACT_PROFILE_UNSUPPORTED",
+            "The matched format owner rejected this exact profile as unsupported or malformed.",
+        )
+    return detection
+
+
 def resolve_input_route(
     path: Path,
     registry: AdapterRegistry,
@@ -117,6 +132,7 @@ def resolve_input_route(
     preserve_exact_adapter_precedence: bool = False,
     redact_adapter_ids: frozenset[str] = frozenset(),
     redact_error_reasons: bool = False,
+    require_routable: bool = False,
 ) -> InputRouteDecision:
     """Resolve exact ownership or an explicit mapping through one shared path."""
     mapping_requested = (
@@ -138,7 +154,7 @@ def resolve_input_route(
                     raise
             else:
                 return InputRouteDecision(
-                    exact_owner,
+                    _require_routable_detection(exact_owner) if require_routable else exact_owner,
                     parse_options,
                     mapping_route="EXACT_ADAPTER",
                 )
@@ -149,7 +165,10 @@ def resolve_input_route(
             redact_adapter_ids=redact_adapter_ids,
             redact_error_reasons=redact_error_reasons,
         )
-        return InputRouteDecision(detection, parse_options)
+        return InputRouteDecision(
+            _require_routable_detection(detection) if require_routable else detection,
+            parse_options,
+        )
 
     try:
         exact = detect_adapter(
@@ -165,7 +184,7 @@ def resolve_input_route(
         exact = None
     if exact is not None:
         return InputRouteDecision(
-            exact,
+            _require_routable_detection(exact) if require_routable else exact,
             replace(
                 parse_options,
                 peak_table_mapping=None,
