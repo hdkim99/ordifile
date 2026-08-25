@@ -30,7 +30,7 @@ _KNOWN_PREFIXES = {
     "YL-Clarity 9.0.1.19": binary.PRODUCER_PREFIX,
     "YL-Clarity 9.1.0.76": binary.SCIENTIFIC_PRODUCER_PREFIX,
 }
-_CANDIDATE_RESPONSE_UNITS = {"FID": "pA", "TCD": "mV"}
+_VALIDATED_9_1_RESPONSE_UNITS = {"FID": "pA", "TCD": "mV"}
 
 
 class ResearchProbeError(RuntimeError):
@@ -231,7 +231,7 @@ def replay_validated_9_1_without_scientific_version_gate(
             channel_matches += 1
         if (
             signal.x_unit == "min"
-            and signal.y_unit == _CANDIDATE_RESPONSE_UNITS[channel.stored_detector_label]
+            and signal.y_unit == _VALIDATED_9_1_RESPONSE_UNITS[channel.stored_detector_label]
         ):
             unit_matches += 1
         if (

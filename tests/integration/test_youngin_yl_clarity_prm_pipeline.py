@@ -15,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "tests" / "fixtures" / "synthetic"))
 from generate_youngin_yl_clarity_prm import synthetic_prm_bytes  # noqa: E402
 
 
-def test_inspect_and_cli_report_decoded_records_not_scientific_signals(
+def test_inspect_and_cli_report_validated_9_0_scientific_signal(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source = tmp_path / "FID_STD_001.prm"
@@ -25,18 +25,21 @@ def test_inspect_and_cli_report_decoded_records_not_scientific_signals(
     assert inspected.file.adapter_id == "youngin_yl_clarity_prm_raw"
     assert inspected.file.source.detected_format == "youngin_yl_clarity_prm_raw"
     assert {issue.code for issue in inspected.file.issues} >= {
-        "YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS"
+        "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL"
     }
 
     assert main(["inspect", str(source)]) == 0
     output = capsys.readouterr().out
-    assert "Scientific signals: 0" in output
-    assert "Decoded record series: 1" in output
-    assert "Exact profile: YL-Clarity 9.0.1.19 observed PRM raw profile" in output
+    assert "Scientific signals: 1" in output
+    assert "Decoded record series: 0" in output
+    assert "PRM profile: YL-Clarity 9.0.1.19 observed PRM scientific-signal profile" in output
+    assert "Producer version: YL-Clarity 9.0.1.19" in output
+    assert "Family: YL-Clarity PRM scientific family" in output
+    assert "Compatibility: validated profile" in output
     assert "Channels: 1" in output
-    assert "Scientific signal available: No" in output
-    assert "Retention-time unit: not available" in output
-    assert "Signal units: not available" in output
+    assert "Scientific signal available: Yes" in output
+    assert "Retention-time unit: min" in output
+    assert "Signal units: TCD=mV" in output
     assert "Peak Result availability: unsupported" in output
 
 
@@ -61,13 +64,36 @@ def test_inspect_and_cli_report_validated_9_1_scientific_signals(
     output = capsys.readouterr().out
     assert "Scientific signals: 2" in output
     assert "Decoded record series: 0" in output
-    assert "Exact profile: YL-Clarity 9.1.0.76 observed PRM scientific-signal profile" in output
+    assert "PRM profile: YL-Clarity 9.1.0.76 observed PRM scientific-signal profile" in output
+    assert "Producer version: YL-Clarity 9.1.0.76" in output
+    assert "Compatibility: validated profile" in output
     assert "Channels: 2" in output
     assert "Scientific signal available: Yes" in output
     assert "Retention-time unit: min" in output
     assert "Signal units: FID=pA, TCD=mV" in output
     assert "Scientific signal points: 4" in output
     assert "Peak Result availability: unsupported" in output
+
+
+def test_inspect_reports_compatible_unknown_signal_with_unresolved_units(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "compatible.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.2.0.0 FULL, SN: PRIVATE-SYNTHETIC",
+            channels=((1.0, 2.0), (3.0, 4.0)),
+        )
+    )
+
+    assert main(["inspect", str(source)]) == 0
+    output = capsys.readouterr().out
+    assert "Producer version: YL-Clarity 9.2.0.0" in output
+    assert "Family: YL-Clarity PRM scientific family" in output
+    assert "Compatibility: compatible unvalidated producer" in output
+    assert "Retention-time unit: min" in output
+    assert "Signal units: FID=unresolved, TCD=unresolved" in output
+    assert "PRIVATE-SYNTHETIC" not in output
 
 
 def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Path) -> None:
@@ -89,13 +115,16 @@ def test_valid_and_corrupt_prm_batch_isolated_and_workbook_reopens(tmp_path: Pat
     assert output.is_file()
     workbook = load_workbook(output, read_only=True, data_only=False)
     try:
-        fid_rows = list(workbook["Signals_Records_native_label_FI"].values)
-        tcd_rows = list(workbook["Signals_Records_native_label_TC"].values)
-        assert fid_rows[0][-1] == "series_kind"
-        assert len(fid_rows) - 1 == 1
-        assert len(tcd_rows) - 1 == 7
-        assert [row[7] for row in fid_rows[1:]] == [5.0]
-        assert {row[-1] for row in fid_rows[1:] + tcd_rows[1:]} == {"decoded_records"}
+        fid_record_rows = list(workbook["Signals_Records_native_label_FI"].values)
+        tcd_record_rows = list(workbook["Signals_Records_native_label_TC"].values)
+        tcd_scientific_rows = list(workbook["Signals_TCD"].values)
+        assert fid_record_rows[0][-1] == "series_kind"
+        assert len(fid_record_rows) - 1 == 1
+        assert len(tcd_record_rows) - 1 == 2
+        assert len(tcd_scientific_rows) - 1 == 5
+        assert [row[7] for row in fid_record_rows[1:]] == [5.0]
+        assert {row[-1] for row in fid_record_rows[1:] + tcd_record_rows[1:]} == {"decoded_records"}
+        assert {row[9] for row in tcd_scientific_rows[1:]} == {"mV"}
         samples = list(workbook["Samples"].iter_rows(min_row=2, values_only=True))
         assert {row[1] for row in samples if row[12] != "failed"} == {
             f"PRM_{hashlib.sha256(first_data).hexdigest()[:16]}",

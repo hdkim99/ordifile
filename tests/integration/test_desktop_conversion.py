@@ -163,11 +163,11 @@ def test_desktop_keeps_9_1_prm_signals_and_result_peaks_as_independent_sources(
 
 
 @pytest.mark.researcher_acceptance
-def test_desktop_preflight_keeps_9_0_structural_and_rejects_unknown_profile(
+def test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profiles(
     tmp_path: Path,
 ) -> None:
-    structural = tmp_path / "structural.prm"
-    structural.write_bytes(synthetic_prm_bytes())
+    validated = tmp_path / "validated.prm"
+    validated.write_bytes(synthetic_prm_bytes())
     unknown = tmp_path / "unknown.prm"
     unknown.write_bytes(
         synthetic_prm_bytes(
@@ -176,28 +176,64 @@ def test_desktop_preflight_keeps_9_0_structural_and_rejects_unknown_profile(
         )
     )
 
-    structural_output = tmp_path / "structural.xlsx"
-    structural_preflight = preflight_selection(DesktopRequest((structural,), structural_output))
-    assert structural_preflight.plan is not None
-    assert structural_preflight.plan.readiness is ConversionPlanReadiness.READY
-    converted = convert_preflight_plan(structural_preflight.plan)
+    validated_output = tmp_path / "validated.xlsx"
+    validated_preflight = preflight_selection(DesktopRequest((validated,), validated_output))
+    assert validated_preflight.plan is not None
+    assert validated_preflight.plan.readiness is ConversionPlanReadiness.READY
+    assert "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL" in (
+        validated_preflight.plan.entries[0].issue_codes
+    )
+    converted = convert_preflight_plan(validated_preflight.plan)
     assert converted.summary is not None
-    assert converted.summary.scientific_signal_series == 0
-    assert converted.summary.structural_record_series == 1
-    workbook = load_workbook(structural_output, read_only=True, data_only=False)
+    assert converted.summary.scientific_signal_series == 1
+    assert converted.summary.structural_record_series == 0
+    workbook = load_workbook(validated_output, read_only=True, data_only=False)
     try:
-        assert any(name.startswith("Signals_Records_") for name in workbook.sheetnames)
-        assert not any(name in {"Signals_FID", "Signals_TCD"} for name in workbook.sheetnames)
+        assert "Signals_TCD" in workbook.sheetnames
+        units = {row[9] for row in workbook["Signals_TCD"].iter_rows(min_row=2, values_only=True)}
+        assert units == {"mV"}
     finally:
         workbook.close()
 
     unknown_preflight = preflight_selection(DesktopRequest((unknown,), tmp_path / "unknown.xlsx"))
     assert unknown_preflight.plan is not None
-    assert unknown_preflight.plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES
-    assert unknown_preflight.plan.summary.routable == 0
-    assert unknown_preflight.files[0].plan_route is ConversionPlanRoute.UNROUTED
-    assert unknown_preflight.files[0].plan_problem is ConversionPlanProblem.MALFORMED_INPUT
-    assert "YOUNGIN_PRM_PROFILE_UNSUPPORTED" in unknown_preflight.plan.entries[0].issue_codes
+    assert unknown_preflight.plan.readiness is ConversionPlanReadiness.READY
+    assert unknown_preflight.plan.summary.routable == 1
+    assert "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED" in (
+        unknown_preflight.plan.entries[0].issue_codes
+    )
+    assert unknown_preflight.files[0].plan_route is ConversionPlanRoute.EXACT_ADAPTER
+    assert unknown_preflight.files[0].plan_problem is ConversionPlanProblem.NONE
+
+    unknown_converted = convert_preflight_plan(unknown_preflight.plan)
+    assert unknown_converted.summary is not None
+    assert unknown_converted.summary.scientific_signal_series == 2
+    unknown_workbook = load_workbook(tmp_path / "unknown.xlsx", read_only=True, data_only=False)
+    try:
+        assert {"Signals_FID", "Signals_TCD"}.issubset(unknown_workbook.sheetnames)
+        assert {
+            row[9] for row in unknown_workbook["Signals_FID"].iter_rows(min_row=2, values_only=True)
+        } == {None}
+    finally:
+        unknown_workbook.close()
+
+    structural = tmp_path / "structural-only.prm"
+    structural.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.2.0.0 FULL, SN: SYNTHETIC",
+            d_step=2,
+        )
+    )
+    structural_output = tmp_path / "structural-only.xlsx"
+    structural_preflight = preflight_selection(DesktopRequest((structural,), structural_output))
+    assert structural_preflight.plan is not None
+    assert structural_preflight.plan.readiness is ConversionPlanReadiness.READY
+    assert "YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY" in (
+        structural_preflight.plan.entries[0].issue_codes
+    )
+    structural_converted = convert_preflight_plan(structural_preflight.plan)
+    assert structural_converted.summary is not None
+    assert structural_converted.summary.structural_record_series == 1
 
 
 def test_desktop_recipe_preflight_executes_embedded_mapping_snapshot(

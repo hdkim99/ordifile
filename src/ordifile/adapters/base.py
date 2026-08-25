@@ -40,6 +40,7 @@ class DetectionResult:
     reason: str
     routable: bool = True
     failure_code: str | None = None
+    notice_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

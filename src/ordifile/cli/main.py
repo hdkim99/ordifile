@@ -341,7 +341,21 @@ def _print_scientific_inventory(bundle: DatasetBundle) -> None:
     """Print bounded canonical capability details without measured values."""
     profile = _single_metadata_value(bundle, "profile")
     if profile is not None:
-        print(f"Exact profile: {_terminal_safe(profile)}")
+        print(f"PRM profile: {_terminal_safe(profile)}")
+    producer = _single_metadata_value(bundle, "producer_version")
+    if producer is not None:
+        print(f"Producer version: {_terminal_safe(producer)}")
+    print("Family: YL-Clarity PRM scientific family")
+    support_mode = _single_metadata_value(bundle, "producer_support_mode")
+    compatibility_labels = {
+        "validated_profile": "validated profile",
+        "family_compatible_experimental": "compatible unvalidated producer",
+        "structural_only": "compatible structural profile",
+    }
+    if support_mode is not None:
+        print(
+            f"Compatibility: {_terminal_safe(compatibility_labels.get(support_mode, support_mode))}"
+        )
     channel_count = sum(len(sample.channels) for sample in bundle.samples)
     scientific = tuple(
         signal for signal in bundle.signals if signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL

@@ -1,17 +1,17 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Bounded structural reader for exact observed YoungIn YL-Clarity ``.PRM`` profiles.
+"""Bounded structural reader for the validated YL-Clarity PRM scientific family.
 
-The reader exposes ordered IEEE-754 binary32 records and allowlisted stored channel
-labels only. Candidate fields such as ``MinTicks`` are retained as structural metadata
-and are deliberately not interpreted as time, verified detector identity, scaling, or
-physical units.
+The reader preserves ordered IEEE-754 binary32 records and allowlisted stored channel
+labels. Scientific capability is evaluated separately from producer provenance so that
+an incomplete scientific fingerprint can safely fall back to structural records.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 import struct
 import zlib
 from dataclasses import dataclass
@@ -28,9 +28,14 @@ PRODUCER_PREFIX = PRODUCER_PREFIX_TEXT.encode("utf-16-le")
 SCIENTIFIC_PRODUCER_PREFIX_TEXT = "YL-Clarity 9.1.0.76 FULL, SN: "
 SCIENTIFIC_PRODUCER_PREFIX = SCIENTIFIC_PRODUCER_PREFIX_TEXT.encode("utf-16-le")
 FAMILY_MARKER = "YL-Clarity ".encode("utf-16-le")
+PRODUCER_SUFFIX_MARKER = " FULL, SN: ".encode("utf-16-le")
+COMPATIBLE_9_X_VERSION = re.compile(r"9\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}", re.ASCII)
 
-RAW_PROFILE = "YL-Clarity 9.0.1.19 observed PRM raw profile"
+RAW_PROFILE = "YL-Clarity 9.0.1.19 observed PRM scientific-signal profile"
 SCIENTIFIC_PROFILE = "YL-Clarity 9.1.0.76 observed PRM scientific-signal profile"
+COMPATIBLE_PROFILE = (
+    "YL-Clarity 9.x compatible PRM scientific-family profile (unvalidated producer version)"
+)
 
 COUNT_KEY = b"\x10CountOfDetectors\x01"
 VERSION_KEY = b"\x0dChromVersion1\x01"
@@ -90,11 +95,24 @@ class PrmRawChannel:
 
 
 @dataclass(frozen=True, slots=True)
+class PrmScientificFamilyFingerprint:
+    """Typed version-independent scientific-layout classification."""
+
+    schema_id: str
+    time_metadata_matches: bool
+    channel_record_counts_consistent: bool
+    matched: bool
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class YoungInPrmData:
-    """Structural facts for the exact observed profile."""
+    """Privacy-safe structural facts for one bounded YL-Clarity PRM."""
 
     profile: str
     producer_version: str
+    producer_evidence_status: str
+    scientific_family_fingerprint: PrmScientificFamilyFingerprint
     history_count: int
     selected_history_version: int
     prior_history_revision_count: int
@@ -296,6 +314,32 @@ def _canonical_aggregate(payloads: tuple[bytes, ...], *, domain: bytes) -> str:
     return digest.hexdigest()
 
 
+def _scientific_family_fingerprint(
+    channels: tuple[PrmRawChannel, ...],
+) -> PrmScientificFamilyFingerprint:
+    time_metadata_matches = all(
+        channel.d_step_candidate == 1 and channel.min_ticks_candidate == 600.0
+        for channel in channels
+    )
+    channel_record_counts_consistent = (
+        len(channels) == 1 or len({channel.record_count for channel in channels}) == 1
+    )
+    matched = time_metadata_matches and channel_record_counts_consistent
+    if matched:
+        status = "matched"
+    elif not time_metadata_matches:
+        status = "time_metadata_outside_validated_family"
+    else:
+        status = "channel_record_counts_inconsistent"
+    return PrmScientificFamilyFingerprint(
+        "yl-clarity-prm-scientific-family-v1",
+        time_metadata_matches,
+        channel_record_counts_consistent,
+        matched,
+        status,
+    )
+
+
 def _framed_info_values(data: bytes, *, boundary: int) -> tuple[bytes, ...]:
     values: list[bytes] = []
     for offset in _find_all(data[:boundary], INFO_VALUE_KEY, maximum=MAX_INFO_VALUE_COUNT):
@@ -316,15 +360,45 @@ def _framed_info_values(data: bytes, *, boundary: int) -> tuple[bytes, ...]:
     return tuple(values)
 
 
-def _producer_profile(data: bytes, *, boundary: int) -> tuple[str, str]:
-    known_profiles = (
-        (PRODUCER_PREFIX, "YL-Clarity 9.0.1.19", RAW_PROFILE),
-        (
-            SCIENTIFIC_PRODUCER_PREFIX,
-            "YL-Clarity 9.1.0.76",
-            SCIENTIFIC_PROFILE,
-        ),
-    )
+def _normalized_producer_version(value: bytes) -> str:
+    """Decode only the bounded numeric producer version, never the serial suffix."""
+    if not value.startswith(FAMILY_MARKER):
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "A framed producer value is outside the YL-Clarity PRM family.",
+        )
+    suffix_offset = value.find(PRODUCER_SUFFIX_MARKER, len(FAMILY_MARKER))
+    version_bytes = value[len(FAMILY_MARKER) : suffix_offset]
+    if (
+        suffix_offset < 0
+        or not version_bytes
+        or len(version_bytes) % 2
+        or suffix_offset + len(PRODUCER_SUFFIX_MARKER) > len(value)
+    ):
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "A framed YL-Clarity producer value has unsupported bounded framing.",
+        )
+    try:
+        version = version_bytes.decode("utf-16-le", errors="strict")
+    except UnicodeDecodeError as error:
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "A framed YL-Clarity producer version is not valid bounded UTF-16LE.",
+        ) from error
+    if COMPATIBLE_9_X_VERSION.fullmatch(version) is None:
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The framed YL-Clarity producer is outside the compatible 9.x family boundary.",
+        )
+    return f"YL-Clarity {version}"
+
+
+def _producer_profile(data: bytes, *, boundary: int) -> tuple[str, str, str]:
+    known_profiles = {
+        "YL-Clarity 9.0.1.19": RAW_PROFILE,
+        "YL-Clarity 9.1.0.76": SCIENTIFIC_PROFILE,
+    }
     info_values = _framed_info_values(data, boundary=boundary)
     if not info_values or not info_values[0].startswith(FAMILY_MARKER):
         raise _fail(
@@ -332,36 +406,28 @@ def _producer_profile(data: bytes, *, boundary: int) -> tuple[str, str]:
             "The first framed Info value is not an exact YL-Clarity producer.",
         )
 
-    selected: tuple[str, str] | None = None
+    selected_version: str | None = None
     for index, value in enumerate(info_values):
         if index > 0 and not value.startswith(FAMILY_MARKER):
             continue
-        candidate = next(
-            (
-                (version, profile)
-                for prefix, version, profile in known_profiles
-                if value.startswith(prefix)
-            ),
-            None,
-        )
-        if candidate is None:
-            raise _fail(
-                "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
-                "A framed YL-Clarity producer value is outside the exact profiles.",
-            )
-        if selected is None:
-            selected = candidate
-        elif candidate != selected:
+        candidate_version = _normalized_producer_version(value)
+        if selected_version is None:
+            selected_version = candidate_version
+        elif candidate_version != selected_version:
             raise _fail(
                 "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
                 "Framed YL-Clarity producer values identify conflicting profiles.",
             )
-    if selected is None:
+    if selected_version is None:
         raise _fail(
             "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
-            "The exact observed YL-Clarity producer profile is absent or ambiguous.",
+            "The bounded YL-Clarity producer profile is absent or ambiguous.",
         )
-    return selected
+    profile = known_profiles.get(selected_version, COMPATIBLE_PROFILE)
+    evidence_status = (
+        "validated_profile" if selected_version in known_profiles else "compatible_unvalidated"
+    )
+    return selected_version, profile, evidence_status
 
 
 def read_prm(path: Path) -> YoungInPrmData:
@@ -397,7 +463,9 @@ def read_prm(path: Path) -> YoungInPrmData:
             "YOUNGIN_PRM_FILE_LENGTH_MISMATCH",
             "The exact footer marker is not at the validated end-relative boundary.",
         )
-    producer_version, profile = _producer_profile(data, boundary=footer_offset)
+    producer_version, profile, producer_evidence_status = _producer_profile(
+        data, boundary=footer_offset
+    )
 
     version_offsets = _find_all(data[:footer_offset], VERSION_KEY, maximum=MAX_HISTORY_COUNT)
     count_offsets = _find_all(data[:footer_offset], COUNT_KEY, maximum=MAX_HISTORY_COUNT)
@@ -591,10 +659,10 @@ def read_prm(path: Path) -> YoungInPrmData:
                 maximum_records=MAX_RECORDS_PER_CHANNEL,
             )
         raw_size, d_step, d_size, min_ticks = _metadata_before_prm(data, prm_block.key_offset)
-        if raw_size != record_count or d_size != record_count or d_step != 1 or min_ticks != 600.0:
+        if raw_size != record_count or d_size != record_count:
             raise _fail(
                 "YOUNGIN_PRM_CHANNEL_METADATA_INVALID",
-                "Candidate channel sizes or exact structural constants disagree with the payload.",
+                "Candidate channel sizes disagree with the decoded payload.",
                 structural_channel=index,
                 record_count=record_count,
                 raw_size_candidate=raw_size,
@@ -636,9 +704,19 @@ def read_prm(path: Path) -> YoungInPrmData:
             "record counts for its FID and TCD channels.",
         )
 
+    scientific_family_fingerprint = _scientific_family_fingerprint(tuple(channels))
+    if producer_version == "YL-Clarity 9.1.0.76" and not scientific_family_fingerprint.matched:
+        raise _fail(
+            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
+            "The YL-Clarity 9.1.0.76 scientific profile does not match its validated "
+            "time-metadata and channel-count fingerprint.",
+        )
+
     return YoungInPrmData(
         profile=profile,
         producer_version=producer_version,
+        producer_evidence_status=producer_evidence_status,
+        scientific_family_fingerprint=scientific_family_fingerprint,
         history_count=history_count,
         selected_history_version=history_count,
         prior_history_revision_count=history_count - 1,

@@ -1,0 +1,82 @@
+{
+  "schema": "ordifile.youngin-yl-clarity-prm-scientific-reference.v1",
+  "status": "experimental-direct-signal-validated-profile",
+  "fixture": {
+    "distribution": "owner-supplied-local-only",
+    "archive_size": 2534115,
+    "archive_sha256": "5cfcf67e5ac097a02a80b54b8ca9c509e309de0e3efa6a9894bd4977d3157847",
+    "member_count": 20,
+    "expanded_bytes": 8848218,
+    "prm_file_count": 10,
+    "curve_export_count": 10,
+    "native_or_export_bytes_committed": false
+  },
+  "profile": {
+    "producer": "YL-Clarity 9.0.1.19",
+    "history_counts": {
+      "1": 5,
+      "2": 5
+    },
+    "channel_labels": [
+      "FID",
+      "TCD"
+    ],
+    "current_structural_blocks": 20,
+    "finite_binary32_records": 263520,
+    "retention_time_status": "full-curve-validated",
+    "signal_status": "full-curve-validated",
+    "peak_status": "no-go-no-repeatable-stored-result"
+  },
+  "pairing": {
+    "method": "unique full-series content match in source channel order; filenames excluded",
+    "confirmed_pairs": 10,
+    "filename_only_pairs": 0,
+    "unresolved_pairs": 0
+  },
+  "time_oracle": {
+    "formula": "t[i] = 0 + i * DStep / MinTicks",
+    "d_step": 1,
+    "min_ticks": 600,
+    "unit": "min",
+    "compared_points": 263520,
+    "matching_points": 263520,
+    "export_decimal_places": 5
+  },
+  "signal_oracle": {
+    "stored_representation": "finite little-endian IEEE-754 binary32",
+    "transformation": "identity",
+    "stored_label_fid_unit": "mV",
+    "stored_label_tcd_unit": "mV",
+    "compared_points": 263520,
+    "matching_points_at_precision": 263520,
+    "export_decimal_places": 4,
+    "precision_derived_absolute_bound": "0.00005001",
+    "export_point_loss_or_response_transform_observed": false
+  },
+  "export_settings_evidence": {
+    "encoding": "cp949",
+    "delimiter": "tab",
+    "x_axis_present": true,
+    "full_range_proved_by_point_count_equality": true,
+    "time_step_setting_in_export_metadata": "not_present",
+    "global_filter_state_in_export_metadata": "not_present",
+    "bunching_state_in_export_metadata": "not_present"
+  },
+  "stored_peak_investigation": {
+    "repeatable_bounded_structure": false,
+    "raw_signal_integration_used": false,
+    "automatic_peak_detection_used": false,
+    "direct_peaks": "no-go",
+    "direct_area": "no-go",
+    "direct_height": "no-go"
+  },
+  "privacy_and_interoperability": {
+    "owner_files_in_git": 0,
+    "actions_fixture_artifacts": 0,
+    "measured_values_in_manifest": 0,
+    "absolute_paths_in_manifest": 0,
+    "vendor_binaries_bundled": 0,
+    "vendor_source_copied": 0,
+    "license_or_access_control_changes": 0
+  }
+}

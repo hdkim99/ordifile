@@ -78,6 +78,7 @@ def detect_adapter(
                     else result.reason,
                     result.routable,
                     result.failure_code,
+                    result.notice_codes,
                 ),
             )
         )

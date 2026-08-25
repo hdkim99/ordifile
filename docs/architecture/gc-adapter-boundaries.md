@@ -1,7 +1,7 @@
 # GC adapter boundaries
 
-- Status: Accepted; Agilent v181 and YoungIn YL-Clarity 9.0.1.19 decoded records,
-  YoungIn YL-Clarity 9.1.0.76 scientific signals,
+- Status: Accepted; Agilent v181 decoded records, YoungIn YL-Clarity compatible-family
+  scientific signals with individually validated 9.0.1.19 and 9.1.0.76 unit policies,
   one Shimadzu LabSolutions 5.82 chromatogram profile, and one Shimadzu GCMSsolution
   QGD TIC profile are Experimental
 - Date: 2026-08-16
@@ -23,9 +23,9 @@ from becoming a broad support claim.
 ## Accepted
 
 1. `youngin_yl_clarity`, `youngin_autochro`, and `youngin_export` remain broad research
-   categories. The runtime ID `youngin_yl_clarity_prm_raw` dispatches only the exact observed
-   YL-Clarity 9.0.1.19 structural and 9.1.0.76 scientific-signal profiles; it is not an
-   umbrella vendor entry.
+   categories. The runtime ID `youngin_yl_clarity_prm_raw` owns one strict YL-Clarity 9.x
+   scientific-family fingerprint with individually validated 9.0.1.19 and 9.1.0.76 unit
+   policies. It is not an umbrella vendor entry or an all-version support claim.
 2. Runtime adapters are named for a verified byte format and version family. A future
    completed Clarity reader may use an ID such as `clarity_prm_<version-family>` only
    after a lawful, self-contained fixture proves its signature and version boundary.
@@ -62,9 +62,9 @@ from becoming a broad support claim.
 10. The initial owner-supplied intake authorizes local validation of 23 completed PRM files.
     Their exact producer marker, bounded typed properties, duplicate gzip blocks,
     record-count equations, finite binary32 payloads and stored FID/TCD labels support
-    an Experimental structural adapter. Two paired Result Tables establish a separate
-    peak-result path. This 9.0.1.19 profile remains structural-only without its own same-run
-    curve oracle.
+    the structural boundary. Ten later same-run FID+TCD curve pairs validate the exact
+    9.0.1.19 scientific profile over 263,520 time and response points. Two paired Result
+    Tables establish a separate peak-result path.
 11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
     single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
     A paired same-run ASCII chromatogram and an independent byte decoder validate the
@@ -78,22 +78,25 @@ from becoming a broad support claim.
     and every scan intensity sum is required to equal the native TIC, but encoded mass
     is not called m/z and MS1 is not exported. See
     [`shimadzu-gcmssolution-qgd-investigation.md`](../research/shimadzu-gcmssolution-qgd-investigation.md).
-13. The YoungIn runtime boundary is the exact observed YL-Clarity `9.0.1.19` PRM
-    profile. Current blocks are exposed as `decoded_record_index` plus unscaled stored
-    binary32 values. Stored FID/TCD labels may separate structural channels with an
-    Experimental status, but detector verification, retention time, physical scaling,
-    units and peaks remain unresolved or unsupported. See
+13. The YoungIn runtime boundary is a typed YL-Clarity 9.x PRM scientific-family
+    fingerprint. Exact `9.0.1.19` is validated by ten same-run FID+TCD curve pairs over
+    263,520 points: zero-origin `DStep/MinTicks` minutes, identity binary32 response,
+    FID mV and TCD mV. Structurally safe files with an incomplete scientific fingerprint
+    retain decoded records without time or response-unit claims. See
     [`youngin-yl-clarity-prm-raw-format-notes.md`](../research/youngin-yl-clarity-prm-raw-format-notes.md).
-14. A second exact boundary covers only YL-Clarity `9.1.0.76` single-history,
+14. A second individually validated unit/provenance policy covers YL-Clarity `9.1.0.76`,
+    whose exact envelope remains single-history,
     source-ordered FID/TCD PRMs with equal point counts. Five content-confirmed same-run
     composite exports validate all 138,000 points, zero-origin `DStep/MinTicks` minutes,
-    identity binary32 response and explicit FID pA/TCD mV units. This profile emits
-    `SCIENTIFIC_SIGNAL`; those equations are not transferred to 9.0 or other generations.
+    identity binary32 response and explicit FID pA/TCD mV units. Both validated profiles
+    use one shared time/numeric-response helper. A compatible unvalidated 9.x producer may
+    emit the shared scientific values only when the complete fingerprint matches; its
+    response unit remains unresolved. This does not claim all YL-Clarity versions.
 
 ## Deferred
 
-- YoungIn 9.0 PRM scientific-signal output remains blocked by a profile-specific same-run
-  curve oracle; the narrow 9.1 scientific signal and 9.0 raw-record paths are not blocked.
+- YoungIn versions outside the strictly framed compatible 9.x family, and exact physical-unit
+  attribution for any unvalidated compatible producer.
 - Clarity `.raw` recovery inspection or salvage.
 - Autochro generation mapping and native file readers.
 - FID/TCD multi-channel support claims without a real paired fixture.

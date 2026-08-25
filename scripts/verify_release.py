@@ -580,7 +580,7 @@ def _extract_wheel_for_smoke(wheel: Path, destination: Path) -> None:
                     output.write(chunk)
 
 
-def _run_isolated_python(site: Path, cwd: Path, arguments: list[str]) -> None:
+def _run_isolated_python(site: Path, cwd: Path, arguments: list[str]) -> str:
     bootstrap = (
         "import pathlib,sys;"
         f"site=pathlib.Path({str(site)!r}).resolve();"
@@ -608,6 +608,7 @@ def _run_isolated_python(site: Path, cwd: Path, arguments: list[str]) -> None:
             "clean-wheel CLI smoke failed: "
             f"stdout={completed.stdout[-1000:]!r}, stderr={completed.stderr[-1000:]!r}"
         )
+    return completed.stdout
 
 
 def _create_clean_wheel_recipe(site: Path, cwd: Path, name: str) -> None:
@@ -750,8 +751,8 @@ def _verify_smoke_workbook(
         raise ReleaseVerificationError("smoke workbook Samples presentation is incomplete")
 
 
-def _write_youngin_9_1_smoke_input(path: Path) -> None:
-    """Create one independently synthetic 9.1 PRM outside the extracted wheel."""
+def _write_youngin_scientific_smoke_input(path: Path, *, producer_text: str) -> None:
+    """Create one independently synthetic YL-Clarity PRM outside the extracted wheel."""
     generator = (
         Path(__file__).resolve().parents[1]
         / "tests"
@@ -764,7 +765,7 @@ def _write_youngin_9_1_smoke_input(path: Path) -> None:
     if not callable(generate):
         raise ReleaseVerificationError("YoungIn scientific smoke generator is unavailable")
     data = generate(
-        producer_text="YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+        producer_text=producer_text,
         channels=((1.0, 2.0), (3.0, 4.0)),
     )
     if not isinstance(data, bytes):
@@ -846,16 +847,47 @@ def run_clean_wheel_smoke(wheel: Path, *, expect_gui: bool = True) -> None:
             ["convert", source.name, "--output", "Ordifile_Result.xlsx"],
         )
         _verify_smoke_workbook(cwd / "Ordifile_Result.xlsx")
-        scientific_source = cwd / "youngin-scientific.prm"
-        _write_youngin_9_1_smoke_input(scientific_source)
-        _run_isolated_python(site, cwd, ["inspect", scientific_source.name])
+        scientific_sources = (
+            (
+                cwd / "youngin-9-0-scientific.prm",
+                "YL-Clarity 9.0.1.19 FULL, SN: SYNTHETIC",
+                "Signal units: FID=mV, TCD=mV",
+                "Compatibility: validated profile",
+            ),
+            (
+                cwd / "youngin-9-1-scientific.prm",
+                "YL-Clarity 9.1.0.76 FULL, SN: SYNTHETIC",
+                "Signal units: FID=pA, TCD=mV",
+                "Compatibility: validated profile",
+            ),
+            (
+                cwd / "youngin-compatible-scientific.prm",
+                "YL-Clarity 9.2.0.0 FULL, SN: PRIVATE-SYNTHETIC",
+                "Signal units: FID=unresolved, TCD=unresolved",
+                "Compatibility: compatible unvalidated producer",
+            ),
+        )
+        for scientific_source, producer_text, units, compatibility in scientific_sources:
+            _write_youngin_scientific_smoke_input(
+                scientific_source,
+                producer_text=producer_text,
+            )
+            inspected = _run_isolated_python(site, cwd, ["inspect", scientific_source.name])
+            if (
+                units not in inspected
+                or compatibility not in inspected
+                or "PRIVATE-SYNTHETIC" in inspected
+            ):
+                raise ReleaseVerificationError(
+                    "clean-wheel YoungIn scientific capability inventory is incomplete"
+                )
         scientific_output = cwd / "YoungIn_Scientific_Result.xlsx"
         _run_isolated_python(
             site,
             cwd,
             [
                 "convert",
-                scientific_source.name,
+                *(source.name for source, _producer, _units, _compatibility in scientific_sources),
                 "--include-signals",
                 "--output",
                 scientific_output.name,
