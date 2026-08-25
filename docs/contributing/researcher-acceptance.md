@@ -30,9 +30,10 @@ the full test suite.
 | I | Valid, malformed, and unsupported inputs produce an explicit partial result | `test_valid_malformed_and_unsupported_files_preserve_partial_workbook` |
 | J | Dry run creates no workbook, existing output is not silently replaced, and source bytes are unchanged | `test_convert_dry_run_prints_privacy_safe_plan_and_creates_no_artifact`; `test_overwrite_and_input_output_protection` |
 | K | A desktop user saves a repeated setup by name, restarts, and reuses it without a JSON dialog | `test_save_first_named_recipe_uses_no_json_dialog_and_persists_after_restart` |
-| L | Selecting a named desktop Recipe applies its immutable settings and requires a new Preflight review | `test_window_selects_named_recipe_and_requires_explicit_preflight_refresh` |
-| M | A desktop user converts exact YoungIn 9.0/9.1 PRMs directly, while a strictly compatible unvalidated 9.x profile exposes scientific values with unresolved response units and an incomplete fingerprint falls back structurally | `test_desktop_converts_9_1_prm_to_scientific_signals_without_extra_controls`; `test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profiles` |
-| N | YoungIn PRM signals and a separate Result export's peaks remain independent sources in one workbook | `test_desktop_keeps_9_1_prm_signals_and_result_peaks_as_independent_sources` |
+| L | Two confirmed generic layouts automatically become one reusable Saved Setup without manual Mapping Set interaction; Recipe round-trip keeps exact adapter precedence, and update/save-as-new remain explicit | `test_confirming_two_table_layouts_automatically_builds_one_reusable_setup`; `test_gui_collected_layouts_round_trip_through_recipe_with_exact_precedence`; Saved Setup update tests |
+| M | Selecting a named desktop Saved Setup applies its immutable settings and requires a new Preflight review | `test_window_selects_named_recipe_and_requires_explicit_preflight_refresh` |
+| N | A desktop user converts exact YoungIn 9.0/9.1 PRMs directly, while a strictly compatible unvalidated 9.x profile exposes scientific values with unresolved response units and an incomplete fingerprint falls back structurally | `test_desktop_converts_9_1_prm_to_scientific_signals_without_extra_controls`; `test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profiles` |
+| O | YoungIn PRM signals and a separate Result export's peaks remain independent sources in one workbook | `test_desktop_keeps_9_1_prm_signals_and_result_peaks_as_independent_sources` |
 
 The README Quick Start output is also selected so the copyable first-use claim remains
 consistent with the generated workbook.

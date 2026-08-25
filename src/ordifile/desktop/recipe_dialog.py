@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Manage named local conversion Recipes without exposing JSON in the main workflow."""
+"""Manage researcher-facing saved setups backed by strict Conversion Recipes."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ class RecipeManagerDialog(QDialog):
 
     def __init__(self, library: RecipeLibrary, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Manage Saved Recipes")
+        self.setWindowTitle("Manage Saved Setups")
         self.resize(650, 420)
         self.setModal(True)
         self._library = library
@@ -41,47 +41,48 @@ class RecipeManagerDialog(QDialog):
 
         root = QVBoxLayout(self)
         explanation = QLabel(
-            "Saved Recipes are local conversion settings. Import and export are only "
-            "needed when moving a Recipe between computers or command-line workflows."
+            "Saved setups keep reusable conversion settings on this computer. Import and "
+            "export are only needed when moving a setup between computers or command-line "
+            "workflows."
         )
         explanation.setWordWrap(True)
         root.addWidget(explanation)
 
         self.recipe_list = QListWidget()
-        self.recipe_list.setAccessibleName("Saved conversion recipes")
+        self.recipe_list.setAccessibleName("Saved conversion setups")
         self.recipe_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         root.addWidget(self.recipe_list, stretch=1)
 
         edit_actions = QHBoxLayout()
         self.rename_button = QPushButton("&Rename…")
-        self.rename_button.setAccessibleName("Rename saved conversion recipe")
+        self.rename_button.setAccessibleName("Rename saved conversion setup")
         self.duplicate_button = QPushButton("D&uplicate…")
-        self.duplicate_button.setAccessibleName("Duplicate saved conversion recipe")
+        self.duplicate_button.setAccessibleName("Duplicate saved conversion setup")
         self.delete_button = QPushButton("&Delete…")
-        self.delete_button.setAccessibleName("Delete saved conversion recipe")
+        self.delete_button.setAccessibleName("Delete saved conversion setup")
         for button in (self.rename_button, self.duplicate_button, self.delete_button):
             edit_actions.addWidget(button)
         edit_actions.addStretch()
         root.addLayout(edit_actions)
 
         portability_actions = QHBoxLayout()
-        self.import_button = QPushButton("&Import Recipe…")
-        self.import_button.setAccessibleName("Import portable conversion recipe")
-        self.export_button = QPushButton("&Export Recipe…")
-        self.export_button.setAccessibleName("Export portable conversion recipe")
+        self.import_button = QPushButton("&Import Setup…")
+        self.import_button.setAccessibleName("Import portable conversion setup")
+        self.export_button = QPushButton("&Export Setup…")
+        self.export_button.setAccessibleName("Export portable conversion setup")
         portability_actions.addWidget(self.import_button)
         portability_actions.addWidget(self.export_button)
         portability_actions.addStretch()
         root.addLayout(portability_actions)
 
-        self.status_label = QLabel("Select a saved Recipe to manage it.")
-        self.status_label.setAccessibleName("Recipe management status")
+        self.status_label = QLabel("Select a saved setup to manage it.")
+        self.status_label.setAccessibleName("Saved setup management status")
         self.status_label.setWordWrap(True)
         root.addWidget(self.status_label)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close_button = self.buttons.button(QDialogButtonBox.StandardButton.Close)
         assert close_button is not None
-        close_button.setAccessibleName("Close saved Recipe manager")
+        close_button.setAccessibleName("Close saved setup manager")
         root.addWidget(self.buttons)
 
         self.recipe_list.itemSelectionChanged.connect(self._update_actions)
@@ -119,7 +120,7 @@ class RecipeManagerDialog(QDialog):
         try:
             return self._library.get(recipe_id)
         except RecipeLibraryError as error:
-            self.status_label.setText(f"Saved Recipe unavailable [{error.code}]: {error.message}")
+            self.status_label.setText(f"Saved setup unavailable [{error.code}]: {error.message}")
             self.reload()
             return None
 
@@ -129,7 +130,9 @@ class RecipeManagerDialog(QDialog):
             snapshot = self._library.snapshot()
         except RecipeLibraryError as error:
             self.recipe_list.clear()
-            self.status_label.setText(f"Recipe library unavailable [{error.code}]: {error.message}")
+            self.status_label.setText(
+                f"Saved setup library unavailable [{error.code}]: {error.message}"
+            )
             self._update_actions()
             return
         self.recipe_list.clear()
@@ -146,13 +149,13 @@ class RecipeManagerDialog(QDialog):
             self.recipe_list.setCurrentRow(0)
         if snapshot.invalid_count:
             self.status_label.setText(
-                f"{snapshot.invalid_count} saved Recipe file(s) could not be loaded; "
-                "other Recipes remain available."
+                f"{snapshot.invalid_count} saved setup file(s) could not be loaded; "
+                "other setups remain available."
             )
         elif not snapshot.entries:
-            self.status_label.setText("No saved Recipes yet.")
+            self.status_label.setText("No saved setups yet.")
         else:
-            self.status_label.setText(f"{len(snapshot.entries)} saved Recipe(s) available.")
+            self.status_label.setText(f"{len(snapshot.entries)} saved setup(s) available.")
         self._update_actions()
 
     def _update_actions(self) -> None:
@@ -168,7 +171,7 @@ class RecipeManagerDialog(QDialog):
         if entry is None:
             return
         name, accepted = QInputDialog.getText(
-            self, "Rename saved Recipe", "Recipe name:", text=entry.display_name
+            self, "Rename Saved Setup", "Saved setup name:", text=entry.display_name
         )
         if not accepted:
             return
@@ -179,7 +182,7 @@ class RecipeManagerDialog(QDialog):
             return
         self._changed = True
         self.reload(selected_id=renamed.recipe_id)
-        self.status_label.setText("Saved Recipe renamed. Conversion settings are unchanged.")
+        self.status_label.setText("Saved setup renamed. Conversion settings are unchanged.")
 
     def duplicate_selected(self) -> None:
         """Create an explicit copy with a new local name and identifier."""
@@ -188,8 +191,8 @@ class RecipeManagerDialog(QDialog):
             return
         name, accepted = QInputDialog.getText(
             self,
-            "Duplicate saved Recipe",
-            "New Recipe name:",
+            "Duplicate Saved Setup",
+            "New saved setup name:",
             text=f"{entry.display_name} copy",
         )
         if not accepted:
@@ -201,17 +204,17 @@ class RecipeManagerDialog(QDialog):
             return
         self._changed = True
         self.reload(selected_id=duplicate.recipe_id)
-        self.status_label.setText("Saved Recipe duplicated.")
+        self.status_label.setText("Saved setup duplicated.")
 
     def delete_selected(self) -> None:
-        """Delete one Recipe only after explicit confirmation."""
+        """Delete one saved setup only after explicit confirmation."""
         entry = self._selected_entry()
         if entry is None:
             return
         answer = QMessageBox.question(
             self,
-            "Delete saved Recipe?",
-            f'Delete the saved Recipe "{entry.display_name}"? Current GUI settings are kept.',
+            "Delete Saved Setup?",
+            f'Delete the saved setup "{entry.display_name}"? Current GUI settings are kept.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -224,13 +227,13 @@ class RecipeManagerDialog(QDialog):
             return
         self._changed = True
         self.reload()
-        self.status_label.setText("Saved Recipe deleted. Current GUI settings are unchanged.")
+        self.status_label.setText("Saved setup deleted. Current GUI settings are unchanged.")
 
     def import_recipe(self) -> None:
         """Validate one portable JSON Recipe and copy it into the local library."""
         path, _selected_filter = QFileDialog.getOpenFileName(
             self,
-            "Import Recipe",
+            "Import Saved Setup",
             str(Path.home()),
             "Ordifile Recipe (*.json)",
         )
@@ -250,19 +253,19 @@ class RecipeManagerDialog(QDialog):
         if match is not None:
             answer = QMessageBox.question(
                 self,
-                "Recipe already exists",
-                "A saved Recipe has the same conversion settings. Import it as a separate copy?",
+                "Setup already exists",
+                "A saved setup has the same conversion settings. Import it as a separate copy?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
-                self.status_label.setText("Recipe import cancelled; the settings already exist.")
+                self.status_label.setText("Setup import cancelled; the settings already exist.")
                 return
-        proposed = recipe.display_label or "Imported Recipe"
+        proposed = recipe.display_label or "Imported setup"
         if match is not None:
             proposed = f"{proposed} copy"
         name, accepted = QInputDialog.getText(
-            self, "Name imported Recipe", "Recipe name:", text=proposed
+            self, "Name Imported Setup", "Saved setup name:", text=proposed
         )
         if not accepted:
             return
@@ -273,7 +276,7 @@ class RecipeManagerDialog(QDialog):
             return
         self._changed = True
         self.reload(selected_id=imported.recipe_id)
-        self.status_label.setText("Recipe imported into the local library.")
+        self.status_label.setText("Setup imported into the local saved setup library.")
 
     def export_selected(self) -> None:
         """Write one portable strict Recipe JSON to an explicit destination."""
@@ -282,7 +285,7 @@ class RecipeManagerDialog(QDialog):
             return
         path, _selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Export Recipe",
+            "Export Saved Setup",
             str(Path.home() / "ordifile-recipe.json"),
             "Ordifile Recipe (*.json)",
         )
@@ -295,13 +298,13 @@ class RecipeManagerDialog(QDialog):
         if destination.exists():
             answer = QMessageBox.question(
                 self,
-                "Replace exported Recipe?",
+                "Replace exported setup?",
                 "A file already exists at the selected destination. Replace it?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
-                self.status_label.setText("Recipe export cancelled.")
+                self.status_label.setText("Setup export cancelled.")
                 return
             overwrite = True
         try:
@@ -310,4 +313,4 @@ class RecipeManagerDialog(QDialog):
             code, message = presentation_error(error)
             self.status_label.setText(f"Export failed [{code}]: {message}")
             return
-        self.status_label.setText("Portable Recipe exported to the selected destination.")
+        self.status_label.setText("Portable setup exported to the selected destination.")

@@ -33,9 +33,9 @@ def test_empty_manager_is_keyboard_accessible_and_escape_closes(
 ) -> None:
     dialog = RecipeManagerDialog(RecipeLibrary(tmp_path / "recipes"))
 
-    assert dialog.recipe_list.accessibleName() == "Saved conversion recipes"
-    assert dialog.rename_button.accessibleName() == "Rename saved conversion recipe"
-    assert dialog.import_button.accessibleName() == "Import portable conversion recipe"
+    assert dialog.recipe_list.accessibleName() == "Saved conversion setups"
+    assert dialog.rename_button.accessibleName() == "Rename saved conversion setup"
+    assert dialog.import_button.accessibleName() == "Import portable conversion setup"
     assert not dialog.rename_button.isEnabled()
     assert dialog.import_button.isEnabled()
     dialog.open()

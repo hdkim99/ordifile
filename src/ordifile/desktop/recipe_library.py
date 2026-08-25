@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Private local Recipe library for the optional desktop interface."""
+"""Private local Conversion Recipe library presented as Saved Setups in the desktop."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _RECIPE_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 
 
 class RecipeLibraryError(Exception):
-    """Describe one bounded local Recipe library failure without exposing its path."""
+    """Describe one bounded local saved setup failure without exposing its path."""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -56,7 +56,7 @@ class RecipeLibrarySnapshot:
 
 
 def standard_recipe_library_root() -> Path:
-    """Return the OS-standard application configuration location for saved Recipes."""
+    """Return the OS-standard application configuration location for saved setups."""
     from PySide6.QtCore import QStandardPaths
 
     location = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation)
@@ -102,13 +102,13 @@ class RecipeLibrary:
 
     @property
     def maximum(self) -> int:
-        """Return the maximum number of valid saved Recipes."""
+        """Return the maximum number of valid saved setups."""
         return self._maximum
 
     def _path(self, recipe_id: str) -> Path:
         if type(recipe_id) is not str or _RECIPE_ID_PATTERN.fullmatch(recipe_id) is None:
             raise RecipeLibraryError(
-                "RECIPE_LIBRARY_ID_INVALID", "The saved Recipe identifier is invalid."
+                "RECIPE_LIBRARY_ID_INVALID", "The saved setup identifier is invalid."
             )
         return self._root / f"{recipe_id}.json"
 
@@ -205,19 +205,19 @@ class RecipeLibrary:
                 if not stat.S_ISREG(member_status.st_mode):
                     raise RecipeLibraryError(
                         "RECIPE_LIBRARY_ENTRY_INVALID",
-                        "A saved Recipe is not a regular file.",
+                        "A saved setup is not a regular file.",
                     )
                 next_aggregate = aggregate_bytes + member_status.st_size
                 if next_aggregate > MAX_LOCAL_RECIPE_AGGREGATE_BYTES:
                     raise RecipeLibraryError(
                         "RECIPE_LIBRARY_BOUNDS_EXCEEDED",
-                        "Saved Recipe files exceed the local aggregate size limit.",
+                        "Saved setup files exceed the local aggregate size limit.",
                     )
                 aggregate_bytes = next_aggregate
                 recipe = load_recipe(member_path)
                 if recipe.display_label is None:
                     raise RecipeLibraryError(
-                        "RECIPE_NAME_INVALID", "A saved Recipe has no local display name."
+                        "RECIPE_NAME_INVALID", "A saved setup has no local display name."
                     )
                 display_name = normalize_recipe_name(recipe.display_label)
             except (OSError, OrdifileError, RecipeLibraryError):
@@ -259,11 +259,11 @@ class RecipeLibrary:
         """Create one entry while the library mutation lock is held."""
         snapshot = self.snapshot()
         if self._name_conflict(name) is not None:
-            raise RecipeLibraryError("RECIPE_NAME_EXISTS", "A saved Recipe already uses this name.")
+            raise RecipeLibraryError("RECIPE_NAME_EXISTS", "A saved setup already uses this name.")
         if len(snapshot.entries) >= self._maximum:
             raise RecipeLibraryError(
                 "RECIPE_LIBRARY_FULL",
-                f"The local Recipe library is limited to {self._maximum} saved Recipes.",
+                f"The local saved setup library is limited to {self._maximum} setups.",
             )
         self._ensure_directory()
         stored_recipe = replace(recipe, display_label=name)
@@ -276,12 +276,12 @@ class RecipeLibrary:
                 if destination.exists():
                     continue
                 raise RecipeLibraryError(
-                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved Recipe could not be written."
+                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved setup could not be written."
                 ) from error
             revision = sha256(stored_recipe.to_json().encode("utf-8")).hexdigest()
             return StoredRecipe(recipe_id, name, stored_recipe, revision)
         raise RecipeLibraryError(
-            "RECIPE_LIBRARY_WRITE_FAILED", "A unique saved Recipe identifier was unavailable."
+            "RECIPE_LIBRARY_WRITE_FAILED", "A unique saved setup identifier was unavailable."
         )
 
     def update(
@@ -300,14 +300,14 @@ class RecipeLibrary:
             ):
                 raise RecipeLibraryError(
                     "RECIPE_LIBRARY_CHANGED",
-                    "The saved Recipe changed in another process. Refresh the Recipe library.",
+                    "The saved setup changed in another process. Refresh the setup list.",
                 )
             stored_recipe = replace(recipe, display_label=current.display_name)
             try:
                 save_recipe(stored_recipe, self._path(recipe_id), overwrite=True)
             except OrdifileError as error:
                 raise RecipeLibraryError(
-                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved Recipe could not be updated."
+                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved setup could not be updated."
                 ) from error
             revision = sha256(stored_recipe.to_json().encode("utf-8")).hexdigest()
             return StoredRecipe(recipe_id, current.display_name, stored_recipe, revision)
@@ -319,14 +319,14 @@ class RecipeLibrary:
             current = self.get(recipe_id)
             if self._name_conflict(name, excluding_id=recipe_id) is not None:
                 raise RecipeLibraryError(
-                    "RECIPE_NAME_EXISTS", "A saved Recipe already uses this name."
+                    "RECIPE_NAME_EXISTS", "A saved setup already uses this name."
                 )
             renamed = replace(current.recipe, display_label=name)
             try:
                 save_recipe(renamed, self._path(recipe_id), overwrite=True)
             except OrdifileError as error:
                 raise RecipeLibraryError(
-                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved Recipe could not be renamed."
+                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved setup could not be renamed."
                 ) from error
             revision = sha256(renamed.to_json().encode("utf-8")).hexdigest()
             return StoredRecipe(recipe_id, name, renamed, revision)
@@ -343,7 +343,7 @@ class RecipeLibrary:
             if entry.recipe_id == recipe_id:
                 return entry
         raise RecipeLibraryError(
-            "RECIPE_LIBRARY_ENTRY_MISSING", "The selected saved Recipe is unavailable."
+            "RECIPE_LIBRARY_ENTRY_MISSING", "The selected saved setup is unavailable."
         )
 
     def delete(self, recipe_id: str, *, expected_revision_sha256: str | None = None) -> None:
@@ -356,7 +356,7 @@ class RecipeLibrary:
             ):
                 raise RecipeLibraryError(
                     "RECIPE_LIBRARY_CHANGED",
-                    "The saved Recipe changed in another process. Refresh the Recipe library.",
+                    "The saved setup changed in another process. Refresh the setup list.",
                 )
             destination = self._path(recipe_id)
             try:
@@ -364,12 +364,12 @@ class RecipeLibrary:
                 if not stat.S_ISREG(status.st_mode):
                     raise RecipeLibraryError(
                         "RECIPE_LIBRARY_ENTRY_INVALID",
-                        "The selected saved Recipe is not a regular file.",
+                        "The selected saved setup is not a regular file.",
                     )
                 destination.unlink()
             except RecipeLibraryError:
                 raise
             except OSError as error:
                 raise RecipeLibraryError(
-                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved Recipe could not be deleted."
+                    "RECIPE_LIBRARY_WRITE_FAILED", "The saved setup could not be deleted."
                 ) from error

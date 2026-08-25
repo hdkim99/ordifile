@@ -56,6 +56,10 @@ from ordifile import (
     clone_peak_table_mapping_profile,
 )
 from ordifile.core.models import BatchOutcome, ProgressEvent, SortMode
+from ordifile.desktop.mapping_collection import (
+    MappingCollectionAction,
+    collect_confirmed_mapping,
+)
 from ordifile.desktop.models import (
     DesktopBatchReport,
     DesktopFileReport,
@@ -67,6 +71,7 @@ from ordifile.desktop.recipe_dialog import RecipeManagerDialog
 from ordifile.desktop.recipe_library import (
     RecipeLibrary,
     RecipeLibraryError,
+    StoredRecipe,
     normalize_recipe_name,
 )
 from ordifile.desktop.services import (
@@ -132,6 +137,7 @@ class MainWindow(QMainWindow):
         self._peak_table_mapping_set: PeakTableMappingSet | None = None
         self._conversion_recipe: ConversionRecipe | None = None
         self._recipe_baseline_sha256: str | None = None
+        self._recipe_revision_sha256: str | None = None
         self._active_recipe_id: str | None = None
         self._recipe_library = recipe_library
         self._recipe_library_available = True
@@ -143,6 +149,8 @@ class MainWindow(QMainWindow):
         self._displayed_request: DesktopRequest | None = None
         self._displayed_generation: int | None = None
         self._recipe_library_error: RecipeLibraryError | None = None
+        self._setup_save_suggested = False
+        self._setup_save_prompt_dismissed = False
         if self._recipe_library is None:
             try:
                 QCoreApplication.setApplicationName("Ordifile")
@@ -166,20 +174,24 @@ class MainWindow(QMainWindow):
         self.step_inputs = QGroupBox("STEP 1 — Inputs")
         inputs_layout = QVBoxLayout(self.step_inputs)
         recipe_layout = QHBoxLayout()
-        recipe_label = QLabel("Recipe (optional):")
+        recipe_label = QLabel("Saved setup (optional):")
         self.recipe_combo = QComboBox()
-        self.recipe_combo.setAccessibleName("Saved conversion recipe")
-        self.recipe_combo.addItem("None / No Recipe", None)
+        self.recipe_combo.setAccessibleName("Saved conversion setup")
+        self.recipe_combo.addItem("None yet", None)
         recipe_label.setBuddy(self.recipe_combo)
-        self.save_recipe_button = QPushButton("&Save Current…")
-        self.save_recipe_button.setAccessibleName("Save current settings as a named Recipe")
+        self.save_recipe_button = QPushButton("&Save current setup…")
+        self.save_recipe_button.setAccessibleName("Save current conversion setup")
+        self.update_recipe_button = QPushButton("&Update saved setup")
+        self.update_recipe_button.setAccessibleName("Update selected saved conversion setup")
+        self.update_recipe_button.setVisible(False)
         self.manage_recipes_button = QPushButton("&Manage…")
-        self.manage_recipes_button.setAccessibleName("Manage saved conversion recipes")
-        self.recipe_status_label = QLabel("No saved Recipe")
-        self.recipe_status_label.setAccessibleName("Conversion recipe status")
+        self.manage_recipes_button.setAccessibleName("Manage saved conversion setups")
+        self.recipe_status_label = QLabel("No saved setups yet")
+        self.recipe_status_label.setAccessibleName("Saved setup status")
         recipe_layout.addWidget(recipe_label)
         recipe_layout.addWidget(self.recipe_combo, stretch=1)
         recipe_layout.addWidget(self.save_recipe_button)
+        recipe_layout.addWidget(self.update_recipe_button)
         recipe_layout.addWidget(self.manage_recipes_button)
         recipe_layout.addWidget(self.recipe_status_label)
         inputs_layout.addLayout(recipe_layout)
@@ -395,8 +407,23 @@ class MainWindow(QMainWindow):
         self.open_output_button = QPushButton("&Open Output")
         self.open_output_button.setAccessibleName("Open generated workbook")
         self.open_output_button.setEnabled(False)
+        self.save_setup_hint_label = QLabel("Run this workflow often?")
+        self.save_setup_hint_label.setVisible(False)
+        self.save_setup_after_button = QPushButton("Save this setup for reuse…")
+        self.save_setup_after_button.setAccessibleName(
+            "Save the completed conversion setup for reuse"
+        )
+        self.save_setup_after_button.setVisible(False)
+        self.dismiss_setup_after_button = QPushButton("Not now")
+        self.dismiss_setup_after_button.setAccessibleName(
+            "Dismiss the saved setup suggestion for this session"
+        )
+        self.dismiss_setup_after_button.setVisible(False)
         actions.addWidget(self.convert_button)
         actions.addWidget(self.open_output_button)
+        actions.addWidget(self.save_setup_hint_label)
+        actions.addWidget(self.save_setup_after_button)
+        actions.addWidget(self.dismiss_setup_after_button)
         actions.addStretch()
         convert_layout.addLayout(actions)
 
@@ -445,8 +472,11 @@ class MainWindow(QMainWindow):
         self.rename_mapping_profile_button.clicked.connect(self._rename_mapping_profile)
         self.remove_mapping_profile_button.clicked.connect(self._remove_mapping_profile)
         self.save_recipe_button.clicked.connect(self._save_current_recipe)
+        self.update_recipe_button.clicked.connect(self._update_current_recipe)
         self.manage_recipes_button.clicked.connect(self._manage_recipes)
         self.recipe_combo.activated.connect(self._select_saved_recipe)
+        self.save_setup_after_button.clicked.connect(self._save_current_recipe)
+        self.dismiss_setup_after_button.clicked.connect(self._dismiss_setup_save_suggestion)
         self.mapping_toggle_button.toggled.connect(
             lambda checked: self._toggle_section(
                 self.mapping_toggle_button, self.mapping_advanced_group, checked
@@ -481,7 +511,8 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.add_folder_button, self.selection_list)
         self.setTabOrder(self.selection_list, self.recipe_combo)
         self.setTabOrder(self.recipe_combo, self.save_recipe_button)
-        self.setTabOrder(self.save_recipe_button, self.manage_recipes_button)
+        self.setTabOrder(self.save_recipe_button, self.update_recipe_button)
+        self.setTabOrder(self.update_recipe_button, self.manage_recipes_button)
         self.setTabOrder(self.manage_recipes_button, self.remove_button)
         self.setTabOrder(self.remove_button, self.clear_button)
         self.setTabOrder(self.clear_button, self.mapping_toggle_button)
@@ -492,7 +523,9 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.input_table, self.refresh_preflight_button)
         self.setTabOrder(self.refresh_preflight_button, self.convert_button)
         self.setTabOrder(self.convert_button, self.open_output_button)
-        self.setTabOrder(self.open_output_button, self.details_toggle_button)
+        self.setTabOrder(self.open_output_button, self.save_setup_after_button)
+        self.setTabOrder(self.save_setup_after_button, self.dismiss_setup_after_button)
+        self.setTabOrder(self.dismiss_setup_after_button, self.details_toggle_button)
         self._reload_recipe_selector()
         self._update_mapping_controls()
 
@@ -583,20 +616,48 @@ class MainWindow(QMainWindow):
         recipe_controls = idle and self._recipe_library_available
         self.recipe_combo.setEnabled(recipe_controls)
         self.save_recipe_button.setEnabled(recipe_controls)
+        self.update_recipe_button.setEnabled(recipe_controls and self.recipe_modified)
         self.manage_recipes_button.setEnabled(recipe_controls)
+        self.save_setup_after_button.setEnabled(recipe_controls)
+        self.dismiss_setup_after_button.setEnabled(idle)
         self._update_convert_enabled()
 
     def _refresh_recipe_status(self) -> None:
+        if not self._recipe_library_available:
+            error = self._recipe_library_error
+            code = error.code if error is not None else "RECIPE_LIBRARY_UNAVAILABLE"
+            self.recipe_status_label.setText(
+                f"Saved setups unavailable [{code}]. Direct conversion remains available."
+            )
+            self.update_recipe_button.setVisible(False)
+            self.save_setup_hint_label.setVisible(False)
+            self.save_setup_after_button.setVisible(False)
+            self.dismiss_setup_after_button.setVisible(False)
+            return
         recipe = self._conversion_recipe
         if recipe is None:
-            self.recipe_status_label.setText("No saved Recipe")
-            return
-        if self._active_recipe_id is None:
-            self.recipe_status_label.setText("Unsaved settings")
-            return
-        self.recipe_status_label.setText(
-            "Modified — not saved" if self.recipe_modified else "Saved"
+            self.recipe_status_label.setText("No saved setups yet")
+        elif self._active_recipe_id is None:
+            self.recipe_status_label.setText("Current settings are not saved")
+        else:
+            self.recipe_status_label.setText(
+                "Modified — not saved" if self.recipe_modified else "Saved"
+            )
+        self.update_recipe_button.setVisible(self.recipe_modified)
+        self.save_recipe_button.setText(
+            "&Save as new setup…" if self._active_recipe_id is not None else "&Save current setup…"
         )
+        show_after = self._setup_save_suggested and (
+            self._active_recipe_id is None or self.recipe_modified
+        )
+        self.save_setup_hint_label.setVisible(show_after)
+        self.save_setup_after_button.setVisible(show_after)
+        self.dismiss_setup_after_button.setVisible(show_after)
+
+    def _dismiss_setup_save_suggestion(self) -> None:
+        self._setup_save_prompt_dismissed = True
+        self._setup_save_suggested = False
+        self._refresh_recipe_status()
 
     @staticmethod
     def _toggle_section(
@@ -622,14 +683,14 @@ class MainWindow(QMainWindow):
                 raise error
             raise RecipeLibraryError(
                 "RECIPE_LIBRARY_UNAVAILABLE",
-                "The standard local Recipe library is unavailable.",
+                "The standard local saved setup library is unavailable.",
             )
         return library
 
     def _reload_recipe_selector(self, *, selected_id: str | None = None) -> None:
         self.recipe_combo.blockSignals(True)
         self.recipe_combo.clear()
-        self.recipe_combo.addItem("None / No Recipe", None)
+        self.recipe_combo.addItem("None yet", None)
         try:
             snapshot = self._recipe_library_or_error().snapshot()
         except RecipeLibraryError as error:
@@ -649,8 +710,8 @@ class MainWindow(QMainWindow):
         self.recipe_combo.blockSignals(False)
         if snapshot.invalid_count:
             self.status_label.setText(
-                f"{snapshot.invalid_count} saved Recipe file(s) could not be loaded; "
-                "other Recipes remain available."
+                f"{snapshot.invalid_count} saved setup file(s) could not be loaded; "
+                "other setups remain available."
             )
 
     def _select_saved_recipe(self, index: int) -> None:
@@ -658,15 +719,15 @@ class MainWindow(QMainWindow):
         if recipe_id != self._active_recipe_id and self.recipe_modified:
             answer = QMessageBox.warning(
                 self,
-                "Unsaved Recipe changes",
-                "The selected Recipe has changes that were not saved.",
+                "Unsaved setup changes",
+                "The selected setup has changes that were not saved.",
                 QMessageBox.StandardButton.Save
                 | QMessageBox.StandardButton.Discard
                 | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Cancel,
             )
             if answer == QMessageBox.StandardButton.Save:
-                if not self._save_current_recipe():
+                if not self._update_current_recipe():
                     self._reload_recipe_selector(selected_id=self._active_recipe_id)
                     return
             elif answer != QMessageBox.StandardButton.Discard:
@@ -675,6 +736,7 @@ class MainWindow(QMainWindow):
         if recipe_id is None:
             self._conversion_recipe = None
             self._recipe_baseline_sha256 = None
+            self._recipe_revision_sha256 = None
             self._active_recipe_id = None
             self._refresh_recipe_status()
             self._invalidate_preflight("Saved setup changed. Refresh preflight.")
@@ -684,22 +746,26 @@ class MainWindow(QMainWindow):
         try:
             entry = self._recipe_library_or_error().get(recipe_id)
         except RecipeLibraryError as error:
-            self.status_label.setText(f"Saved Recipe load failed [{error.code}]: {error.message}")
+            self.status_label.setText(f"Saved setup load failed [{error.code}]: {error.message}")
             self._reload_recipe_selector(selected_id=self._active_recipe_id)
             return
         self.recipe_combo.blockSignals(True)
         self.recipe_combo.setCurrentIndex(self.recipe_combo.findData(recipe_id))
         self.recipe_combo.blockSignals(False)
-        self._apply_conversion_recipe(entry.recipe, recipe_id=entry.recipe_id)
+        self._apply_conversion_recipe(
+            entry.recipe,
+            recipe_id=entry.recipe_id,
+            revision_sha256=entry.revision_sha256,
+        )
         self.status_label.setText(
-            "Saved Recipe applied. Add inputs and output, then refresh preflight."
+            "Saved setup applied. Add inputs and output, then refresh preflight."
         )
 
     def _manage_recipes(self) -> None:
         try:
             library = self._recipe_library_or_error()
         except RecipeLibraryError as error:
-            self.status_label.setText(f"Recipe library unavailable [{error.code}]: {error.message}")
+            self.status_label.setText(f"Saved setups unavailable [{error.code}]: {error.message}")
             return
         dialog = RecipeManagerDialog(library, self)
         self._recipe_manager_dialog = dialog
@@ -720,18 +786,30 @@ class MainWindow(QMainWindow):
             except RecipeLibraryError:
                 self._active_recipe_id = None
                 self._recipe_baseline_sha256 = None
+                self._recipe_revision_sha256 = None
                 self._reload_recipe_selector()
                 self._refresh_recipe_status()
                 self.status_label.setText(
-                    "The selected saved Recipe was removed; current settings were kept."
+                    "The selected saved setup was removed; current settings were kept."
                 )
                 return
             if self._conversion_recipe is not None:
                 self._conversion_recipe = replace(
                     self._conversion_recipe, display_label=entry.display_name
                 )
+            external_semantics_changed = (
+                self._recipe_baseline_sha256 is not None
+                and entry.recipe.semantic_sha256 != self._recipe_baseline_sha256
+            )
+            if not external_semantics_changed:
+                self._recipe_revision_sha256 = entry.revision_sha256
             self._reload_recipe_selector(selected_id=active_id)
             self._refresh_recipe_status()
+            if external_semantics_changed:
+                self.status_label.setText(
+                    "This saved setup changed elsewhere; current settings were kept. "
+                    "Select the setup again to load its latest settings before updating it."
+                )
         else:
             self._reload_recipe_selector()
 
@@ -872,11 +950,16 @@ class MainWindow(QMainWindow):
         )
 
     def _apply_conversion_recipe(
-        self, recipe: ConversionRecipe, *, recipe_id: str | None = None
+        self,
+        recipe: ConversionRecipe,
+        *,
+        recipe_id: str | None = None,
+        revision_sha256: str | None = None,
     ) -> None:
         """Apply one immutable Recipe snapshot and require explicit preflight refresh."""
         self._conversion_recipe = recipe
         self._recipe_baseline_sha256 = recipe.semantic_sha256
+        self._recipe_revision_sha256 = revision_sha256
         self._active_recipe_id = recipe_id
         self.sort_combo.blockSignals(True)
         self.sort_combo.setCurrentIndex(self.sort_combo.findData(recipe.sort.value))
@@ -910,17 +993,81 @@ class MainWindow(QMainWindow):
             peak_table_mapping_set=mapping_set,
         )
 
+    def _validate_setup_for_save(self) -> bool:
+        _mapping, mapping_set = self._active_peak_mappings()
+        if mapping_set is not None:
+            seen: set[str] = set()
+            for profile in mapping_set.profiles:
+                if profile.exact_structure_sha256 in seen:
+                    self.status_label.setText(
+                        "Saved setup not written: two table layouts match the same structure. "
+                        "Review the mappings before saving."
+                    )
+                    return False
+                seen.add(profile.exact_structure_sha256)
+        plan = self._current_plan()
+        if plan is not None and any(
+            entry.problem
+            in {
+                ConversionPlanProblem.MAPPING_SCHEMA_DRIFT,
+                ConversionPlanProblem.MAPPING_PROFILE_AMBIGUOUS,
+                ConversionPlanProblem.WORKSHEET_AMBIGUOUS,
+            }
+            for entry in plan.entries
+        ):
+            self.status_label.setText(
+                "Saved setup not written: review unresolved or ambiguous mappings first."
+            )
+            return False
+        return True
+
+    def _setup_name_conflict_choice(self, display_name: str) -> str:
+        message = QMessageBox(self)
+        message.setIcon(QMessageBox.Icon.Question)
+        message.setWindowTitle("Saved setup name already used")
+        message.setText(f'A saved setup named "{display_name}" already exists.')
+        message.setInformativeText(
+            "Replace its settings, save these settings as a separate copy, or cancel?"
+        )
+        replace_button = message.addButton("Replace", QMessageBox.ButtonRole.AcceptRole)
+        copy_button = message.addButton("Save as copy…", QMessageBox.ButtonRole.ActionRole)
+        cancel_button = message.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        message.setDefaultButton(cancel_button)
+        message.exec()
+        clicked = message.clickedButton()
+        if clicked is replace_button:
+            return "replace"
+        if clicked is copy_button:
+            return "copy"
+        return "cancel"
+
+    def _store_active_setup(self, stored: StoredRecipe) -> None:
+        self._conversion_recipe = stored.recipe
+        self._recipe_baseline_sha256 = stored.recipe.semantic_sha256
+        self._recipe_revision_sha256 = stored.revision_sha256
+        self._active_recipe_id = stored.recipe_id
+        self._setup_save_suggested = False
+        self._reload_recipe_selector(selected_id=stored.recipe_id)
+        self._refresh_recipe_status()
+        self._update_mapping_controls()
+
     def _save_current_recipe(self) -> bool:
+        if not self._validate_setup_for_save():
+            return False
         current_label = (
-            self._conversion_recipe.display_label
+            f"{self._conversion_recipe.display_label} copy"
+            if self._conversion_recipe is not None
+            and self._conversion_recipe.display_label is not None
+            and self._active_recipe_id is not None
+            else self._conversion_recipe.display_label
             if self._conversion_recipe is not None
             and self._conversion_recipe.display_label is not None
             else ""
         )
         name, accepted = QInputDialog.getText(
             self,
-            "Save Current Settings as Recipe",
-            "Recipe name:",
+            "Save Current Setup",
+            "Saved setup name:",
             text=current_label,
         )
         if not accepted:
@@ -932,10 +1079,10 @@ class MainWindow(QMainWindow):
             normalized_name = normalize_recipe_name(name)
         except Exception as error:
             if isinstance(error, RecipeLibraryError):
-                self.status_label.setText(f"Recipe save failed [{error.code}]: {error.message}")
+                self.status_label.setText(f"Saved setup failed [{error.code}]: {error.message}")
             else:
                 code, message = presentation_error(error)
-                self.status_label.setText(f"Recipe creation failed [{code}]: {message}")
+                self.status_label.setText(f"Saved setup failed [{code}]: {message}")
             return False
         try:
             conflict = next(
@@ -947,39 +1094,54 @@ class MainWindow(QMainWindow):
                 None,
             )
             if conflict is not None:
-                prompt = (
-                    "Update this saved Recipe with the current settings?"
-                    if conflict.recipe_id == self._active_recipe_id
-                    else "Another saved Recipe uses this name. Replace its settings explicitly?"
-                )
-                answer = QMessageBox.question(
-                    self,
-                    "Replace saved Recipe?",
-                    prompt,
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if answer != QMessageBox.StandardButton.Yes:
-                    self.status_label.setText(
-                        "Current settings were not saved; choose a new name to keep both Recipes."
-                    )
+                choice = self._setup_name_conflict_choice(conflict.display_name)
+                if choice == "cancel":
+                    self.status_label.setText("Current settings were not saved.")
                     return False
-                stored = library.update(
-                    conflict.recipe_id,
-                    recipe,
-                    expected_revision_sha256=conflict.revision_sha256,
-                )
+                if choice == "replace":
+                    stored = library.update(
+                        conflict.recipe_id,
+                        recipe,
+                        expected_revision_sha256=conflict.revision_sha256,
+                    )
+                else:
+                    copy_name, copy_accepted = QInputDialog.getText(
+                        self,
+                        "Save Setup as Copy",
+                        "New saved setup name:",
+                        text=f"{normalized_name} copy",
+                    )
+                    if not copy_accepted:
+                        self.status_label.setText("Current settings were not saved.")
+                        return False
+                    stored = library.create(recipe, copy_name)
             else:
                 stored = library.create(recipe, normalized_name)
         except RecipeLibraryError as error:
-            self.status_label.setText(f"Recipe save failed [{error.code}]: {error.message}")
+            self.status_label.setText(f"Saved setup failed [{error.code}]: {error.message}")
             return False
-        self._conversion_recipe = stored.recipe
-        self._recipe_baseline_sha256 = stored.recipe.semantic_sha256
-        self._active_recipe_id = stored.recipe_id
-        self._reload_recipe_selector(selected_id=stored.recipe_id)
-        self._refresh_recipe_status()
-        self.status_label.setText("Current conversion settings saved as a named local Recipe.")
+        self._store_active_setup(stored)
+        self.status_label.setText("Current conversion settings saved for reuse on this computer.")
+        return True
+
+    def _update_current_recipe(self) -> bool:
+        if self._active_recipe_id is None:
+            return self._save_current_recipe()
+        if not self._validate_setup_for_save():
+            return False
+        try:
+            recipe = self._current_settings_recipe()
+            library = self._recipe_library_or_error()
+            stored = library.update(
+                self._active_recipe_id,
+                recipe,
+                expected_revision_sha256=self._recipe_revision_sha256,
+            )
+        except RecipeLibraryError as error:
+            self.status_label.setText(f"Saved setup update failed [{error.code}]: {error.message}")
+            return False
+        self._store_active_setup(stored)
+        self.status_label.setText("Saved setup updated with the current conversion settings.")
         return True
 
     def _sort_changed(self, *_unused: object) -> None:
@@ -1285,8 +1447,82 @@ class MainWindow(QMainWindow):
             selected_profile_id=repaired.profile_id,
         )
         self.status_label.setText(
-            "Repaired mapping added locally as a new profile; use Save Set to persist it."
+            "Mapping repair confirmed. Update the selected saved setup or save the current "
+            "settings as a new setup to reuse it."
         )
+
+    def _collect_confirmed_peak_mapping(
+        self,
+        mapping: PeakTableMapping,
+        *,
+        sheet: str | None,
+    ) -> bool:
+        active_set = self._peak_table_mapping_set if self.mapping_set_active else None
+        result = collect_confirmed_mapping(
+            current_mapping=self._peak_table_mapping,
+            current_sheet=self._peak_table_mapping_sheet,
+            current_set=active_set,
+            confirmed_mapping=mapping,
+            confirmed_sheet=sheet,
+        )
+        if result.action is MappingCollectionAction.CONFLICT:
+            if active_set is not None and result.selected_profile_id is None:
+                self.status_label.setText(
+                    "This table layout matches more than one saved mapping. Review the advanced "
+                    "mapping list before continuing."
+                )
+                return False
+            answer = QMessageBox.question(
+                self,
+                "Replace mapping for this table layout?",
+                "This table layout already has different column meanings. Replace that mapping "
+                "with the mapping you just confirmed?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                self.status_label.setText(
+                    "The existing mapping was kept; no saved setup settings changed."
+                )
+                return False
+            result = collect_confirmed_mapping(
+                current_mapping=self._peak_table_mapping,
+                current_sheet=self._peak_table_mapping_sheet,
+                current_set=active_set,
+                confirmed_mapping=mapping,
+                confirmed_sheet=sheet,
+                replace_conflict=True,
+            )
+        self._set_peak_mapping(
+            result.mapping,
+            sheet=result.mapping_sheet,
+            request_preview=False,
+            sync_recipe=False,
+        )
+        if result.mapping_set is not None:
+            self._set_peak_mapping_set(
+                result.mapping_set,
+                activate=True,
+                selected_profile_id=result.selected_profile_id,
+            )
+            self.status_label.setText(
+                f"Peak columns confirmed. {len(result.mapping_set.profiles)} table layouts "
+                "will be reused together when the current setup is saved."
+            )
+        else:
+            if self._peak_table_mapping_set is not None and self.mapping_set_active:
+                self._set_peak_mapping_set(
+                    self._peak_table_mapping_set,
+                    activate=False,
+                    request_preview=False,
+                    sync_recipe=False,
+                )
+            self._sync_active_recipe_from_controls()
+            self._invalidate_preflight("Mapping changed. Refresh preflight.")
+            self.status_label.setText(
+                "Peak columns confirmed. Column meanings remain explicitly user-declared."
+            )
+        return True
 
     def _map_peak_columns(self) -> None:
         source = self._mapping_source()
@@ -1297,19 +1533,10 @@ class MainWindow(QMainWindow):
             return
         dialog = PeakMappingDialog(source, mapping=self._peak_table_mapping, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.mapping is not None:
-            self._set_peak_mapping(
+            self._collect_confirmed_peak_mapping(
                 dialog.mapping,
                 sheet=dialog.preview_worksheet_title,
             )
-            if self.mapping_set_active:
-                self.status_label.setText(
-                    "Current mapping updated but the mapping set remains active. "
-                    "Use Add Current to include it in batch routing."
-                )
-            else:
-                self.status_label.setText(
-                    "Explicit peak mapping applied. Column meanings remain user-declared."
-                )
 
     def _load_peak_mapping(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(
@@ -1842,6 +2069,8 @@ class MainWindow(QMainWindow):
             self._update_convert_enabled()
             return
         self._invalidate_mapping_drift_review()
+        self._setup_save_suggested = False
+        self._refresh_recipe_status()
         self._set_conversion_controls(False)
         self.open_output_button.setEnabled(False)
         self._last_output = None
@@ -1891,6 +2120,9 @@ class MainWindow(QMainWindow):
         if output_exists:
             self._last_output = report.output_path
             self.open_output_button.setEnabled(True)
+        self._setup_save_suggested = (
+            output_exists and report.success_count > 0 and not self._setup_save_prompt_dismissed
+        )
         summary = report.summary
         result_counts = None
         if summary is not None:
@@ -1942,6 +2174,7 @@ class MainWindow(QMainWindow):
                     f"{summary.warning_sources} with warnings, "
                     f"{summary.skipped_sources} skipped."
                 )
+        self._refresh_recipe_status()
 
     def _conversion_finished(self) -> None:
         self._conversion_thread = None
@@ -1970,7 +2203,10 @@ class MainWindow(QMainWindow):
             self.remove_mapping_profile_button,
             self.recipe_combo,
             self.save_recipe_button,
+            self.update_recipe_button,
             self.manage_recipes_button,
+            self.save_setup_after_button,
+            self.dismiss_setup_after_button,
             self.mapping_toggle_button,
             self.advanced_options_button,
             self.details_toggle_button,

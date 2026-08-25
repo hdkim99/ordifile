@@ -68,7 +68,7 @@ architecture, Python version, Ordifile version, the privacy-safe commit and whee
 prefixes when applicable, and relevant dependency versions when reporting a compatibility
 problem. Supported Python versions are 3.11 through 3.14.
 
-## 2. Run the neutral Mapping Set and Recipe pilot
+## 2. Run the neutral CLI Recipe portability pilot
 
 From a repository checkout:
 
@@ -106,7 +106,7 @@ The local display labels in the example JSON are not scientific provenance. A re
 Recipe can contain private headers or labels. Keep it local and do not attach it to a
 public issue without reviewing every field.
 
-## 3. Desktop pilot
+## 3. Desktop Saved Setup pilot
 
 First use without creating or locating JSON:
 
@@ -118,30 +118,32 @@ First use without creating or locating JSON:
 4. Expand **Mappings & reusable workflow**. In **Selected files and folders**, select
    exactly one of the two files, then choose **Map Peak Columns…**. Confirm its explicit
    RT, Area, optional Height or Compound columns, and units.
-5. Choose **Add Current**, give that Mapping Profile a local name, then repeat the mapping
-   and **Add Current** steps for the other input. Confirm that **Use mapping set for batch
-   routing** is selected.
-6. Select **Refresh Preflight** and confirm two Mapping Profile routes.
-7. Choose **Save Current…** and give the reviewed setup a local Recipe name.
-8. Convert, then open the output and review `Samples` and `Import_Log` first.
+5. Select the other input and choose **Map Peak Columns…** again. Ordifile collects both
+   confirmed table layouts into the current reusable setup automatically; **Add Current** and
+   manual Mapping Set creation are not part of the ordinary workflow.
+6. Select **Refresh Preflight** and confirm that both generic inputs are routable while exact
+   vendor adapters, if present, keep their automatic ownership.
+7. Convert, then open the output and review `Samples` and `Import_Log` first.
+8. If this workflow will be repeated, choose **Save this setup for reuse…** and enter only a
+   local name. Saving before conversion through **Save current setup…** is also supported.
 
 To reuse this laboratory setup:
 
-1. Select its local name in **Recipe (optional)**.
+1. Select its local name in **Saved setup (optional)**.
 2. Add the experiment folder and choose a new output.
-3. Select **Refresh Preflight** and confirm two Mapping Profile routes. Selecting a Recipe,
+3. Select **Refresh Preflight** and confirm both table layouts are routed. Selecting a setup,
    changing its effective settings, changing inputs, or changing output invalidates the
    previous preview.
-4. Convert. Recipe selection never starts conversion or bypasses Preflight.
+4. Convert. Saved Setup selection never starts conversion or bypasses Preflight.
 
 The repository's `examples/pilot/laboratory.recipe.json` remains an optional portability
-demonstration. **Manage… → Import Recipe…** may import it, and **Export Recipe…** may move a
+demonstration. **Manage… → Import Setup…** may import it, and **Export Setup…** may move a
 reviewed setup to another computer or a CLI/API workflow, but neither JSON action is
 required for ordinary desktop use.
 
 The GUI uses the same Mapping, Recipe, Preflight, and conversion contracts as the CLI.
 It does not silently overwrite an existing workbook or silently save changes back to a
-loaded Recipe. The local Recipe library may contain private headers or labels, but it stores
+loaded Saved Setup. The local Recipe library may contain private headers or labels, but it stores
 no measured rows, input paths, or output paths.
 
 ## 4. Review the workbook
@@ -158,9 +160,9 @@ Follow the [workbook interpretation guide](workbook-guide.md). At minimum:
 
 Use copies of a small representative batch, keep the originals read-only, and review the
 Conversion Plan before converting. For an unfamiliar structured table, explicitly map
-RT and Area first. Reuse a Mapping Profile only for an exact structure. If a template
-drifts, review the diagnostic and create a new confirmed profile; do not accept automatic
-remapping. Save a Recipe explicitly only after its effective configuration is reviewed.
+RT and Area first. Saved Setup reuse remains exact-structure based. If a template drifts,
+review the diagnostic and confirm the revised mapping; do not accept automatic remapping.
+Then explicitly **Update saved setup** or save the current settings as a new setup.
 
 Compare source rows with `Peaks`, confirm every unit, and inspect partial failures in
 `Import_Log`. Do not publish source files, measured rows, filenames, local paths, Mapping

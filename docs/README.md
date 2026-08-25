@@ -7,8 +7,8 @@ Start with the path that matches your task.
 1. [Install and run the public-safe pilot](user/pilot-checklist.md).
 2. Check [supported formats and exact profile boundaries](../README.md#verified-formats).
 3. Prepare generic tables with the [generic tabular schema](formats/generic-tabular.md).
-4. Map unfamiliar Result tables and reuse templates with
-   [Mapping Profiles, Mapping Sets, drift repair, Preflight, and Recipes](formats/explicit-peak-table-mapping.md).
+4. Map unfamiliar Result tables and reuse them through a desktop Saved Setup with
+   [explicit mapping, drift repair, Preflight, and Recipe portability](formats/explicit-peak-table-mapping.md).
 5. Review the [workbook interpretation guide](user/workbook-guide.md).
 6. Submit privacy-safe [pilot feedback](https://github.com/hdkim99/ordifile/issues/new/choose)
    or a [format support request](https://github.com/hdkim99/ordifile/issues/new/choose).
