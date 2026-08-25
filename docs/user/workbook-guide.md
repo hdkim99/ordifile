@@ -34,6 +34,11 @@ or normalize values. `Peak_Matrix` contains only explicit compound identities. O
 matrices preserve observations by stream and order; an empty matrix cell is not a zero
 measurement.
 
+When otherwise identical `Peak_Matrix` compound/detector/channel columns contain different
+Area units, Ordifile separates them and adds an `area_unit` qualifier to each affected
+header. A missing unit uses an `area_unit_status=unresolved` qualifier; it is never merged
+with a resolved unit.
+
 RT1 and RT2 units are independent. Area and Height units are also independent. Values in
 `pA*s`, `mV.s`, `AU`, or an unresolved unit must not be treated as directly comparable
 without a separate, scientifically justified workflow outside Ordifile. A blank or
