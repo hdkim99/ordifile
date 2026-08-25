@@ -14,6 +14,14 @@ body:
       placeholder: "Paste the output of: ordifile --version"
     validations:
       required: true
+  - type: input
+    id: build_identity
+    attributes:
+      label: Installation channel or pilot build identity
+      description: State PyPI, or provide only the sanitized exact-commit and wheel-SHA prefixes supplied for an unreleased pilot. Do not include a filename or path.
+      placeholder: "PyPI, or commit-abcdef123456 / wheel-0123456789ab"
+    validations:
+      required: true
   - type: dropdown
     id: interface
     attributes:
@@ -43,10 +51,17 @@ body:
     validations:
       required: true
   - type: dropdown
+    id: preflight_match
+    attributes:
+      label: Did Preflight match the conversion result?
+      options: [Yes, No, Preflight not run, Conversion not attempted, Unsure]
+    validations:
+      required: true
+  - type: dropdown
     id: outcome
     attributes:
-      label: Outcome
-      options: [Success, Partial success, Failure]
+      label: Conversion outcome
+      options: [Finished successfully, Finished with a partial result, Did not finish, Not attempted]
     validations:
       required: true
   - type: checkboxes

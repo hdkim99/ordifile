@@ -5,7 +5,13 @@ data, then repeat it with a small, representative copy of your own exports. The 
 files are neutral demonstrations, not vendor-generated data and not evidence of exact
 vendor support.
 
-## 1. Install and identify the environment
+## 1. Choose and record the pilot build
+
+Use one installation channel and record which one you used. The published PyPI release
+and an unreleased build from `main` can have different capabilities even when both report
+the same package version.
+
+For the latest published release:
 
 ```console
 python -m pip install ordifile
@@ -13,16 +19,54 @@ ordifile --version
 ordifile formats
 ```
 
-For the Python-package desktop interface:
+For its Python-package desktop interface:
 
 ```console
 python -m pip install "ordifile[gui]"
 ordifile-gui
 ```
 
+For an unreleased field pilot, use a standard wheel built by the maintainer from one
+reviewed exact commit. Do not use the PyPI command above as evidence that you tested that
+commit. The maintainer records the source commit and wheel SHA-256, then provides the
+wheel and the install command privately. Install each pilot build in a fresh virtual
+environment where Ordifile is not already installed. This prevents pip from retaining
+different bytes that have the same `0.5.0` package version. Use the same fresh environment
+for the CLI and GUI.
+
+Create and activate the environment using the command for the operating system:
+
+```console
+python -m venv ordifile-pilot
+# macOS or Linux
+source ordifile-pilot/bin/activate
+# Windows PowerShell, instead of the preceding activation command
+.\ordifile-pilot\Scripts\Activate.ps1
+```
+
+Install either the CLI-only wheel or the same artifact with its `gui` extra. The direct
+wheel-reference example below uses a macOS/Linux file URI; the maintainer supplies the
+equivalent private command for the pilot computer:
+
+```console
+# CLI-only pilot
+python -m pip install /path/to/ordifile-0.5.0-py3-none-any.whl
+# Or GUI pilot, which also installs the CLI
+python -m pip install "ordifile[gui] @ file:///path/to/ordifile-0.5.0-py3-none-any.whl"
+ordifile --version
+ordifile formats
+ordifile-gui
+```
+
+Replace the placeholder with the private local wheel path supplied for the pilot. Record
+the exact commit and wheel SHA-256 separately because `ordifile --version` remains the
+package version. The wheel is a maintainer/researcher pilot artifact, not an official
+release, tag, PyPI upload, GitHub Release, `.exe`, or `.app`.
+
 No public standalone `.exe` or `.app` is distributed. Record only the OS family,
-architecture, Python version, Ordifile version, and relevant dependency versions when
-reporting a compatibility problem.
+architecture, Python version, Ordifile version, the privacy-safe commit and wheel-hash
+prefixes when applicable, and relevant dependency versions when reporting a compatibility
+problem. Supported Python versions are 3.11 through 3.14.
 
 ## 2. Run the neutral Mapping Set and Recipe pilot
 
@@ -64,27 +108,36 @@ public issue without reviewing every field.
 
 ## 3. Desktop pilot
 
-First use:
+First use without creating or locating JSON:
 
-1. Select **Add Folder** and choose `examples/pilot/inputs`.
+1. Select **Add Files** and choose both `examples/pilot/inputs/template-a.csv` and
+   `examples/pilot/inputs/template-b.tsv`.
 2. Choose a new `.xlsx` output path.
-3. Select **Refresh Preflight** and review the routing table.
-4. Convert, then open the output and review `Samples` and `Import_Log` first.
+3. Select **Refresh Preflight** and confirm that only the two generic inputs require
+   mapping.
+4. Expand **Mappings & reusable workflow**. In **Selected files and folders**, select
+   exactly one of the two files, then choose **Map Peak Columns…**. Confirm its explicit
+   RT, Area, optional Height or Compound columns, and units.
+5. Choose **Add Current**, give that Mapping Profile a local name, then repeat the mapping
+   and **Add Current** steps for the other input. Confirm that **Use mapping set for batch
+   routing** is selected.
+6. Select **Refresh Preflight** and confirm two Mapping Profile routes.
+7. Choose **Save Current…** and give the reviewed setup a local Recipe name.
+8. Convert, then open the output and review `Samples` and `Import_Log` first.
 
-To reuse this laboratory setup without managing JSON in normal GUI use:
+To reuse this laboratory setup:
 
-1. Open **Manage…**, choose **Import Recipe…**, and import
-   `examples/pilot/laboratory.recipe.json` once.
-2. Select its local name in **Recipe (optional)**.
-3. Add the experiment folder and choose a new output.
-4. Select **Refresh Preflight** and confirm two Mapping Profile routes. Selecting a Recipe,
+1. Select its local name in **Recipe (optional)**.
+2. Add the experiment folder and choose a new output.
+3. Select **Refresh Preflight** and confirm two Mapping Profile routes. Selecting a Recipe,
    changing its effective settings, changing inputs, or changing output invalidates the
    previous preview.
-5. Convert. Recipe selection never starts conversion or bypasses Preflight.
+4. Convert. Recipe selection never starts conversion or bypasses Preflight.
 
-After configuring a new Mapping or Mapping Set, **Save Current…** asks only for a local
-Recipe name. Use **Manage… → Export Recipe…** only when moving that strict JSON to another
-computer or a CLI/API workflow.
+The repository's `examples/pilot/laboratory.recipe.json` remains an optional portability
+demonstration. **Manage… → Import Recipe…** may import it, and **Export Recipe…** may move a
+reviewed setup to another computer or a CLI/API workflow, but neither JSON action is
+required for ordinary desktop use.
 
 The GUI uses the same Mapping, Recipe, Preflight, and conversion contracts as the CLI.
 It does not silently overwrite an existing workbook or silently save changes back to a
