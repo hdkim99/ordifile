@@ -342,6 +342,26 @@ def _bounded_codes(codes: Iterable[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(codes))[:MAX_CONVERSION_PLAN_ISSUE_CODES]
 
 
+_UNSUPPORTED_EXACT_PROFILE_ERROR_CODES = frozenset(
+    {
+        "AGILENT_CH_DETECTOR_UNSUPPORTED",
+        "AGILENT_CH_VERSION_UNSUPPORTED",
+        "AGILENT_RESULT_XML_DECLARATION_UNSUPPORTED",
+        "AGILENT_RESULT_XML_ENCODING_UNSUPPORTED",
+        "AGILENT_RESULT_XML_QUANTITATION_UNSUPPORTED",
+        "AGILENT_RESULT_XML_SCHEMA_UNSUPPORTED",
+        "AGILENT_RESULT_XML_SIGNAL_UNSUPPORTED",
+        "AGILENT_RESULT_XML_UNIT_UNSUPPORTED",
+        "AGILENT_RESULT_XML_VERSION_UNSUPPORTED",
+        "LECO_GCGC_RESULT_ENCODING_UNSUPPORTED",
+        "SHIMADZU_RESULT_ASCII_ENCODING_UNSUPPORTED",
+        "SHIMADZU_RESULT_ASCII_IDENTIFICATION_UNSUPPORTED",
+        "YOUNGIN_RESULT_CSV_ENCODING_UNSUPPORTED",
+        "YOUNGIN_RESULT_CSV_SIGNAL_UNSUPPORTED",
+    }
+)
+
+
 def _problem_for_route(route: str | None, error_code: str) -> ConversionPlanProblem:
     if route == "SCHEMA_DRIFT_CANDIDATE":
         return ConversionPlanProblem.MAPPING_SCHEMA_DRIFT
@@ -351,7 +371,9 @@ def _problem_for_route(route: str | None, error_code: str) -> ConversionPlanProb
         return ConversionPlanProblem.MAPPING_PROFILE_AMBIGUOUS
     if route == "AMBIGUOUS_WORKSHEET":
         return ConversionPlanProblem.WORKSHEET_AMBIGUOUS
-    if error_code == "FORMAT_NOT_DETECTED":
+    if error_code == "FORMAT_NOT_DETECTED" or error_code in (
+        _UNSUPPORTED_EXACT_PROFILE_ERROR_CODES
+    ):
         return ConversionPlanProblem.UNSUPPORTED_FORMAT
     if "AMBIGUOUS" in error_code:
         return ConversionPlanProblem.ADAPTER_AMBIGUOUS

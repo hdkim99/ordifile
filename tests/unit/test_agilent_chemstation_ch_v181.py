@@ -77,6 +77,10 @@ def test_parse_exposes_unscaled_decoded_records_and_no_time_axis(tmp_path: Path)
 @pytest.mark.parametrize("version_text", ("+181", "0181", " 181", "1_81", "181\x00"))
 def test_version_text_aliases_are_not_accepted(tmp_path: Path, version_text: str) -> None:
     path = _write(tmp_path / "FID1A.CH", synthetic_v181_bytes(version_text=version_text))
+    probe = AgilentChemStationChV181Adapter().probe(path)
+    assert probe.matched
+    assert not probe.routable
+    assert probe.failure_code == "AGILENT_CH_VERSION_UNSUPPORTED"
     with pytest.raises(ParseError) as caught:
         AgilentChemStationChV181Adapter().parse(path, ParseOptions())
     assert caught.value.code == "AGILENT_CH_VERSION_UNSUPPORTED"
@@ -113,6 +117,8 @@ def test_unsupported_detector_or_renamed_filename_is_rejected(
     probe = adapter.probe(path)
     assert probe.matched
     assert probe.confidence == pytest.approx(0.70)
+    assert not probe.routable
+    assert probe.failure_code == "AGILENT_CH_DETECTOR_UNSUPPORTED"
     assert "basename" in probe.reason
     with pytest.raises(ParseError) as caught:
         adapter.parse(path, ParseOptions())

@@ -72,6 +72,8 @@ def test_probe_preserves_structured_match_for_identified_unsupported_profile(
     result = ShimadzuGcsolutionGcdAdapter().probe(unsupported)
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "SHIMADZU_GCD_PROFILE_UNSUPPORTED"
 
 
 def test_parse_returns_uninterpolated_retention_time_and_stored_uv_values(

@@ -26,8 +26,10 @@ exact result profile
 
 ## Accepted boundary
 
-1. One adapter ID names one exact `manufacturer + software/version boundary + export
-   profile`, not a manufacturer or file extension.
+1. One adapter ID names one bounded `manufacturer + evidence-backed format family +
+   export profile`, not a manufacturer or file extension. Current Result adapters remain
+   exact-profile only. A future family boundary requires actual compatible variants and the
+   rules in [`cross-vendor-compatibility-policy.md`](cross-vendor-compatibility-policy.md).
 2. The current adapter API accepts one source file and returns one source/sample/run.
    A one-run, one-dimensional Result export with explicit finite RT and area fits the
    existing model without a core change.

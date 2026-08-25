@@ -61,6 +61,8 @@ def test_identified_family_with_unsupported_profile_blocks_fallthrough(tmp_path:
     result = YoungInYlClarityResultCsvAdapter().probe(path)
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "YOUNGIN_RESULT_CSV_PROFILE_UNSUPPORTED"
 
 
 def test_parse_preserves_source_order_units_and_signal_without_detector_claim(

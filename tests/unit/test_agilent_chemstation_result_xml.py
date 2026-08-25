@@ -60,6 +60,23 @@ def test_descriptor_and_probe_are_exact_and_private(tmp_path: Path) -> None:
     assert not adapter.probe(invalid).matched
 
 
+def test_probe_preserves_non_routable_owner_for_unsupported_version(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "unsupported.xml",
+        synthetic_result_xml_bytes(
+            acquisition_version="Rev. C.01.09 [200] Copyright © Agilent Technologies",
+            sample_version="Rev. C.01.09 [200] Copyright © Agilent Technologies",
+        ),
+    )
+
+    result = AgilentChemStationResultXmlAdapter().probe(source)
+
+    assert result.matched
+    assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "AGILENT_RESULT_XML_VERSION_UNSUPPORTED"
+
+
 def test_parse_preserves_canonical_result_order_units_and_optional_name(tmp_path: Path) -> None:
     data = synthetic_result_xml_bytes(omit_name_index=2)
     path = _write(tmp_path / "private-result.xml", data)

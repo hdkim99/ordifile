@@ -65,6 +65,8 @@ def test_probe_preserves_identified_unsupported_profile(tmp_path: Path) -> None:
 
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "SHIMADZU_QGD_PROFILE_UNSUPPORTED"
 
 
 def test_parse_returns_uninterpolated_tic_and_structural_ms1_summary(tmp_path: Path) -> None:

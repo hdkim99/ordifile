@@ -62,7 +62,7 @@ class AgilentChemStationChV181Adapter:
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "agilent_chemstation_ch_v181"
-    adapter_version: ClassVar[str] = "0.2.0"
+    adapter_version: ClassVar[str] = "0.2.1"
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
@@ -96,7 +96,13 @@ class AgilentChemStationChV181Adapter:
                 "AGILENT_CH_PAYLOAD_OFFSET_INVALID",
             }
             if recognized and family_recognized and path.suffix.casefold() == ".ch":
-                return DetectionResult(True, 0.70, error.message)
+                return DetectionResult(
+                    True,
+                    0.70,
+                    error.message,
+                    routable=False,
+                    failure_code=error.code,
+                )
             return DetectionResult(False, 0.0, error.message)
         except OSError as error:
             return DetectionResult(False, 0.0, f"read failed ({type(error).__name__})")
@@ -106,6 +112,8 @@ class AgilentChemStationChV181Adapter:
                 0.70,
                 "bounded v181 structure matched, but the basename does not identify the "
                 "supported FID profile",
+                routable=False,
+                failure_code="AGILENT_CH_DETECTOR_UNSUPPORTED",
             )
         confidence = 0.99 if path.suffix.casefold() == ".ch" else 0.98
         return DetectionResult(
