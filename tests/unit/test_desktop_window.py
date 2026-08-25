@@ -22,7 +22,9 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
 from ordifile import (
     ColumnSelector,
+    ConversionPlanEntryStatus,
     ConversionPlanProblem,
+    ConversionPlanRoute,
     ConversionRecipe,
     ConversionResultSummary,
     PeakMappingDriftCategory,
@@ -1025,6 +1027,92 @@ def test_window_route_display_uses_public_route_and_local_profile_label(
     exact_route = window.input_table.item(1, 3)
     assert mapped_route is not None and mapped_route.text() == "User mapping: Daily CSV"
     assert exact_route is not None and exact_route.text() == "Exact adapter"
+    window.close()
+
+
+def test_window_distinguishes_youngin_family_capabilities_in_preflight(
+    app: QApplication,
+) -> None:
+    del app
+    window = MainWindow()
+    report = DesktopBatchReport(
+        BatchOutcome.SUCCESS,
+        files=(
+            DesktopFileReport(
+                "validated.prm",
+                "YoungIn YL-Clarity PRM (Experimental)",
+                "youngin_yl_clarity_prm_raw",
+                DesktopInputStatus.QUEUED,
+                message="Validated YoungIn PRM profile: direct scientific signal is available.",
+                plan_status=ConversionPlanEntryStatus.ROUTABLE,
+                plan_route=ConversionPlanRoute.EXACT_ADAPTER,
+                plan_problem=ConversionPlanProblem.NONE,
+                issue_codes=("YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL",),
+            ),
+            DesktopFileReport(
+                "compatible.prm",
+                "YoungIn YL-Clarity PRM (Experimental)",
+                "youngin_yl_clarity_prm_raw",
+                DesktopInputStatus.QUEUED,
+                message=(
+                    "Compatible experimental YoungIn PRM profile: direct scientific signal "
+                    "is available, but the response unit is unresolved."
+                ),
+                plan_status=ConversionPlanEntryStatus.ROUTABLE,
+                plan_route=ConversionPlanRoute.EXACT_ADAPTER,
+                plan_problem=ConversionPlanProblem.NONE,
+                issue_codes=("YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED",),
+            ),
+            DesktopFileReport(
+                "structural.prm",
+                "YoungIn YL-Clarity PRM (Experimental)",
+                "youngin_yl_clarity_prm_raw",
+                DesktopInputStatus.QUEUED,
+                message=(
+                    "Compatible YoungIn PRM structure: structural records only; scientific "
+                    "time and signal semantics are unavailable."
+                ),
+                plan_status=ConversionPlanEntryStatus.ROUTABLE,
+                plan_route=ConversionPlanRoute.EXACT_ADAPTER,
+                plan_problem=ConversionPlanProblem.NONE,
+                issue_codes=("YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY",),
+            ),
+        ),
+        success_count=3,
+    )
+
+    window._render_report(report)
+
+    assert _table_text(window, 0, 3) == "Exact adapter"
+    assert _table_text(window, 1, 3) == "Compatible family — scientific signal"
+    assert _table_text(window, 2, 3) == "Compatible family — structural only"
+    assert [_table_text(window, row, 4) for row in range(3)] == ["Convert"] * 3
+    assert [_table_text(window, row, 5) for row in range(3)] == ["Routable"] * 3
+    compatible_route = window.input_table.item(1, 3)
+    structural_route = window.input_table.item(2, 3)
+    assert compatible_route is not None
+    assert structural_route is not None
+    assert "response unit is unresolved" in compatible_route.toolTip()
+    assert "structural records only" in structural_route.toolTip()
+    completed_compatible = replace(
+        report.files[1],
+        plan_status=None,
+        plan_route=None,
+        mapping_route="EXACT_ADAPTER",
+    )
+    assert window._mapping_route_text(completed_compatible) == (
+        "Compatible family — scientific signal"
+    )
+    completed_structural = replace(
+        report.files[2],
+        plan_status=None,
+        plan_route=None,
+        mapping_route="EXACT_ADAPTER",
+        issue_codes=("YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS",),
+    )
+    assert window._mapping_route_text(completed_structural) == (
+        "Compatible family — structural only"
+    )
     window.close()
 
 
