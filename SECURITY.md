@@ -55,5 +55,5 @@ The exact v0.1 input and resource contract is documented in
 
 | Version | Supported |
 |---|---|
-| 0.1.x | Security fixes |
+| 0.5.x | Security fixes |
 | Unreleased `main` branch | Best effort |

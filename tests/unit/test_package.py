@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).parents[2]
 
 
 def test_package_version() -> None:
-    assert ordifile.__version__ == "0.5.0"
+    assert ordifile.__version__ == "0.5.1"
     assert find_spec("labconvert") is None
 
 

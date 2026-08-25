@@ -1091,7 +1091,7 @@ def test_build_cli_preserves_success_output(
     monkeypatch.setattr(
         standalone_build,
         "build_candidate",
-        lambda *args, **kwargs: tmp_path / "Ordifile-0.5.0-macos-arm64-UNSIGNED.zip",
+        lambda *args, **kwargs: tmp_path / "Ordifile-0.5.1-macos-arm64-UNSIGNED.zip",
     )
     assert (
         standalone_build.main(
@@ -1287,7 +1287,7 @@ def test_extracted_candidate_must_equal_manifest_and_expected_commit(tmp_path: P
         signature_state="UNSIGNED_PROTOTYPE",
     )
     manifest["outer_artifact"] = {
-        "filename": "Ordifile-0.5.0-macos-arm64-UNSIGNED.zip",
+        "filename": "Ordifile-0.5.1-macos-arm64-UNSIGNED.zip",
         "size": 123,
         "sha256": "b" * 64,
     }
