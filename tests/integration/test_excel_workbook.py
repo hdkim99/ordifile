@@ -1,10 +1,30 @@
 from __future__ import annotations
 
+import runpy
+from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile.api import convert
+from ordifile.core.peak_mapping import (
+    ColumnSelector,
+    PeakTableFormat,
+    PeakTableMapping,
+)
+
+
+def _synthetic_agilent_result_xml() -> bytes:
+    generator = runpy.run_path(
+        str(
+            Path(__file__).parents[1]
+            / "fixtures"
+            / "synthetic"
+            / "generate_agilent_chemstation_result_xml.py"
+        )
+    )
+    return cast(bytes, generator["synthetic_result_xml_bytes"]())
 
 
 def test_required_workbook_structure_hashes_and_natural_order(tmp_path: Path) -> None:
@@ -66,6 +86,70 @@ def test_peak_matrix_qualifiers_are_unambiguous_and_compound_only_stays_simple(
         assert any("A%5FB" in value and "detector=C" in value for value in qualified)
         assert any("detector=B%5FC" in value for value in qualified)
         assert any("channel=C%5FD" in value for value in qualified)
+    finally:
+        workbook.close()
+
+
+def test_peak_matrix_separates_conflicting_area_units(tmp_path: Path) -> None:
+    mapped = tmp_path / "mapped.csv"
+    mapped.write_text(
+        "RT,Area,Compound,Detector,Channel\n1.0,999,compound-alpha,FID,FID1A\n",
+        encoding="utf-8",
+    )
+    agilent = tmp_path / "agilent.xml"
+    agilent.write_bytes(_synthetic_agilent_result_xml())
+    mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+        area_unit="mV.s",
+        compound_name_column=ColumnSelector("Compound", 3),
+        detector_column=ColumnSelector("Detector", 4),
+        channel_column=ColumnSelector("Channel", 5),
+    )
+
+    result = convert(
+        (mapped, agilent),
+        tmp_path / "mixed-units.xlsx",
+        peak_table_mapping=mapping,
+    )
+
+    workbook = load_workbook(result.output_path, read_only=True, data_only=False)
+    try:
+        rows = tuple(workbook["Peak_Matrix"].iter_rows(values_only=True))
+        headers = tuple(rows[0])
+        mapped_header = (
+            "q[compound=compound%2Dalpha][detector=FID][channel=FID1A][area_unit=mV%2Es]_area"
+        )
+        agilent_header = (
+            "q[compound=compound%2Dalpha][detector=FID][channel=FID1A][area_unit=pA%2As]_area"
+        )
+        assert mapped_header in headers
+        assert agilent_header in headers
+        assert "q[compound=compound%2Dalpha][detector=FID][channel=FID1A]_area" not in headers
+        mapped_index = headers.index(mapped_header)
+        agilent_index = headers.index(agilent_header)
+        assert {(row[mapped_index], row[agilent_index]) for row in rows[1:]} == {
+            (999, None),
+            (None, 100.5),
+        }
+    finally:
+        workbook.close()
+
+    unresolved = convert(
+        (mapped, agilent),
+        tmp_path / "mixed-unresolved-unit.xlsx",
+        peak_table_mapping=replace(mapping, area_unit=None),
+    )
+    workbook = load_workbook(unresolved.output_path, read_only=True, data_only=False)
+    try:
+        headers = tuple(next(workbook["Peak_Matrix"].values))
+        assert (
+            "q[compound=compound%2Dalpha][detector=FID][channel=FID1A]"
+            "[area_unit_status=unresolved]_area"
+        ) in headers
+        assert agilent_header in headers
     finally:
         workbook.close()
 

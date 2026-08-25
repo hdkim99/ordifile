@@ -341,21 +341,34 @@ def _matrix_escape(value: str) -> str:
     return "".join(encoded)
 
 
-def _matrix_base(identity: tuple[str, str | None, str | None]) -> str:
-    compound, detector, channel = identity
-    if detector is None and channel is None:
+def _matrix_base(
+    identity: tuple[str, str | None, str | None, str | None],
+    *,
+    qualify_area_unit: bool,
+) -> str:
+    compound, detector, channel, area_unit = identity
+    if detector is None and channel is None and not qualify_area_unit:
         return f"{compound}_area"
-    return (
+    base = (
         f"q[compound={_matrix_escape(compound)}]"
         f"[detector={_matrix_escape(detector or '')}]"
-        f"[channel={_matrix_escape(channel or '')}]_area"
+        f"[channel={_matrix_escape(channel or '')}]"
     )
+    if qualify_area_unit:
+        base += (
+            f"[area_unit={_matrix_escape(area_unit)}]"
+            if area_unit is not None
+            else "[area_unit_status=unresolved]"
+        )
+    return f"{base}_area"
 
 
 def _peak_matrix_data(result: BatchResult) -> _SheetData:
-    Identity = tuple[str, str | None, str | None]
+    Identity = tuple[str, str | None, str | None, str | None]
+    BaseIdentity = tuple[str, str | None, str | None]
     maximum_occurrences: dict[Identity, int] = {}
     ordered_identities: list[Identity] = []
+    area_units_by_base: dict[BaseIdentity, set[str | None]] = defaultdict(set)
     item_values: list[tuple[str, list[tuple[Identity, int, Any]]]] = []
     for item in result.files:
         if not _successful(item) or item.bundle is None or not item.bundle.samples:
@@ -365,7 +378,8 @@ def _peak_matrix_data(result: BatchResult) -> _SheetData:
         for peak in item.bundle.peaks:
             if not peak.compound:
                 continue
-            identity = (peak.compound, peak.detector, peak.channel)
+            identity = (peak.compound, peak.detector, peak.channel, peak.area_unit)
+            area_units_by_base[identity[:3]].add(peak.area_unit)
             if identity not in maximum_occurrences:
                 ordered_identities.append(identity)
             counts[identity] += 1
@@ -378,7 +392,10 @@ def _peak_matrix_data(result: BatchResult) -> _SheetData:
     base_by_identity: dict[Identity, str] = {}
     used_headers: set[str] = set()
     for identity in ordered_identities:
-        raw_base = _matrix_base(identity)
+        raw_base = _matrix_base(
+            identity,
+            qualify_area_unit=len(area_units_by_base[identity[:3]]) > 1,
+        )
         base = raw_base
         collision = 2
         while base.casefold() in used_headers:
