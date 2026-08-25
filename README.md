@@ -127,13 +127,16 @@ The desktop writes parsed scientific signals and structural record series automa
 so exact YoungIn 9.0 and 9.1 PRMs need no extra control beyond the ordinary four steps. The
 CLI/API keep their explicit `--include-signals` / `include_signals=True` contract.
 
-For repeated work, choose a named local **Recipe (optional)**, then use the same four
-steps. **Save Current…** asks only for a Recipe name; it does not open a JSON file dialog.
-**Manage…** provides rename, duplicate, delete, and advanced import/export portability.
-GUI users do not need to create or locate JSON files. Saved Recipes use the operating
-system's application configuration location, remain local, and are never applied without
-a fresh Preflight review. They may contain private column labels or user metadata, but
-never measured rows or source/output paths.
+For repeated work, choose an optional local **Saved setup**, then use the same four steps.
+After a successful conversion, **Save this setup for reuse…** asks only for a name. The same
+action is available before conversion as **Save current setup…**. Confirming more than one
+generic table layout automatically collects those mappings into one setup; ordinary GUI users
+do not need to create a Mapping Set or locate JSON files. **Manage…** provides rename,
+duplicate, delete, and advanced import/export portability. Saved setups use the operating
+system's application configuration location, remain local, and are never applied without a
+fresh Preflight review. They may contain private column labels or user metadata, but never
+measured rows or source/output paths. CLI/API users retain the strict `ConversionRecipe` JSON
+contract and `--recipe` workflow.
 
 ![The implemented Ordifile desktop interface using synthetic public-safe inputs](https://raw.githubusercontent.com/hdkim99/ordifile/main/docs/assets/ordifile-desktop.png)
 

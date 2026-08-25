@@ -126,13 +126,16 @@ Desktop은 파싱된 scientific signal과 structural record series를 workbook�
 기록하므로 exact YoungIn 9.0/9.1 PRM은 일반 4단계 외에 별도 control이 필요하지 않습니다.
 CLI/API에서는 기존 `--include-signals` / `include_signals=True` 계약을 그대로 사용합니다.
 
-반복 작업에서는 이름으로 저장된 **Recipe (optional)**를 고른 뒤 같은 4단계를
-사용합니다. **Save Current…**는 Recipe 이름만 묻고 JSON file dialog를 열지 않습니다.
+반복 작업에서는 선택형 local **Saved setup(저장된 설정)**을 고른 뒤 같은 4단계를
+사용합니다. 변환이 성공하면 **Save this setup for reuse…**에서 이름만 입력해 현재 설정을
+저장할 수 있으며, 변환 전에는 **Save current setup…**을 사용할 수 있습니다. 서로 다른
+generic table layout을 두 개 이상 확인하면 Ordifile이 한 setup 안의 reusable mapping으로
+자동 수집하므로 일반 GUI 사용자가 Mapping Set이나 JSON 파일을 만들 필요가 없습니다.
 **Manage…**에서 rename, duplicate, delete와 advanced import/export를 사용할 수 있습니다.
-일반 GUI 사용자는 JSON을 직접 만들거나 위치를 관리할 필요가 없습니다. Saved Recipe는
-운영체제 표준 application configuration 위치에 local로 저장되며, 선택 후에도 새
-Preflight 검토 없이는 변환할 수 없습니다. Private column label이나 사용자 metadata가
-포함될 수 있지만 measured row와 source/output path는 저장하지 않습니다.
+Saved setup은 운영체제 표준 application configuration 위치에 local로 저장되며, 선택
+후에도 새 Preflight 검토 없이는 변환할 수 없습니다. Private column label이나 사용자
+metadata가 포함될 수 있지만 measured row와 source/output path는 저장하지 않습니다.
+CLI/API의 엄격한 `ConversionRecipe` JSON과 `--recipe` 계약은 그대로 유지됩니다.
 
 ![합성 공개 입력을 사용한 실제 Ordifile desktop interface](docs/assets/ordifile-desktop.png)
 

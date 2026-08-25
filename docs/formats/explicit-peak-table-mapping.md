@@ -40,7 +40,8 @@ locale-decimal guessing, and multiple runs in one table are outside this contrac
 5. Optionally map height, compound, peak number, detector, channel, sample, run,
    acquisition time, integration boundaries, or a secondary retention coordinate.
 6. Explicitly ignore every source column that is not mapped.
-7. Save the Mapping/Profile or named Recipe and reuse it for files from the same template.
+7. In the desktop, save the current **Saved setup** by name; confirmed mappings are captured
+   automatically. CLI/API users may still save Mapping/Profile or Recipe JSON explicitly.
 8. Convert through Preflight and the ordinary `PeakRecord` and Excel exporter pipeline.
 
 The CLI form is:
@@ -206,13 +207,22 @@ drift remains diagnostic
 only; a repaired Mapping Profile changes a new in-memory Recipe only after explicit user action,
 and the previously saved Recipe file is never updated automatically.
 
-In the desktop interface, a Recipe is presented as a named **saved setup**, not as a JSON
-file. **Save Current…** stores the reviewed settings under a local name, while **Manage…**
-provides rename, duplicate, delete, and optional JSON import/export. The index-free library
-uses the operating system's application configuration location and opaque storage IDs; a
-display label is never used as a filename. One invalid stored Recipe is isolated so other
-valid Recipes and direct conversion remain available. JSON remains the portable CLI/API
-format, not a requirement for ordinary desktop use.
+In the desktop interface, a Recipe is presented as a named **Saved setup**, not as a JSON
+file. The first confirmed generic mapping remains a simple embedded Mapping. Confirming a
+second distinct table structure automatically promotes the existing and new mappings into one
+internal Mapping Set; later distinct structures append deterministically. Reconfirming the
+same structure and semantics is a no-op, while different semantics for the same structure
+require explicit replacement confirmation. Users never need **Add Current** for this ordinary
+flow.
+
+**Save current setup…** stores reviewed settings under a local name, and a successful
+conversion offers the non-blocking **Save this setup for reuse…** action. A modified selected
+setup can be explicitly updated or saved as a new setup; nothing is silently autosaved.
+**Manage…** provides rename, duplicate, delete, and optional JSON import/export. The index-free
+library uses the operating system's application configuration location and opaque storage IDs;
+a display label is never used as a filename. One invalid stored Recipe is isolated so other
+valid setups and direct conversion remain available. JSON remains the portable CLI/API format,
+not a requirement for ordinary desktop use.
 
 ## Mapping semantics
 

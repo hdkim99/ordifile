@@ -23,6 +23,7 @@ from ordifile.core.peak_mapping import (
 )
 from ordifile.core.planning import ConversionPlanProblem, ConversionPlanRoute
 from ordifile.core.recipe import ConversionRecipe
+from ordifile.desktop.mapping_collection import collect_confirmed_mapping
 
 PROJECT_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "tests" / "fixtures" / "synthetic"))
@@ -119,6 +120,78 @@ def test_recipe_routes_mapping_set_and_convert_runs_mandatory_preflight(tmp_path
     assert recipe.semantic_sha256 not in workbook_text
     assert "Laboratory recipe" not in workbook_text
     assert "Local template" not in workbook_text
+
+
+@pytest.mark.researcher_acceptance
+def test_gui_collected_layouts_round_trip_through_recipe_with_exact_precedence(
+    tmp_path: Path,
+) -> None:
+    first_source = tmp_path / "first.csv"
+    first_source.write_text("RT,Area\n1.5,10\n", encoding="utf-8")
+    second_source = tmp_path / "second.csv"
+    second_source.write_text("Retention Time,Peak Area\n2.5,20\n", encoding="utf-8")
+    exact_source = tmp_path / "youngin.csv"
+    exact_source.write_bytes(synthetic_result_csv_bytes())
+    first_mapping = PeakTableMapping(
+        ColumnSelector("RT", 1),
+        ColumnSelector("Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    second_mapping = PeakTableMapping(
+        ColumnSelector("Retention Time", 1),
+        ColumnSelector("Peak Area", 2),
+        "min",
+        PeakTableFormat.CSV,
+    )
+    first = collect_confirmed_mapping(
+        current_mapping=None,
+        current_sheet=None,
+        current_set=None,
+        confirmed_mapping=first_mapping,
+        confirmed_sheet=None,
+    )
+    collected = collect_confirmed_mapping(
+        current_mapping=first.mapping,
+        current_sheet=first.mapping_sheet,
+        current_set=first.mapping_set,
+        confirmed_mapping=second_mapping,
+        confirmed_sheet=None,
+    )
+    assert collected.mapping_set is not None
+    recipe = ConversionRecipe.from_json(
+        ConversionRecipe(peak_table_mapping_set=collected.mapping_set).to_json()
+    )
+    output = tmp_path / "combined.xlsx"
+
+    plan = plan_recipe(
+        (first_source, second_source, exact_source),
+        output,
+        recipe=recipe,
+    )
+    result = convert_recipe(
+        (first_source, second_source, exact_source),
+        output,
+        recipe=recipe,
+        conversion_plan=plan,
+    )
+
+    assert tuple(entry.route for entry in plan.entries) == (
+        ConversionPlanRoute.USER_MAPPING_PROFILE,
+        ConversionPlanRoute.USER_MAPPING_PROFILE,
+        ConversionPlanRoute.EXACT_ADAPTER,
+    )
+    assert result.failure_count == 0
+    assert {file.adapter_id for file in result.files} == {
+        "generic_csv",
+        "youngin_yl_clarity_result_csv",
+    }
+    workbook = load_workbook(output, read_only=True, data_only=True)
+    try:
+        peaks = tuple(workbook["Peaks"].iter_rows(min_row=2, values_only=True))
+    finally:
+        workbook.close()
+    assert len(peaks) == 4
 
 
 @pytest.mark.researcher_acceptance

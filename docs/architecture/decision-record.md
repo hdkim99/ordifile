@@ -385,6 +385,19 @@ to the workbook layout.
     and XML declaration codes are presented as unsupported format. Overloaded profile codes,
     corruption, conflicts, truncation and invalid scientific values remain malformed input.
     This routing correction does not relax any parser gate or change scientific output.
+56. The desktop's ordinary repeat-workflow concept is **Saved Setup**; `ConversionRecipe`, its
+    schema-v1 JSON, semantic/public fingerprints, CLI `--recipe`, and Python API remain the
+    technical contract. Each user-confirmed generic mapping is collected in GUI state. The
+    first structure remains a direct Mapping; a distinct second structure deterministically
+    promotes both into one Mapping Set, and further distinct structures append in confirmation
+    order. An identical structure and semantics is a no-op. Conflicting semantics for the same
+    structure require explicit replacement, and ambiguous state is not saved. Exact adapters
+    remain authoritative. Saved Setup creation asks only for a Unicode display name, never a
+    file path, internal identifier, input/output path, plan, or scientific row. A successful
+    conversion may expose one dismissible, non-blocking save action; it never autosaves.
+    Updating a selected setup uses revision protection, while save-as-new preserves the
+    original. The advanced Mapping Set and Recipe import/export tools remain available but are
+    not prerequisites for first use.
 
 ## Public boundaries
 
