@@ -103,6 +103,7 @@ class DesktopFileReport:
     plan_status: ConversionPlanEntryStatus | None = None
     plan_route: ConversionPlanRoute | None = None
     plan_problem: ConversionPlanProblem | None = None
+    issue_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

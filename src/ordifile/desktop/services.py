@@ -76,6 +76,23 @@ _PLAN_PROBLEM_MESSAGES: Mapping[ConversionPlanProblem, str] = {
     ConversionPlanProblem.OUTPUT_CONFLICT: "The output target conflicts with the inputs.",
 }
 
+_PLAN_ISSUE_MESSAGES: Mapping[str, str] = {
+    "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL": (
+        "Validated YoungIn PRM profile: direct scientific signal is available."
+    ),
+    "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED": (
+        "Compatible experimental YoungIn PRM profile: direct scientific signal is "
+        "available, but the response unit is unresolved."
+    ),
+    "YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY": (
+        "Compatible YoungIn PRM structure: structural records only; scientific "
+        "time and signal semantics are unavailable."
+    ),
+    "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE": (
+        "The exact adapter takes precedence; the generic peak mapping is not applied."
+    ),
+}
+
 
 def _safe_text(value: object, *, limit: int = 500) -> str:
     """Render bounded single-line text without terminal or bidi controls."""
@@ -146,6 +163,7 @@ def _file_reports(
         format_name, evidence = descriptors.get(adapter_id, ("Not detected", ""))
         if evidence and evidence.casefold() not in format_name.casefold():
             format_name = f"{format_name} ({evidence})"
+        issue_codes = tuple(_safe_text(issue.code, limit=100) for issue in item.issues)
         issue = next(
             (candidate for candidate in item.issues if candidate.severity is Severity.ERROR),
             next(iter(item.issues), None),
@@ -177,6 +195,7 @@ def _file_reports(
                     else None
                 ),
                 source_sha256=item.source.sha256,
+                issue_codes=issue_codes,
             )
         )
     return tuple(reports)
@@ -211,13 +230,22 @@ def _plan_file_reports(
         format_name, evidence = descriptors.get(adapter_id, ("Not detected", ""))
         if evidence and evidence.casefold() not in format_name.casefold():
             format_name = f"{format_name} ({evidence})"
+        issue_codes = tuple(_safe_text(code, limit=100) for code in entry.issue_codes)
+        problem_message = _PLAN_PROBLEM_MESSAGES[entry.problem]
+        messages = [
+            _PLAN_ISSUE_MESSAGES[code] for code in issue_codes if code in _PLAN_ISSUE_MESSAGES
+        ]
+        if problem_message:
+            unmapped_codes = tuple(code for code in issue_codes if code not in _PLAN_ISSUE_MESSAGES)
+            code_prefix = f"[{', '.join(unmapped_codes)}] " if unmapped_codes else ""
+            messages.insert(0, f"{code_prefix}{problem_message}")
         reports.append(
             DesktopFileReport(
                 source=_safe_text(entry.source_id),
                 format_name=_safe_text(format_name),
                 adapter_id=_safe_text(adapter_id) or "—",
                 status=_PLAN_STATUS_MAP[entry.status],
-                message=_PLAN_PROBLEM_MESSAGES[entry.problem],
+                message=" ".join(messages),
                 mapping_route=entry.route.value,
                 mapping_profile_id=(
                     _safe_text(entry.mapping_profile_id, limit=100)
@@ -235,6 +263,7 @@ def _plan_file_reports(
                 plan_status=entry.status,
                 plan_route=entry.route,
                 plan_problem=entry.problem,
+                issue_codes=issue_codes,
             )
         )
     return tuple(reports)

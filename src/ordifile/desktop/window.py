@@ -89,6 +89,14 @@ SORT_OPTIONS = (
     ("Input order", "input_order"),
 )
 
+_YOUNGIN_COMPATIBLE_SCIENTIFIC = "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED"
+_YOUNGIN_COMPATIBLE_STRUCTURAL_CODES = frozenset(
+    {
+        "YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY",
+        "YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS",
+    }
+)
+
 
 def local_paths_from_urls(urls: Iterable[QUrl]) -> tuple[Path, ...]:
     """Keep only local file/folder drops; remote URLs are never opened."""
@@ -1631,6 +1639,10 @@ class MainWindow(QMainWindow):
             ConversionPlanRoute.GENERIC_INPUT: "Generic input",
             ConversionPlanRoute.UNROUTED: "Unrouted",
         }
+        if _YOUNGIN_COMPATIBLE_STRUCTURAL_CODES.intersection(item.issue_codes):
+            return "Compatible family — structural only"
+        if _YOUNGIN_COMPATIBLE_SCIENTIFIC in item.issue_codes:
+            return "Compatible family — scientific signal"
         if item.plan_route is not None:
             if (
                 item.plan_route is ConversionPlanRoute.USER_MAPPING_PROFILE

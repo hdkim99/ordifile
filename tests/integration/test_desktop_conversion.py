@@ -183,6 +183,8 @@ def test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profile
     assert "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL" in (
         validated_preflight.plan.entries[0].issue_codes
     )
+    assert validated_preflight.files[0].issue_codes == ("YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL",)
+    assert "Validated YoungIn PRM profile" in validated_preflight.files[0].message
     converted = convert_preflight_plan(validated_preflight.plan)
     assert converted.summary is not None
     assert converted.summary.scientific_signal_series == 1
@@ -204,10 +206,18 @@ def test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profile
     )
     assert unknown_preflight.files[0].plan_route is ConversionPlanRoute.EXACT_ADAPTER
     assert unknown_preflight.files[0].plan_problem is ConversionPlanProblem.NONE
+    assert unknown_preflight.files[0].issue_codes == (
+        "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED",
+    )
+    assert "Compatible experimental YoungIn PRM profile" in (unknown_preflight.files[0].message)
+    assert "response unit is unresolved" in unknown_preflight.files[0].message
 
     unknown_converted = convert_preflight_plan(unknown_preflight.plan)
     assert unknown_converted.summary is not None
     assert unknown_converted.summary.scientific_signal_series == 2
+    assert unknown_converted.files[0].issue_codes == (
+        "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED",
+    )
     unknown_workbook = load_workbook(tmp_path / "unknown.xlsx", read_only=True, data_only=False)
     try:
         assert {"Signals_FID", "Signals_TCD"}.issubset(unknown_workbook.sheetnames)
@@ -231,9 +241,28 @@ def test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profile
     assert "YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY" in (
         structural_preflight.plan.entries[0].issue_codes
     )
+    assert structural_preflight.files[0].issue_codes == (
+        "YOUNGIN_PRM_FAMILY_COMPATIBLE_STRUCTURAL_ONLY",
+    )
+    assert "structural records only" in structural_preflight.files[0].message
     structural_converted = convert_preflight_plan(structural_preflight.plan)
     assert structural_converted.summary is not None
     assert structural_converted.summary.structural_record_series == 1
+    assert "YOUNGIN_PRM_EXPERIMENTAL_RAW_RECORDS" in (structural_converted.files[0].issue_codes)
+
+    unsupported = tmp_path / "unsupported.prm"
+    unsupported.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 10.0.0.0 FULL, SN: SYNTHETIC",
+        )
+    )
+    unsupported_preflight = preflight_selection(
+        DesktopRequest((unsupported,), tmp_path / "unsupported.xlsx")
+    )
+    assert unsupported_preflight.plan is not None
+    assert unsupported_preflight.plan.entries[0].problem is ConversionPlanProblem.MALFORMED_INPUT
+    assert unsupported_preflight.files[0].issue_codes == ("YOUNGIN_PRM_PROFILE_UNSUPPORTED",)
+    assert "[YOUNGIN_PRM_PROFILE_UNSUPPORTED]" in unsupported_preflight.files[0].message
 
 
 def test_desktop_recipe_preflight_executes_embedded_mapping_snapshot(

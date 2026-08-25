@@ -83,7 +83,11 @@ Import_Log record the fixed compatibility warning. Structural-only files use exi
 `Signals_Records_*` sheets. No new workbook schema or YoungIn-specific GUI control is added.
 
 The desktop route is **Add → Output → Preflight → Convert**. Exact adapter ownership means no
-Mapping or Recipe is required. CLI users request the same rows explicitly:
+Mapping or Recipe is required. Preflight keeps validated profiles on the `Exact adapter` route,
+labels fingerprint-compatible scientific inputs as `Compatible family — scientific signal`,
+and labels science-incomplete inputs as `Compatible family — structural only`. The latter two
+remain routable, with the unresolved scientific boundary available in the row tooltip and
+details. CLI users request the same rows explicitly:
 
 ```console
 ordifile convert run.prm --include-signals --output Ordifile_Result.xlsx
