@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-25
+
 ### Added
 
 - Direct scientific FID/TCD signal series for the exact validated YoungIn YL-Clarity
@@ -25,6 +27,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   writes, serialized local mutations, and isolated handling of invalid members. Named Recipes
   can be saved, selected, renamed, duplicated, deleted, imported, and exported without storing
   scientific rows or runtime source/output paths.
+- Researcher onboarding, a public-safe pilot kit and feedback workflow, and an Ordifile
+  application icon shared by the Python-package GUI and private Windows/macOS standalone
+  prototypes. No public standalone executable or application bundle is included.
 
 ### Changed
 
@@ -43,6 +48,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   while drift review and diagnostic details appear contextually. Existing Recipe schema,
   CLI/API behavior, exact-adapter precedence, Mapping exact matching, and Preflight freshness
   checks are unchanged.
+- Completed the researcher-facing **Saved Setup** workflow: confirmed generic mappings are
+  collected into an internal reusable Mapping Set, setups can be saved before or after
+  conversion and reused after restart, and update, save-as-new, rename, duplicate, delete,
+  import, and export remain explicit operations. Stale-revision and storage failures fail
+  safely without preventing a direct conversion.
+
+### Fixed
+
+- Preflight no longer reports malformed or unsupported proprietary inputs as ready, and it
+  distinguishes exact adapters, compatible scientific profiles, compatible structural-only
+  profiles, mapping-required inputs, drift, unsupported profiles, and malformed inputs.
+- Mixed-vendor routing preserves exact-adapter ownership and prevents generic Mapping from
+  claiming proprietary inputs or silently rerouting them during conversion.
+- `Peak_Matrix` keeps otherwise identical peak columns separate when their Area units differ.
+  Ordifile does not normalize or convert the underlying values.
+
+### Documentation
+
+- Updated the English and Korean researcher workflow, format boundaries, workbook guidance,
+  GUI screenshots, pilot checklist, and privacy-safe feedback path for the consolidated
+  v0.5.1 capabilities.
 
 ## [0.5.0] - 2026-08-23
 

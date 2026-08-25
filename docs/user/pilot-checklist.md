@@ -8,13 +8,13 @@ vendor support.
 ## 1. Choose and record the pilot build
 
 Use one installation channel and record which one you used. The published PyPI release
-and an unreleased build from `main` can have different capabilities even when both report
-the same package version.
+and a later unreleased build from `main` can have different capabilities even when both
+report the same package version.
 
 For the latest published release:
 
 ```console
-python -m pip install ordifile
+python -m pip install ordifile==0.5.1
 ordifile --version
 ordifile formats
 ```
@@ -22,7 +22,7 @@ ordifile formats
 For its Python-package desktop interface:
 
 ```console
-python -m pip install "ordifile[gui]"
+python -m pip install "ordifile[gui]==0.5.1"
 ordifile-gui
 ```
 
@@ -31,7 +31,7 @@ reviewed exact commit. Do not use the PyPI command above as evidence that you te
 commit. The maintainer records the source commit and wheel SHA-256, then provides the
 wheel and the install command privately. Install each pilot build in a fresh virtual
 environment where Ordifile is not already installed. This prevents pip from retaining
-different bytes that have the same `0.5.0` package version. Use the same fresh environment
+different bytes that have the same `0.5.1` package version. Use the same fresh environment
 for the CLI and GUI.
 
 Create and activate the environment using the command for the operating system:
@@ -50,9 +50,9 @@ equivalent private command for the pilot computer:
 
 ```console
 # CLI-only pilot
-python -m pip install /path/to/ordifile-0.5.0-py3-none-any.whl
+python -m pip install /path/to/ordifile-0.5.1-py3-none-any.whl
 # Or GUI pilot, which also installs the CLI
-python -m pip install "ordifile[gui] @ file:///path/to/ordifile-0.5.0-py3-none-any.whl"
+python -m pip install "ordifile[gui] @ file:///path/to/ordifile-0.5.1-py3-none-any.whl"
 ordifile --version
 ordifile formats
 ordifile-gui
