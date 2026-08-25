@@ -61,7 +61,7 @@ def test_descriptor_and_detection_are_exact_and_experimental(tmp_path: Path) -> 
     assert _error(wrong_extension) == "YOUNGIN_PRM_EXTENSION_INVALID"
 
 
-def test_single_channel_raw_records_use_content_identity_and_not_detector_claims(
+def test_validated_9_0_single_channel_exposes_scientific_time_and_millivolts(
     tmp_path: Path,
 ) -> None:
     data = synthetic_prm_bytes()
@@ -70,28 +70,29 @@ def test_single_channel_raw_records_use_content_identity_and_not_detector_claims
 
     assert bundle.samples[0].sample_id == f"PRM_{hashlib.sha256(data).hexdigest()[:16]}"
     assert bundle.samples[0].channels == ("native_label_TCD",)
-    assert bundle.samples[0].detectors == ()
+    assert bundle.samples[0].detectors == ("TCD",)
     assert bundle.samples[0].acquired_at is None
     assert bundle.samples[0].runtime is None
     signal = bundle.signals[0]
     assert signal.channel == "native_label_TCD"
-    assert signal.detector is None
-    assert signal.x_values == (0, 1, 2)
+    assert signal.detector == "TCD"
+    assert signal.x_values == pytest.approx((0, 1 / 600, 2 / 600))
     assert signal.y_values == pytest.approx((1.25, -2.5, 3.75))
-    assert signal.x_label == "decoded_record_index"
-    assert signal.x_unit is None
-    assert signal.y_label == "decoded_raw_binary32"
-    assert signal.y_unit is None
-    assert signal.series_kind is SeriesKind.DECODED_RECORDS
+    assert signal.x_label == "retention_time"
+    assert signal.x_unit == "min"
+    assert signal.y_label == "detector_response"
+    assert signal.y_unit == "mV"
+    assert signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL
     metadata = {entry.key: entry.value for entry in bundle.metadata}
     assert "user_supplied_group" not in metadata
-    assert metadata["detector_verified"] is False
-    assert metadata["time_axis_status"] == "not_exposed"
-    assert metadata["physical_scaling_status"] == "not_applied"
-    assert metadata["signal_unit_status"] == "unresolved"
-    assert metadata["scientific_semantics_status"] == "pending_paired_export"
-    assert metadata["scientific_semantics_evidence_gap"] == "same_run_chromatogram_curve"
-    assert bundle.samples[0].detectors == ()
+    assert metadata["detector_verified"] is True
+    assert metadata["time_axis_status"] == "paired_curve_validated"
+    assert metadata["physical_scaling_status"] == "identity_validated_at_export_precision"
+    assert metadata["signal_unit_status"] == "paired_curve_validated"
+    assert metadata["scientific_semantics_status"] == "direct_signal_validated"
+    assert metadata["scientific_semantics_evidence_gap"] == "stored_peak_results"
+    assert metadata["paired_curve_distinct_pair_count"] == 10
+    assert metadata["paired_curve_compared_point_count"] == 263_520
 
 
 @pytest.mark.parametrize("stem", ("FID_STD_010", "TCD_STD_010", "MIXED_SAMPLE_003"))
@@ -105,7 +106,7 @@ def test_former_group_alias_patterns_do_not_affect_runtime_identity(
     metadata = {entry.key: entry.value for entry in bundle.metadata}
     assert bundle.samples[0].sample_id == f"PRM_{hashlib.sha256(data).hexdigest()[:16]}"
     assert "user_supplied_group" not in metadata
-    assert bundle.samples[0].detectors == ()
+    assert bundle.samples[0].detectors == ("TCD",)
 
 
 def test_untrusted_basename_uses_content_hash_and_does_not_expose_embedded_text(
@@ -262,7 +263,10 @@ def test_framed_producer_values_are_consistent_and_fail_closed(tmp_path: Path) -
     raw_bundle = YoungInYlClarityPrmRawAdapter().parse(
         _write(tmp_path / "unframed-prefix.prm", raw_prefix_only), ParseOptions()
     )
-    assert all(signal.series_kind is SeriesKind.DECODED_RECORDS for signal in raw_bundle.signals)
+    assert all(signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL for signal in raw_bundle.signals)
+    raw_metadata = {entry.key: entry.value for entry in raw_bundle.metadata}
+    assert raw_metadata["producer_version"] == "YL-Clarity 9.0.1.19"
+    assert {signal.y_unit for signal in raw_bundle.signals} == {"mV"}
 
     truncated = synthetic_prm_bytes(embedded_private_text=binary.INFO_VALUE_KEY + b"\xff")
     assert _error(_write(tmp_path / "truncated-info.prm", truncated)) == (
@@ -273,10 +277,6 @@ def test_framed_producer_values_are_consistent_and_fail_closed(tmp_path: Path) -
 @pytest.mark.parametrize(
     ("data", "code"),
     (
-        (
-            synthetic_prm_bytes(producer_text="YL-Clarity 9.0.1.20 FULL, SN: SYNTHETIC"),
-            "YOUNGIN_PRM_PROFILE_UNSUPPORTED",
-        ),
         (synthetic_prm_bytes()[:3], "YOUNGIN_PRM_HEADER_INVALID"),
         (synthetic_prm_bytes()[:-21], "YOUNGIN_PRM_FILE_LENGTH_MISMATCH"),
         (synthetic_prm_bytes(trailing=b"x"), "YOUNGIN_PRM_FILE_LENGTH_MISMATCH"),
@@ -288,8 +288,6 @@ def test_framed_producer_values_are_consistent_and_fail_closed(tmp_path: Path) -
         ),
         (synthetic_prm_bytes(raw_size_override=4), "YOUNGIN_PRM_CHANNEL_METADATA_INVALID"),
         (synthetic_prm_bytes(d_size_override=4), "YOUNGIN_PRM_CHANNEL_METADATA_INVALID"),
-        (synthetic_prm_bytes(d_step=2), "YOUNGIN_PRM_CHANNEL_METADATA_INVALID"),
-        (synthetic_prm_bytes(min_ticks=601.0), "YOUNGIN_PRM_CHANNEL_METADATA_INVALID"),
         (
             synthetic_prm_bytes(duplicate_mismatch_channel=1),
             "YOUNGIN_PRM_DUPLICATE_MISMATCH",
@@ -333,8 +331,8 @@ def test_duplicate_section_and_truncated_or_invalid_gzip_are_rejected(tmp_path: 
     )
 
 
-def test_detname_is_required_only_as_opaque_source_order_structure(tmp_path: Path) -> None:
-    valid = synthetic_prm_bytes(channels=((1.0,), (2.0,)))
+def test_detname_is_required_as_bounded_source_order_structure(tmp_path: Path) -> None:
+    valid = synthetic_prm_bytes(channels=((1.0,), (2.0,)), d_step=2)
     first_detname = valid.index(b"\x07DetName\x03")
     missing = valid[:first_detname] + b"\x07NotName\x03" + valid[first_detname + 9 :]
     assert _error(_write(tmp_path / "missing.prm", missing)) == (
@@ -346,6 +344,103 @@ def test_detname_is_required_only_as_opaque_source_order_structure(tmp_path: Pat
     )
     assert bundle.samples[0].detectors == ()
     assert not any("DetName" in entry.key for entry in bundle.metadata)
+
+
+def test_compatible_unknown_profile_exposes_scientific_values_with_unresolved_units(
+    tmp_path: Path,
+) -> None:
+    private_serial = "PRIVATE-SERIAL-SHOULD-NOT-APPEAR"
+    data = synthetic_prm_bytes(
+        producer_text=f"YL-Clarity 9.2.0.0 FULL, SN: {private_serial}",
+        channels=((1.0, 2.0), (3.0, 4.0)),
+    )
+    adapter = YoungInYlClarityPrmRawAdapter()
+    path = _write(tmp_path / "compatible.prm", data)
+
+    assert adapter.probe(path).routable
+    bundle = adapter.parse(path, ParseOptions())
+    assert all(signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL for signal in bundle.signals)
+    assert [signal.x_values for signal in bundle.signals] == [
+        pytest.approx((0.0, 1 / 600)),
+        pytest.approx((0.0, 1 / 600)),
+    ]
+    assert {signal.x_unit for signal in bundle.signals} == {"min"}
+    assert {signal.y_unit for signal in bundle.signals} == {None}
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["producer_version"] == "YL-Clarity 9.2.0.0"
+    assert metadata["producer_evidence_status"] == "compatible_unvalidated"
+    assert metadata["producer_support_mode"] == "family_compatible_experimental"
+    assert metadata["detector_verified"] is False
+    assert metadata["signal_unit_status"] == "unresolved"
+    assert metadata["scientific_semantics_status"] == "family_compatible_experimental"
+    assert metadata["scientific_family_compared_point_count"] == 401_520
+    assert "paired_curve_time_decimal_places" not in metadata
+    assert "paired_curve_signal_decimal_places" not in metadata
+    assert "paired_curve_distinct_pair_count" not in metadata
+    assert "paired_curve_compared_point_count" not in metadata
+    rendered = "\n".join(
+        [
+            *(str(entry.value) for entry in bundle.metadata),
+            *(issue.message for issue in bundle.warnings),
+        ]
+    )
+    assert private_serial not in rendered
+    assert {issue.code for issue in bundle.warnings} == {
+        "YOUNGIN_PRM_FAMILY_COMPATIBLE_SCIENTIFIC_UNIT_UNRESOLVED"
+    }
+
+
+@pytest.mark.parametrize(
+    "producer_text",
+    (
+        "YL-Clarity 8.9.0.0 FULL, SN: SYNTHETIC",
+        "YL-Clarity 10.0.0.0 FULL, SN: SYNTHETIC",
+        "YL-Clarity 9.2.0 FULL, SN: SYNTHETIC",
+        "YL-Clarity 9.2.0.0 SYNTHETIC",
+    ),
+)
+def test_producer_outside_bounded_9_x_family_fails_closed(
+    tmp_path: Path, producer_text: str
+) -> None:
+    assert (
+        _error(
+            _write(tmp_path / "unsupported.prm", synthetic_prm_bytes(producer_text=producer_text))
+        )
+        == "YOUNGIN_PRM_PROFILE_UNSUPPORTED"
+    )
+
+
+def test_scientific_fingerprint_incomplete_downgrades_9_0_and_unknown_to_records(
+    tmp_path: Path,
+) -> None:
+    for index, producer_text in enumerate(
+        (
+            binary.PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+            "YL-Clarity 9.2.0.0 FULL, SN: SYNTHETIC",
+        )
+    ):
+        bundle = YoungInYlClarityPrmRawAdapter().parse(
+            _write(
+                tmp_path / f"downgrade-{index}.prm",
+                synthetic_prm_bytes(producer_text=producer_text, d_step=2),
+            ),
+            ParseOptions(),
+        )
+        assert all(signal.series_kind is SeriesKind.DECODED_RECORDS for signal in bundle.signals)
+        metadata = {entry.key: entry.value for entry in bundle.metadata}
+        assert metadata["scientific_family_fingerprint_status"] == (
+            "time_metadata_outside_validated_family"
+        )
+        assert metadata["producer_support_mode"] == "structural_only"
+
+
+def test_known_9_1_corrupted_scientific_fingerprint_is_rejected(tmp_path: Path) -> None:
+    data = synthetic_prm_bytes(
+        producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+        channels=((1.0,), (2.0,)),
+        min_ticks=601.0,
+    )
+    assert _error(_write(tmp_path / "invalid-9-1.prm", data)) == ("YOUNGIN_PRM_PROFILE_UNSUPPORTED")
 
 
 def test_stored_label_allowlist_and_exact_profile_sequence_are_enforced(tmp_path: Path) -> None:

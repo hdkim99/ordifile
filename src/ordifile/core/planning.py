@@ -658,6 +658,12 @@ def build_conversion_plan(
                     identity=input_route_identity(decision)
                 )
                 route = _public_route(adapter_id, decision.mapping_route)
+                selected_probe = next(
+                    probe
+                    for probe_adapter_id, probe in decision.detection.probes
+                    if probe_adapter_id == adapter_id
+                )
+                codes = _bounded_codes((*codes, *selected_probe.notice_codes))
                 if mapping_requested and decision.mapping_route == "EXACT_ADAPTER":
                     codes = _bounded_codes((*codes, "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE"))
                 current_sha256 = sha256_file(source.path)

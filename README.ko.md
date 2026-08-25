@@ -279,13 +279,13 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
-| YoungIn YL-Clarity `.PRM`, exact observed `9.0.1.19` profile | 구조적 allowlist | 없음 | chromatographic stored data를 순서 보존 raw binary32 record로 출력, scientific time/scaling/unit 미확정 | Experimental | 사용자 제공 local-only 파일 23개 |
-| YoungIn YL-Clarity `.PRM`, exact observed `9.1.0.76` FID+TCD profile | 과학 데이터 allowlist | 없음 | retention time(min) + direct stored response(FID pA, TCD mV), peak integration 없음 | Experimental | 사용자 제공 local-only 파일 5개 + 같은 run full curve 5개 |
+| YoungIn YL-Clarity `.PRM`, 검증된 scientific family | scientific fingerprint | 없음 | retention time(min) + direct stored response; 9.0 FID/TCD mV, 9.1 FID pA/TCD mV, compatible 9.x는 response unit 미확정 가능 | Experimental | 사용자 PRM 28개 + 검증된 9.0/9.1 same-run full-curve pair 15개 |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | 과학 데이터 allowlist | source peak 행 | RT1/RT2 (s) + area/height (AU), raw signal 없음 | Experimental | 외부 Dryad CC0 non-human 파일 1개 |
 
-이 Experimental adapter들은 아래의 정확한 기능 경계를 가집니다. 검증되지 않은
-profile은 넓게 해석하지 않고 거부합니다.
+이 Experimental adapter들은 아래의 bounded 기능 경계를 가집니다. YL-Clarity family와
+구조적으로 호환되는 파일은 개별 검증 profile보다 좁은 기능만 제공할 수 있으며,
+호환되지 않는 구조는 추측하지 않고 거부합니다.
 
 Agilent `.CH` adapter는 모든 decoded record를
 원래 순서대로 유지합니다. x는 retention time이 아닌 `decoded_record_index`, y는 물리
@@ -328,17 +328,23 @@ TIC 합 일치를 검증하지만 spectrum을 출력하지 않고 encoded mass�
 않습니다. 다른 QGD version, SIM/MRM, 물질 식별, 정량, 쓰기 기능은 지원한다고
 주장하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md)를 확인해 주세요.
 
-YoungIn PRM에는 chromatographic stored data가 존재합니다. 하나의 adapter가 두 exact
-producer profile의 경계를 분리합니다. YL-Clarity `9.0.1.19`에서는 local-only 파일 23개의
-현재 block 43개에서 유한한 stored binary32 record 563,240개를 보존하며, record ordinal을
-retention time이라고 부르지 않고 detector/scaling/unit 의미도 미확정으로 유지합니다.
-독립적으로 검증한 YL-Clarity `9.1.0.76` FID+TCD profile에서는 same-run composite export
-5개가 stored point 138,000개 전부와 일치했습니다. Time은 0에서 시작하는
-`i * DStep / MinTicks` 분 단위이며, stored binary32 response를 scaling 없이 FID pA 또는
-TCD mV로 사용합니다. 이 exact profile은 YL-Clarity runtime 없이 scientific `Signals_*`를
-직접 만듭니다. 두 profile 모두 PRM에서 peak, Area, Height를 만들지 않습니다. 반복 가능한
-stored peak-result structure를 찾지 못했으며 curve를 재적분하지도 않습니다. Runtime sample
-ID는 content hash로 생성됩니다. 다른 PRM generation, recovery `.RAW`, Autochro, 쓰기 기능은
+YoungIn PRM에는 chromatographic stored data가 존재합니다. Adapter는 producer version을
+scientific formula의 직접 조건으로 쓰지 않고, bounded current block, duplicate payload,
+유한 binary32 record, size equation, source-order stored label, 검증된 `DStep=1` /
+`MinTicks=600`을 scientific-family fingerprint로 확인합니다. 9.0의 same-run FID+TCD pair
+10개에서 time/response 263,520개씩, 9.1 pair 5개에서 138,000개씩 전부 일치했습니다.
+두 exact profile은 0-origin `i * DStep / MinTicks` 분 단위 RT와 identity numeric response를
+공유합니다. 다만 physical response unit은 profile별입니다. `9.0.1.19`는 FID mV/TCD mV,
+`9.1.0.76`은 FID pA/TCD mV입니다.
+
+엄격한 9.x producer framing과 scientific fingerprint가 모두 맞는 새 profile은 해당 version을
+개별 검증했다고 주장하지 않는 Experimental compatible 경로로 변환할 수 있습니다. Unit
+근거가 없으면 numeric signal은 보존하되 response unit을 미확정으로 둡니다. Scientific
+fingerprint만 부족하면 time/physical-response 의미를 붙이지 않은 decoded records로
+downgrade하고, framing·payload·size·history·channel 구조가 손상되면 fail closed합니다.
+Runtime에는 YL-Clarity, vendor DLL, temporary CSV가 필요하지 않습니다. PRM에서 peak, Area,
+Height를 만들거나 curve를 재적분하거나 peak detection을 실행하지 않습니다. 이는 모든
+YL-Clarity version 지원 주장이 아닙니다. Recovery `.RAW`, Autochro, 쓰기 기능은 계속
 지원하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 
 별도 YoungIn Result adapter는 사용자가 생성한 export 2개로 확정한 정확한

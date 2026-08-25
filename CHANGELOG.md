@@ -10,9 +10,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 
 - Direct scientific FID/TCD signal series for the exact validated YoungIn YL-Clarity
-  `9.1.0.76` PRM profile. Five content-confirmed same-run composite exports match all 138,000
-  time and response points; the existing 9.0 structural-record output remains unchanged and
-  no PRM-derived peaks, Area, Height, integration or peak detection is added.
+  `9.0.1.19` and `9.1.0.76` PRM profiles. Ten 9.0 and five 9.1 content-confirmed same-run
+  curve pairs establish shared zero-origin `DStep/MinTicks` minute axes and identity numeric
+  response over 401,520 points. Physical units remain profile-specific: 9.0 FID/TCD mV and
+  9.1 FID pA/TCD mV. Strictly compatible unvalidated 9.x files may expose the shared values
+  only after the complete fingerprint matches, and their response unit remains unresolved.
+  No PRM-derived peaks, Area, Height, integration or peak detection is added.
 - Explicit, bounded **Table Options** for mapped structured Result intake: UTF-8/UTF-8-BOM,
   CP949, or Windows-1252 text decoding; one-based header-record selection; and visible
   worksheet selection for multi-sheet XLSX. The approved structure is stored with the
@@ -25,11 +28,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Clarified that the exact observed YoungIn YL-Clarity PRM profile contains stored
-  chromatographic data while direct time, response and peak semantics remain gated by a
-  same-run curve oracle. Additive runtime metadata now distinguishes that missing curve
-  evidence from the already available paired Result Table evidence while preserving the
-  existing status value; no scientific values changed.
+- Refactored YoungIn PRM scientific decoding around one bounded scientific-family
+  fingerprint while preserving exact producer provenance and profile-specific unit evidence.
+  Structurally safe 9.x files with an incomplete scientific fingerprint retain decoded-record
+  output; malformed structures fail closed, and versions outside the implemented 9.x boundary
+  remain unsupported.
 - Generic mapped preview, profile routing, drift review, Preflight, and conversion now share
   the same explicit table-import settings. Existing default schema-version-1 Mapping JSON and
   semantic hashes remain unchanged; exact adapters retain ownership and invalid scientific

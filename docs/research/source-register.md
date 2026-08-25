@@ -202,10 +202,11 @@ profile with RT/start/end minutes and unresolved area/height units. The paired G
 same-run cross-validation, not broad vendor conformance. Other text exports, versions,
 instruments, detectors, channels and identified-compound shapes remain unsupported.
 No publicly redistributable YoungIn completed chromatogram, Autochro native fixture,
-public native reader, or reader SDK was found. Local-only owner evidence now contains 28
-unique PRMs: 23 exact YL-Clarity 9.0.1.19 files for structural records and five exact
-9.1.0.76 files paired by full curve content to five composite exports. Those pairs validate
-138,000 time/response points and the narrow 9.1 scientific signal profile. Two separate
+public native reader, or reader SDK was found. Local-only owner evidence contains 28 unique
+structural PRMs plus full-curve cohorts for both validated profiles. Ten exact 9.0.1.19
+FID+TCD pairs validate 263,520 time/response points and FID mV/TCD mV; five exact 9.1.0.76
+pairs validate 138,000 points and FID pA/TCD mV. The shared time/numeric-response core is
+therefore backed by 401,520 points while physical units remain profile-specific. Two separate
 standalone Result Tables still establish the production Result adapter's six explicit
 RT/Area/Height rows; 21 additional composite Result rows are research-only because their
 grammar and displayed Total semantics differ. Native files and exports remain outside Git

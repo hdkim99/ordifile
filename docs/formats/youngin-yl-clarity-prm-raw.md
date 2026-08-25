@@ -1,77 +1,116 @@
-# YoungIn YL-Clarity exact PRM profiles
+# YoungIn YL-Clarity PRM scientific family
 
 - Status: Experimental
 - Adapter: `youngin_yl_clarity_prm_raw`
-- Observed producers: YL-Clarity `9.0.1.19` and `9.1.0.76`
+- Individually validated producers: YL-Clarity `9.0.1.19` and `9.1.0.76`
+- Compatible producer boundary: strictly framed YL-Clarity `9.x` files that pass the
+  complete structural and scientific-family fingerprint
 - Runtime dependency on YL-Clarity, Clarity, vendor DLLs or executables: none
 - Peaks, Area and Height from PRM: unsupported
 
-PRM contains stored chromatographic data. The adapter applies scientific meaning only to
-the exact producer/layout for which same-run full-curve evidence exists.
+PRM contains stored chromatographic data. Ordifile separates producer provenance from
+scientific capability: a version identifies the evidence cohort and known physical units,
+while bounded file structure determines whether records, retention time and numeric response
+can be exposed safely.
 
-## Profile-specific output
+## Scientific-family fingerprint
 
-### YL-Clarity 9.0.1.19 — structural records
+Every accepted file first passes the structural safety reader: observed start and footer
+framing, sequential history and current-revision selection, one or two source-ordered channel
+blocks, byte-identical `RAWData6` and `PRMData` gzip payloads, bounded decompression, nonempty
+finite little-endian binary32 records, `RAWSize == DSize == record_count`, allowlisted stored
+labels (`TCD` or `FID` then `TCD`), and exact section boundaries.
 
-Twenty-three local-only files contain 43 current blocks and 563,240 finite little-endian
-binary32 records. They are preserved in `Signals_Records_*` with
-`decoded_record_index` and no detector, retention-time, scaling or unit claim. The
-allowlisted stored FID/TCD text remains a native channel label only.
+Scientific conversion additionally requires the validated family fingerprint:
 
-### YL-Clarity 9.1.0.76 — scientific signal
+- `DStep=1` and `MinTicks=600` in every current channel;
+- equal record counts for a two-channel file;
+- zero-origin time `t[i] = i * DStep / MinTicks` in minutes;
+- identity preservation of each stored binary32 numeric response.
 
-Five distinct local-only PRMs were paired by content with five same-run composite exports.
-Each PRM has one FID and one TCD channel with 13,800 points. Across all five runs:
+The formula implementation is shared and does not branch on the producer version. Known
+profiles that violate their validated exact envelope fail closed. A compatible 9.x file that
+passes structural safety but not the scientific fingerprint is preserved as
+`SeriesKind.DECODED_RECORDS` with record ordinal and no time or physical-response claim.
+Malformed payloads, size mismatches, conflicting producer fields or invalid channel framing
+are rejected rather than downgraded.
 
-- all 138,000 exported time lexemes equal `format(i / 600, ".5f")`;
-- `DStep=1`, `MinTicks=600`, time origin zero and the explicit export unit `min` agree;
-- all 138,000 exported responses equal the stored binary32 values within the half-unit
-  bound derived from the export's four decimal places;
-- the transformation is identity, with explicit FID `pA` and TCD `mV` headers;
-- every paired run has a unique full-series match; filename matching is not used.
+## Individually validated profiles
 
-This exact profile produces `Signals_FID` and `Signals_TCD`. Its x axis is retention time
-in minutes; its y values are detector response in pA and mV respectively. It does not
-write duplicate `Signals_Records_*` sheets for this previously unsupported profile.
-The desktop writes these signal sheets automatically through **Inputs → Output → Preflight
-→ Convert**. CLI users request the same rows explicitly:
+### YL-Clarity 9.0.1.19
+
+Ten content-confirmed same-run FID+TCD pairs validate 263,520 time points and 263,520
+response points. Each official curve is CP949 tab text with a five-decimal minute axis and
+four-decimal response. Every time lexeme matches `format(i / 600, ".5f")`; every response
+matches its stored binary32 value within the bound derived from the export precision. Both
+official channel headers declare voltage in mV, including the stream whose stored label is
+FID. The production units are therefore FID mV and TCD mV, not a global FID-to-pA rule.
+
+The broader 9.0 structural corpus remains 23 files, 43 current channels and 563,240 records,
+including TCD-only and FID+TCD files with one to three history entries. The same current-
+revision rule and scientific-family fingerprint are applied to every file.
+
+### YL-Clarity 9.1.0.76
+
+Five content-confirmed same-run FID+TCD pairs validate 138,000 time points and 138,000
+response points using the same time and identity-response semantics. Their explicit official
+headers declare FID pA and TCD mV. This exact profile retains its stricter single-history,
+source-ordered FID/TCD and equal-count envelope.
+
+Across both validated profiles, the common scientific core is backed by 401,520 time points
+and 401,520 response points. Physical response units remain profile-specific.
+
+## Compatible, unvalidated 9.x producers
+
+A well-framed YL-Clarity 9.x producer outside the two individually validated versions is not
+accepted by version string alone. It must pass all structural safety and scientific-family
+invariants. If it does, Ordifile emits `SCIENTIFIC_SIGNAL` with retention time in minutes and
+the unmodified numeric response, records `family_compatible_experimental` provenance, and
+leaves the physical response unit unresolved. Stored FID/TCD labels remain source channel
+identity; they do not determine physical units.
+
+This is runtime compatibility, not evidence that every YL-Clarity release was individually
+validated. YL-Clarity 8.x, 10.x, malformed producer fields and incompatible structures remain
+unsupported. A future generation needs its own lawful evidence before its physical units or
+exact-profile status can be added.
+
+## Workbook and user workflow
+
+Scientific streams use the existing `Signals_FID` and `Signals_TCD` workbook contract with
+explicit `x_label`, `x_unit`, `y_label` and `y_unit` columns. A compatible profile with an
+unresolved response unit keeps the numeric rows and leaves `y_unit` blank; Metadata and
+Import_Log record the fixed compatibility warning. Structural-only files use existing
+`Signals_Records_*` sheets. No new workbook schema or YoungIn-specific GUI control is added.
+
+The desktop route is **Add → Output → Preflight → Convert**. Exact adapter ownership means no
+Mapping or Recipe is required. CLI users request the same rows explicitly:
 
 ```console
 ordifile convert run.prm --include-signals --output Ordifile_Result.xlsx
 ```
 
-## Exact detection boundary
-
-Both profiles require the observed start/footer markers, an exact producer prefix,
-consistent history/channel properties, duplicate byte-identical `RAWData6` and `PRMData`
-gzip payloads, bounded decompression, record-size equations, finite binary32 values and an
-allowlisted stored-label sequence. The 9.1 scientific profile additionally requires its
-observed single-history, source-ordered FID/TCD layout with equal point counts. Unknown
-versions and layouts fail closed.
-
-The 9.0 profile retains its existing one-to-three history and TCD or FID/TCD structural
-boundaries. Scientific equations validated for 9.1 are not transferred to 9.0.
+Neither route calls YL-Clarity or Clarity, loads a vendor DLL, or creates a temporary CSV.
 
 ## Peak-result boundary
 
-The five 9.1 composite exports contain 21 TCD Result rows, but no repeatable bounded PRM
-record containing their RT, Area and Height values was identified. Exact decimal, bounded
-little-endian float32/float64 and evidence-guided candidate searches did not match those
-rows. Stable `Integration`/`Peak` neighborhoods behaved as method/configuration data rather
-than varying result records. Ordifile therefore emits no `PeakRecord`, does not perform
-numerical integration and does not run automatic peak detection. The separate exact Result
-CSV adapter remains the production route for explicit RT/Area/Height rows in its validated
-standalone grammar.
+PRM emits no `PeakRecord`, Area or Height. Paired Result evidence did not identify a repeatable
+bounded stored result record, and a scientific curve is not a license to reconstruct vendor
+integration. Ordifile performs no numerical integration, baseline reconstruction or automatic
+peak detection. The separate exact Result CSV adapter remains the production path for explicit
+RT/Area/Height rows.
 
 ## Privacy and interoperability
 
-The two owner archives and all native/export members remain outside Git, wheels, sdists and
-Actions artifacts. Runtime identities are SHA-256 aliases; private filenames, paths,
-operator/sample/instrument values and measured arrays are not public output. Only hashes,
-counts, units and comparison status are recorded in the sanitized manifest.
+Owner archives, PRMs and exports remain outside Git, wheels, sdists and Actions artifacts.
+Runtime identities are SHA-256 aliases; private filenames, paths, serial suffixes, operator or
+sample fields, and measured arrays are not public output. Producer parsing decodes only the
+bounded numeric version before `FULL, SN:` and never decodes or stores the suffix.
 
-The parser is an independent interoperability implementation based on owner-controlled
-bytes and paired official exports. It bundles no vendor source, DLL, executable or SDK and
-changes no license, authentication or access-control mechanism. See the
-[research notes](../research/youngin-yl-clarity-prm-raw-format-notes.md) and the
-[sanitized 9.1 evidence manifest](../research/youngin-yl-clarity-prm-scientific-external-fixture-manifest.json).
+The parser is an independent file-format interoperability implementation based on
+owner-controlled bytes and paired official exports. It bundles no vendor source, DLL,
+executable or SDK and changes no license, authentication or access-control mechanism. See the
+[format research notes](../research/youngin-yl-clarity-prm-raw-format-notes.md), the
+[cross-version evidence](../research/youngin-yl-clarity-prm-cross-version-equivalence.md), the
+[sanitized 9.0 manifest](../research/youngin-yl-clarity-prm-9-0-scientific-external-fixture-manifest.json),
+and the
+[sanitized 9.1 manifest](../research/youngin-yl-clarity-prm-scientific-external-fixture-manifest.json).

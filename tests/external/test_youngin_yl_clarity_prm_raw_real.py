@@ -139,13 +139,13 @@ def _batch_digest(paths: tuple[Path, ...]) -> tuple[str, Counter[int], int, int,
         else:
             raise AssertionError("unsupported native-label profile reached the canonical bundle")
         for ordinal, signal in enumerate(signals, 1):
-            assert signal.series_kind is SeriesKind.DECODED_RECORDS
-            assert signal.detector is None
-            assert signal.x_values == tuple(range(len(signal.y_values)))
-            assert signal.x_label == "decoded_record_index"
-            assert signal.x_unit is None
-            assert signal.y_label == "decoded_raw_binary32"
-            assert signal.y_unit is None
+            assert signal.series_kind is SeriesKind.SCIENTIFIC_SIGNAL
+            assert signal.detector in {"FID", "TCD"}
+            assert signal.x_values == tuple(index / 600 for index in range(len(signal.y_values)))
+            assert signal.x_label == "retention_time"
+            assert signal.x_unit == "min"
+            assert signal.y_label == "detector_response"
+            assert signal.y_unit == "mV"
             digest.update(struct.pack(">H", ordinal))
             digest.update(struct.pack(">Q", len(signal.y_values)))
             for value in signal.y_values:
@@ -164,12 +164,17 @@ def _signal_sheet_digest(sheet: object) -> tuple[str, int, set[str]]:
     for row in sheet.iter_rows(min_row=2, values_only=True):  # type: ignore[attr-defined]
         x_value = row[4]
         y_value = row[7]
-        assert type(x_value) is int
+        assert type(x_value) in {int, float}
         assert type(y_value) in {int, float}
-        digest.update(struct.pack(">Qf", x_value, float(y_value)))
+        digest.update(struct.pack(">df", float(x_value), float(y_value)))
         rows += 1
         public_text.update(str(value) for value in row if type(value) is str)
     return digest.hexdigest(), rows, public_text
+
+
+def _excel_number_round_trip(value: int | float) -> float:
+    """Mirror openpyxl's 16-significant-digit numeric cell serialization."""
+    return float(f"{float(value):.16g}")
 
 
 def test_all_local_prm_files_parse_deterministically_and_reopen_one_workbook(
@@ -191,7 +196,7 @@ def test_all_local_prm_files_parse_deterministically_and_reopen_one_workbook(
     assert dual_count == 20
     assert single_count == 3
 
-    output = tmp_path / "youngin-prm-raw.xlsx"
+    output = tmp_path / "youngin-prm-scientific.xlsx"
     result = convert(staged, output, include_signals=True)
     assert result.success_count == EXPECTED_FILE_COUNT
     assert result.failure_count == 0
@@ -215,25 +220,31 @@ def test_all_local_prm_files_parse_deterministically_and_reopen_one_workbook(
         for signal in item.bundle.signals:
             assert signal.channel is not None
             for x_value, y_value in zip(signal.x_values, signal.y_values, strict=True):
-                expected_by_channel[signal.channel].extend(struct.pack(">Qf", x_value, y_value))
+                expected_by_channel[signal.channel].extend(
+                    struct.pack(
+                        ">df",
+                        _excel_number_round_trip(x_value),
+                        _excel_number_round_trip(y_value),
+                    )
+                )
                 expected_rows[signal.channel] += 1
 
     workbook = load_workbook(output, read_only=True, data_only=False)
     try:
-        record_sheets = [
-            sheet for sheet in workbook.worksheets if sheet.title.startswith("Signals_Records_")
+        signal_sheets = [
+            sheet for sheet in workbook.worksheets if sheet.title in {"Signals_FID", "Signals_TCD"}
         ]
-        assert len(record_sheets) == 2
+        assert len(signal_sheets) == 2
         public_text: set[str] = set()
-        for sheet in record_sheets:
+        for sheet in signal_sheets:
             workbook_digest, row_count, sheet_text = _signal_sheet_digest(sheet)
             public_text.update(sheet_text)
-            if sheet.title.endswith("_FI"):
+            if sheet.title == "Signals_FID":
                 channel = "native_label_FID"
-            elif sheet.title.endswith("_TC"):
+            elif sheet.title == "Signals_TCD":
                 channel = "native_label_TCD"
             else:
-                raise AssertionError("unexpected decoded-record sheet label")
+                raise AssertionError("unexpected scientific-signal sheet label")
             assert workbook_digest == hashlib.sha256(expected_by_channel[channel]).hexdigest()
             assert row_count == expected_rows[channel]
         for sheet_name in ("Manifest", "Samples", "Metadata", "Import_Log"):

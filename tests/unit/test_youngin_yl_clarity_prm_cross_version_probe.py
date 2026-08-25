@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from ordifile.adapters import _youngin_yl_clarity_prm_binary as binary
-from ordifile.adapters._youngin_yl_clarity_prm_binary import YoungInPrmStructureError, read_prm
+from ordifile.adapters._youngin_yl_clarity_prm_binary import read_prm
 
 PROJECT_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "local"))
@@ -90,16 +90,14 @@ def test_masking_changes_only_typed_family_info_values(tmp_path: Path) -> None:
     )
 
 
-def test_unknown_profile_cannot_be_masked_into_a_known_profile(tmp_path: Path) -> None:
+def test_compatible_unknown_profile_is_not_an_exact_masking_oracle(tmp_path: Path) -> None:
     source = _write(
         tmp_path / "unknown.prm",
         synthetic_prm_bytes(producer_text="YL-Clarity 9.2.0.1 FULL, SN: SYNTHETIC"),
     )
 
-    with pytest.raises(YoungInPrmStructureError) as caught:
+    with pytest.raises(probe.ResearchProbeError, match="two different exact observed"):
         probe.read_version_masked(source, target_version="YL-Clarity 9.1.0.76")
-
-    assert caught.value.code == "YOUNGIN_PRM_PROFILE_UNSUPPORTED"
 
 
 def test_worktree_temp_output_is_rejected_but_external_temp_root_is_allowed(

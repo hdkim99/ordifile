@@ -338,27 +338,19 @@ to the workbook layout.
     The desktop exposes them contextually inside the existing Mapping dialog. No encoding,
     delimiter, header, worksheet, scientific role, unit, footer, locale decimal, or vendor is
     guessed; ambiguous or changed structures fail closed and exact adapters retain ownership.
-50. The observed YL-Clarity `9.0.1.19` PRM profile contains chromatographic stored data, but
-    its current `DStep=1` and `MinTicks=600` fields remain structural candidates rather than
-    public time semantics. Two paired Result Tables support a `1/600 min` interval candidate at
-    six peak RTs, but they do not establish time origin, full point order, response scaling or
-    signal unit. Direct `SCIENTIFIC_SIGNAL` therefore requires a same-run detector-specific CDF
-    plus a full-range, X-axis CHR/TXT comparison with Time Step zero and the
-    Global Filter/Bunching state recorded across multiple PRMs. PRM-derived
-    `PeakRecord` additionally requires a bounded repeatable stored-result grammar matching every
-    exported RT/Area/Height row. Raw integration and automatic peak detection are not substitutes.
-    Until those gates pass, the adapter preserves `DECODED_RECORDS`, the separate Result CSV
-    adapter remains authoritative for explicit peaks, and no YL-Clarity runtime is required.
-51. YoungIn PRM scientific semantics are dispatched by exact producer profile inside the
-    existing `youngin_yl_clarity_prm_raw` adapter. The validated `9.1.0.76` single-history,
-    source-ordered FID/TCD profile emits canonical `SCIENTIFIC_SIGNAL` series using zero-origin
-    `i * DStep / MinTicks` minutes and identity binary32 response in FID pA / TCD mV. Five
-    content-confirmed same-run composite exports match all 138,000 time and signal points at
-    their declared text precision. The `9.0.1.19` profile retains its exact existing
-    `DECODED_RECORDS` behavior; 9.1 equations are not transferred across the producer boundary.
-    Composite Result rows are research evidence only because their Total semantics do not pass
-    the standalone Result adapter's exact grammar. Neither profile emits PRM-derived peaks,
-    Area or Height, and no integration or peak detection is introduced.
+50. YL-Clarity PRM parsing separates structural safety, scientific compatibility and producer
+    provenance. The structural reader requires bounded start/footer/history/current-block
+    framing, duplicate gzip equality, finite little-endian binary32 records, exact size
+    equations, source order and allowlisted stored labels. A typed scientific-family fingerprint
+    then requires `DStep=1`, `MinTicks=600` and equal record counts in a two-channel file. Files
+    that are structurally safe but miss the scientific fingerprint preserve `DECODED_RECORDS`;
+    corrupted framing, payload, size, history or channel structure fails rather than downgrades.
+51. The validated `9.0.1.19` and `9.1.0.76` cohorts share zero-origin
+    `i * DStep / MinTicks` minutes and identity binary32 numeric response. Ten content-confirmed
+    9.0 FID+TCD pairs match all 263,520 time and response points; five 9.1 pairs match all
+    138,000. One private helper is therefore the formula source of truth, while version remains
+    provenance and exact unit evidence. Physical units are profile-specific: 9.0 uses FID mV /
+    TCD mV, while 9.1 uses FID pA / TCD mV. Stored `FID` is never a global pA rule.
 52. The desktop always includes canonical signal and decoded-record series in its reviewed
     conversion plan and workbook, because the one-screen GUI has no signal-export control and
     silently omitting the only scientific output would make exact signal-only inputs appear
@@ -367,19 +359,15 @@ to the workbook layout.
     format-family probe may retain privacy-safe ownership while declaring an unsupported exact
     profile non-routable. Conversion Preflight must block that entry with its structured code;
     it must not promise a routable exact profile that conversion will deterministically reject.
-53. Cross-version YoungIn PRM equivalence work remains research-only until each producer cohort
-    has its own same-run full-curve oracle. A bounded local probe may replace only equal-length,
-    typed producer `Info` prefixes in a temporary copy after the original passes an exact parse;
-    it may then reuse the private structural reader to test counterfactual decoder compatibility.
-    Such a replay is not time, response, detector or unit evidence. The observed 9.0 and 9.1
-    cohorts share current-channel framing, binary32 ordering, size equations and structural
-    `DStep=1` / `MinTicks=600` fields, and masked 9.1 replay reproduces the existing 138,000-point
-    scientific calculation. However, 9.0 has no same-run full-range curve oracle, so its
-    structural-only production route and the exact 9.1 scientific gate remain unchanged.
-    Unknown versions fail closed; common decoder refactoring or 9.0 scientific promotion requires
-    a full N/N 9.0 time-and-signal comparison with explicit units and export settings. Given the
-    preceding 23-file structural comparison, one independent full-range FID+TCD 9.0 curve is the
-    decisive remaining oracle for that decision.
+53. Producer version is not the scientific formula gate. The two exact versions above are
+    individually validated; a strictly framed, otherwise unknown YL-Clarity 9.x producer may
+    use Experimental compatible scientific output only when every structural and scientific
+    invariant matches. It receives minute retention time and identity numeric response but no
+    inferred physical response unit. If only structural safety matches, output is structural-
+    only. 8.x, 10.x, malformed producer framing and incompatible structures remain unsupported.
+    This runtime compatibility is not a claim that all 9.x versions were individually validated.
+    PRM never emits peaks, Area or Height; numerical integration and peak detection remain
+    prohibited, and the exact Result CSV adapter remains the explicit peak-result path.
 
 ## Public boundaries
 

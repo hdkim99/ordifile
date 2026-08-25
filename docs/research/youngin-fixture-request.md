@@ -1,14 +1,14 @@
 # Requesting YOUNG IN Chromass GC fixtures
 
-- Prepared: 2026-08-16; fulfilled for the exact 9.1 signal profile on 2026-08-24
+- Prepared: 2026-08-16; fulfilled for the exact 9.0 and 9.1 signal profiles on 2026-08-25
 - Status: local research request; do not attach files to a public issue
 - Target: historical paired-evidence request; current exact-profile boundaries recorded below
 
-Ordifile's development source tree contains Experimental readers for the exact observed
-YL-Clarity 9.0 structural and 9.1 scientific-signal PRM profiles. This request originally
-sought enough lawful, privacy-reviewed paired material to validate scientific time,
-scaling, units and detector semantics. That gate is fulfilled only for the exact 9.1
-profile; this is not a request for broad YOUNG IN Chromass support.
+Ordifile's development source tree contains an Experimental compatible-family reader with
+individually validated YL-Clarity 9.0.1.19 and 9.1.0.76 scientific-signal unit policies.
+This request originally sought enough lawful, privacy-reviewed paired material to validate
+scientific time, numeric response, units and detector semantics. That gate is fulfilled
+for those two exact profiles; this is not a request for broad YOUNG IN Chromass support.
 
 ## Intake and export-generation status — 2026-08-18
 
@@ -33,11 +33,11 @@ composite exports. Their full-range curves match all 138,000 PRM time/response p
 fulfil the direct scientific-signal gate for that exact profile. No CDF/TXT request remains
 open for 9.1.
 
-The separate 9.0.1.19 profile remains structural-only because its scientific equations are
-not inferred from 9.1. If future work specifically targets 9.0 scientific signals, the only
-useful request is a full-range same-run time/signal export from one of the already controlled
-9.0 PRMs, followed by an independent second pair. This is not required for the implemented
-9.1 capability.
+Ten independent exact 9.0.1.19 FID+TCD full-curve pairs now validate all 263,520 time and
+response points. Together with the exact 9.1 evidence, they establish common zero-origin
+`DStep/MinTicks` minute axes and identity numeric response. The official exports also show
+that exact 9.0 uses FID/TCD mV while exact 9.1 uses FID pA/TCD mV. No further curve request
+is open for these exact profiles.
 
 The expanded composite exports also contain 21 Result rows. They did not identify a
 repeatable stored RT/Area/Height record in PRM, so no further Result files are currently

@@ -45,6 +45,7 @@ class InputRouteIdentity:
     mapping_route: str | None
     mapping_profile_id: str | None
     mapping_structure_fingerprint: str | None
+    notice_codes: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,12 +74,18 @@ class InputRouteError(OrdifileError):
 
 def input_route_identity(decision: InputRouteDecision) -> InputRouteIdentity:
     """Return the exact behavior identity of one resolved route."""
+    selected = next(
+        probe
+        for adapter_id, probe in decision.detection.probes
+        if adapter_id == decision.detection.adapter.adapter_id
+    )
     return InputRouteIdentity(
         decision.detection.adapter.adapter_id,
         decision.detection.adapter.adapter_version,
         decision.mapping_route,
         decision.mapping_profile_id,
         decision.mapping_structure_fingerprint,
+        selected.notice_codes,
     )
 
 

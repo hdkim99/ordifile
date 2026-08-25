@@ -60,6 +60,10 @@ Releases = "https://github.com/hdkim99/ordifile/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ordifile"]
+exclude = [
+  "/src/**/* 2.py",
+  "/src/**/* 2.png",
+]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -80,7 +84,11 @@ include = [
   "/AGENTS.md",
 ]
 exclude = [
-  "/docs/**/* 2.md",
+  "/docs/**/* 2.*",
+  "/packaging/**/* 2.*",
+  "/scripts/**/* 2.py",
+  "/src/**/* 2.py",
+  "/src/**/* 2.png",
   "/tests/**/* 2.py",
 ]
 
