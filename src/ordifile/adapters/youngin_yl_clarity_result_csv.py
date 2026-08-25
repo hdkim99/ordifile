@@ -49,7 +49,7 @@ class YoungInYlClarityResultCsvAdapter:
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "youngin_yl_clarity_result_csv"
-    adapter_version: ClassVar[str] = "0.1.0"
+    adapter_version: ClassVar[str] = "0.1.1"
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
@@ -71,7 +71,13 @@ class YoungInYlClarityResultCsvAdapter:
         try:
             read_result_csv(path)
         except YoungInResultCsvStructureError as error:
-            return DetectionResult(True, 0.70, error.message)
+            return DetectionResult(
+                True,
+                0.70,
+                error.message,
+                routable=False,
+                failure_code=error.code,
+            )
         return DetectionResult(
             True,
             0.99,

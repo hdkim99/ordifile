@@ -46,7 +46,7 @@ class LecoChromatof472GcgcResultTxtAdapter:
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "leco_chromatof_gcxgc_result_txt"
-    adapter_version: ClassVar[str] = "0.1.0"
+    adapter_version: ClassVar[str] = "0.1.1"
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
@@ -70,7 +70,13 @@ class LecoChromatof472GcgcResultTxtAdapter:
         try:
             read_gcgc_result(path)
         except LecoGcgcResultStructureError as error:
-            return DetectionResult(True, 0.70, error.message)
+            return DetectionResult(
+                True,
+                0.70,
+                error.message,
+                routable=False,
+                failure_code=error.code,
+            )
         return DetectionResult(
             True,
             0.99,

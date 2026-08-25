@@ -66,6 +66,8 @@ def test_recognized_malformed_family_remains_owned(tmp_path: Path) -> None:
     )
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "LECO_GCGC_RESULT_HEADER_INVALID"
 
 
 def test_multiple_damaged_headers_still_retain_private_family_ownership(
@@ -86,6 +88,8 @@ def test_multiple_damaged_headers_still_retain_private_family_ownership(
 
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "LECO_GCGC_RESULT_HEADER_INVALID"
 
 
 def test_common_result_headers_without_a_gcgc_anchor_are_not_owned(tmp_path: Path) -> None:

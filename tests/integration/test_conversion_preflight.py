@@ -231,3 +231,40 @@ def test_xlsx_preflight_surfaces_worksheet_ambiguity_without_switching_sheets(
     assert plan.entries[0].route is ConversionPlanRoute.UNROUTED
     assert plan.entries[0].problem is ConversionPlanProblem.WORKSHEET_AMBIGUOUS
     assert plan.summary.ambiguous == 1
+
+
+def test_preflight_blocks_recognized_unsupported_and_malformed_exact_owners(
+    tmp_path: Path,
+) -> None:
+    unsupported = tmp_path / "unsupported-agilent.xml"
+    unsupported.write_bytes(
+        _synthetic_bytes(
+            "generate_agilent_chemstation_result_xml.py",
+            "synthetic_result_xml_bytes",
+        ).replace(
+            "Rev. C.01.10 [201] Copyright © Agilent Technologies".encode("utf-16-le"),
+            "Rev. C.01.09 [200] Copyright © Agilent Technologies".encode("utf-16-le"),
+        )
+    )
+    malformed = tmp_path / "malformed-leco.txt"
+    malformed.write_bytes(
+        _synthetic_bytes(
+            "generate_leco_chromatof_472_gcgc_result_txt.py",
+            "synthetic_gcgc_result_bytes",
+        ).replace(b"1st Dimension Time (s)", b"retention_time", 1)
+    )
+
+    plan = plan_conversion(
+        (unsupported, malformed),
+        tmp_path / "blocked.xlsx",
+        on_error="continue",
+    )
+
+    assert plan.readiness is ConversionPlanReadiness.READY_WITH_KNOWN_FAILURES
+    assert plan.summary.routable == 0
+    assert plan.summary.failed == 2
+    assert plan.entries[0].problem is ConversionPlanProblem.UNSUPPORTED_FORMAT
+    assert plan.entries[0].issue_codes == ("AGILENT_RESULT_XML_VERSION_UNSUPPORTED",)
+    assert plan.entries[1].problem is ConversionPlanProblem.MALFORMED_INPUT
+    assert plan.entries[1].issue_codes == ("LECO_GCGC_RESULT_HEADER_INVALID",)
+    assert not (tmp_path / "blocked.xlsx").exists()

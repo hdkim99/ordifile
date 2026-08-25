@@ -45,7 +45,7 @@ class ShimadzuGcmssolutionQgdAdapter:
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "shimadzu_gcmssolution_qgd"
-    adapter_version: ClassVar[str] = "0.1.0"
+    adapter_version: ClassVar[str] = "0.1.1"
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
@@ -82,7 +82,13 @@ class ShimadzuGcmssolutionQgdAdapter:
                     "SHIMADZU_QGD_TRUNCATED",
                 }
             ):
-                return DetectionResult(True, 0.70, error.message)
+                return DetectionResult(
+                    True,
+                    0.70,
+                    error.message,
+                    routable=False,
+                    failure_code=error.code,
+                )
             return DetectionResult(False, 0.0, error.message)
         return DetectionResult(
             True,

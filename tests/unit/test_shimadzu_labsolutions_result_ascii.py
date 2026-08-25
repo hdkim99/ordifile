@@ -63,6 +63,8 @@ def test_identified_family_with_unsupported_profile_blocks_generic_fallthrough(
     result = adapter.probe(unsupported)
     assert result.matched
     assert result.confidence == pytest.approx(0.70)
+    assert not result.routable
+    assert result.failure_code == "SHIMADZU_RESULT_ASCII_PROFILE_UNSUPPORTED"
 
 
 def test_parse_preserves_source_peak_number_order_and_unknown_response_units(

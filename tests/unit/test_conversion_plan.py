@@ -228,6 +228,32 @@ def test_plan_classifies_unsupported_malformed_duplicate_and_output_conflict(
     assert not list(tmp_path.glob(".ordifile_*"))
 
 
+@pytest.mark.parametrize(
+    "error_code",
+    (
+        "AGILENT_CH_VERSION_UNSUPPORTED",
+        "AGILENT_RESULT_XML_SCHEMA_UNSUPPORTED",
+        "SHIMADZU_RESULT_ASCII_IDENTIFICATION_UNSUPPORTED",
+        "YOUNGIN_RESULT_CSV_SIGNAL_UNSUPPORTED",
+    ),
+)
+def test_plan_classifies_recognized_unsupported_profiles_separately_from_corruption(
+    error_code: str,
+) -> None:
+    assert (
+        planning._problem_for_route("EXACT_ADAPTER", error_code)
+        is ConversionPlanProblem.UNSUPPORTED_FORMAT
+    )
+    assert (
+        planning._problem_for_route("EXACT_ADAPTER", "SHIMADZU_GCD_PROFILE_UNSUPPORTED")
+        is ConversionPlanProblem.MALFORMED_INPUT
+    )
+    assert (
+        planning._problem_for_route("EXACT_ADAPTER", "YOUNGIN_PRM_PROFILE_UNSUPPORTED")
+        is ConversionPlanProblem.MALFORMED_INPUT
+    )
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory mode policy")
 def test_plan_blocks_non_sticky_shared_writable_output_directory(tmp_path: Path) -> None:
     source = tmp_path / "source.csv"

@@ -368,6 +368,23 @@ to the workbook layout.
     This runtime compatibility is not a claim that all 9.x versions were individually validated.
     PRM never emits peaks, Area or Height; numerical integration and peak detection remain
     prohibited, and the exact Result CSV adapter remains the explicit peak-result path.
+54. Proprietary adapter support is evaluated per capability rather than by one global
+    supported/unsupported bit. Structural records, scientific time, numeric signal,
+    physical unit, result peaks, Area, Height, secondary retention, channel identity and
+    detector identity may each be available, profile-specific, unresolved, unavailable or
+    rejected. Existing typed series, optional units and peak fields, Metadata and Issues are
+    sufficient; a second global capability model is not introduced. Only an adapter with an
+    actual evidence-backed family classifier may route an unknown compatible profile.
+    Adapters without that evidence remain exact. See
+    [`cross-vendor-compatibility-policy.md`](cross-vendor-compatibility-policy.md).
+55. A proprietary adapter that recognizes family ownership but rejects the exact profile or
+    structure must return a non-routable positive probe with its structured failure code.
+    This retains deterministic ownership and prevents generic fallthrough while ensuring
+    Preflight does not promise a conversion that parsing will reject. Only semantically
+    precise version, schema, detector, signal, unit, quantitation, identification, encoding
+    and XML declaration codes are presented as unsupported format. Overloaded profile codes,
+    corruption, conflicts, truncation and invalid scientific values remain malformed input.
+    This routing correction does not relax any parser gate or change scientific output.
 
 ## Public boundaries
 

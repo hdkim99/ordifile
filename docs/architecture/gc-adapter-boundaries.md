@@ -134,19 +134,16 @@ point-count, retention-time, scaling, unit, additional-run, and official-export
 evidence. It must not claim peaks, TCD, all `.ch` generations, whole `.D` directories,
 GC-MS, or write support.
 
-The YoungIn raw-conversion track is Experimental GO after the 2026-08-17 local intake.
-The 23 completed PRM files establish one exact producer/layout profile, 43 bounded
-duplicate-validated raw blocks, stored FID/TCD labels and deterministic binary32
-records. `SeriesKind.DECODED_RECORDS` keeps those values separate from scientific
-signals. Retention time, detector verification, scaling, units and PRM-derived peaks
-remain unsupported or unresolved. A maintainer-only local vendor-export bridge has
-generated two paired Result Tables from temporary PRM copies through a normally licensed
-installation. It does not yet generate the same-run chromatogram curve required for
-time/scaling validation, and it does not itself expand public support. The support matrix
-continues to separate YL-Clarity from Autochro, completed PRM from recovery RAW, and the
-exact observed profile from broad YoungIn claims. The later five-pair 9.1 intake validates
-an additional exact `SCIENTIFIC_SIGNAL` boundary without altering the 9.0 output or adding
-PRM-derived peaks.
+The YoungIn track is Experimental compatibility-family GO for a strictly framed 9.x
+producer and a complete structural/scientific fingerprint. Twenty-eight PRMs establish
+53 current channels and 701,240 deterministic binary32 records. Ten same-run 9.0 FID+TCD
+pairs and five 9.1 pairs validate 401,520 time points and 401,520 numeric responses. Both
+exact profiles share zero-origin `DStep/MinTicks` minutes and identity numeric response,
+while physical response units remain profile-specific. A compatible unvalidated 9.x
+profile may emit the shared numeric science with unresolved response units; an incomplete
+scientific fingerprint degrades to `SeriesKind.DECODED_RECORDS`. Peaks, Area and Height
+remain unavailable from PRM, and the Result CSV adapter remains the explicit result path.
+This is not broad YL-Clarity, Autochro, recovery RAW or all-version support.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because
 its paired same-run LabSolutions ASCII reference validates the sampled time and signal
