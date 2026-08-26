@@ -589,6 +589,7 @@ def _import_log_data(result: BatchResult) -> _SheetData:
         "sha256",
     )
     has_profile_routes = result.options.peak_table_mapping_set_id is not None
+    has_result_acquisitions = any(item.acquisitions for item in result.files)
     headers = (
         *base_headers,
         *(
@@ -600,6 +601,23 @@ def _import_log_data(result: BatchResult) -> _SheetData:
                 "mapping_diagnostic_categories",
             )
             if has_profile_routes
+            else ()
+        ),
+        *(
+            (
+                "result_acquisition_mode",
+                "result_acquisition_status",
+                "result_acquisition_provider",
+                "result_acquisition_provider_version",
+                "result_acquisition_product",
+                "result_acquisition_product_version",
+                "result_acquisition_adapter",
+                "result_acquisition_adapter_version",
+                "result_acquisition_sha256",
+                "result_acquisition_peak_count",
+                "result_acquisition_issue_code",
+            )
+            if has_result_acquisitions
             else ()
         ),
     )
@@ -635,6 +653,32 @@ def _import_log_data(result: BatchResult) -> _SheetData:
                         }
                     )
                 ),
+            )
+        if has_result_acquisitions:
+            acquisitions = item.acquisitions
+            row = (
+                *row,
+                ";".join(record.mode.value for record in acquisitions),
+                ";".join(record.status.value for record in acquisitions),
+                ";".join(record.provider_id or "" for record in acquisitions),
+                ";".join(record.provider_version or "" for record in acquisitions),
+                ";".join(
+                    ""
+                    if record.vendor_product is None
+                    else workbook_audit_display(record.vendor_product)
+                    for record in acquisitions
+                ),
+                ";".join(
+                    ""
+                    if record.vendor_product_version is None
+                    else workbook_audit_display(record.vendor_product_version)
+                    for record in acquisitions
+                ),
+                ";".join(record.result_adapter_id or "" for record in acquisitions),
+                ";".join(record.result_adapter_version or "" for record in acquisitions),
+                ";".join(record.result_sha256 or "" for record in acquisitions),
+                sum(record.peak_count for record in acquisitions),
+                ";".join(record.issue_code or "" for record in acquisitions),
             )
         rows.append(row)
     return _SheetData("Import_Log", headers, tuple(rows))
