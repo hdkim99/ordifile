@@ -398,6 +398,17 @@ to the workbook layout.
     Updating a selected setup uses revision protection, while save-as-new preserves the
     original. The advanced Mapping Set and Recipe import/export tools remain available but are
     not prerequisites for first use.
+57. Optional official Result acquisition is an enhancement after direct native parsing, not a
+    scientific parser or runtime prerequisite. A built-in-only provider creates one bounded
+    private Result artifact using ordinary documented functionality of normally installed,
+    licensed vendor software; the existing exact Result adapter validates and interprets it.
+    Core owns source hashing/staging, temporary lifecycle, canonical validation, failure isolation,
+    and logical-source merge. The native source/sample identity and Signals remain authoritative;
+    acquired Peaks are rebound to that identity, and intermediate paths never become provenance.
+    Unavailability or export failure preserves direct capability with a warning. No production
+    provider is registered or shipped until an actual local-vendor all-row comparison passes;
+    existing conversion APIs remain direct-only. See
+    [`automatic-result-acquisition.md`](automatic-result-acquisition.md).
 
 ## Public boundaries
 

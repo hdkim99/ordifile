@@ -60,6 +60,22 @@ class ConversionExecutionMode(StrEnum):
     REVALIDATED_PREFLIGHT = "REVALIDATED_PREFLIGHT"
 
 
+class ResultAcquisitionMode(StrEnum):
+    """Whether conversion may invoke an installed vendor Result exporter."""
+
+    DIRECT_ONLY = "direct_only"
+    AUTO = "auto"
+
+
+class ResultAcquisitionStatus(StrEnum):
+    """Outcome of one optional official-Result acquisition attempt."""
+
+    NOT_APPLICABLE = "not_applicable"
+    UNAVAILABLE = "unavailable"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
 class SortMode(StrEnum):
     """Supported batch ordering modes."""
 
@@ -213,6 +229,23 @@ class DatasetBundle:
 
 
 @dataclass(frozen=True, slots=True)
+class ResultAcquisitionRecord:
+    """Privacy-safe provenance for one optional official Result acquisition."""
+
+    mode: ResultAcquisitionMode
+    status: ResultAcquisitionStatus
+    provider_id: str | None = None
+    provider_version: str | None = None
+    vendor_product: str | None = None
+    vendor_product_version: str | None = None
+    result_adapter_id: str | None = None
+    result_adapter_version: str | None = None
+    result_sha256: str | None = None
+    peak_count: int = 0
+    issue_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class FileResult:
     """Complete processing record for one input, including failures."""
 
@@ -228,6 +261,7 @@ class FileResult:
     mapping_profile_id: str | None = None
     mapping_structure_fingerprint: str | None = None
     mapping_diagnostics: tuple[PeakMappingDriftDiagnostic, ...] = ()
+    acquisitions: tuple[ResultAcquisitionRecord, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

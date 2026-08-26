@@ -23,6 +23,8 @@ evidence, and unsupported inputs are separate states.
 - [Researcher acceptance suite](contributing/researcher-acceptance.md)
 - [Architecture decisions](architecture/decision-record.md)
 - [Cross-vendor compatibility and partial-capability policy](architecture/cross-vendor-compatibility-policy.md)
+- [Automatic official Result acquisition architecture](architecture/automatic-result-acquisition.md)
+- [Cross-vendor Result acquisition evidence](research/cross-vendor-automatic-result-acquisition.md)
 - [Proprietary adapter hard-gate audit](research/cross-vendor-adapter-hard-gate-audit.md)
 - [Evidence and source register](research/source-register.md)
 - [Release process](releasing.md)
