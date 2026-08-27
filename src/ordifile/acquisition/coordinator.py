@@ -298,7 +298,10 @@ def acquire_official_result(
     adapters: AdapterRegistry,
 ) -> AcquisitionOutcome:
     """Attempt an enhancement without turning vendor unavailability into source failure."""
-    if mode is ResultAcquisitionMode.DIRECT_ONLY or native.peaks:
+    has_source_explicit_peaks = any(
+        peak.data_origin != "ordifile_marker_derived" for peak in native.peaks
+    )
+    if mode is ResultAcquisitionMode.DIRECT_ONLY or has_source_explicit_peaks:
         return AcquisitionOutcome(
             native,
             _record(mode, ResultAcquisitionStatus.NOT_APPLICABLE),

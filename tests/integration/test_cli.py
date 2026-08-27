@@ -289,9 +289,10 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "shimadzu_gcmssolution_qgd" in output
     assert "youngin_yl_clarity_prm_raw" in output
     assert "RT min" in output
-    assert "9.0 FID/TCD mV" in output
+    assert "9.0 mV" in output
     assert "9.1 FID pA/TCD mV" in output
     assert "compatible 9.x unit unresolved" in output
+    assert "calc Area!=Result" in output
     assert "youngin_yl_clarity_result_csv" in output
     assert "leco_chromatof_gcxgc_result_txt" in output
     assert "Experimental" in output

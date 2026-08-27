@@ -242,6 +242,7 @@ def test_convert_selection_calls_only_public_convert_with_safe_defaults(
         "output": output,
         "sort": "sequence",
         "include_signals": True,
+        "experimental_derived_area": False,
         "on_error": "continue",
         "overwrite": False,
         "sheet": None,
@@ -276,7 +277,11 @@ def test_convert_selection_calls_public_recipe_conversion_with_frozen_snapshot(
         (
             request.inputs,
             output,
-            {"recipe": recipe, "progress": None},
+            {
+                "recipe": recipe,
+                "experimental_derived_area": False,
+                "progress": None,
+            },
         )
     ]
     assert report.outcome is BatchOutcome.SUCCESS
@@ -507,6 +512,7 @@ def test_preflight_selection_passes_only_the_frozen_recipe_behavior(
     assert calls == [
         {
             "recipe": recipe,
+            "experimental_derived_area": False,
             "progress": None,
         }
     ]

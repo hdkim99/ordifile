@@ -26,6 +26,7 @@ from ordifile.core.models import (
     DatasetBundle,
     InstrumentMetadata,
     MetadataEntry,
+    PeakRecord,
     ResultAcquisitionMode,
     ResultAcquisitionStatus,
     SampleRecord,
@@ -144,6 +145,48 @@ def _providers(provider: FakeProvider) -> ResultAcquisitionRegistry:
     return registry
 
 
+def _with_derived_peak(native: DatasetBundle) -> DatasetBundle:
+    sample = native.samples[0]
+    source_file = native.sources[0].public_reference
+    scope = "adapter:youngin_yl_clarity_prm_raw"
+    derived_metadata = tuple(
+        MetadataEntry(sample.sample_id, source_file, scope, key, value)
+        for key, value in (
+            ("processing_time_table_status", "matched"),
+            ("processing_method_span_sha256", "0" * 64),
+            ("structural_channel_001_marker_candidate_count", 1),
+            ("structural_channel_001_processing_time_table_status", "matched"),
+            ("structural_channel_001_processing_time_table_excluded_candidate_count", 0),
+        )
+    )
+    return DatasetBundle(
+        native.sources,
+        native.samples,
+        native.signals,
+        (
+            PeakRecord(
+                sample.sample_id,
+                native.sources[0].public_reference,
+                "channel-001",
+                "TCD",
+                1,
+                1.0 / 600.0,
+                "min",
+                status="ordifile_derived_experimental",
+                observation_order=1,
+                start_time=0.0,
+                end_time=2.0 / 600.0,
+                data_origin="ordifile_marker_derived",
+                derivation_method_id="youngin-prm-marker-lower-envelope-v1",
+                derivation_evidence_profile="controlled-paired-result-25",
+                calculated_area=0.5,
+                calculated_area_unit="mV.s",
+            ),
+        ),
+        (*native.metadata, *derived_metadata),
+    )
+
+
 def _source(path: Path, digest: str) -> AcquisitionSource:
     return AcquisitionSource(
         path,
@@ -205,6 +248,48 @@ def test_coordinator_merges_exact_result_into_one_native_logical_source(tmp_path
     assert provider.workspace is not None and not provider.workspace.exists()
     assert native.sources[0].path.read_bytes() == original
     assert "private-intermediate" not in repr(outcome)
+
+
+def test_official_result_replaces_experimental_calculated_area(tmp_path: Path) -> None:
+    native, digest = _native_bundle(tmp_path / "private-source.prm")
+    native = _with_derived_peak(native)
+    provider = FakeProvider(synthetic_result_csv_bytes())
+
+    outcome = acquire_official_result(
+        _source(native.sources[0].path, digest),
+        native,
+        mode=ResultAcquisitionMode.AUTO,
+        providers=_providers(provider),
+        adapters=create_registry(include_external=False),
+    )
+
+    assert outcome.record.status is ResultAcquisitionStatus.SUCCESS
+    assert provider.calls == 1
+    assert len(outcome.bundle.peaks) == 2
+    assert all(peak.data_origin != "ordifile_marker_derived" for peak in outcome.bundle.peaks)
+    assert all(peak.calculated_area is None for peak in outcome.bundle.peaks)
+    assert not any(
+        item.key.startswith("derived_")
+        or "integration_marker" in item.key
+        or item.key in {"processing_time_table_status", "processing_method_span_sha256"}
+        or item.key.endswith(
+            (
+                "_marker_candidate_count",
+                "_processing_time_table_status",
+                "_processing_time_table_excluded_candidate_count",
+            )
+        )
+        or item.value == "ordifile_marker_derived_experimental"
+        or (
+            item.key == "scientific_semantics_evidence_gap"
+            and item.value == "vendor_result_equivalence"
+        )
+        for item in outcome.bundle.metadata
+    )
+    assert not any(
+        issue.code == "YOUNGIN_PRM_AREA_ORDIFILE_DERIVED_EXPERIMENTAL"
+        for issue in outcome.bundle.warnings
+    )
 
 
 @pytest.mark.parametrize(

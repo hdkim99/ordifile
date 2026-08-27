@@ -20,14 +20,15 @@ unchanged.
 
 The local-only corpus already performs the comparison requested for direct scientific decoding:
 
-- ten exact 9.0.1.19 FID+TCD PRM/full-curve pairs compare 263,520 time points and 263,520 signal
+- twelve exact 9.0.1.19 FID+TCD PRM/full-curve pairs compare 316,220 time points and 316,220 signal
   points;
 - five exact 9.1.0.76 FID+TCD pairs compare 138,000 time points and 138,000 signal points;
-- all 401,520 points match the official exports under their printed precision contract;
+- all 454,220 points match the official exports under their printed precision contract;
 - the same-run curves establish the shared zero-origin `DStep/MinTicks` minute axis and identity
   numeric response, with profile-specific response units;
-- composite exports add 21 explicit Result rows, but no repeatable stored PRM RT/Area/Height
-  record was identified. They therefore do not license numerical integration or peak detection.
+- paired composite exports provide 347 Result rows as local-only development oracles, but no
+  repeatable stored PRM RT/Area/Height table was identified. They do not license automatic
+  peak detection or a claim of vendor-equivalent Area.
 
 This evidence is sufficient for the existing direct Signals implementation. It is also sufficient
 to test exact Result parsing and logical-source merge. It is not evidence that invoking a local

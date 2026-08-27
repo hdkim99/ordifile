@@ -135,6 +135,7 @@ class ConversionPlanOptions:
     extensions: tuple[str, ...]
     sort: str
     include_signals: bool
+    experimental_derived_area: bool
     adapter: str | None
     sheet_selected: bool
     include_hidden_sheets: bool
@@ -214,6 +215,7 @@ class _PlanBindings:
     extensions: tuple[str, ...] | None
     sort: str
     include_signals: bool
+    experimental_derived_area: bool
     adapter: str | None
     sheet: str | None
     include_hidden_sheets: bool
@@ -492,6 +494,7 @@ def _public_summary_digest(
             "extensions": list(options.extensions),
             "sort": options.sort,
             "include_signals": options.include_signals,
+            "experimental_derived_area": options.experimental_derived_area,
             "adapter": options.adapter,
             "sheet_selected": options.sheet_selected,
             "include_hidden_sheets": options.include_hidden_sheets,
@@ -581,6 +584,7 @@ def build_conversion_plan(
     extensions: tuple[str, ...] | None,
     sort: str,
     include_signals: bool,
+    experimental_derived_area: bool,
     adapter: str | None,
     sheet: str | None,
     include_hidden_sheets: bool,
@@ -617,6 +621,7 @@ def build_conversion_plan(
         include_mapping_semantic_sha256=recipe_schema_version is None,
         peak_table_mapping=peak_table_mapping,
         peak_table_mapping_set=peak_table_mapping_set,
+        experimental_derived_area=experimental_derived_area,
     )
     records = discover_files(
         frozen_inputs,
@@ -686,6 +691,22 @@ def build_conversion_plan(
                     if probe_adapter_id == adapter_id
                 )
                 codes = _bounded_codes((*codes, *selected_probe.notice_codes))
+                if adapter_id == "youngin_yl_clarity_prm_raw":
+                    validated_scientific_profile = (
+                        "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL" in codes
+                    )
+                    if experimental_derived_area and validated_scientific_profile:
+                        codes = _bounded_codes(
+                            (*codes, "YOUNGIN_PRM_EXPERIMENTAL_DERIVED_AREA_REQUESTED")
+                        )
+                    elif experimental_derived_area:
+                        codes = _bounded_codes(
+                            (*codes, "YOUNGIN_PRM_DERIVED_AREA_PROFILE_UNAVAILABLE")
+                        )
+                    elif validated_scientific_profile:
+                        codes = _bounded_codes(
+                            (*codes, "YOUNGIN_PRM_CALCULATED_AREA_NOT_REQUESTED")
+                        )
                 if mapping_requested and decision.mapping_route == "EXACT_ADAPTER":
                     codes = _bounded_codes((*codes, "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE"))
                 current_sha256 = sha256_file(source.path)
@@ -802,6 +823,7 @@ def build_conversion_plan(
         extensions=extensions or (),
         sort=sort,
         include_signals=include_signals,
+        experimental_derived_area=experimental_derived_area,
         adapter=adapter,
         sheet_selected=sheet is not None,
         include_hidden_sheets=include_hidden_sheets,
@@ -845,6 +867,7 @@ def build_conversion_plan(
         extensions=extensions,
         sort=sort,
         include_signals=include_signals,
+        experimental_derived_area=experimental_derived_area,
         adapter=adapter,
         sheet=sheet,
         include_hidden_sheets=include_hidden_sheets,

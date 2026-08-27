@@ -121,6 +121,26 @@ def test_preflight_progress_failure_creates_no_artifact(tmp_path: Path) -> None:
     assert not list(tmp_path.glob(".ordifile_*"))
 
 
+def test_experimental_derived_area_is_part_of_immutable_plan_contract(tmp_path: Path) -> None:
+    source = tmp_path / "source.csv"
+    output = tmp_path / "result.xlsx"
+    _write_generic(source)
+
+    normal = plan_conversion(source, output)
+    experimental = plan_conversion(source, output, experimental_derived_area=True)
+
+    assert normal.options.experimental_derived_area is False
+    assert experimental.options.experimental_derived_area is True
+    assert normal.public_summary_sha256 != experimental.public_summary_sha256
+    with pytest.raises(OrdifileError, match="changed after preflight"):
+        convert(
+            source,
+            output,
+            experimental_derived_area=True,
+            conversion_plan=normal,
+        )
+
+
 def test_preflight_rejects_adapter_inventory_change_during_progress(tmp_path: Path) -> None:
     source = tmp_path / "source.csv"
     output = tmp_path / "result.xlsx"

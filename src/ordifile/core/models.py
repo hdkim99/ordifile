@@ -200,6 +200,11 @@ class PeakRecord:
     height_unit: str | None = None
     secondary_retention_time: float | None = None
     secondary_retention_time_unit: str | None = None
+    data_origin: str | None = None
+    derivation_method_id: str | None = None
+    derivation_evidence_profile: str | None = None
+    calculated_area: float | None = None
+    calculated_area_unit: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,6 +315,7 @@ class ConversionOptions:
     conversion_plan_public_summary_sha256: str | None = None
     conversion_recipe_schema_version: int | None = None
     conversion_recipe_public_fingerprint_sha256: str | None = None
+    experimental_derived_area: bool = False
 
 
 @dataclass(frozen=True, slots=True)

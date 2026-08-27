@@ -5,7 +5,8 @@
 - Structural family: `COMPATIBLE_NOT_IDENTICAL`
 - Common time and numeric-response semantics: `GO`
 - Shared physical-unit rule: `NO_GO`; units remain profile-specific
-- Direct PRM peaks, Area and Height: `NO_GO`
+- Stored/vendor PRM peaks, Area and Height: `NO_GO`; selectable Ordifile-derived
+  `calculated_area` is a separate Experimental capability
 
 This privacy-safe record explains why Ordifile shares one time/numeric-response core without
 claiming that every YL-Clarity release was individually validated. Native PRMs, official
@@ -15,11 +16,11 @@ curves, filenames, local paths and measured arrays remain local-only.
 
 | Validated producer | PRMs | Current channels | Finite records | Observed history | Stored-label layouts |
 |---|---:|---:|---:|---|---|
-| `9.0.1.19` | 23 | 43 | 563,240 | 1–3 | FID+TCD: 20; TCD-only: 3 |
+| `9.0.1.19` | 25 | 47 | 615,940 | 1–4 | FID+TCD: 22; TCD-only: 3 |
 | `9.1.0.76` | 5 | 10 | 138,000 | 1 | FID+TCD: 5 |
-| Total | 28 | 53 | 701,240 | — | — |
+| Total | 30 | 57 | 753,940 | — | — |
 
-All 53 current channels use the same bounded `RAWData6 -> metadata -> PRMData -> DetName`
+All 57 current channels use the same bounded `RAWData6 -> metadata -> PRMData -> DetName`
 grammar, byte-identical duplicate gzip payloads, finite little-endian binary32 ordering,
 `RAWSize == DSize == record_count`, `DStep=1`, `MinTicks=600`, and current-revision source
 order. History cardinality, channel layout and absolute record counts differ, so the files are
@@ -35,13 +36,12 @@ production gate. Originals were unchanged and derived bytes were deleted.
 
 ## Decisive 9.0 full-curve evidence
 
-A later bounded owner archive supplied ten distinct exact `9.0.1.19` FID+TCD PRMs and ten
-same-run full-range curve exports. Five PRMs have one history and five have two. Per-channel
-record counts vary across 13,160, 13,170, 13,180 and 13,190, giving 131,760 FID points and
-131,760 TCD points.
+A bounded owner corpus supplies twelve distinct exact `9.0.1.19` FID+TCD PRMs and twelve
+same-run full-range curve exports. Per-channel record counts vary, giving 158,110 FID points
+and 158,110 TCD points.
 
 Pairing uses unique full-series content equality in source channel order, not filenames.
-For all 263,520 time points:
+For all 316,220 time points:
 
 ```text
 t[i] = 0 + i * DStep / MinTicks
@@ -50,7 +50,7 @@ MinTicks = 600
 x unit = min
 ```
 
-Every five-decimal time lexeme matches the candidate. For all 263,520 response points, the
+Every five-decimal time lexeme matches the candidate. For all 316,220 response points, the
 official four-decimal value matches the stored binary32 value within the precision-derived
 absolute bound `0.00005001`; the transformation is identity. Point-count equality proves that
 the supplied curves are full resolution and that no point loss is present. The exports do not
@@ -65,13 +65,13 @@ are therefore FID mV and TCD mV.
 
 | Capability | 9.0 evidence | 9.1 evidence | Production decision |
 |---|---:|---:|---|
-| Zero-origin minute time | 263,520/263,520 | 138,000/138,000 | Shared core |
-| Identity numeric response | 263,520/263,520 | 138,000/138,000 | Shared core |
+| Zero-origin minute time | 316,220/316,220 | 138,000/138,000 | Shared core |
+| Identity numeric response | 316,220/316,220 | 138,000/138,000 | Shared core |
 | Stored FID label | mV | pA | Profile-specific unit |
 | Stored TCD label | mV | mV | Profile-specific unit |
 | Direct peaks/Area/Height | no stored grammar | no stored grammar | Unsupported |
 
-The shared scientific evidence is 401,520 time points and 401,520 response points. Producer
+The shared scientific evidence is 454,220 time points and 454,220 response points. Producer
 version is provenance and unit evidence, not the formula source of truth.
 
 ## Compatibility-first production boundary

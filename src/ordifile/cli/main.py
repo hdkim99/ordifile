@@ -136,6 +136,15 @@ def _add_parse_options(parser: argparse.ArgumentParser, *, include_recipe: bool 
         type=Path,
         help="Route mixed generic tables with reusable exact-structure mapping profiles.",
     )
+    parser.add_argument(
+        "--experimental-derived-area",
+        action="store_true",
+        default=None if include_recipe else False,
+        help=(
+            "Calculate experimental marker-partitioned PRM Areas with Ordifile; "
+            "values are not YL-Clarity Result Areas."
+        ),
+    )
     if include_recipe:
         parser.add_argument(
             "--recipe",
@@ -378,7 +387,13 @@ def _print_scientific_inventory(bundle: DatasetBundle) -> None:
         print("Retention-time unit: not available")
         print("Signal units: not available")
     peak_status = _single_metadata_value(bundle, "peak_table_status")
-    if peak_status is not None:
+    if peak_status == "ordifile_marker_derived_experimental":
+        print("Peak Result availability: not decoded from PRM")
+        print(
+            "Ordifile-calculated chromatographic Area: experimental, separate from "
+            f"source-explicit Area ({len(bundle.peaks)} marker regions)"
+        )
+    elif peak_status is not None:
         print(f"Peak Result availability: {_terminal_safe(peak_status)}")
     else:
         print(f"Peak Result availability: {'present' if bundle.peaks else 'no rows'}")
@@ -396,6 +411,7 @@ def _run_inspect(args: argparse.Namespace) -> int:
         include_hidden_sheets=args.include_hidden_sheets,
         peak_table_mapping=mapping,
         peak_table_mapping_set=mapping_set,
+        experimental_derived_area=bool(args.experimental_derived_area),
     )
     result = inspected.file
     bundle = result.bundle
@@ -512,6 +528,7 @@ def _print_batch_detection_evidence(result: object) -> None:
 def _run_convert(args: argparse.Namespace) -> int:
     print(f"Input paths: {len(args.inputs)}")
     recipe = load_conversion_recipe(args.recipe) if args.recipe else None
+    experimental_derived_area = bool(args.experimental_derived_area)
     if recipe is not None:
         conflicting = any(
             value is not None
@@ -561,7 +578,12 @@ def _run_convert(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         if recipe is not None:
-            plan = plan_recipe(args.inputs, args.output, recipe=recipe)
+            plan = plan_recipe(
+                args.inputs,
+                args.output,
+                recipe=recipe,
+                experimental_derived_area=experimental_derived_area,
+            )
         else:
             plan = plan_conversion(
                 args.inputs,
@@ -570,6 +592,7 @@ def _run_convert(args: argparse.Namespace) -> int:
                 extensions=args.extension,
                 sort=sort,
                 include_signals=include_signals,
+                experimental_derived_area=experimental_derived_area,
                 adapter=args.adapter,
                 sheet=args.sheet,
                 include_hidden_sheets=include_hidden_sheets,
@@ -642,6 +665,7 @@ def _run_convert(args: argparse.Namespace) -> int:
             args.inputs,
             args.output,
             recipe=recipe,
+            experimental_derived_area=experimental_derived_area,
             progress=print_progress,
         )
     else:
@@ -652,6 +676,7 @@ def _run_convert(args: argparse.Namespace) -> int:
             extensions=args.extension,
             sort=sort,
             include_signals=include_signals,
+            experimental_derived_area=experimental_derived_area,
             adapter=args.adapter,
             sheet=args.sheet,
             include_hidden_sheets=include_hidden_sheets,

@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
+import re
 import stat
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
+from statistics import median
 from zipfile import ZipFile, ZipInfo
 
+import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from ordifile.api import convert, inspect_file
-from ordifile.core.models import SeriesKind, SignalSeries
+from ordifile.core.models import DatasetBundle, SeriesKind, SignalSeries
 
 EXPECTED_ARCHIVE_SIZE = 2_534_115
 EXPECTED_ARCHIVE_SHA256 = "5cfcf67e5ac097a02a80b54b8ca9c509e309de0e3efa6a9894bd4977d3157847"
@@ -20,7 +24,16 @@ EXPECTED_PRMS = 10
 EXPECTED_STREAMS = 20
 EXPECTED_POINTS_PER_DETECTOR = 131_760
 EXPECTED_SCIENTIFIC_POINTS = 263_520
+EXPECTED_DERIVED_PEAKS = 263
+EXPECTED_RESULT_ROWS = 263
+EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 98, 3: 23, 4: 2}
+EXPECTED_AREA_WITHIN_1_PERCENT = 207
+EXPECTED_AREA_WITHIN_5_PERCENT = 226
+EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.0011557829897871697
+EXPECTED_AREA_P90_RELATIVE_ERROR = 0.10222526739053382
+EXPECTED_AREA_MAX_RELATIVE_ERROR = 2.8214598065515384
 PRINTED_SIGNAL_HALF_UNIT = Decimal("0.00005001")
+AREA_QUANTA = {2: Decimal("0.01"), 3: Decimal("0.001"), 4: Decimal("0.0001")}
 MAX_MEMBER_BYTES = 1_000_000
 MAX_COMPRESSION_RATIO = 4.0
 
@@ -83,6 +96,74 @@ def _curve_blocks(data: bytes) -> tuple[tuple[tuple[str, str], ...], ...]:
     return tuple(blocks)
 
 
+def _result_rows(data: bytes) -> tuple[tuple[str, Decimal, str, Decimal], ...]:
+    rows: list[tuple[str, Decimal, str, Decimal]] = []
+    for line in data.decode("cp949", errors="strict").splitlines():
+        fields = line.split("\t")
+        if (
+            len(fields) < 9
+            or not fields[3].strip().isdigit()
+            or fields[4].strip() not in {"FID", "TCD"}
+            or not fields[5].strip().isdigit()
+        ):
+            continue
+        area_text = fields[7].strip()
+        if re.fullmatch(r"[0-9]+\.[0-9]{4}", area_text) is None:
+            raise AssertionError("official Result Area is not an exact nonnegative 4dp lexeme")
+        try:
+            official_area = Decimal(area_text)
+            if not official_area.is_finite():
+                raise AssertionError("official Result Area is not finite")
+            rows.append((fields[4].strip(), Decimal(fields[6]), area_text, official_area))
+        except InvalidOperation as error:
+            raise AssertionError("composite Result row contains a non-numeric value") from error
+    return tuple(rows)
+
+
+def _derived_result_errors(
+    bundle: DatasetBundle,
+    rows: tuple[tuple[str, Decimal, str, Decimal], ...],
+) -> tuple[int, list[float], dict[int, int]]:
+    by_detector = {
+        detector: tuple(peak for peak in bundle.peaks if peak.detector == detector)
+        for detector in {row[0] for row in rows}
+    }
+    positions = {detector: 0 for detector in by_detector}
+    matched_rt = 0
+    errors: list[float] = []
+    exact_by_decimal_places = {places: 0 for places in AREA_QUANTA}
+    for detector, retention_time, _official_area_text, official_area in rows:
+        peaks = by_detector[detector]
+        position = positions[detector]
+        while (
+            position < len(peaks)
+            and Decimal(format(peaks[position].retention_time or 0.0, ".3f")) != retention_time
+        ):
+            position += 1
+        assert position < len(peaks), "an official Result RT lacks its PRM marker candidate"
+        peak = peaks[position]
+        positions[detector] = position + 1
+        matched_rt += 1
+        assert peak.calculated_area is not None
+        assert official_area != 0
+        for places, quantum in AREA_QUANTA.items():
+            rendered = Decimal.from_float(float(peak.calculated_area)).quantize(
+                quantum, rounding=ROUND_HALF_EVEN
+            )
+            official = official_area.quantize(quantum, rounding=ROUND_HALF_EVEN)
+            exact_by_decimal_places[places] += rendered == official
+        errors.append(
+            float(abs(Decimal(str(peak.calculated_area)) - official_area) / abs(official_area))
+        )
+    assert all(positions[detector] == len(peaks) for detector, peaks in by_detector.items())
+    return matched_rt, errors, exact_by_decimal_places
+
+
+def _p90(values: list[float]) -> float:
+    ordered = sorted(values)
+    return ordered[math.floor(0.9 * (len(ordered) - 1))]
+
+
 def _curve_matches(signal: SignalSeries, rows: tuple[tuple[str, str], ...]) -> bool:
     if len(signal.x_values) != len(rows) or len(signal.y_values) != len(rows):
         return False
@@ -105,6 +186,7 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
 
     prm_paths: dict[str, Path] = {}
     curves: dict[str, tuple[tuple[tuple[str, str], ...], ...]] = {}
+    result_rows: dict[str, tuple[tuple[str, Decimal, str, Decimal], ...]] = {}
     private_names: set[str] = set()
     with ZipFile(archive) as source:
         infos = source.infolist()
@@ -131,6 +213,7 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
                 prm_paths[digest] = path
             elif suffix == ".csv":
                 curves[digest] = _curve_blocks(data)
+                result_rows[digest] = _result_rows(data)
             else:
                 raise AssertionError("archive contains an unexpected member type")
 
@@ -140,11 +223,23 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
 
     matched_exports: set[str] = set()
     all_signals: list[SignalSeries] = []
+    matched_result_rows = 0
+    area_errors: list[float] = []
+    exact_area_by_decimal_places = {places: 0 for places in AREA_QUANTA}
     for path in prm_paths.values():
-        inspected = inspect_file(path)
+        inspected = inspect_file(path, experimental_derived_area=True)
         bundle = inspected.file.bundle
         assert bundle is not None
-        assert bundle.peaks == ()
+        assert bundle.peaks
+        assert all(
+            peak.status == "ordifile_derived_experimental"
+            and peak.data_origin == "ordifile_marker_derived"
+            and peak.derivation_method_id
+            == "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+            and peak.area is None
+            and peak.calculated_area is not None
+            for peak in bundle.peaks
+        )
         assert bundle.samples[0].detectors == ("FID", "TCD")
         signals = {signal.detector: signal for signal in bundle.signals}
         assert set(signals) == {"FID", "TCD"}
@@ -161,9 +256,21 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
         ]
         assert len(matches) == 1
         matched_exports.add(matches[0])
+        matched_rt, errors, exact = _derived_result_errors(bundle, result_rows[matches[0]])
+        matched_result_rows += matched_rt
+        area_errors.extend(errors)
+        for places, count in exact.items():
+            exact_area_by_decimal_places[places] += count
         all_signals.extend(signals.values())
 
     assert len(matched_exports) == EXPECTED_PRMS
+    assert matched_result_rows == len(area_errors) == EXPECTED_RESULT_ROWS
+    assert exact_area_by_decimal_places == EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES
+    assert sum(error <= 0.01 for error in area_errors) == EXPECTED_AREA_WITHIN_1_PERCENT
+    assert sum(error <= 0.05 for error in area_errors) == EXPECTED_AREA_WITHIN_5_PERCENT
+    assert median(area_errors) == pytest.approx(EXPECTED_AREA_MEDIAN_RELATIVE_ERROR)
+    assert _p90(area_errors) == pytest.approx(EXPECTED_AREA_P90_RELATIVE_ERROR)
+    assert max(area_errors) == pytest.approx(EXPECTED_AREA_MAX_RELATIVE_ERROR)
     assert len(all_signals) == EXPECTED_STREAMS
     assert sum(len(signal.x_values) for signal in all_signals) == EXPECTED_SCIENTIFIC_POINTS
     assert (
@@ -176,7 +283,12 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
     )
 
     output = tmp_path / "scientific-9-0.xlsx"
-    result = convert(tuple(prm_paths.values()), output, include_signals=True)
+    result = convert(
+        tuple(prm_paths.values()),
+        output,
+        include_signals=True,
+        experimental_derived_area=True,
+    )
     assert result.success_count == EXPECTED_PRMS
     assert result.failure_count == 0
     workbook = load_workbook(output, read_only=True, data_only=False)
@@ -187,7 +299,12 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
             assert {
                 (row[3], row[6], row[9]) for row in sheet.iter_rows(min_row=2, values_only=True)
             } == {(detector, "min", "mV")}
-        assert list(workbook["Peaks"].iter_rows(min_row=2, values_only=True)) == []
+        peaks = tuple(workbook["Peaks"].iter_rows(min_row=2, values_only=True))
+        headers = tuple(next(workbook["Peaks"].iter_rows(max_row=1, values_only=True)))
+        assert len(peaks) == EXPECTED_DERIVED_PEAKS
+        assert {row[headers.index("data_origin")] for row in peaks} == {"ordifile_marker_derived"}
+        assert {row[headers.index("area")] for row in peaks} == {None}
+        assert all(row[headers.index("calculated_area")] is not None for row in peaks)
         rendered = "\n".join(
             str(value)
             for sheet_name in ("Manifest", "Samples", "Metadata", "Import_Log")

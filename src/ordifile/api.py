@@ -487,10 +487,12 @@ def inspect_file(
     include_hidden_sheets: bool = False,
     peak_table_mapping: PeakTableMapping | None = None,
     peak_table_mapping_set: PeakTableMappingSet | None = None,
+    experimental_derived_area: bool = False,
     registry: AdapterRegistry | None = None,
 ) -> InspectionResult:
     """Detect, parse, and validate one file without writing an output."""
     _require_bool("include_hidden_sheets", include_hidden_sheets)
+    _require_bool("experimental_derived_area", experimental_derived_area)
     _require_optional_text("adapter", adapter)
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
@@ -531,6 +533,7 @@ def inspect_file(
             include_hidden_sheets=include_hidden_sheets,
             peak_table_mapping=peak_table_mapping,
             peak_table_mapping_set=peak_table_mapping_set,
+            experimental_derived_area=experimental_derived_area,
         ),
     )
     if len(result.files) != 1:
@@ -568,6 +571,7 @@ def inspect_inputs(
     include_hidden_sheets: bool = False,
     peak_table_mapping: PeakTableMapping | None = None,
     peak_table_mapping_set: PeakTableMappingSet | None = None,
+    experimental_derived_area: bool = False,
     progress: Callable[[ProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
 ) -> BatchResult:
@@ -579,6 +583,7 @@ def inspect_inputs(
     """
     _require_bool("recursive", recursive)
     _require_bool("include_hidden_sheets", include_hidden_sheets)
+    _require_bool("experimental_derived_area", experimental_derived_area)
     _require_optional_text("adapter", adapter)
     _require_optional_text("sheet", sheet)
     _require_registry(registry)
@@ -617,6 +622,7 @@ def inspect_inputs(
             include_hidden_sheets=include_hidden_sheets,
             peak_table_mapping=peak_table_mapping,
             peak_table_mapping_set=peak_table_mapping_set,
+            experimental_derived_area=experimental_derived_area,
         ),
         on_error="continue",
         progress=progress,
@@ -664,6 +670,7 @@ def inspect_inputs(
                     if peak_table_mapping_set is not None
                     else None
                 ),
+                experimental_derived_area=experimental_derived_area,
             ),
         )
     )
@@ -677,6 +684,7 @@ def _convert_impl(
     extensions: Iterable[str] | None = None,
     sort: SortMode | str = SortMode.AUTO,
     include_signals: bool = False,
+    experimental_derived_area: bool = False,
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
@@ -700,6 +708,7 @@ def _convert_impl(
     """Batch-convert inputs into one ordered Excel workbook."""
     _require_bool("recursive", recursive)
     _require_bool("include_signals", include_signals)
+    _require_bool("experimental_derived_area", experimental_derived_area)
     _require_bool("include_hidden_sheets", include_hidden_sheets)
     _require_bool("overwrite", overwrite)
     _require_optional_text("adapter", adapter)
@@ -761,6 +770,7 @@ def _convert_impl(
             include_mapping_semantic_sha256=(conversion_recipe_schema_version is None),
             peak_table_mapping=peak_table_mapping,
             peak_table_mapping_set=peak_table_mapping_set,
+            experimental_derived_area=experimental_derived_area,
         ),
         on_error=on_error,
         progress=progress,
@@ -868,6 +878,7 @@ def _convert_impl(
             conversion_recipe_public_fingerprint_sha256=(
                 conversion_recipe_public_fingerprint_sha256
             ),
+            experimental_derived_area=experimental_derived_area,
         ),
     )
     if progress is not None:
@@ -892,6 +903,7 @@ def plan_conversion(
     extensions: Iterable[str] | None = None,
     sort: SortMode | str = SortMode.AUTO,
     include_signals: bool = False,
+    experimental_derived_area: bool = False,
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
@@ -911,6 +923,7 @@ def plan_conversion(
         extensions=extensions,
         sort=sort,
         include_signals=include_signals,
+        experimental_derived_area=experimental_derived_area,
         adapter=adapter,
         sheet=sheet,
         include_hidden_sheets=include_hidden_sheets,
@@ -930,6 +943,7 @@ def plan_recipe(
     output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
     *,
     recipe: ConversionRecipe,
+    experimental_derived_area: bool = False,
     progress: Callable[[PlanProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
 ) -> ConversionPlan:
@@ -938,6 +952,7 @@ def plan_recipe(
     return _plan_conversion_impl(
         inputs,
         output,
+        experimental_derived_area=experimental_derived_area,
         progress=progress,
         registry=registry,
         recipe=recipe,
@@ -952,6 +967,7 @@ def _plan_conversion_impl(
     extensions: Iterable[str] | None = None,
     sort: SortMode | str = SortMode.AUTO,
     include_signals: bool = False,
+    experimental_derived_area: bool = False,
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
@@ -995,6 +1011,7 @@ def _plan_conversion_impl(
     )
     _require_bool("recursive", recursive)
     _require_bool("include_signals", include_signals)
+    _require_bool("experimental_derived_area", experimental_derived_area)
     _require_bool("include_hidden_sheets", include_hidden_sheets)
     _require_bool("overwrite", overwrite)
     if overwrite:
@@ -1045,6 +1062,7 @@ def _plan_conversion_impl(
         extensions=normalized_extensions,
         sort=requested_sort.value,
         include_signals=include_signals,
+        experimental_derived_area=experimental_derived_area,
         adapter=adapter,
         sheet=sheet,
         include_hidden_sheets=include_hidden_sheets,
@@ -1090,6 +1108,7 @@ def convert_plan(
             extensions=bindings.extensions,
             sort=bindings.sort,
             include_signals=bindings.include_signals,
+            experimental_derived_area=bindings.experimental_derived_area,
             adapter=bindings.adapter,
             sheet=bindings.sheet,
             include_hidden_sheets=bindings.include_hidden_sheets,
@@ -1134,6 +1153,7 @@ def convert_plan(
             extensions=fresh_bindings.extensions,
             sort=fresh_bindings.sort,
             include_signals=fresh_bindings.include_signals,
+            experimental_derived_area=fresh_bindings.experimental_derived_area,
             adapter=fresh_bindings.adapter,
             sheet=fresh_bindings.sheet,
             include_hidden_sheets=fresh_bindings.include_hidden_sheets,
@@ -1174,6 +1194,7 @@ def convert(
     extensions: Iterable[str] | None = None,
     sort: SortMode | str = SortMode.AUTO,
     include_signals: bool = False,
+    experimental_derived_area: bool = False,
     adapter: str | None = None,
     sheet: str | None = None,
     include_hidden_sheets: bool = False,
@@ -1201,6 +1222,7 @@ def convert(
             extensions=extensions,
             sort=sort,
             include_signals=include_signals,
+            experimental_derived_area=experimental_derived_area,
             adapter=adapter,
             sheet=sheet,
             include_hidden_sheets=include_hidden_sheets,
@@ -1226,6 +1248,7 @@ def convert(
         extensions=extensions,
         sort=sort,
         include_signals=include_signals,
+        experimental_derived_area=experimental_derived_area,
         adapter=adapter,
         sheet=sheet,
         include_hidden_sheets=include_hidden_sheets,
@@ -1244,6 +1267,7 @@ def convert_recipe(
     output: str | os.PathLike[str] = "Ordifile_Result.xlsx",
     *,
     recipe: ConversionRecipe,
+    experimental_derived_area: bool = False,
     progress: Callable[[ProgressEvent], None] | None = None,
     registry: AdapterRegistry | None = None,
     conversion_plan: ConversionPlan | None = None,
@@ -1256,7 +1280,13 @@ def convert_recipe(
         )
     _require_registry(registry)
     active = create_registry() if registry is None else registry
-    current = plan_recipe(inputs, output, recipe=recipe, registry=active)
+    current = plan_recipe(
+        inputs,
+        output,
+        recipe=recipe,
+        experimental_derived_area=experimental_derived_area,
+        registry=active,
+    )
     if conversion_plan is None:
         conversion_plan = current
     elif current.public_summary_sha256 != conversion_plan.public_summary_sha256 or plan_bindings(

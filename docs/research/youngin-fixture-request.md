@@ -33,7 +33,7 @@ composite exports. Their full-range curves match all 138,000 PRM time/response p
 fulfil the direct scientific-signal gate for that exact profile. No CDF/TXT request remains
 open for 9.1.
 
-Ten independent exact 9.0.1.19 FID+TCD full-curve pairs now validate all 263,520 time and
+Twelve independent exact 9.0.1.19 FID+TCD full-curve pairs now validate all 316,220 time and
 response points. Together with the exact 9.1 evidence, they establish common zero-origin
 `DStep/MinTicks` minute axes and identity numeric response. The official exports also show
 that exact 9.0 uses FID/TCD mV while exact 9.1 uses FID pA/TCD mV. No further curve request

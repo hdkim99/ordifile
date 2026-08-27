@@ -6,7 +6,9 @@
 - Compatible producer boundary: strictly framed YL-Clarity `9.x` files that pass the
   complete structural and scientific-family fingerprint
 - Runtime dependency on YL-Clarity, Clarity, vendor DLLs or executables: none
-- Peaks, Area and Height from PRM: unsupported
+- Exact 9.0/9.1 marker-derived Peak RT and Area: selectable Experimental, explicitly
+  Ordifile-derived in `calculated_area`
+- Stored/vendor Result table and Height from PRM: unsupported
 
 PRM contains stored chromatographic data. Ordifile separates producer provenance from
 scientific capability: a version identifies the evidence cohort and known physical units,
@@ -39,15 +41,15 @@ are rejected rather than downgraded.
 
 ### YL-Clarity 9.0.1.19
 
-Ten content-confirmed same-run FID+TCD pairs validate 263,520 time points and 263,520
+Twelve content-confirmed same-run FID+TCD pairs validate 316,220 time points and 316,220
 response points. Each official curve is CP949 tab text with a five-decimal minute axis and
 four-decimal response. Every time lexeme matches `format(i / 600, ".5f")`; every response
 matches its stored binary32 value within the bound derived from the export precision. Both
 official channel headers declare voltage in mV, including the stream whose stored label is
 FID. The production units are therefore FID mV and TCD mV, not a global FID-to-pA rule.
 
-The broader 9.0 structural corpus remains 23 files, 43 current channels and 563,240 records,
-including TCD-only and FID+TCD files with one to three history entries. The same current-
+The broader 9.0 structural corpus contains 25 files, 47 current channels and 615,940 records,
+including TCD-only and FID+TCD files with one to four history entries. The same current-
 revision rule and scientific-family fingerprint are applied to every file.
 
 ### YL-Clarity 9.1.0.76
@@ -57,8 +59,8 @@ response points using the same time and identity-response semantics. Their expli
 headers declare FID pA and TCD mV. This exact profile retains its stricter single-history,
 source-ordered FID/TCD and equal-count envelope.
 
-Across both validated profiles, the common scientific core is backed by 401,520 time points
-and 401,520 response points. Physical response units remain profile-specific.
+Across both validated profiles, the common scientific core is backed by 454,220 time points
+and 454,220 response points. Physical response units remain profile-specific.
 
 ## Compatible, unvalidated 9.x producers
 
@@ -80,7 +82,12 @@ Scientific streams use the existing `Signals_FID` and `Signals_TCD` workbook con
 explicit `x_label`, `x_unit`, `y_label` and `y_unit` columns. A compatible profile with an
 unresolved response unit keeps the numeric rows and leaves `y_unit` blank; Metadata and
 Import_Log record the fixed compatibility warning. Structural-only files use existing
-`Signals_Records_*` sheets. No new workbook schema or YoungIn-specific GUI control is added.
+`Signals_Records_*` sheets. The GUI exposes a dedicated unchecked option without hiding it in
+advanced controls; CLI/API callers must request it explicitly. When an exact validated profile also contains the bounded
+marker/integration fingerprint, Ordifile writes experimental derived rows to the existing `Peaks` and
+`Peak_Order_Matrix` sheets. The source-explicit `area` field remains empty; the independent
+estimate is written to `calculated_area`. Each row carries its data origin, method identifier
+and evidence profile.
 
 The desktop route is **Add → Output → Preflight → Convert**. Exact adapter ownership means no
 Mapping or Recipe is required. Preflight keeps validated profiles on the `Exact adapter` route,
@@ -91,17 +98,44 @@ details. CLI users request the same rows explicitly:
 
 ```console
 ordifile convert run.prm --include-signals --output Ordifile_Result.xlsx
+
+# Explicitly request the independent experimental Area calculation.
+ordifile convert run.prm --experimental-derived-area --output Ordifile_Result.xlsx
 ```
 
 Neither route calls YL-Clarity or Clarity, loads a vendor DLL, or creates a temporary CSV.
 
-## Peak-result boundary
+## Derived-Area boundary
 
-PRM emits no `PeakRecord`, Area or Height. Paired Result evidence did not identify a repeatable
-bounded stored result record, and a scientific curve is not a license to reconstruct vendor
-integration. Ordifile performs no numerical integration, baseline reconstruction or automatic
-peak detection. The separate exact Result CSV adapter remains the production path for explicit
-RT/Area/Height rows.
+PRM does not expose a repeatable bounded stored Result table. Exact validated profiles may
+instead expose stored start/apex/valley/end marker partitions and numbered current-history
+processing tables. Ordifile binds the current detector table by source channel order and applies
+only the bounded exclusion rule observed in the same paired corpus. The full optional-event
+shape and sequence must remain inside that bounded fingerprint; otherwise calculated Area fails
+closed while Signals remain available. The later non-fixed-format evidence includes processing
+events that add or terminate official peaks without a one-to-one marker window; Ordifile does
+not reconstruct those rows. It uses the raw maximum inside each retained partition for RT.
+Original single-peak 9.0 Legacy clusters use adjacent envelope contacts with a straight
+base-to-base baseline; multi-peak 9.0 clusters and 9.1 use the shared cluster lower envelope.
+All variants use a deterministic trapezoidal Area calculation.
+
+Across 27 local-only same-run pairs, 340 safely emitted rows align with official displayed RT and
+order at export precision; 7 rows governed by an unimplemented processing-event shape are
+omitted. Area is not vendor-equivalent: 264/340 rows are within 1%, 288/340 within 5%, and
+integration-sensitive peaks include larger differences. Area matches 112/340 rows after
+two-decimal rounding and 2/340 after numerical rounding to four decimals. The 18 safely emitted
+rows from the new 25-row non-fixed oracle present official Area at three decimals; the earlier
+fixed-format oracles present four. GUI, CLI and API
+callers opt in. The result describes the same paired corpus used to select the rules; no
+untouched holdout has established generalization. Official Area coverage is 9.0 FID 243, 9.0 TCD 83,
+9.1 TCD 21, and 9.1 FID 0 (not tested).
+Every calculated row is labelled
+`ordifile_marker_derived` and `ordifile_derived_experimental`; the
+estimate is written to `calculated_area`, source-explicit `area` remains empty, and Height
+remains unavailable. See the
+[derived-Area investigation](../research/youngin-yl-clarity-prm-derived-area-investigation.md).
+
+The separate exact Result CSV adapter remains the path for explicit vendor RT/Area/Height rows.
 
 ## Privacy and interoperability
 

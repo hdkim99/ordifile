@@ -112,6 +112,52 @@ def test_peak_order_matrix_requires_room_for_identity_and_one_atomic_pair(
     assert caught.value.code == "EXCEL_COLUMN_LIMIT"
 
 
+def test_derived_peak_order_matrix_splits_only_between_atomic_peak_triples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed = (
+        "sample_id",
+        "source_file",
+        "manufacturer",
+        "detector",
+        "channel",
+        "retention_time_unit",
+        "area_unit",
+        "calculated_area_unit",
+        "data_origin",
+        "derivation_method_id",
+        "derivation_evidence_profile",
+    )
+    dynamic = tuple(
+        header
+        for index in range(1, 4)
+        for header in (
+            f"peak_{index}_rt",
+            f"peak_{index}_area",
+            f"peak_{index}_calculated_area",
+        )
+    )
+    row = (*("identity" for _ in fixed), 1, None, 10, 2, None, 20, 3, None, 30)
+    dataset = excel._SheetData("Peak_Order_Matrix", (*fixed, *dynamic), (row,))
+    monkeypatch.setattr(excel, "MAX_EXCEL_COLUMNS", 17)
+
+    segments = excel._column_segments(dataset)
+
+    assert [len(segment.headers) for segment in segments] == [17, 14]
+    assert segments[0].headers[-3:] == (
+        "peak_2_rt",
+        "peak_2_area",
+        "peak_2_calculated_area",
+    )
+    assert segments[1].headers == (
+        *fixed,
+        "peak_3_rt",
+        "peak_3_area",
+        "peak_3_calculated_area",
+    )
+    assert segments[1].rows[0][-3:] == (3, None, 30)
+
+
 def test_peak_order_matrix_2d_splits_only_between_atomic_rt1_rt2_area_triples(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -231,6 +277,31 @@ def test_peak_order_matrix_sidecar_placeholder_keeps_identity_columns() -> None:
     assert excel._sidecar_eligible(dataset)
     placeholder = excel._datasets_for_workbook((dataset,), (dataset,))[0]
     assert placeholder.headers == (*headers[:7], "sidecar_status")
+    assert placeholder.rows == ()
+
+
+def test_derived_peak_order_matrix_sidecar_placeholder_keeps_provenance_columns() -> None:
+    headers = (
+        "sample_id",
+        "source_file",
+        "manufacturer",
+        "detector",
+        "channel",
+        "retention_time_unit",
+        "area_unit",
+        "calculated_area_unit",
+        "data_origin",
+        "derivation_method_id",
+        "derivation_evidence_profile",
+        "peak_1_rt",
+        "peak_1_area",
+        "peak_1_calculated_area",
+    )
+    dataset = excel._SheetData("Peak_Order_Matrix", headers, ())
+
+    placeholder = excel._datasets_for_workbook((dataset,), (dataset,))[0]
+
+    assert placeholder.headers == (*headers[:11], "sidecar_status")
     assert placeholder.rows == ()
 
 

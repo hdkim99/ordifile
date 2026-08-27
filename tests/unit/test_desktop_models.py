@@ -91,6 +91,19 @@ def test_request_validation_accepts_every_public_sort_mode(tmp_path: Path) -> No
         validate_request(DesktopRequest((tmp_path / "input.csv",), tmp_path / "result.xlsx", sort))
 
 
+def test_request_validation_rejects_non_boolean_experimental_area(tmp_path: Path) -> None:
+    request = DesktopRequest(
+        (tmp_path / "input.csv",),
+        tmp_path / "result.xlsx",
+        experimental_derived_area="yes",  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RequestValidationError) as caught:
+        validate_request(request)
+
+    assert caught.value.code == "OPTION_TYPE_INVALID"
+
+
 def test_request_validation_rejects_directory_output(tmp_path: Path) -> None:
     with pytest.raises(RequestValidationError) as caught:
         validate_request(DesktopRequest((tmp_path / "input.csv",), tmp_path))

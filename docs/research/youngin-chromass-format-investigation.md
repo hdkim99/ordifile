@@ -79,7 +79,7 @@ Other `YL` model names are not added based on naming similarity alone.
 
 | Software | Verified relationship and versions | OS / instrument evidence | Project and file evidence | Export / SDK | Decision |
 |---|---|---|---|---|---|
-| YL-Clarity | DataApex officially announced in 2008 that Young Lin Instruments would sell a Clarity OEM as `YL-Clarity`; a 2021 YOUNG IN Chromass note names 8.1, 8.5, and 8.6.1 | 2021 note maps versions to ChroZen and YL6500 detector configurations; generic Clarity OS claims cannot be copied to every OEM build | Local-only 9.0.1.19 and 9.1.0.76 scientific-signal PRM profiles plus one owner-provenance standalone Result Table grammar are fixture-backed; compatible unvalidated 9.x uses a strict fingerprint and unresolved response units; equivalence to other OEM or vanilla Clarity versions remains unresolved | Current product page describes export and post-run features; DataApex control-module SDK is contractual, not a public `.prm` reader SDK | Exact 9.0/9.1 FID/TCD scientific signals and standalone Result Table Experimental; direct PRM peaks NO_GO |
+| YL-Clarity | DataApex officially announced in 2008 that Young Lin Instruments would sell a Clarity OEM as `YL-Clarity`; a 2021 YOUNG IN Chromass note names 8.1, 8.5, and 8.6.1 | 2021 note maps versions to ChroZen and YL6500 detector configurations; generic Clarity OS claims cannot be copied to every OEM build | Local-only 9.0.1.19 and 9.1.0.76 scientific-signal PRM profiles plus one owner-provenance standalone Result Table grammar are fixture-backed; compatible unvalidated 9.x uses a strict fingerprint and unresolved response units; equivalence to other OEM or vanilla Clarity versions remains unresolved | Current product page describes export and post-run features; DataApex control-module SDK is contractual, not a public `.prm` reader SDK | Exact 9.0/9.1 FID/TCD scientific signals, selectable Ordifile-derived experimental RT/`calculated_area`, and standalone Result Table; vendor Result equivalence remains NO_GO |
 | AUTOCHRO-II / Autochro-2 | Official history records `Autochro2` in 2012; a 2017 official item describes XP/Vista/7/8 use and YL6500/HPLC control | Multiple-channel and auxiliary-signal acquisition described | Native extension, project tree, method, sequence, calibration and report structures unresolved | ASCII/CDF compatibility mentioned; public SDK and license not found | Treat spelling equivalence and format generation as unresolved |
 | Autochro-3000 | Current YOUNG IN Chromass training form lists it as a separate program | Supported GC models and Windows versions unresolved | Native extension, format version and project structure unresolved | Export, SDK and license unresolved | Separate research backlog; never alias to Autochro-2 |
 
@@ -132,10 +132,10 @@ ASCII/CDF export, and written permission or an official format/API route.
 ### Expanded scientific-family update — 2026-08-25
 
 A bounded local-only 9.1 archive supplies five unique PRMs and five same-run composite
-Result/curve exports. Ten later 9.0 FID+TCD PRM/curve pairs independently close the
+Result/curve exports. Twelve 9.0 FID+TCD PRM/curve pairs independently close the
 cross-version scientific gate. Full-series content, not filenames, confirms every pair.
 The two exact profiles share zero-origin `DStep/MinTicks` minutes and identity numeric
-response over 401,520 time and 401,520 response points. Units remain profile-specific:
+response over 454,220 time and 454,220 response points. Units remain profile-specific:
 9.0 FID/TCD mV and 9.1 FID pA/TCD mV. Twenty-one composite Result rows did not reveal
 repeatable stored RT/Area/Height records and are not promoted into the standalone Result
 adapter.
@@ -145,7 +145,7 @@ otherwise.
 
 | Extension or structure | Software | Claimed purpose | Verified purpose | Evidence | YoungIn fixture |
 |---|---|---|---|---|---|
-| `.prm` | General Clarity; exact observed YL-Clarity 9.0.1.19 and 9.1.0.76 profiles | Completed chromatogram | Direct scientific FID/TCD signals for both validated profiles; strict compatible 9.x scientific values retain unresolved response units | DataApex lifecycle plus 28 structural files and 15 paired full curves | 28 local-only structural files |
+| `.prm` | General Clarity; exact observed YL-Clarity 9.0.1.19 and 9.1.0.76 profiles | Completed chromatogram | Direct scientific FID/TCD signals for both validated profiles; strict compatible 9.x scientific values retain unresolved response units | DataApex lifecycle plus 30 structural files and 17 paired full curves | 30 local-only structural files |
 | `.raw` | General Clarity; YL-Clarity candidate | Acquisition/recovery data | Verified temporary/recovery role for general Clarity; not a normal completed chromatogram | DataApex recovery and error-flow documentation | None |
 | `.met` | General Clarity | Acquisition and processing method | Verified for general Clarity | DataApex terminology | None |
 | `.seq` | General Clarity | Automatic analysis sequence | Verified for general Clarity | DataApex terminology | None |
@@ -214,9 +214,10 @@ adapter preserves those allowlisted native values as Experimental channel labels
 leaving the canonical detector field unset.
 
 For 9.0, the adapter preserves source channel order without interpolation and writes
-separate decoded-record sheets for the stored labels. The distinct exact 9.1 profile writes
-paired-curve-validated scientific signals. Neither path performs peak detection or creates
-PRM-derived Area/Height.
+separate scientific-signal sheets for the stored labels. The distinct exact 9.1 profile also
+writes paired-curve-validated scientific signals. Neither path performs whole-curve automatic
+peak detection or creates source-explicit vendor Area/Height. Exact marker profiles can add an
+independent `calculated_area` with explicit provenance after GUI/CLI/API opt-in.
 
 ## Public and locally supplied fixtures
 
@@ -317,27 +318,28 @@ a future source-kind API without changing v1 single-file semantics.
 
 | Gate | BSEE Agilent ChemStation `.ch` v181 | YL-Clarity completed `.prm` | Autochro native |
 |---|---:|---:|---:|
-| Normal complete fixture | Yes | 28 local completed files; exact 9.0 and 9.1 signal profiles validated | No |
+| Normal complete fixture | Yes | 30 local completed files; exact 9.0 and 9.1 signal profiles validated | No |
 | Lawful public source | Yes | No | No |
 | Redistribution basis | BSEE public-information guidance | No | No |
 | Privacy review | Passed | Local-only intake reviewed; identifying metadata candidates withheld from every public surface | Impossible without bytes |
 | Format/version marker | Exact `181` bytes; version role backed by public readers, not a vendor byte specification | Exact observed start, producer, history, block and footer boundaries for separate 9.0.1.19 and 9.1.0.76 profiles | Unresolved |
-| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Shared zero-origin `DStep/MinTicks` minute axis and identity numeric response; 263,520 exact-9.0 plus 138,000 exact-9.1 full-curve points | Not possible |
+| Signal extraction | 36,501 structural decoded records; scientific point count and time axis unresolved | Shared zero-origin `DStep/MinTicks` minute axis and identity numeric response; 316,220 exact-9.0 plus 138,000 exact-9.1 full-curve points | Not possible |
 | Detector meaning | FID-scoped evidence | Exact 9.0 pairs verify FID/TCD mV; exact 9.1 pairs verify FID pA/TCD mV; unvalidated compatible 9.x unit unresolved | Unresolved |
-| Paired official export | No | Two standalone Result Tables plus ten 9.0 and five 9.1 same-run composite curves | No |
+| Paired official export | No | Two standalone Result Tables plus twelve 9.0 and five 9.1 same-run composite curves | No |
 | Lawful implementation route | Independently written Experimental implementation; no reader dependency/code copy | Independently written from owner-file observations, public documents and standard gzip/IEEE-754; no proprietary/GPL code copy | No public specification/reader |
-| Current decision | Experimental decoded-record adapter; Verified gate remains open | Experimental compatible-family scientific signals and standalone Result adapter; direct PRM peaks NO_GO | `BLOCKED_BY_FIXTURE` |
+| Current decision | Experimental decoded-record adapter; Verified gate remains open | Experimental compatible-family scientific signals, exact-profile selectable marker-derived RT/`calculated_area`, and standalone Result adapter; vendor Result equivalence NO_GO | `BLOCKED_BY_FIXTURE` |
 
 The strict compatible 9.x scientific-family and separate standalone Result Table
 boundaries are implemented. Exact 9.0.1.19 and 9.1.0.76 have their own validated physical
 unit policies; unvalidated compatible 9.x retains unresolved response units. Other
 producer generations require their own fixtures and scientific gates.
 
-The 2026-08-25 local revalidation preserves all 28 structural PRMs, 53 current blocks and
-701,240 records. Ten 9.0 and five 9.1 same-run curve pairs establish the common time and
-numeric-response semantics over 401,520 points. They also prove that physical units cannot
-be derived from the stored `FID` label alone. PRM-derived peak promotion remains NO_GO;
-no numerical integration or peak detection is substituted.
+The local corpus preserves all 30 structural PRMs, 57 current blocks and
+753,940 records. Twelve 9.0 and five 9.1 same-run curve pairs establish the common time and
+numeric-response semantics over 454,220 points. They also prove that physical units cannot
+be derived from the stored `FID` label alone. Stored/vendor Result peak promotion remains
+NO_GO. The separately labelled, selectable `calculated_area` capability is not vendor-result
+equivalence, and Height remains unavailable.
 
 ## Minimum verification before “Verified”
 

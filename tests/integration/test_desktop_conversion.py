@@ -183,7 +183,10 @@ def test_desktop_preflight_converts_validated_9_0_and_compatible_unknown_profile
     assert "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL" in (
         validated_preflight.plan.entries[0].issue_codes
     )
-    assert validated_preflight.files[0].issue_codes == ("YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL",)
+    assert validated_preflight.files[0].issue_codes == (
+        "YOUNGIN_PRM_VALIDATED_SCIENTIFIC_SIGNAL",
+        "YOUNGIN_PRM_CALCULATED_AREA_NOT_REQUESTED",
+    )
     assert "Validated YoungIn PRM profile" in validated_preflight.files[0].message
     converted = convert_preflight_plan(validated_preflight.plan)
     assert converted.summary is not None

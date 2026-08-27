@@ -79,8 +79,8 @@ Height. An acquisition provider is `NOT_NEEDED` without a lawful native-source w
 
 ## Scientific boundary
 
-Automatic Result acquisition never substitutes signal integration, peak detection, baseline
-reconstruction, unit inference, or vendor-algorithm imitation. Without a validated provider,
-YoungIn PRM continues to produce validated Signals but no Peaks. A user-supplied exact Result
-file remains accepted as an independent input unless same-run provenance is independently
-established; filenames are never used to merge user inputs.
+Automatic Result acquisition never substitutes vendor peak detection, unit inference, or
+vendor-algorithm imitation. Without a validated provider, YoungIn PRM produces validated
+Signals and, after explicit GUI/CLI/API selection for exact marker/integration profiles, explicitly
+Ordifile-derived experimental RT/`calculated_area` rows. A user-supplied exact Result remains an independent source and is not called
+equivalent or deduplicated; filenames are never used to merge user inputs.

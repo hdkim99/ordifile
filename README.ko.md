@@ -282,7 +282,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
-| YoungIn YL-Clarity `.PRM`, 검증된 scientific family | scientific fingerprint | 없음 | retention time(min) + direct stored response; 9.0 FID/TCD mV, 9.1 FID pA/TCD mV, compatible 9.x는 response unit 미확정 가능 | Experimental | 사용자 PRM 28개 + 검증된 9.0/9.1 same-run full-curve pair 15개 |
+| YoungIn YL-Clarity `.PRM`, 검증된 scientific family | scientific fingerprint | exact 9.0/9.1 marker profile에서 선택형 Ordifile 계산값 | retention time(min) + direct stored response; experimental `calculated_area`는 source `area`와 분리; Height 미지원; compatible 9.x는 response unit 미확정 가능 | Experimental | 사용자 PRM 30개 + 검증된 9.0/9.1 same-run PRM/curve/Result pair 27개 |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | 과학 데이터 allowlist | source peak 행 | RT1/RT2 (s) + area/height (AU), raw signal 없음 | Experimental | 외부 Dryad CC0 non-human 파일 1개 |
 
@@ -335,7 +335,7 @@ YoungIn PRM에는 chromatographic stored data가 존재합니다. Adapter는 pro
 scientific formula의 직접 조건으로 쓰지 않고, bounded current block, duplicate payload,
 유한 binary32 record, size equation, source-order stored label, 검증된 `DStep=1` /
 `MinTicks=600`을 scientific-family fingerprint로 확인합니다. 9.0의 same-run FID+TCD pair
-10개에서 time/response 263,520개씩, 9.1 pair 5개에서 138,000개씩 전부 일치했습니다.
+12개에서 time/response 316,220개씩, 9.1 pair 5개에서 138,000개씩 전부 일치했습니다.
 두 exact profile은 0-origin `i * DStep / MinTicks` 분 단위 RT와 identity numeric response를
 공유합니다. 다만 physical response unit은 profile별입니다. `9.0.1.19`는 FID mV/TCD mV,
 `9.1.0.76`은 FID pA/TCD mV입니다.
@@ -345,8 +345,23 @@ scientific formula의 직접 조건으로 쓰지 않고, bounded current block, 
 근거가 없으면 numeric signal은 보존하되 response unit을 미확정으로 둡니다. Scientific
 fingerprint만 부족하면 time/physical-response 의미를 붙이지 않은 decoded records로
 downgrade하고, framing·payload·size·history·channel 구조가 손상되면 fail closed합니다.
-Runtime에는 YL-Clarity, vendor DLL, temporary CSV가 필요하지 않습니다. PRM에서 peak, Area,
-Height를 만들거나 curve를 재적분하거나 peak detection을 실행하지 않습니다. 이는 모든
+Runtime에는 YL-Clarity, vendor DLL, temporary CSV가 필요하지 않습니다. GUI에는 항상
+보이는 전용 체크박스가 있으며 기본은 꺼져 있습니다. CLI에서는
+`--experimental-derived-area`를 명시적으로 사용합니다. Exact 9.0/9.1에서 bounded marker와
+current processing-table fingerprint까지 맞으면 controlled corpus에서 관측한 bounded 저장 제외 규칙을
+적용합니다. 9.0 Legacy의 원래 단일-peak marker cluster에만 Ordifile contact-bounded
+straight-baseline 추정식을 사용하고, shared cluster와 9.1은 기존 cluster lower-envelope
+계산을 보존합니다. Paired run 27개에서 안전하게 생성한 340행의 count/order/RT가 export
+precision에서 일치하며, calculated Area는 소수 2자리 반올림 112/340, 수치상 소수 4자리
+반올림 2/340입니다. 새 비고정 형식 oracle 25행 중 안전하게 생성한 18행의 공식 Area는
+소수 3자리이고, 이전 고정 형식 oracle은 소수 4자리입니다. 아직 구현하지 않은
+processing-table shape의 7행은 추측하지 않고
+생략합니다. 따라서 공식 Area 동등성의 2자리 gate는 통과하지 못했습니다. 이는 controlled
+evidence에 대한 기술적 결과이며 independent holdout, 공식 boundary 복원 또는 일반화
+근거가 아닙니다. Workbook은 이 추정치를
+`calculated_area`에 쓰고 source-explicit `area`는 비워 두며, 각 행의 계산 출처와 방법을
+표시합니다. 저장된 vendor Result 또는 vendor-equivalent Area라고 주장하지 않습니다.
+Height는 계속 미지원이고 compatible unknown 9.x에는 이 기능을 상속하지 않습니다. 이는 모든
 YL-Clarity version 지원 주장이 아닙니다. Recovery `.RAW`, Autochro, 쓰기 기능은 계속
 지원하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 

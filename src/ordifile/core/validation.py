@@ -434,8 +434,34 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             "compound_source",
             "area_unit",
             "height_unit",
+            "data_origin",
+            "derivation_method_id",
+            "derivation_evidence_profile",
+            "calculated_area_unit",
         ):
             validate_text(getattr(peak, field), f"peak.{field}", peak.source_file)
+        derivation_fields = (
+            peak.data_origin,
+            peak.derivation_method_id,
+            peak.derivation_evidence_profile,
+            peak.calculated_area,
+            peak.calculated_area_unit,
+        )
+        if any(value is not None for value in derivation_fields) and (
+            peak.data_origin != "ordifile_marker_derived"
+            or any(value is None for value in derivation_fields)
+            or peak.area is not None
+            or peak.area_unit is not None
+        ):
+            issues.append(
+                Issue(
+                    "PEAK_DERIVATION_PROVENANCE_INVALID",
+                    "An Ordifile-derived marker row must keep its calculated Area and complete "
+                    "derivation provenance separate from source-explicit Area.",
+                    Severity.ERROR,
+                    peak.source_file,
+                )
+            )
         validate_text(peak.status, "peak.status", peak.source_file, optional=False)
         if (
             type(peak.sample_id) is str
@@ -485,6 +511,7 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             "height",
             "start_time",
             "end_time",
+            "calculated_area",
         ):
             value = getattr(peak, field)
             if value is not None and (type(value) not in {int, float}):
@@ -617,7 +644,19 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     source_file,
                 )
             )
-        for field in ("retention_time", "area"):
+        uses_calculated_area = [peak.calculated_area is not None for peak in stream]
+        if any(uses_calculated_area) and not all(uses_calculated_area):
+            issues.append(
+                Issue(
+                    "PEAK_AREA_ORIGIN_MIXED",
+                    "An ordered peak stream cannot mix source-explicit and Ordifile-calculated "
+                    "Area rows.",
+                    Severity.ERROR,
+                    source_file,
+                )
+            )
+        area_field = "calculated_area" if all(uses_calculated_area) else "area"
+        for field in ("retention_time", area_field):
             if any(
                 type(getattr(peak, field)) not in {int, float}
                 or type(getattr(peak, field)) is float
@@ -645,7 +684,10 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
                     source_file,
                 )
             )
-        area_units = tuple(peak.area_unit for peak in stream)
+        area_units = tuple(
+            peak.calculated_area_unit if area_field == "calculated_area" else peak.area_unit
+            for peak in stream
+        )
         nonempty_area_units = tuple(
             unit for unit in area_units if type(unit) is str and unit.strip()
         )
@@ -661,8 +703,8 @@ def validate_bundle(bundle: DatasetBundle) -> tuple[Issue, ...]:
             issues.append(
                 Issue(
                     "ORDERED_PEAK_UNIT_INVALID",
-                    "An ordered peak stream requires area_unit to be consistently unresolved "
-                    "or one consistent nonempty string.",
+                    "An ordered peak stream requires its Area unit to be consistently "
+                    "unresolved or one consistent nonempty string.",
                     Severity.ERROR,
                     source_file,
                 )
