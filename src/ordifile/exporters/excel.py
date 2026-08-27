@@ -293,11 +293,28 @@ def _peaks_data(result: BatchResult) -> _SheetData:
         peak.secondary_retention_time is not None or peak.secondary_retention_time_unit is not None
         for _manufacturer, peak in peak_entries
     )
+    include_derivation_provenance = any(
+        peak.data_origin is not None
+        or peak.derivation_method_id is not None
+        or peak.derivation_evidence_profile is not None
+        for _manufacturer, peak in peak_entries
+    )
     headers = (
         *base_headers,
         *(
             ("secondary_retention_time", "secondary_retention_time_unit")
             if include_secondary_retention
+            else ()
+        ),
+        *(
+            (
+                "calculated_area",
+                "calculated_area_unit",
+                "data_origin",
+                "derivation_method_id",
+                "derivation_evidence_profile",
+            )
+            if include_derivation_provenance
             else ()
         ),
     )
@@ -324,6 +341,17 @@ def _peaks_data(result: BatchResult) -> _SheetData:
             *(
                 (peak.secondary_retention_time, peak.secondary_retention_time_unit)
                 if include_secondary_retention
+                else ()
+            ),
+            *(
+                (
+                    peak.calculated_area,
+                    peak.calculated_area_unit,
+                    peak.data_origin or "source_explicit",
+                    peak.derivation_method_id,
+                    peak.derivation_evidence_profile,
+                )
+                if include_derivation_provenance
                 else ()
             ),
         )
@@ -434,16 +462,19 @@ def _peak_order_matrix_data(result: BatchResult) -> _SheetData | None:
         "retention_time_unit",
         "area_unit",
     )
+    include_derived = any(
+        peak.calculated_area is not None
+        for item in result.files
+        if _successful(item) and item.bundle is not None
+        for peak in item.bundle.peaks
+    )
     rows_with_peaks: list[tuple[tuple[Any, ...], list[PeakRecord]]] = []
     maximum_peaks = 0
     for item in result.files:
         if not _successful(item) or item.bundle is None or not item.bundle.samples:
             continue
         sample = item.bundle.samples[0]
-        grouped: dict[
-            tuple[str, str, str | None, str | None, str | None, str | None, str | None],
-            list[PeakRecord],
-        ] = {}
+        grouped: dict[tuple[Any, ...], list[PeakRecord]] = {}
         for peak in item.bundle.peaks:
             if peak.observation_order is None or peak.secondary_retention_time is not None:
                 continue
@@ -455,6 +486,16 @@ def _peak_order_matrix_data(result: BatchResult) -> _SheetData | None:
                 peak.channel,
                 peak.retention_time_unit,
                 peak.area_unit,
+                *(
+                    (
+                        peak.calculated_area_unit,
+                        peak.data_origin or "source_explicit",
+                        peak.derivation_method_id,
+                        peak.derivation_evidence_profile,
+                    )
+                    if include_derived
+                    else ()
+                ),
             )
             grouped.setdefault(identity, []).append(peak)
         for identity, peaks in grouped.items():
@@ -462,20 +503,47 @@ def _peak_order_matrix_data(result: BatchResult) -> _SheetData | None:
             rows_with_peaks.append((identity, peaks))
     if not rows_with_peaks:
         return None
+    provenance_headers = (
+        (
+            "calculated_area_unit",
+            "data_origin",
+            "derivation_method_id",
+            "derivation_evidence_profile",
+        )
+        if include_derived
+        else ()
+    )
     dynamic_headers = tuple(
         header
         for index in range(1, maximum_peaks + 1)
-        for header in (f"peak_{index}_rt", f"peak_{index}_area")
+        for header in (
+            (f"peak_{index}_rt", f"peak_{index}_area", f"peak_{index}_calculated_area")
+            if include_derived
+            else (f"peak_{index}_rt", f"peak_{index}_area")
+        )
     )
+    values_per_peak = 3 if include_derived else 2
     rows = tuple(
         (
             *identity,
-            *(value for peak in peaks for value in (peak.retention_time, peak.area)),
-            *(None for _ in range(2 * (maximum_peaks - len(peaks)))),
+            *(
+                value
+                for peak in peaks
+                for value in (
+                    (peak.retention_time, peak.area, peak.calculated_area)
+                    if include_derived
+                    else (peak.retention_time, peak.area)
+                )
+            ),
+            *(None for _ in range(values_per_peak * (maximum_peaks - len(peaks)))),
         )
         for identity, peaks in rows_with_peaks
     )
-    return _SheetData("Peak_Order_Matrix", (*fixed_headers, *dynamic_headers), rows)
+    return _SheetData(
+        "Peak_Order_Matrix",
+        (*fixed_headers, *provenance_headers, *dynamic_headers),
+        rows,
+    )
 
 
 def _peak_order_matrix_2d_data(result: BatchResult) -> _SheetData | None:
@@ -741,20 +809,35 @@ def _signal_rows(signal: SignalSeries) -> list[tuple[Any, ...]]:
     return rows
 
 
+def _peak_order_matrix_column_group(headers: tuple[str, ...]) -> tuple[int, int]:
+    """Return fixed/provenance width and one complete peak-group width."""
+    derived_provenance = (
+        "calculated_area_unit",
+        "data_origin",
+        "derivation_method_id",
+        "derivation_evidence_profile",
+    )
+    if headers[7:11] == derived_provenance:
+        return 11, 3
+    return 7, 2
+
+
 def _column_segments(sheet: _SheetData) -> tuple[_SheetData, ...]:
     if len(sheet.headers) <= MAX_EXCEL_COLUMNS:
         return (sheet,)
     column_groups = {
         "Peak_Matrix": (1, 1),
-        "Peak_Order_Matrix": (7, 2),
         "Peak_Order_Matrix_2D": (8, 3),
     }
-    if sheet.logical_name not in column_groups:
+    if sheet.logical_name == "Peak_Order_Matrix":
+        fixed_columns, atomic_columns = _peak_order_matrix_column_group(sheet.headers)
+    elif sheet.logical_name in column_groups:
+        fixed_columns, atomic_columns = column_groups[sheet.logical_name]
+    else:
         raise ExportLimitError(
             "EXCEL_COLUMN_LIMIT",
             f"Sheet {sheet.logical_name!r} requires {len(sheet.headers)} columns.",
         )
-    fixed_columns, atomic_columns = column_groups[sheet.logical_name]
     if MAX_EXCEL_COLUMNS < fixed_columns + atomic_columns:
         raise ExportLimitError("EXCEL_COLUMN_LIMIT", "Excel column capacity is too small.")
     capacity = MAX_EXCEL_COLUMNS - fixed_columns
@@ -934,11 +1017,17 @@ def _presentation_for(sheet: _PhysicalSheet) -> _SheetPresentation:
             width_overrides=((0, 0, 22),),
         )
     if logical_name == "Peak_Order_Matrix":
+        fixed_columns, _atomic_columns = _peak_order_matrix_column_group(sheet.headers)
         return _SheetPresentation(
-            freeze_columns=7,
-            filter_columns=min(7, len(sheet.headers)),
+            freeze_columns=fixed_columns,
+            filter_columns=min(fixed_columns, len(sheet.headers)),
             default_width=12,
-            width_overrides=((0, 2, 22), (3, 4, 16), (5, 6, 22)),
+            width_overrides=(
+                (0, 2, 22),
+                (3, 4, 16),
+                (5, 6, 22),
+            )
+            + (((7, 10, 28),) if fixed_columns == 11 else ()),
         )
     if logical_name == "Peak_Order_Matrix_2D":
         return _SheetPresentation(
@@ -1153,6 +1242,13 @@ def _manifest_data(
         ),
         ("option_sort", result.options.sort.value, None, None, None),
         ("option_include_signals", str(result.options.include_signals), None, None, None),
+        (
+            "option_experimental_derived_area",
+            str(result.options.experimental_derived_area),
+            None,
+            None,
+            None,
+        ),
         ("option_adapter", result.options.adapter or "<auto>", None, None, None),
         ("option_sheet", result.options.sheet or "<auto>", None, None, None),
         (
@@ -1357,7 +1453,8 @@ def _datasets_for_workbook(
                 # Dynamic compound names can themselves exceed Excel's cell limit.
                 headers = ("sample_id", "sidecar_status")
             elif dataset.logical_name == "Peak_Order_Matrix":
-                headers = (*dataset.headers[:7], "sidecar_status")
+                fixed_columns, _atomic_columns = _peak_order_matrix_column_group(dataset.headers)
+                headers = (*dataset.headers[:fixed_columns], "sidecar_status")
             elif dataset.logical_name == "Peak_Order_Matrix_2D":
                 headers = (*dataset.headers[:8], "sidecar_status")
             workbook_datasets.append(_SheetData(dataset.logical_name, headers, ()))

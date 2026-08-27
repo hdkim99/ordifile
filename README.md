@@ -293,7 +293,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
-| YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | No | Retention time (min) + direct stored response; 9.0 FID/TCD mV, 9.1 FID pA/TCD mV, compatible 9.x response unit may be unresolved | Experimental | 28 owner PRMs plus 15 same-run full-curve pairs across validated 9.0/9.1 profiles |
+| YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus 27 same-run PRM/curve/Result pairs across validated 9.0/9.1 profiles |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
 
@@ -348,8 +348,8 @@ SIM/MRM, identifications, quantitation, or write support. See the
 YoungIn PRM files contain chromatographic stored data. The adapter validates a common
 scientific-layout fingerprint independently of producer provenance: bounded current blocks,
 duplicate payloads, finite binary32 records, size equations, source-ordered stored labels,
-and the validated `DStep=1` / `MinTicks=600` time metadata. Ten same-run 9.0 FID+TCD pairs
-match all 263,520 time and response points; five 9.1 pairs match all 138,000. Both validated
+and the validated `DStep=1` / `MinTicks=600` time metadata. Twelve same-run 9.0 FID+TCD pairs
+match all 316,220 time and response points; five 9.1 pairs match all 138,000. Both validated
 profiles therefore use zero-origin `i * DStep / MinTicks` retention time in minutes and
 identity numeric response. Physical response units remain profile-specific: exact
 `9.0.1.19` uses FID mV and TCD mV, while exact `9.1.0.76` uses FID pA and TCD mV.
@@ -360,8 +360,24 @@ validated; its physical response unit remains unresolved unless evidence resolve
 the structural safety fingerprint matches, Ordifile preserves decoded records without a time
 or physical-response claim. Invalid framing, payloads, sizes, history, or channel structures
 still fail closed. No YL-Clarity installation, vendor DLL, or temporary CSV is required at
-runtime. PRM never produces peaks, Area, or Height, and Ordifile does not integrate the curve
-or run peak detection. Runtime sample IDs are content-derived. This is not a claim that all
+runtime. The GUI shows a dedicated unchecked option; CLI users request it with
+`--experimental-derived-area`. Exact validated 9.0/9.1 files with the bounded marker and
+current processing-table fingerprint apply one bounded stored exclusion rule observed across the
+controlled corpus. The 9.0 Legacy profile uses an Ordifile contact-bounded straight-baseline
+estimate only for original single-peak marker clusters; shared clusters and 9.1 preserve the
+cluster lower-envelope calculation. Across 27 paired runs, 340 safely emitted rows align with
+official RT/order at export precision. Area matches 112/340 rows after two-decimal rounding and
+2/340 after numerical rounding to four decimals. The 18 safely emitted rows from the new
+25-row non-fixed oracle expose official Area at three decimals, while the earlier fixed-format
+oracles expose four. Seven
+additional rows governed by an
+unimplemented processing-table shape are omitted rather than guessed. The two-decimal
+official-equivalence gate therefore remains closed. This is descriptive controlled evidence,
+not an independent holdout or a claim that Ordifile reconstructs official boundaries. The
+workbook writes this estimate to `calculated_area`, leaves source-explicit `area` empty, and
+marks the origin and method. It is not a stored or vendor-equivalent Result, and Height remains
+unavailable. Compatible unknown 9.x files do not inherit this capability. Runtime sample IDs
+are content-derived. This is not a claim that all
 YL-Clarity versions are supported. Recovery `.RAW`, Autochro, and write support remain
 unsupported. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md).

@@ -59,11 +59,11 @@ from becoming a broad support claim.
    y, unknown units, and explicit Experimental warnings. It does not expose retention
    time or apply candidate scaling. See
    [`agilent-chemstation-ch-v181-investigation.md`](../research/agilent-chemstation-ch-v181-investigation.md).
-10. The initial owner-supplied intake authorizes local validation of 23 completed PRM files.
+10. The owner-supplied intake authorizes local validation of 25 completed 9.0 PRM files.
     Their exact producer marker, bounded typed properties, duplicate gzip blocks,
     record-count equations, finite binary32 payloads and stored FID/TCD labels support
-    the structural boundary. Ten later same-run FID+TCD curve pairs validate the exact
-    9.0.1.19 scientific profile over 263,520 time and response points. Two paired Result
+    the structural boundary. Twelve same-run FID+TCD curve pairs validate the exact
+    9.0.1.19 scientific profile over 316,220 time and response points. Two paired Result
     Tables establish a separate peak-result path.
 11. The Shimadzu runtime boundary is one LabSolutions 5.82 `GC-2014` file with a
     single `Ch1` mapping to `SFID1`, `uV`/`VF1`, and identity conversion/gain factors.
@@ -79,8 +79,8 @@ from becoming a broad support claim.
     is not called m/z and MS1 is not exported. See
     [`shimadzu-gcmssolution-qgd-investigation.md`](../research/shimadzu-gcmssolution-qgd-investigation.md).
 13. The YoungIn runtime boundary is a typed YL-Clarity 9.x PRM scientific-family
-    fingerprint. Exact `9.0.1.19` is validated by ten same-run FID+TCD curve pairs over
-    263,520 points: zero-origin `DStep/MinTicks` minutes, identity binary32 response,
+    fingerprint. Exact `9.0.1.19` is validated by twelve same-run FID+TCD curve pairs over
+    316,220 points: zero-origin `DStep/MinTicks` minutes, identity binary32 response,
     FID mV and TCD mV. Structurally safe files with an incomplete scientific fingerprint
     retain decoded records without time or response-unit claims. See
     [`youngin-yl-clarity-prm-raw-format-notes.md`](../research/youngin-yl-clarity-prm-raw-format-notes.md).
@@ -135,14 +135,15 @@ evidence. It must not claim peaks, TCD, all `.ch` generations, whole `.D` direct
 GC-MS, or write support.
 
 The YoungIn track is Experimental compatibility-family GO for a strictly framed 9.x
-producer and a complete structural/scientific fingerprint. Twenty-eight PRMs establish
-53 current channels and 701,240 deterministic binary32 records. Ten same-run 9.0 FID+TCD
-pairs and five 9.1 pairs validate 401,520 time points and 401,520 numeric responses. Both
+producer and a complete structural/scientific fingerprint. Thirty PRMs establish
+57 current channels and 753,940 deterministic binary32 records. Twelve same-run 9.0 FID+TCD
+pairs and five 9.1 pairs validate 454,220 time points and 454,220 numeric responses. Both
 exact profiles share zero-origin `DStep/MinTicks` minutes and identity numeric response,
 while physical response units remain profile-specific. A compatible unvalidated 9.x
 profile may emit the shared numeric science with unresolved response units; an incomplete
-scientific fingerprint degrades to `SeriesKind.DECODED_RECORDS`. Peaks, Area and Height
-remain unavailable from PRM, and the Result CSV adapter remains the explicit result path.
+scientific fingerprint degrades to `SeriesKind.DECODED_RECORDS`. Exact marker profiles can
+optionally emit explicitly Ordifile-derived RT/`calculated_area`; stored/vendor Result and
+Height remain unavailable, and the Result CSV adapter remains the explicit result path.
 This is not broad YL-Clarity, Autochro, recovery RAW or all-version support.
 
 The Shimadzu Experimental profile may expose `SeriesKind.SCIENTIFIC_SIGNAL` because

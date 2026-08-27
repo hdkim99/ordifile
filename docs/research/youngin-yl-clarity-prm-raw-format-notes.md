@@ -15,9 +15,9 @@ code, license state, authentication or access-control mechanism was copied or ch
 
 | Producer | PRMs | Current channels | Finite records | Histories | Layouts |
 |---|---:|---:|---:|---|---|
-| `9.0.1.19` | 23 | 43 | 563,240 | 1: 5; 2: 7; 3: 11 | FID+TCD: 20; TCD-only: 3 |
+| `9.0.1.19` | 25 | 47 | 615,940 | 1: 5; 2: 8; 3: 11; 4: 1 | FID+TCD: 22; TCD-only: 3 |
 | `9.1.0.76` | 5 | 10 | 138,000 | 1: 5 | FID+TCD: 5 |
-| Total | 28 | 53 | 701,240 | — | — |
+| Total | 30 | 57 | 753,940 | — | — |
 
 There are no duplicate PRM bytes across those cohorts. The earlier 23-file canonical payload
 digest remains unchanged. Original member names, per-file paths, producer serial suffixes and
@@ -65,16 +65,16 @@ invalid history or channel framing is a hard failure rather than a downgrade.
 
 ## 9.0 scientific oracle
 
-The decisive local archive contains ten exact `9.0.1.19` FID+TCD PRMs and ten CP949/tab
-full-curve exports. It passed CRC, member/path, compression, duplicate and source-integrity
-checks. Five PRMs have one history and five have two; point counts vary, preventing a
+The local corpus contains twelve exact `9.0.1.19` FID+TCD PRMs and twelve CP949/tab
+full-curve exports. Every intake passed CRC, member/path, compression, duplicate and
+source-integrity checks. Point counts and history cardinalities vary, preventing a
 single-length coincidence from serving as the pairing rule.
 
-Unique full-series content pairing confirms ten PRM/export pairs. Across 131,760 FID and
-131,760 TCD points:
+Unique full-series content pairing confirms twelve PRM/export pairs. Across 158,110 FID and
+158,110 TCD points:
 
-- time is 263,520/263,520 at the export's five-decimal minute precision;
-- numeric response is 263,520/263,520 at the four-decimal precision-derived bound;
+- time is 316,220/316,220 at the export's five-decimal minute precision;
+- numeric response is 316,220/316,220 at the four-decimal precision-derived bound;
 - point count and source order are identical;
 - the transformation is identity;
 - both official channel headers are `Voltage [mV]`.
@@ -90,7 +90,7 @@ points and all 138,000 response points match the same shared formulas. Their exp
 identify FID pA and TCD mV. The exact 9.1 profile additionally requires one history,
 source-ordered FID/TCD, and equal point counts.
 
-The combined shared-core evidence is 401,520 time points and 401,520 numeric-response points.
+The combined shared-core evidence is 454,220 time points and 454,220 numeric-response points.
 Physical units remain profile-specific.
 
 ## Compatibility boundary
@@ -105,13 +105,15 @@ producer framing are outside the current boundary.
 This does not claim universal or future-version support. New lawful evidence can add an exact
 unit/provenance policy without copying the scientific formula into another adapter.
 
-## Peak-result boundary
+## Peak-result and calculated-Area boundary
 
 Paired Result evidence has not identified a repeatable bounded PRM record containing explicit
-RT, Area and Height. Method/event fields are not treated as integrated results. Ordifile emits
-no PRM-derived `PeakRecord`, performs no numerical integration, reconstructs no baseline and
-runs no peak detector. The standalone YoungIn Result CSV adapter remains the explicit peak
-path.
+RT, Area and Height. Method/event fields are not treated as integrated results. Exact validated
+9.0/9.1 marker profiles may produce independent Ordifile peak RT and `calculated_area` values
+from stored partitions and signal after the visible GUI selection or explicit CLI/API opt-in.
+Source-explicit `area` remains
+empty, Height is unavailable, and vendor equivalence is not claimed. The standalone YoungIn
+Result CSV adapter remains the explicit source RT/Area/Height path.
 
 ## Runtime and public artifacts
 

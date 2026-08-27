@@ -88,6 +88,18 @@ _PLAN_ISSUE_MESSAGES: Mapping[str, str] = {
         "Compatible YoungIn PRM structure: structural records only; scientific "
         "time and signal semantics are unavailable."
     ),
+    "YOUNGIN_PRM_EXPERIMENTAL_DERIVED_AREA_REQUESTED": (
+        "Experimental PRM Area calculation requested. Ordifile validates stored markers "
+        "during conversion; calculated values are not Clarity Result Areas."
+    ),
+    "YOUNGIN_PRM_CALCULATED_AREA_NOT_REQUESTED": (
+        "PRM Signals will be converted without calculated Area. Select 'Include experimental "
+        "PRM calculated Area' before refreshing Preflight if calculated_area is required."
+    ),
+    "YOUNGIN_PRM_DERIVED_AREA_PROFILE_UNAVAILABLE": (
+        "Calculated Area is unavailable for this PRM profile. Available scientific signals "
+        "or structural records can still be converted."
+    ),
     "PEAK_MAPPING_NOT_APPLIED_EXACT_PROFILE": (
         "The exact adapter takes precedence; the generic peak mapping is not applied."
     ),
@@ -287,6 +299,7 @@ def preflight_selection(
                 request.inputs,
                 request.output,
                 recipe=request.recipe,
+                experimental_derived_area=request.experimental_derived_area,
                 progress=progress,
             )
         else:
@@ -295,6 +308,7 @@ def preflight_selection(
                 request.output,
                 sort=request.sort,
                 include_signals=True,
+                experimental_derived_area=request.experimental_derived_area,
                 on_error="continue",
                 overwrite=False,
                 sheet=request.sheet,
@@ -388,6 +402,7 @@ def convert_selection(
                 request.inputs,
                 request.output,
                 recipe=request.recipe,
+                experimental_derived_area=request.experimental_derived_area,
                 progress=progress,
             )
         else:
@@ -396,6 +411,7 @@ def convert_selection(
                 request.output,
                 sort=request.sort,
                 include_signals=True,
+                experimental_derived_area=request.experimental_derived_area,
                 on_error="continue",
                 overwrite=False,
                 sheet=request.sheet,

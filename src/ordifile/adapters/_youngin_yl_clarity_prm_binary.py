@@ -63,9 +63,12 @@ MAX_PRM_FILE_BYTES = 16 * 1024 * 1024
 MAX_COMPRESSED_BLOCK_BYTES = 8 * 1024 * 1024
 MAX_UNCOMPRESSED_BLOCK_BYTES = 8 * 1024 * 1024
 MAX_RECORDS_PER_CHANNEL = MAX_UNCOMPRESSED_BLOCK_BYTES // 4
-MAX_HISTORY_COUNT = 3
+# Four current-history revisions are present in an owner-controlled 9.0.1.19 source.
+# The reader still selects only the latest bounded revision and preserves prior-history counts.
+MAX_HISTORY_COUNT = 4
 MAX_CHANNEL_COUNT = 2
 MAX_INFO_VALUE_COUNT = 64
+CURRENT_REVISION_INTEGRATION_HEADER_BYTES = 64
 
 
 class YoungInPrmStructureError(Exception):
@@ -106,6 +109,25 @@ class PrmScientificFamilyFingerprint:
 
 
 @dataclass(frozen=True, slots=True)
+class PrmCurrentChannelLayout:
+    """Validated current-revision bytes preceding one RAWData6 channel."""
+
+    metadata_start: int
+    raw_key_offset: int
+
+
+@dataclass(frozen=True, slots=True)
+class PrmCurrentRevisionLayout:
+    """Authoritative bounded spans reused by optional capability readers."""
+
+    revision_header_start: int
+    revision_body_start: int
+    detector_count_offset: int
+    footer_offset: int
+    channels: tuple[PrmCurrentChannelLayout, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class YoungInPrmData:
     """Privacy-safe structural facts for one bounded YL-Clarity PRM."""
 
@@ -123,6 +145,7 @@ class YoungInPrmData:
     aggregate_payload_sha256: str
     aggregate_canonical_be_f32_sha256: str
     source_sha256: str
+    current_revision_layout: PrmCurrentRevisionLayout
 
 
 @dataclass(frozen=True, slots=True)
@@ -559,6 +582,7 @@ def read_prm(path: Path) -> YoungInPrmData:
             det_name_entries=len(det_name_offsets),
         )
     stored_labels: list[str] = []
+    channel_tail_ends: list[int] = []
     for index, offset in enumerate(det_name_offsets):
         value_offset = offset + len(DET_NAME_KEY)
         value_end = value_offset + len(DET_NAME_VALUE_PREFIX) + STORED_DETECTOR_LABEL_BYTES
@@ -593,6 +617,7 @@ def read_prm(path: Path) -> YoungInPrmData:
                 "YOUNGIN_PRM_CHANNEL_IDENTITY_INVALID",
                 "A DetName structural property lacks the exact bounded empty/zero tail.",
             )
+        channel_tail_ends.append(tail_end)
         if index + 1 < channel_count:
             next_raw_offset = raw_blocks[index + 1].key_offset
             if tail_end >= next_raw_offset or data[tail_end] != NONTERMINAL_CHANNEL_BRANCH:
@@ -612,6 +637,34 @@ def read_prm(path: Path) -> YoungInPrmData:
             "The stored native channel label sequence is outside the observed profiles.",
             structural_channel_count=channel_count,
         )
+    revision_header_start = count_offsets[-1] - CURRENT_REVISION_INTEGRATION_HEADER_BYTES
+    revision_body_start = current_boundary + len(VERSION_KEY) + 4
+    metadata_starts = (
+        revision_body_start,
+        *(tail_end + 1 for tail_end in channel_tail_ends[:-1]),
+    )
+    if (
+        revision_header_start < 0
+        or revision_header_start >= revision_body_start
+        or any(
+            metadata_start >= raw_block.key_offset
+            for metadata_start, raw_block in zip(metadata_starts, raw_blocks, strict=True)
+        )
+    ):
+        raise _fail(
+            "YOUNGIN_PRM_SECTION_AMBIGUOUS",
+            "A current channel metadata span is empty or overlaps its RAWData6 block.",
+        )
+    current_revision_layout = PrmCurrentRevisionLayout(
+        revision_header_start,
+        revision_body_start,
+        count_offsets[-1],
+        footer_offset,
+        tuple(
+            PrmCurrentChannelLayout(metadata_start, raw_block.key_offset)
+            for metadata_start, raw_block in zip(metadata_starts, raw_blocks, strict=True)
+        ),
+    )
     if producer_version == "YL-Clarity 9.1.0.76" and (
         history_count != 1 or tuple(stored_labels) != ("FID", "TCD")
     ):
@@ -731,6 +784,7 @@ def read_prm(path: Path) -> YoungInPrmData:
             tuple(canonical_payloads), domain=b"ordifile-youngin-prm-f32be-v1\0"
         ),
         source_sha256=hashlib.sha256(data).hexdigest(),
+        current_revision_layout=current_revision_layout,
     )
 
 

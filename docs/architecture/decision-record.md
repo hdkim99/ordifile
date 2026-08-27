@@ -346,8 +346,8 @@ to the workbook layout.
     that are structurally safe but miss the scientific fingerprint preserve `DECODED_RECORDS`;
     corrupted framing, payload, size, history or channel structure fails rather than downgrades.
 51. The validated `9.0.1.19` and `9.1.0.76` cohorts share zero-origin
-    `i * DStep / MinTicks` minutes and identity binary32 numeric response. Ten content-confirmed
-    9.0 FID+TCD pairs match all 263,520 time and response points; five 9.1 pairs match all
+    `i * DStep / MinTicks` minutes and identity binary32 numeric response. Twelve content-confirmed
+    9.0 FID+TCD pairs match all 316,220 time and response points; five 9.1 pairs match all
     138,000. One private helper is therefore the formula source of truth, while version remains
     provenance and exact unit evidence. Physical units are profile-specific: 9.0 uses FID mV /
     TCD mV, while 9.1 uses FID pA / TCD mV. Stored `FID` is never a global pA rule.
@@ -366,8 +366,9 @@ to the workbook layout.
     inferred physical response unit. If only structural safety matches, output is structural-
     only. 8.x, 10.x, malformed producer framing and incompatible structures remain unsupported.
     This runtime compatibility is not a claim that all 9.x versions were individually validated.
-    PRM never emits peaks, Area or Height; numerical integration and peak detection remain
-    prohibited, and the exact Result CSV adapter remains the explicit peak-result path.
+    At this decision point PRM emitted no peaks, Area or Height, and the exact Result CSV
+    adapter remained the explicit peak-result path. Decision 58 later adds a narrowly scoped,
+    opt-in Ordifile `calculated_area` without changing source-explicit Result semantics.
 54. Proprietary adapter support is evaluated per capability rather than by one global
     supported/unsupported bit. Structural records, scientific time, numeric signal,
     physical unit, result peaks, Area, Height, secondary retention, channel identity and
@@ -409,6 +410,33 @@ to the workbook layout.
     provider is registered or shipped until an actual local-vendor all-row comparison passes;
     existing conversion APIs remain direct-only. See
     [`automatic-result-acquisition.md`](automatic-result-acquisition.md).
+58. Exact validated YL-Clarity 9.0/9.1 PRMs may emit explicitly Ordifile-derived peak RT and
+    calculated Area only after the researcher selects the visible GUI option or a CLI/API
+    caller opts in, and their bounded stored marker stream, current detector processing table,
+    and profile-specific integration type match. The estimate is stored in additive
+    `calculated_area`; source-explicit `area` remains empty.
+    A bounded processing interval observed in the controlled corpus excludes stored marker
+    candidates whose raw apex lies within it. Exact 9.0 Legacy marker clusters that originally
+    contain one peak use adjacent lower-envelope contacts and a straight base-to-base baseline;
+    shared 9.0 clusters and 9.1 retain the cluster lower envelope. RT is the raw maximum inside
+    the selected partition and Area is a deterministic trapezoidal sum. Processing-event shapes
+    that add or terminate official Result peaks without a one-to-one marker window fail closed
+    for calculated Area while valid Signals remain available. These
+    rows carry additive origin/method/evidence provenance and are not called a stored or
+    vendor-equivalent Result. Compatible unknown 9.x, invalid marker state and unsupported
+    integration types or processing tables retain their valid Signals without derived Area.
+    The optional-event sequence, text/GUID framing, values and time ordering are a bounded
+    capability fingerprint. Across 27 paired runs, 340 safely emitted rows align with official
+    order/RT; 7 unsupported rows are omitted. Area matches 112/340 after two-decimal rounding
+    and 2/340 after numerical rounding to four decimals. The 18 safely emitted rows from the new
+    25-row non-fixed-format oracle present official Area at three decimals, while earlier
+    fixed-format oracles present four.
+    This same-corpus result has no
+    untouched holdout and is not a generalization or official-equivalence claim; 9.1 FID
+    official Peak/Area remains untested.
+    Result CSV remains an
+    oracle/explicit-Result path, not a PRM runtime dependency. See
+    [`youngin-yl-clarity-prm-derived-area-investigation.md`](../research/youngin-yl-clarity-prm-derived-area-investigation.md).
 
 ## Public boundaries
 

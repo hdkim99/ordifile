@@ -7,12 +7,56 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
-from ordifile.api import convert, inspect_file
+from ordifile.api import convert, inspect_file, plan_conversion
 from ordifile.cli.main import main
 
 PROJECT_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "tests" / "fixtures" / "synthetic"))
 from generate_youngin_yl_clarity_prm import synthetic_prm_bytes  # noqa: E402
+
+MARKER_START = 0x20
+MARKER_APEX = 0x50
+MARKER_END = 0x80
+
+
+def test_preflight_explains_when_calculated_area_is_not_selected(tmp_path: Path) -> None:
+    source = tmp_path / "source.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),)
+        )
+    )
+
+    normal = plan_conversion(source, tmp_path / "normal.xlsx")
+    requested = plan_conversion(
+        source,
+        tmp_path / "requested.xlsx",
+        experimental_derived_area=True,
+    )
+
+    assert "YOUNGIN_PRM_CALCULATED_AREA_NOT_REQUESTED" in normal.entries[0].issue_codes
+    assert "YOUNGIN_PRM_EXPERIMENTAL_DERIVED_AREA_REQUESTED" in (requested.entries[0].issue_codes)
+
+
+def test_preflight_does_not_offer_calculated_area_for_compatible_unknown_profile(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "compatible.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            producer_text="YL-Clarity 9.2.0.0 FULL, SN: SYNTHETIC",
+            marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        )
+    )
+
+    plan = plan_conversion(
+        source,
+        tmp_path / "compatible.xlsx",
+        experimental_derived_area=True,
+    )
+
+    assert "YOUNGIN_PRM_DERIVED_AREA_PROFILE_UNAVAILABLE" in plan.entries[0].issue_codes
+    assert "YOUNGIN_PRM_EXPERIMENTAL_DERIVED_AREA_REQUESTED" not in (plan.entries[0].issue_codes)
 
 
 def test_inspect_and_cli_report_validated_9_0_scientific_signal(
@@ -211,5 +255,57 @@ def test_validated_9_1_profile_writes_scientific_signal_sheets(tmp_path: Path) -
         assert "YOUNGIN_PRM_EXPERIMENTAL_SCIENTIFIC_SIGNAL" in import_log[0][5]
         assert "Peaks" in workbook.sheetnames
         assert list(workbook["Peaks"].iter_rows(min_row=2, values_only=True)) == []
+    finally:
+        workbook.close()
+
+
+def test_marker_derived_area_reaches_existing_peak_workbook_contract(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "derived-area.prm"
+    source.write_bytes(
+        synthetic_prm_bytes(
+            channels=((0.0, 1.0, 3.0, 1.0, 0.0),),
+            marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 4)),),
+        )
+    )
+    output = tmp_path / "derived-area.xlsx"
+
+    result = convert(
+        source,
+        output,
+        include_signals=True,
+        experimental_derived_area=True,
+    )
+
+    assert result.success_count == 1
+    assert main(["inspect", "--experimental-derived-area", str(source)]) == 0
+    rendered = capsys.readouterr().out
+    assert "Peak Result availability: not decoded from PRM" in rendered
+    assert "Ordifile-calculated chromatographic Area: experimental" in rendered
+    workbook = load_workbook(output, read_only=True, data_only=False)
+    try:
+        peak_rows = list(workbook["Peaks"].values)
+        headers = peak_rows[0]
+        row = peak_rows[1]
+        assert row[headers.index("retention_time")] == pytest.approx(2 / 600)
+        assert row[headers.index("area")] is None
+        assert row[headers.index("area_unit")] is None
+        assert row[headers.index("calculated_area")] == pytest.approx(0.5)
+        assert row[headers.index("calculated_area_unit")] == "mV.s"
+        assert row[headers.index("status")] == "ordifile_derived_experimental"
+        assert row[headers.index("data_origin")] == "ordifile_marker_derived"
+        assert row[headers.index("derivation_method_id")] == (
+            "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+        )
+        matrix_rows = list(workbook["Peak_Order_Matrix"].values)
+        matrix_headers = matrix_rows[0]
+        matrix_row = matrix_rows[1]
+        assert matrix_row[matrix_headers.index("area_unit")] is None
+        assert matrix_row[matrix_headers.index("calculated_area_unit")] == "mV.s"
+        assert matrix_row[matrix_headers.index("data_origin")] == "ordifile_marker_derived"
+        assert matrix_row[matrix_headers.index("peak_1_area")] is None
+        assert matrix_row[matrix_headers.index("peak_1_calculated_area")] == pytest.approx(0.5)
+        assert workbook["Signals_TCD"].max_row == 6
     finally:
         workbook.close()

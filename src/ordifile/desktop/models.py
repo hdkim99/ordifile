@@ -57,6 +57,7 @@ class DesktopRequest:
     peak_table_mapping_set: PeakTableMappingSet | None = None
     recipe: ConversionRecipe | None = None
     sheet: str | None = None
+    experimental_derived_area: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +199,10 @@ def validate_request(request: DesktopRequest) -> None:
         raise RequestValidationError(
             "PEAK_MAPPING_MODE_CONFLICT",
             "Choose either one explicit mapping or a reusable mapping set, not both.",
+        )
+    if type(request.experimental_derived_area) is not bool:
+        raise RequestValidationError(
+            "OPTION_TYPE_INVALID", "Experimental derived Area must be enabled or disabled."
         )
     if request.sheet is not None and (
         request.peak_table_mapping is None

@@ -23,6 +23,11 @@ from generate_youngin_yl_clarity_prm import (  # noqa: E402
     synthetic_prm_bytes,
 )
 
+MARKER_START = 0x20
+MARKER_VALLEY = 0x40
+MARKER_APEX = 0x50
+MARKER_END = 0x80
+
 
 def _write(path: Path, data: bytes | None = None) -> Path:
     path.write_bytes(synthetic_prm_bytes() if data is None else data)
@@ -91,8 +96,309 @@ def test_validated_9_0_single_channel_exposes_scientific_time_and_millivolts(
     assert metadata["signal_unit_status"] == "paired_curve_validated"
     assert metadata["scientific_semantics_status"] == "direct_signal_validated"
     assert metadata["scientific_semantics_evidence_gap"] == "stored_peak_results"
-    assert metadata["paired_curve_distinct_pair_count"] == 10
-    assert metadata["paired_curve_compared_point_count"] == 263_520
+    assert metadata["paired_curve_distinct_pair_count"] == 12
+    assert metadata["paired_curve_compared_point_count"] == 316_220
+
+
+def test_exact_profile_emits_transparent_ordifile_derived_area_when_markers_exist(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 1.0, 3.0, 1.0, 0.0),),
+        marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 4)),),
+    )
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "derived-area.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert len(bundle.peaks) == 1
+    peak = bundle.peaks[0]
+    assert peak.detector == "TCD"
+    assert peak.retention_time == pytest.approx(2 / 600)
+    assert peak.area is None
+    assert peak.area_unit is None
+    assert peak.calculated_area == pytest.approx(0.5)
+    assert peak.calculated_area_unit == "mV.s"
+    assert peak.height is None
+    assert peak.status == "ordifile_derived_experimental"
+    assert peak.data_origin == "ordifile_marker_derived"
+    assert peak.derivation_method_id == "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+    assert peak.derivation_evidence_profile is not None
+    assert "boundary_rule=adjacent_contact_straight_baseline" in (peak.derivation_evidence_profile)
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["peak_table_status"] == "ordifile_marker_derived_experimental"
+    assert metadata["derived_peak_count"] == 1
+    assert metadata["derived_area_equivalence_status"] == "not_vendor_result_equivalent"
+    assert "YOUNGIN_PRM_AREA_ORDIFILE_DERIVED_EXPERIMENTAL" in {
+        issue.code for issue in bundle.warnings
+    }
+
+
+def test_stored_timetable_exclusion_removes_only_marker_candidates_inside_interval(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 2.0, 0.0, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0),),
+        marker_records=(
+            (
+                (MARKER_START, 0),
+                (MARKER_APEX, 1),
+                (MARKER_END, 2),
+                (MARKER_START, 4),
+                (MARKER_APEX, 5),
+                (MARKER_END, 8),
+            ),
+        ),
+        time_table_events=(((11, 0.0, 0.003, 0.0, 32),),),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "stored-exclusion.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert len(bundle.peaks) == 1
+    assert bundle.peaks[0].retention_time == pytest.approx(5 / 600)
+    assert bundle.peaks[0].peak_number == 1
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_marker_candidate_count"] == 2
+    assert metadata["structural_channel_001_processing_time_table_excluded_candidate_count"] == 1
+    assert metadata["structural_channel_001_processing_time_table_status"] == "matched"
+
+
+def test_exclusion_does_not_reclassify_a_shared_cluster_as_single_peak(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 1.0, 3.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.0, 1.0, 0.0, 0.0),),
+        marker_records=(
+            (
+                (MARKER_START, 0),
+                (MARKER_APEX, 2),
+                (MARKER_VALLEY, 5),
+                (MARKER_APEX, 8),
+                (MARKER_END, 11),
+            ),
+        ),
+        time_table_events=(((11, 0.0, 0.005, 0.0, 32),),),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "shared-cluster-exclusion.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert len(bundle.peaks) == 1
+    peak = bundle.peaks[0]
+    assert peak.start_time == pytest.approx(5 / 600)
+    assert peak.end_time == pytest.approx(11 / 600)
+    assert peak.derivation_evidence_profile is not None
+    assert "boundary_rule=cluster_envelope_partition" in peak.derivation_evidence_profile
+
+
+def test_unknown_bound_timetable_opcode_preserves_signals_without_area(tmp_path: Path) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 2.0, 0.0),),
+        marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        time_table_events=(((99, 0.0, 1.0, 0.0, 32),),),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unsupported-timetable.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_processing_time_table_status"] == (
+        "time_table_opcode_unsupported"
+    )
+
+
+@pytest.mark.parametrize(
+    "events",
+    (
+        ((11, 0.0, 0.003, 1.0, 32),),
+        ((32, 0.002, 0.001, 0.0, 32), (11, 0.0, 0.003, 0.0, 32)),
+        ((12, 0.003, 0.001, 0.0, 32),),
+        ((32, 0.001, 0.003, 0.0, 32),),
+        ((11, 1.0, 2.0, 0.0, 32),),
+    ),
+)
+def test_unobserved_optional_timetable_fingerprint_preserves_signals_without_area(
+    tmp_path: Path,
+    events: tuple[tuple[int, float, float, float, int], ...],
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 2.0, 0.0),),
+        marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        time_table_events=(events,),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unsupported-optional-event.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_processing_time_table_status"] in {
+        "time_table_opcode_unsupported",
+        "time_table_optional_event_unsupported",
+    }
+
+
+@pytest.mark.parametrize(
+    ("field_key", "replacement"),
+    (
+        (b"\x08GroupStr\x03\xff\xfe\xff\x01 \x00", b"\x08GroupStr\x03\xff\xfe\xff\x01X\x00"),
+        (b"\x04GUID\x03\xff\xfe\xff\x26{\x00", b"\x04GUID\x03\xff\xfe\xff\x26Z\x00"),
+    ),
+)
+def test_unobserved_timetable_text_fingerprint_preserves_signals_without_area(
+    tmp_path: Path,
+    field_key: bytes,
+    replacement: bytes,
+) -> None:
+    data = bytearray(
+        synthetic_prm_bytes(
+            channels=((0.0, 2.0, 0.0),),
+            marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        )
+    )
+    offset = data.index(field_key)
+    data[offset : offset + len(field_key)] = replacement
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unsupported-event-text.prm", bytes(data)),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_processing_time_table_status"] == (
+        "time_table_fingerprint_unsupported"
+    )
+
+
+def test_malformed_timetable_text_frame_preserves_signals_without_area(tmp_path: Path) -> None:
+    data = bytearray(
+        synthetic_prm_bytes(
+            channels=((0.0, 2.0, 0.0),),
+            marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        )
+    )
+    text_key = b"\x04Text\x03"
+    offset = data.index(text_key)
+    data[offset + 1] = ord("X")
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "malformed-event-text.prm", bytes(data)),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_processing_time_table_status"] == "invalid"
+
+
+def test_derived_area_is_not_calculated_without_explicit_opt_in(tmp_path: Path) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 1.0, 3.0, 1.0, 0.0),),
+        marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 4)),),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "default-signal-only.prm", data), ParseOptions()
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["integration_marker_status"] == "not_requested"
+    assert metadata["peak_table_status"] == "unsupported"
+
+
+def test_exact_9_1_derived_area_uses_profile_specific_response_units(tmp_path: Path) -> None:
+    markers = ((MARKER_START, 0), (MARKER_APEX, 2), (MARKER_END, 4))
+    data = synthetic_prm_bytes(
+        producer_text=binary.SCIENTIFIC_PRODUCER_PREFIX_TEXT + "SYNTHETIC",
+        channels=((0.0, 1.0, 3.0, 1.0, 0.0), (0.0, 2.0, 4.0, 2.0, 0.0)),
+        marker_records=(markers, markers),
+        integration_type=0x1A,
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "derived-area-9-1.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert tuple((peak.detector, peak.calculated_area_unit) for peak in bundle.peaks) == (
+        ("FID", "pA.s"),
+        ("TCD", "mV.s"),
+    )
+
+
+def test_unknown_family_profile_does_not_inherit_derived_area(tmp_path: Path) -> None:
+    markers = ((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2))
+    data = synthetic_prm_bytes(
+        producer_text="YL-Clarity 9.2.0.0 FULL, SN: SYNTHETIC",
+        channels=((0.0, 1.0, 0.0), (0.0, 2.0, 0.0)),
+        marker_records=(markers, markers),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unknown-profile.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["integration_marker_status"] == "matched"
+    assert metadata["peak_table_status"] == "unsupported"
+    assert "YOUNGIN_PRM_DERIVED_AREA_PROFILE_UNAVAILABLE" in {
+        issue.code for issue in bundle.warnings
+    }
+
+
+def test_opted_in_exact_profile_without_markers_reports_area_unavailable(
+    tmp_path: Path,
+) -> None:
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "no-markers.prm"),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    assert "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE" in {issue.code for issue in bundle.warnings}
+
+
+def test_unsupported_integration_type_preserves_signals_without_area(tmp_path: Path) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 1.0, 0.0),),
+        marker_records=(((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),),
+        integration_type=0x99,
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "unsupported-integration.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert bundle.signals
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_integration_marker_status"] == (
+        "integration_type_unsupported"
+    )
+    assert "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE" in {issue.code for issue in bundle.warnings}
 
 
 @pytest.mark.parametrize("stem", ("FID_STD_010", "TCD_STD_010", "MIXED_SAMPLE_003"))
@@ -160,6 +466,25 @@ def test_two_channels_preserve_source_order_and_have_stable_digests(tmp_path: Pa
         first_meta["aggregate_canonical_be_f32_sha256"]
         == second_meta["aggregate_canonical_be_f32_sha256"]
     )
+
+
+def test_four_history_revisions_select_only_the_latest_bounded_revision(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((1.0, 2.0), (9.0, 8.0)),
+        history_count=4,
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "four-history.prm", data), ParseOptions()
+    )
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+
+    assert metadata["history_count"] == 4
+    assert metadata["selected_history_version"] == 4
+    assert metadata["prior_history_revision_count"] == 3
+    assert [signal.y_values for signal in bundle.signals] == [(1.0, 2.0), (9.0, 8.0)]
 
 
 def test_validated_9_1_profile_exposes_scientific_time_and_detector_response(
@@ -373,7 +698,7 @@ def test_compatible_unknown_profile_exposes_scientific_values_with_unresolved_un
     assert metadata["detector_verified"] is False
     assert metadata["signal_unit_status"] == "unresolved"
     assert metadata["scientific_semantics_status"] == "family_compatible_experimental"
-    assert metadata["scientific_family_compared_point_count"] == 401_520
+    assert metadata["scientific_family_compared_point_count"] == 454_220
     assert "paired_curve_time_decimal_places" not in metadata
     assert "paired_curve_signal_decimal_places" not in metadata
     assert "paired_curve_distinct_pair_count" not in metadata

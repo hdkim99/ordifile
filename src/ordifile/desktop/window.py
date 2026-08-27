@@ -319,6 +319,13 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(output_label, 0, 0)
         output_layout.addWidget(self.output_edit, 0, 1)
         output_layout.addWidget(self.output_button, 0, 2)
+        self.experimental_derived_area_checkbox = QCheckBox(
+            "Include experimental PRM calculated Area (not Clarity Result)"
+        )
+        self.experimental_derived_area_checkbox.setAccessibleName(
+            "Include experimental marker-partitioned PRM calculated Area"
+        )
+        self.experimental_derived_area_checkbox.setChecked(False)
         self.advanced_options_button = QToolButton()
         self.advanced_options_button.setText("Advanced conversion options")
         self.advanced_options_button.setAccessibleName("Show advanced conversion options")
@@ -326,7 +333,8 @@ class MainWindow(QMainWindow):
         self.advanced_options_button.setChecked(False)
         self.advanced_options_button.setArrowType(Qt.ArrowType.RightArrow)
         self.advanced_options_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        output_layout.addWidget(self.advanced_options_button, 1, 0, 1, 3)
+        output_layout.addWidget(self.advanced_options_button, 1, 0)
+        output_layout.addWidget(self.experimental_derived_area_checkbox, 1, 1, 1, 2)
         self.advanced_options_container = QWidget()
         option_grid = QGridLayout(self.advanced_options_container)
         option_grid.setContentsMargins(0, 0, 0, 0)
@@ -487,6 +495,11 @@ class MainWindow(QMainWindow):
                 self.advanced_options_button, self.advanced_options_container, checked
             )
         )
+        self.experimental_derived_area_checkbox.toggled.connect(
+            lambda _checked: self._invalidate_preflight(
+                "Experimental Area setting changed. Refresh preflight."
+            )
+        )
         self.details_toggle_button.toggled.connect(
             lambda checked: self._toggle_section(
                 self.details_toggle_button,
@@ -518,7 +531,8 @@ class MainWindow(QMainWindow):
         self.setTabOrder(self.clear_button, self.mapping_toggle_button)
         self.setTabOrder(self.mapping_toggle_button, self.output_edit)
         self.setTabOrder(self.output_edit, self.output_button)
-        self.setTabOrder(self.output_button, self.advanced_options_button)
+        self.setTabOrder(self.output_button, self.experimental_derived_area_checkbox)
+        self.setTabOrder(self.experimental_derived_area_checkbox, self.advanced_options_button)
         self.setTabOrder(self.advanced_options_button, self.input_table)
         self.setTabOrder(self.input_table, self.refresh_preflight_button)
         self.setTabOrder(self.refresh_preflight_button, self.convert_button)
@@ -938,6 +952,7 @@ class MainWindow(QMainWindow):
                 inputs=self._selection.paths,
                 output=Path(self.output_edit.text()),
                 recipe=self._conversion_recipe,
+                experimental_derived_area=self.experimental_derived_area_checkbox.isChecked(),
             )
         active_mapping, active_mapping_set = self._active_peak_mappings()
         return DesktopRequest(
@@ -947,6 +962,7 @@ class MainWindow(QMainWindow):
             peak_table_mapping=active_mapping,
             peak_table_mapping_set=active_mapping_set,
             sheet=self._peak_table_mapping_sheet if active_mapping is not None else None,
+            experimental_derived_area=self.experimental_derived_area_checkbox.isChecked(),
         )
 
     def _apply_conversion_recipe(
@@ -2216,6 +2232,7 @@ class MainWindow(QMainWindow):
             self.selection_list,
             self.input_table,
             self.sort_combo,
+            self.experimental_derived_area_checkbox,
             self.output_edit,
             self.output_button,
             self.convert_button,

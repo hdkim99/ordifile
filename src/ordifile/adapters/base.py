@@ -56,6 +56,7 @@ class ParseOptions:
     peak_table_mapping_set_id: str | None = None
     worksheet_provenance: str | None = None
     include_mapping_semantic_sha256: bool = True
+    experimental_derived_area: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -10,9 +10,43 @@ from dataclasses import replace
 from ordifile.core.errors import OrdifileError
 from ordifile.core.models import DatasetBundle, Issue
 
+_DERIVED_METADATA_KEYS = frozenset(
+    {
+        "peak_table_status",
+        "integration_marker_status",
+        "processing_time_table_status",
+        "processing_method_span_sha256",
+        "stored_integration_type",
+        "derived_peak_count",
+        "derived_area_method_id",
+        "derived_area_origin",
+        "derived_area_equivalence_status",
+        "scientific_semantics_evidence_gap",
+    }
+)
+_DERIVED_WARNING_CODES = frozenset(
+    {
+        "YOUNGIN_PRM_AREA_ORDIFILE_DERIVED_EXPERIMENTAL",
+        "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE",
+    }
+)
+
 
 def _rebind_issue(issue: Issue, source_file: str) -> Issue:
     return replace(issue, source=source_file)
+
+
+def _is_derived_metadata(key: str) -> bool:
+    return key in _DERIVED_METADATA_KEYS or key.endswith(
+        (
+            "_integration_marker_status",
+            "_integration_marker_count",
+            "_ignored_incomplete_marker_count",
+            "_marker_candidate_count",
+            "_processing_time_table_status",
+            "_processing_time_table_excluded_candidate_count",
+        )
+    )
 
 
 def merge_acquired_result(
@@ -30,10 +64,10 @@ def merge_acquired_result(
             "LOGICAL_SOURCE_RESULT_INVALID",
             "The acquired Result must contain exactly one source and sample.",
         )
-    if native.peaks:
+    if native.peaks and any(peak.data_origin != "ordifile_marker_derived" for peak in native.peaks):
         raise OrdifileError(
             "LOGICAL_SOURCE_DIRECT_RESULT_PRESENT",
-            "Automatic Result acquisition cannot replace or supplement direct peaks.",
+            "Automatic Result acquisition cannot replace or supplement source-explicit peaks.",
         )
     if acquired.signals:
         raise OrdifileError(
@@ -63,13 +97,24 @@ def merge_acquired_result(
     peaks = tuple(
         replace(peak, sample_id=sample_id, source_file=source_file) for peak in acquired.peaks
     )
+    replacing_derived_rows = bool(native.peaks)
+    native_metadata = (
+        tuple(item for item in native.metadata if not _is_derived_metadata(item.key))
+        if replacing_derived_rows
+        else native.metadata
+    )
     metadata = tuple(
         replace(item, sample_id=sample_id, source_file=source_file) for item in acquired.metadata
+    )
+    native_warnings = (
+        tuple(issue for issue in native.warnings if issue.code not in _DERIVED_WARNING_CODES)
+        if replacing_derived_rows
+        else native.warnings
     )
     warnings = tuple(_rebind_issue(issue, source_file) for issue in acquired.warnings)
     return replace(
         native,
         peaks=peaks,
-        metadata=(*native.metadata, *metadata),
-        warnings=(*native.warnings, *warnings),
+        metadata=(*native_metadata, *metadata),
+        warnings=(*native_warnings, *warnings),
     )

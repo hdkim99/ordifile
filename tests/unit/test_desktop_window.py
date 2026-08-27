@@ -1709,6 +1709,21 @@ def test_preflight_config_changes_invalidate_plan_and_disable_conversion(
     assert window._current_plan() is None
     assert not window.convert_button.isEnabled()
     assert "pending" in window.preflight_summary_label.text().casefold()
+
+
+def test_experimental_area_checkbox_is_explicit_and_invalidates_preflight(
+    app: QApplication,
+) -> None:
+    del app
+    window = MainWindow()
+    assert window.experimental_derived_area_checkbox.isVisibleTo(window) is True
+    assert window.experimental_derived_area_checkbox.isChecked() is False
+    assert window._current_preflight_request().experimental_derived_area is False
+
+    window.experimental_derived_area_checkbox.setChecked(True)
+
+    assert window._current_preflight_request().experimental_derived_area is True
+    assert "Experimental Area setting changed" in window.preflight_summary_label.text()
     window.close()
 
 
