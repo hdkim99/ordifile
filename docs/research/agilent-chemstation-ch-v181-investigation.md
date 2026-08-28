@@ -242,3 +242,35 @@ Verified scientific-signal support requires all of the following:
 Until then, Issue #3 remains open and the adapter remains **Experimental**. No release
 may describe its output as calibrated intensity, retention-time signal, or Verified
 Agilent raw support.
+
+
+## Where Agilent keeps its peak table (v179 evidence)
+
+A CC BY 4.0 Agilent 6890N GC-FID corpus of 2,677 `.D` run directories was inspected without
+downloading the 481 MB archive: the ZIP64 central directory and a few individual members were
+read with HTTP range requests.
+
+The `.ch` signal file does **not** carry the vendor peak table. Every Area and retention time
+of one run's official report was searched in its paired `\x03179` `.ch` as binary32 and
+binary64, little- and big-endian; the only hit was a zero Area matching zero bytes in the
+header. The vendor's processed rows live instead in a sibling report export inside the same
+`.D` directory.
+
+That export is a headerless UTF-16LE CSV with a byte-order mark and seven columns - peak
+number, retention time, separation code such as `BB`/`BV`/`VB`, width, Area, Area percent, and
+compound name. Eight files sampled from different months and instrument folders all had the
+same shape. There is no Start or End time. Its filename is produced by a site macro rather
+than by ChemStation itself, so any adapter must detect it by content, never by name.
+
+This places Agilent in a third category, distinct from the two already implemented:
+
+| Format | Signal in the raw file | Vendor result table |
+|---|---|---|
+| YoungIn `.PRM` | yes | nowhere in the file; only integration markers, so the calculation is reconstructed |
+| Shimadzu `.GCD` | yes | inside the same document, read directly |
+| Agilent `.ch` | yes | only in a sibling file inside the `.D` directory |
+
+Supporting Agilent results therefore needs `.D` directory intake, which decision record entry
+for the v181 adapter currently lists as unsupported, plus a content-only fingerprint strong
+enough to tell a headerless seven-column report CSV from any other CSV. Neither is a
+calculation problem.

@@ -7,6 +7,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- The exact validated Shimadzu LabSolutions 5.82 `.GCD` profile now emits the peak rows the
+  document already stores: retention, start and end time, Area and Height, read from the
+  single bounded `LSS Data Processing/PT-*` stream. These are source-explicit `area` and
+  `height` values, not an Ordifile calculation - Ordifile does not integrate the signal here.
+  The stored values keep every digit the vendor's own text export rounds away, so a `.gcd`
+  file alone now yields a complete peak table at higher precision than its paired export.
+  Area and Height units stay unresolved, matching the paired result-ASCII adapter, and stored
+  negative peaks are preserved. Evidence: one same-run `.GCD`/result-ASCII pair (83 rows,
+  every field exact) plus an owner-approved CC BY 4.0 corpus of 318 further documents across
+  LabSolutions 5.71 SP2 and 5.86 (1,548 rows, every field exact), which shows the record
+  layout is not specific to the 5.82 profile the adapter accepts. A document without that
+  stream, or with a stream outside the bounded layout, keeps its scientific chromatogram and
+  reports the peak table as absent or invalid.
+
 ### Changed
 
 - The optional YoungIn YL-Clarity PRM calculated Area now resolves peak groups from the lower

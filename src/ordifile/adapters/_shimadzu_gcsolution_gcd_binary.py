@@ -22,6 +22,12 @@ import olefile
 from defusedxml import ElementTree  # type: ignore[import-untyped]
 from defusedxml.common import DefusedXmlException  # type: ignore[import-untyped]
 
+from ordifile.adapters._shimadzu_gcsolution_gcd_peak_table import (
+    MAX_PEAK_TABLE_BYTES,
+    PEAK_TABLE_NAME_PATTERN,
+    PEAK_TABLE_STORAGE,
+)
+
 CFB_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
 CFB_HEADER_BYTES = 4_096
 MAX_GCD_FILE_BYTES = 64 * 1024 * 1024
@@ -98,11 +104,16 @@ class ShimadzuGcdProfile:
 
 @dataclass(frozen=True, slots=True)
 class ShimadzuGcdData:
-    """One uninterpolated scientific chromatogram and its exact profile."""
+    """One uninterpolated scientific chromatogram and its exact profile.
+
+    ``peak_table_payload`` holds the unparsed bytes of the single stored peak-table
+    stream when the document carries one; decoding happens in the dedicated module.
+    """
 
     profile: ShimadzuGcdProfile
     values: tuple[float, ...]
     point_count: int
+    peak_table_payload: bytes | None = None
 
 
 def _fail(code: str, message: str, **details: Any) -> ShimadzuGcdStructureError:
@@ -718,6 +729,27 @@ def read_gcd(path: Path, *, decode_signal: bool = True) -> ShimadzuGcdData:
                     container, SYSTEM_INFORMATION_PATH, MAX_XML_STREAM_BYTES
                 )
                 data_item_data = _read_stream(container, DATA_ITEM_PATH, MAX_XML_STREAM_BYTES)
+                peak_table_paths = [
+                    item
+                    for item in listed
+                    if len(item) == 2
+                    and item[0] == PEAK_TABLE_STORAGE
+                    and PEAK_TABLE_NAME_PATTERN.fullmatch(item[1]) is not None
+                ]
+                if len(peak_table_paths) > 1:
+                    raise _fail(
+                        "SHIMADZU_GCD_PROFILE_UNSUPPORTED",
+                        "Multiple stored peak-table streams are not supported.",
+                    )
+                peak_table_data: bytes | None = None
+                if peak_table_paths:
+                    peak_table_path = tuple(peak_table_paths[0])
+                    if container.get_size(peak_table_path) > MAX_PEAK_TABLE_BYTES:
+                        raise _fail(
+                            "SHIMADZU_GCD_PROFILE_UNSUPPORTED",
+                            "The stored peak-table stream exceeds the bounded reader size.",
+                        )
+                    peak_table_data = _read_stream(container, peak_table_path, MAX_PEAK_TABLE_BYTES)
                 signal_size = container.get_size(SIGNAL_PATH)
                 if signal_size > 24 + MAX_SIGNAL_POINTS * 8:
                     raise _fail(
@@ -813,4 +845,4 @@ def read_gcd(path: Path, *, decode_signal: bool = True) -> ShimadzuGcdData:
         system_datetime_filetime_raw=raw_filetime,
         system_datetime_bias_minutes_raw=raw_bias,
     )
-    return ShimadzuGcdData(profile, values, point_count)
+    return ShimadzuGcdData(profile, values, point_count, peak_table_data)
