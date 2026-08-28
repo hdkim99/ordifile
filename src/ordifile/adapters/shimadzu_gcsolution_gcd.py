@@ -16,6 +16,7 @@ from ordifile.adapters._shimadzu_gcsolution_gcd_binary import (
     has_gcd_stream_identity,
     read_gcd,
 )
+from ordifile.adapters._shimadzu_gcsolution_gcd_peak_table import decode_peak_table
 from ordifile.adapters.base import (
     AdapterDescriptor,
     DetectionResult,
@@ -28,6 +29,7 @@ from ordifile.core.models import (
     InstrumentMetadata,
     Issue,
     MetadataEntry,
+    PeakRecord,
     SampleRecord,
     SeriesKind,
     Severity,
@@ -163,6 +165,27 @@ class ShimadzuGcsolutionGcdAdapter:
             y_unit=profile.axis_unit,
             series_kind=SeriesKind.SCIENTIFIC_SIGNAL,
         )
+        peak_table = decode_peak_table(decoded.peak_table_payload)
+        peaks = tuple(
+            PeakRecord(
+                profile.sample_id,
+                path.name,
+                channel=profile.channel,
+                detector=profile.detector,
+                peak_number=number,
+                retention_time=peak.retention_time,
+                retention_time_unit="min",
+                area=peak.area,
+                height=peak.height,
+                status="parsed",
+                observation_order=number,
+                start_time=peak.start_time,
+                end_time=peak.end_time,
+                area_unit=None,
+                height_unit=None,
+            )
+            for number, peak in enumerate(peak_table.peaks, start=1)
+        )
         values: list[tuple[str, object, str | None]] = [
             ("support_status", "experimental", None),
             ("profile", "LabSolutions 5.82 single-channel GC-FID GCD", None),
@@ -190,7 +213,14 @@ class ShimadzuGcsolutionGcdAdapter:
             ("time_canonical_be_f64_sha256", time_sha256, None),
             ("signal_canonical_be_f64_sha256", signal_sha256, None),
             ("time_signal_pairs_be_f64_sha256", pair_sha256, None),
+            ("stored_peak_table_status", peak_table.status, None),
+            ("stored_peak_count", len(peak_table.peaks), None),
+            ("area_unit_status", "unresolved", None),
+            ("height_unit_status", "unresolved", None),
+            ("compound_identification_status", "not_present", None),
         ]
+        if peak_table.revision_byte is not None:
+            values.append(("stored_peak_table_revision", f"0x{peak_table.revision_byte:02x}", None))
         if profile.operator_name is not None:
             values.append(("operator_name", profile.operator_name, None))
         if profile.operator_name_bytes_hex is not None:
@@ -213,7 +243,7 @@ class ShimadzuGcsolutionGcdAdapter:
             MetadataEntry(profile.sample_id, path.name, _NAMESPACE, key, value, unit)
             for key, value, unit in values
         )
-        warnings = (
+        warnings = [
             Issue(
                 "SHIMADZU_GCD_EXPERIMENTAL_PROFILE",
                 "The chromatogram is limited to the exact LabSolutions 5.82 single-channel "
@@ -221,11 +251,34 @@ class ShimadzuGcsolutionGcdAdapter:
                 Severity.WARNING,
                 path.name,
             ),
-        )
+        ]
+        if peaks:
+            warnings.append(
+                Issue(
+                    "SHIMADZU_GCD_STORED_PEAK_TABLE",
+                    "Retention time, Start/End time, Area and Height were read from the "
+                    "stored vendor peak table; Ordifile did not integrate the signal. "
+                    "Area and Height units remain unresolved.",
+                    Severity.WARNING,
+                    path.name,
+                )
+            )
+        elif peak_table.status == "invalid":
+            warnings.append(
+                Issue(
+                    peak_table.issue_code or "SHIMADZU_GCD_PEAK_TABLE_UNAVAILABLE",
+                    peak_table.issue_message
+                    or "The stored peak table is outside the validated bounded layout; "
+                    "the scientific chromatogram was preserved without Peaks.",
+                    Severity.WARNING,
+                    path.name,
+                )
+            )
         return DatasetBundle(
             (source,),
             (sample,),
+            peaks=peaks,
             signals=(signal,),
             metadata=metadata,
-            warnings=warnings,
+            warnings=tuple(warnings),
         )

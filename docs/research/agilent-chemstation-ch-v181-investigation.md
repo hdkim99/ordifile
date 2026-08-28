@@ -242,3 +242,73 @@ Verified scientific-signal support requires all of the following:
 Until then, Issue #3 remains open and the adapter remains **Experimental**. No release
 may describe its output as calibrated intensity, retention-time signal, or Verified
 Agilent raw support.
+
+
+## Where Agilent keeps its peak table (v179 evidence)
+
+A CC BY 4.0 Agilent 6890N GC-FID corpus of 2,677 `.D` run directories was inspected without
+downloading the 481 MB archive: the ZIP64 central directory and a few individual members were
+read with HTTP range requests.
+
+The `.ch` signal file does **not** carry the vendor peak table. Every Area and retention time
+of one run's official report was searched in its paired `\x03179` `.ch` as binary32 and
+binary64, little- and big-endian; the only hit was a zero Area matching zero bytes in the
+header. The vendor's processed rows live instead in a sibling report export inside the same
+`.D` directory.
+
+That export is a headerless UTF-16LE CSV with a byte-order mark and seven columns - peak
+number, retention time, separation code such as `BB`/`BV`/`VB`, width, Area, Area percent, and
+compound name. Eight files sampled from different months and instrument folders all had the
+same shape. There is no Start or End time. Its filename is produced by a site macro rather
+than by ChemStation itself, so any adapter must detect it by content, never by name.
+
+This places Agilent in a third category, distinct from the two already implemented:
+
+| Format | Signal in the raw file | Vendor result table |
+|---|---|---|
+| YoungIn `.PRM` | yes | nowhere in the file; only integration markers, so the calculation is reconstructed |
+| Shimadzu `.GCD` | yes | inside the same document, read directly |
+| Agilent `.ch` | yes | only in a sibling file inside the `.D` directory |
+
+Supporting Agilent results therefore needs `.D` directory intake, which decision record entry
+for the v181 adapter currently lists as unsupported, plus a content-only fingerprint strong
+enough to tell a headerless seven-column report CSV from any other CSV. Neither is a
+calculation problem.
+
+## `.D` directory shape, and why directory intake is not the next step
+
+The same corpus was inventoried from its ZIP64 central directory, so all 2,692 `.D`
+directories were measured without downloading the archive.
+
+| Observation | Count |
+|---|---:|
+| `.D` directories | 2,692 |
+| Distinct top-level skeletons | 7, one covering 2,653 |
+| `RUN.LOG` and `SAMPLE.MAC` present | 2,692 (100%) |
+| `ACQ.M/` and `DA.M/` present | 2,675 |
+| Exactly one `*.CH` present | 2,678 |
+
+A candidate container key of "`.D` suffix, plus `RUN.LOG`, `SAMPLE.MAC`, `ACQ.M/` and
+`DA.M/`, plus exactly one `*.CH`" selects 2,675 directories and rejects 17, with no
+directory passing the skeleton yet failing the single-signal condition.
+
+Two limits matter more than that consistency.
+
+First, the corpus is one laboratory, one instrument and one method: every signal file is
+named `FID3A.CH`, and every report export is named from the site's own macro
+(`OGE00.CSV`, `OGE01.CSV`, and `A` duplicates). Consistency here shows that a workflow is
+internally regular. It does not establish that the skeleton generalises to other
+ChemStation installations, and it positively demonstrates that the report filename cannot
+belong to any shared key. The container shape does not say which of the four exports is
+the peak table either; that assertion has to come from the researcher.
+
+Second, and decisively for sequencing: the signal these directories contain is internal
+version `179`, which the exact v181 adapter rejects. Directory intake exists to join peaks
+to their signal in one workbook source, and there is no readable signal to join. Until a
+`.ch` generation in this corpus is decodable, `.D` intake would add a container model, a
+reuse-key store and a per-directory question to the interface while producing exactly what
+mapping the export alone already produces.
+
+Directory intake is therefore deferred. The evidenced next step for Agilent is signal
+support for the `179` generation, which is an ordinary single-file adapter question and
+changes no interface.

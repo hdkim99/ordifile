@@ -448,6 +448,19 @@ to the workbook layout.
     oracle/explicit-Result path, not a PRM runtime dependency. See
     [`youngin-yl-clarity-prm-derived-area-investigation.md`](../research/youngin-yl-clarity-prm-derived-area-investigation.md).
 
+59. The exact validated Shimadzu LabSolutions 5.82 `.GCD` profile reads the vendor's own
+    stored peak rows from the single bounded `LSS Data Processing/PT-*` stream and emits them
+    as source-explicit `area` and `height`. Ordifile does not integrate the chromatogram and
+    does not recalculate a vendor result for this format, so no `calculated_area`, origin or
+    derivation method is attached. Area and Height units remain unresolved, matching the
+    paired result-ASCII adapter, and stored negative peaks are preserved. The bounded layout
+    is a 20-byte `VER1` header with an observed processing-revision byte and zero reserved
+    bytes, followed by whole 792-byte records. More than one such stream, an unobserved
+    revision, partial framing, a row that does not contain its own retention time, rows out of
+    source retention order, or a non-finite value fail closed for the peak table while the
+    scientific chromatogram remains available. Evidence is one same-run pair plus an
+    owner-approved CC BY 4.0 corpus spanning two further LabSolutions versions; that corpus
+    validates the record layout, not adapter support for those versions.
 ## Public boundaries
 
 - `ordifile.api`: `inspect_file`, `inspect_inputs`, `preview_peak_table`,

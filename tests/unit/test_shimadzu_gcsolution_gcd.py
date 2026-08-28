@@ -20,6 +20,17 @@ from generate_cfb_v4 import SECTOR_BYTES, build_cfb_v4  # noqa: E402
 from generate_shimadzu_gcsolution_gcd import (  # noqa: E402
     synthetic_gcd_bytes,
     synthetic_gcd_streams,
+    synthetic_peak_table,
+)
+
+# One CFB sector is 4,096 B, so a synthetic peak-table stream needs at least six
+# 792 B records to be storable as a regular stream.
+STORED_ROWS = (
+    (110_580, 106_440, 112_560, 2042.3048071317419, 505.024730795506),
+    (115_560, 112_560, 119_880, 2333.0625, 369.5),
+) + tuple(
+    (200_000 + 5_000 * step, 199_000 + 5_000 * step, 204_000 + 5_000 * step, 10.0 + step, 2.0)
+    for step in range(4)
 )
 
 
@@ -312,4 +323,70 @@ def test_unsafe_blank_or_absolute_path_source_metadata_is_rejected(
     tmp_path: Path, field: str, value: str
 ) -> None:
     error = _parse_error(_write(tmp_path / "unsafe.gcd", synthetic_gcd_bytes(**{field: value})))
+    assert error.code == "SHIMADZU_GCD_PROFILE_UNSUPPORTED"
+
+
+def test_stored_peak_table_is_emitted_as_source_explicit_rows(tmp_path: Path) -> None:
+    data = synthetic_gcd_bytes(peak_table=synthetic_peak_table(STORED_ROWS))
+
+    bundle = ShimadzuGcsolutionGcdAdapter().parse(
+        _write(tmp_path / "stored-peaks.gcd", data), ParseOptions()
+    )
+
+    assert len(bundle.peaks) == len(STORED_ROWS)
+    peak = bundle.peaks[0]
+    assert peak.peak_number == 1
+    assert peak.status == "parsed"
+    assert peak.retention_time == pytest.approx(110_580 / 60_000)
+    assert peak.start_time == pytest.approx(106_440 / 60_000)
+    assert peak.end_time == pytest.approx(112_560 / 60_000)
+    # The vendor's own stored numbers, not an Ordifile calculation.
+    assert peak.area == 2042.3048071317419
+    assert peak.height == 505.024730795506
+    assert peak.calculated_area is None
+    assert peak.data_origin is None
+    assert peak.area_unit is None and peak.height_unit is None
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["stored_peak_table_status"] == "matched"
+    assert metadata["stored_peak_count"] == len(STORED_ROWS)
+    assert metadata["stored_peak_table_revision"] == "0x53"
+    assert metadata["area_unit_status"] == "unresolved"
+    assert "SHIMADZU_GCD_STORED_PEAK_TABLE" in {issue.code for issue in bundle.warnings}
+
+
+def test_document_without_a_stored_peak_table_keeps_its_signal(tmp_path: Path) -> None:
+    bundle = ShimadzuGcsolutionGcdAdapter().parse(_write(tmp_path / "no-peaks.gcd"), ParseOptions())
+
+    assert bundle.peaks == ()
+    assert len(bundle.signals) == 1
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["stored_peak_table_status"] == "absent"
+    assert metadata["stored_peak_count"] == 0
+    assert "SHIMADZU_GCD_STORED_PEAK_TABLE" not in {issue.code for issue in bundle.warnings}
+
+
+def test_unsupported_stored_peak_table_preserves_the_signal_without_peaks(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_gcd_bytes(peak_table=synthetic_peak_table(STORED_ROWS, revision=0x11))
+
+    bundle = ShimadzuGcsolutionGcdAdapter().parse(
+        _write(tmp_path / "unsupported-peaks.gcd", data), ParseOptions()
+    )
+
+    assert bundle.peaks == ()
+    assert len(bundle.signals) == 1
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["stored_peak_table_status"] == "invalid"
+    assert "SHIMADZU_GCD_PEAK_TABLE_REVISION_UNSUPPORTED" in {
+        issue.code for issue in bundle.warnings
+    }
+
+
+def test_multiple_stored_peak_table_streams_fail_closed(tmp_path: Path) -> None:
+    streams = synthetic_gcd_streams(peak_table=synthetic_peak_table(STORED_ROWS))
+    streams[("LSS Data Processing", "PT-GC.1.1.DET.2.DetCh")] = synthetic_peak_table(STORED_ROWS)
+
+    error = _parse_error(_write(tmp_path / "two-peak-tables.gcd", build_cfb_v4(streams)))
+
     assert error.code == "SHIMADZU_GCD_PROFILE_UNSUPPORTED"
