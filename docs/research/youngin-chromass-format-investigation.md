@@ -338,8 +338,10 @@ The local corpus preserves all 30 structural PRMs, 57 current blocks and
 753,940 records. Twelve 9.0 and five 9.1 same-run curve pairs establish the common time and
 numeric-response semantics over 454,220 points. They also prove that physical units cannot
 be derived from the stored `FID` label alone. Stored/vendor Result peak promotion remains
-NO_GO. The separately labelled, selectable `calculated_area` capability is not vendor-result
-equivalence, and Height remains unavailable.
+NO_GO: the PRM stores no Result table. The separately labelled, selectable `calculated_area`
+capability is an independent Ordifile calculation that reproduces the displayed value on the
+controlled corpus; see the
+[derived-Area investigation](youngin-yl-clarity-prm-derived-area-investigation.md).
 
 ## Minimum verification before “Verified”
 

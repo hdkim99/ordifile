@@ -109,30 +109,37 @@ Neither route calls YL-Clarity or Clarity, loads a vendor DLL, or creates a temp
 
 PRM does not expose a repeatable bounded stored Result table. Exact validated profiles may
 instead expose stored start/apex/valley/end marker partitions and numbered current-history
-processing tables. Ordifile binds the current detector table by source channel order and applies
-only the bounded exclusion rule observed in the same paired corpus. The full optional-event
-shape and sequence must remain inside that bounded fingerprint; otherwise calculated Area fails
-closed while Signals remain available. The later non-fixed-format evidence includes processing
-events that add or terminate official peaks without a one-to-one marker window; Ordifile does
-not reconstruct those rows. It uses the raw maximum inside each retained partition for RT.
-Original single-peak 9.0 Legacy clusters use adjacent envelope contacts with a straight
-base-to-base baseline; multi-peak 9.0 clusters and 9.1 use the shared cluster lower envelope.
-All variants use a deterministic trapezoidal Area calculation.
+processing tables. Ordifile binds the current detector table by source channel order. The full
+processing-table shape and sequence must remain inside the bounded fingerprint; otherwise
+calculated Area fails closed while Signals remain available.
 
-Across 27 local-only same-run pairs, 340 safely emitted rows align with official displayed RT and
-order at export precision; 7 rows governed by an unimplemented processing-event shape are
-omitted. Area is not vendor-equivalent: 264/340 rows are within 1%, 288/340 within 5%, and
-integration-sensitive peaks include larger differences. Area matches 112/340 rows after
-two-decimal rounding and 2/340 after numerical rounding to four decimals. The 18 safely emitted
-rows from the new 25-row non-fixed oracle present official Area at three decimals; the earlier
-fixed-format oracles present four. GUI, CLI and API
-callers opt in. The result describes the same paired corpus used to select the rules; no
-untouched holdout has established generalization. Official Area coverage is 9.0 FID 243, 9.0 TCD 83,
-9.1 TCD 21, and 9.1 FID 0 (not tested).
+For each stored marker cluster Ordifile resolves peak groups from the lower convex hull of the
+stored signal, gives each group one straight baseline between its own baseline contacts, and
+separates fused peaks inside a group at the stored-response minimum between neighbouring
+stored apexes. A group boundary created by a baseline contact walks back from the stored valley
+through response excursions no larger than the stored `Threshold` value. RT is the
+stored-response maximum inside the stored partition. Area is
+`sum over k in [start, end) of (response[k] - baseline(k + 0.5)) * dt_seconds`.
+That is a controlled-corpus-derived left-edge/midpoint summation, not the general trapezoidal
+rule. It is an independently developed Ordifile calculation designed to reproduce displayed
+Result Area as closely as the validated evidence supports; it is not an implementation or
+replication of the proprietary Clarity/YL-Clarity integration algorithm. A partition that does
+not contain its own retention index is a structured failure.
+
+Four owner archives covering both validated producer versions, both detectors and both
+composite-export layouts hold 347 official rows. Channels whose processing table carries a
+manually added timed event fail closed, which removes 42 of those rows; their scientific
+Signals are preserved. Those stored opcodes (`11`, `12`, `32`) are read from owner-controlled
+interventions rather than from any published specification, and the meaning of `12` is
+unresolved, so none of them is acted on. Of the remaining 305 rows, RT matches 305/305 and
+Area matches 304/305 at each export's own displayed precision. One archive also exists as a
+vendor Excel export publishing twelve significant digits: against it, its 241 rows match on RT,
+Start time and End time exactly, and on Area to a maximum relative difference of `4.025e-13`
+(`4.025e-11 %`). Calculated Height is not published. GUI, CLI and API callers opt in.
 Every calculated row is labelled
 `ordifile_marker_derived` and `ordifile_derived_experimental`; the
-estimate is written to `calculated_area`, source-explicit `area` remains empty, and Height
-remains unavailable. See the
+calculated value is written to `calculated_area`, source-explicit `area` remains empty, and
+`height` remains empty. See the
 [derived-Area investigation](../research/youngin-yl-clarity-prm-derived-area-investigation.md).
 
 The separate exact Result CSV adapter remains the path for explicit vendor RT/Area/Height rows.

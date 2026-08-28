@@ -415,24 +415,34 @@ to the workbook layout.
     caller opts in, and their bounded stored marker stream, current detector processing table,
     and profile-specific integration type match. The estimate is stored in additive
     `calculated_area`; source-explicit `area` remains empty.
-    A bounded processing interval observed in the controlled corpus excludes stored marker
-    candidates whose raw apex lies within it. Exact 9.0 Legacy marker clusters that originally
-    contain one peak use adjacent lower-envelope contacts and a straight base-to-base baseline;
-    shared 9.0 clusters and 9.1 retain the cluster lower envelope. RT is the raw maximum inside
-    the selected partition and Area is a deterministic trapezoidal sum. Processing-event shapes
-    that add or terminate official Result peaks without a one-to-one marker window fail closed
-    for calculated Area while valid Signals remain available. These
+    For each stored marker cluster Ordifile resolves peak groups from the lower convex hull of
+    the stored signal, gives each group one straight baseline between its own baseline
+    contacts, and separates fused peaks inside a group at the stored-response minimum between
+    neighbouring
+    stored apexes. A group boundary created by a baseline contact walks back from the stored
+    valley through response excursions no larger than the stored `Threshold` value. RT is the
+    stored-response maximum inside the stored partition, and Area is a deterministic
+    controlled-corpus-derived left-edge/midpoint summation of the baseline-corrected response,
+    not the general trapezoidal rule. Calculated Height is not published as a product field.
+    A channel whose processing table carries a manually added timed event (stored opcodes 11,
+    12 or 32) fails closed for calculated Area while its valid Signals remain available. The
+    exact effects of these owner-observed timed events are not fully reproduced; opcode 12
+    remains unresolved. The opcode readings come from owner-controlled interventions, not from
+    a published specification. A calculated partition that does not contain its own retention
+    index, a calculated Area that is not strictly positive, and a group resolution exceeding
+    its bounded sample budget are each a structured failure for the affected channel. These
     rows carry additive origin/method/evidence provenance and are not called a stored or
     vendor-equivalent Result. Compatible unknown 9.x, invalid marker state and unsupported
     integration types or processing tables retain their valid Signals without derived Area.
     The optional-event sequence, text/GUID framing, values and time ordering are a bounded
-    capability fingerprint. Across 27 paired runs, 340 safely emitted rows align with official
-    order/RT; 7 unsupported rows are omitted. Area matches 112/340 after two-decimal rounding
-    and 2/340 after numerical rounding to four decimals. The 18 safely emitted rows from the new
-    25-row non-fixed-format oracle present official Area at three decimals, while earlier
-    fixed-format oracles present four.
-    This same-corpus result has no
-    untouched holdout and is not a generalization or official-equivalence claim; 9.1 FID
+    capability fingerprint. Four owner archives covering both validated producer versions, both
+    detectors and both composite-export layouts hold 347 official rows; the fail-closed rule
+    removes 42 of them. Of the remaining 305, RT matches 305/305 and Area matches 304/305 at
+    each export's own displayed precision, and against the one archive that also exists as a
+    twelve-significant-digit vendor Excel export its 241 rows have a maximum relative Area
+    difference of `4.025e-13`.
+    This controlled-corpus result is not a claim of vendor equivalence for every possible
+    processing method; 9.1 FID
     official Peak/Area remains untested.
     Result CSV remains an
     oracle/explicit-Result path, not a PRM runtime dependency. See

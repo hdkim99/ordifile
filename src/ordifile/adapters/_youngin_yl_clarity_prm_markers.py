@@ -45,7 +45,7 @@ class PrmMarker:
 
 @dataclass(frozen=True, slots=True)
 class PrmMarkerDecode:
-    """Optional marker capability decoded independently of the raw signal."""
+    """Optional marker capability decoded independently of the stored PRM response."""
 
     status: str
     integration_type: int | None

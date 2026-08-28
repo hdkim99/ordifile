@@ -24,14 +24,15 @@ EXPECTED_PRMS = 10
 EXPECTED_STREAMS = 20
 EXPECTED_POINTS_PER_DETECTOR = 131_760
 EXPECTED_SCIENTIFIC_POINTS = 263_520
-EXPECTED_DERIVED_PEAKS = 263
+EXPECTED_DERIVED_PEAKS = 241
 EXPECTED_RESULT_ROWS = 263
-EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 98, 3: 23, 4: 2}
-EXPECTED_AREA_WITHIN_1_PERCENT = 207
-EXPECTED_AREA_WITHIN_5_PERCENT = 226
-EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.0011557829897871697
-EXPECTED_AREA_P90_RELATIVE_ERROR = 0.10222526739053382
-EXPECTED_AREA_MAX_RELATIVE_ERROR = 2.8214598065515384
+EXPECTED_FAIL_CLOSED_ROWS = 22
+EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 241, 3: 230, 4: 241}
+EXPECTED_AREA_WITHIN_1_PERCENT = 241
+EXPECTED_AREA_WITHIN_5_PERCENT = 241
+EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 4.034914044223078e-06
+EXPECTED_AREA_P90_RELATIVE_ERROR = 2.563118239673121e-05
+EXPECTED_AREA_MAX_RELATIVE_ERROR = 6.875806406999155e-05
 PRINTED_SIGNAL_HALF_UNIT = Decimal("0.00005001")
 AREA_QUANTA = {2: Decimal("0.01"), 3: Decimal("0.001"), 4: Decimal("0.0001")}
 MAX_MEMBER_BYTES = 1_000_000
@@ -123,17 +124,22 @@ def _result_rows(data: bytes) -> tuple[tuple[str, Decimal, str, Decimal], ...]:
 def _derived_result_errors(
     bundle: DatasetBundle,
     rows: tuple[tuple[str, Decimal, str, Decimal], ...],
-) -> tuple[int, list[float], dict[int, int]]:
+) -> tuple[int, list[float], dict[int, int], int]:
     by_detector = {
         detector: tuple(peak for peak in bundle.peaks if peak.detector == detector)
         for detector in {row[0] for row in rows}
     }
     positions = {detector: 0 for detector in by_detector}
     matched_rt = 0
+    skipped = 0
     errors: list[float] = []
     exact_by_decimal_places = {places: 0 for places in AREA_QUANTA}
     for detector, retention_time, _official_area_text, official_area in rows:
         peaks = by_detector[detector]
+        if not peaks:
+            # The channel failed closed; its official rows are recorded as not compared.
+            skipped += 1
+            continue
         position = positions[detector]
         while (
             position < len(peaks)
@@ -155,8 +161,10 @@ def _derived_result_errors(
         errors.append(
             float(abs(Decimal(str(peak.calculated_area)) - official_area) / abs(official_area))
         )
-    assert all(positions[detector] == len(peaks) for detector, peaks in by_detector.items())
-    return matched_rt, errors, exact_by_decimal_places
+    assert all(
+        positions[detector] == len(peaks) for detector, peaks in by_detector.items() if peaks
+    )
+    return matched_rt, errors, exact_by_decimal_places, skipped
 
 
 def _p90(values: list[float]) -> float:
@@ -225,6 +233,7 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
     all_signals: list[SignalSeries] = []
     matched_result_rows = 0
     area_errors: list[float] = []
+    fail_closed_rows = 0
     exact_area_by_decimal_places = {places: 0 for places in AREA_QUANTA}
     for path in prm_paths.values():
         inspected = inspect_file(path, experimental_derived_area=True)
@@ -234,8 +243,7 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
         assert all(
             peak.status == "ordifile_derived_experimental"
             and peak.data_origin == "ordifile_marker_derived"
-            and peak.derivation_method_id
-            == "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+            and peak.derivation_method_id == "youngin-prm-marker-group-baseline-v4"
             and peak.area is None
             and peak.calculated_area is not None
             for peak in bundle.peaks
@@ -256,7 +264,8 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
         ]
         assert len(matches) == 1
         matched_exports.add(matches[0])
-        matched_rt, errors, exact = _derived_result_errors(bundle, result_rows[matches[0]])
+        matched_rt, errors, exact, skipped = _derived_result_errors(bundle, result_rows[matches[0]])
+        fail_closed_rows += skipped
         matched_result_rows += matched_rt
         area_errors.extend(errors)
         for places, count in exact.items():
@@ -264,7 +273,9 @@ def test_owner_archive_validates_exact_9_0_scientific_family_and_millivolt_units
         all_signals.extend(signals.values())
 
     assert len(matched_exports) == EXPECTED_PRMS
-    assert matched_result_rows == len(area_errors) == EXPECTED_RESULT_ROWS
+    assert fail_closed_rows == EXPECTED_FAIL_CLOSED_ROWS
+    assert matched_result_rows == len(area_errors)
+    assert matched_result_rows + fail_closed_rows == EXPECTED_RESULT_ROWS
     assert exact_area_by_decimal_places == EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES
     assert sum(error <= 0.01 for error in area_errors) == EXPECTED_AREA_WITHIN_1_PERCENT
     assert sum(error <= 0.05 for error in area_errors) == EXPECTED_AREA_WITHIN_5_PERCENT

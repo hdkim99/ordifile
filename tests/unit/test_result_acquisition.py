@@ -177,7 +177,7 @@ def _with_derived_peak(native: DatasetBundle) -> DatasetBundle:
                 start_time=0.0,
                 end_time=2.0 / 600.0,
                 data_origin="ordifile_marker_derived",
-                derivation_method_id="youngin-prm-marker-lower-envelope-v1",
+                derivation_method_id="youngin-prm-marker-group-baseline-v4",
                 derivation_evidence_profile="controlled-paired-result-25",
                 calculated_area=0.5,
                 calculated_area_unit="mV.s",

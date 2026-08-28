@@ -26,12 +26,12 @@ EXPECTED_EXPANDED_BYTES = 4_405_612
 EXPECTED_RECORDS_PER_CHANNEL = 13_800
 EXPECTED_CURVE_POINTS = 138_000
 EXPECTED_DERIVED_PEAKS = 21
-EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 5, 3: 1, 4: 0}
-EXPECTED_AREA_WITHIN_1_PERCENT = 20
-EXPECTED_AREA_WITHIN_5_PERCENT = 20
-EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.000902905850869345
-EXPECTED_AREA_P90_RELATIVE_ERROR = 0.0025772272166247386
-EXPECTED_AREA_MAX_RELATIVE_ERROR = 0.3433783866842903
+EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 21, 3: 17, 4: 21}
+EXPECTED_AREA_WITHIN_1_PERCENT = 21
+EXPECTED_AREA_WITHIN_5_PERCENT = 21
+EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 5.496011277682599e-09
+EXPECTED_AREA_P90_RELATIVE_ERROR = 1.9524823205904037e-06
+EXPECTED_AREA_MAX_RELATIVE_ERROR = 2.9408873841132695e-06
 PRINTED_SIGNAL_HALF_UNIT = Decimal("0.00005001")
 AREA_QUANTA = {2: Decimal("0.01"), 3: Decimal("0.001"), 4: Decimal("0.0001")}
 MAX_MEMBER_BYTES = 1_000_000
@@ -354,7 +354,7 @@ def test_expanded_owner_archive_validates_exact_9_1_scientific_curves(
         assert all(
             peak.status == "ordifile_derived_experimental"
             and peak.data_origin == "ordifile_marker_derived"
-            and peak.derivation_method_id == "youngin-prm-marker-timetable-lower-envelope-v2"
+            and peak.derivation_method_id == "youngin-prm-marker-group-baseline-v4"
             and peak.area is None
             and peak.calculated_area is not None
             for peak in bundle.peaks

@@ -296,7 +296,7 @@ def test_marker_derived_area_reaches_existing_peak_workbook_contract(
         assert row[headers.index("status")] == "ordifile_derived_experimental"
         assert row[headers.index("data_origin")] == "ordifile_marker_derived"
         assert row[headers.index("derivation_method_id")] == (
-            "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+            "youngin-prm-marker-group-baseline-v4"
         )
         matrix_rows = list(workbook["Peak_Order_Matrix"].values)
         matrix_headers = matrix_rows[0]

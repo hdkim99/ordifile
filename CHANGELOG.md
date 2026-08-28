@@ -7,6 +7,48 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- The optional YoungIn YL-Clarity PRM calculated Area now resolves peak groups from the lower
+  convex hull of the stored signal, gives each group one straight baseline between its own
+  baseline contacts, separates fused peaks at the stored-response minimum between neighbouring
+  stored apexes, and sums the baseline-corrected response with a left-edge response and a
+  centre-of-interval baseline. That summation is derived from the controlled corpus and is not
+  the general trapezoidal rule. This independently developed calculation is intended to reproduce
+  displayed Result Area as closely as the validated evidence supports; it is not an implementation
+  or replication of the proprietary Clarity/YL-Clarity integration algorithm. No vendor source
+  code, library, DLL, or executable is used by the implementation or at runtime. Four owner archives
+  covering both validated producer versions, both detectors and both composite-export layouts
+  hold 347 official rows; the new fail-closed rule below removes 42 of them. Of the remaining 305,
+  retention time matches 305/305 and
+  calculated Area matches 304/305 at each export's own displayed precision, replacing the
+  previous lower-envelope calculation's 112/340. Against the one archive that also exists as a
+  twelve-significant-digit vendor Excel export, its 241 rows match retention, start and end time
+  exactly; the maximum relative Area difference is `4.025e-13`. Calculated Height is computed internally for
+  verification only and is still not published. The method identifier is now
+  `youngin-prm-marker-group-baseline-v4`.
+- A YoungIn PRM channel whose stored processing table carries a manually added timed event
+  (stored opcodes 11, 12 or 32) now fails closed for calculated Area and records the channel
+  status `time_table_manual_event_unsupported`. The exact effects of these owner-observed timed
+  events are not fully reproduced; opcode 12 remains unresolved. Those rows are therefore
+  omitted rather than estimated, and the scientific Signals for those channels are unchanged.
+  The opcode readings come from owner-controlled interventions, not from a published
+  specification.
+
+### Fixed
+
+- A YoungIn PRM peak whose calculated partition no longer contained its own retention index
+  could be emitted with `end_time` before `retention_time`. The calculation now fails closed
+  for the affected channel instead.
+- Resolving a stored marker cluster into peak groups is now iterative and charged against a
+  deterministic sample budget. The previous recursive form raised `RecursionError`, which the
+  adapter did not handle, on clusters with roughly a thousand baseline-separated peaks, and a
+  bounded-but-quadratic marker stream could still stall a conversion for a long time.
+- A YoungIn PRM peak whose calculated Area is not strictly positive now fails closed for the
+  affected channel. The left-edge/midpoint summation can total below zero on a sloping baseline
+  even when the response never falls below it, and every official Area in the controlled corpus
+  is positive, so such a result is outside the evidence.
+
 ## [0.5.1] - 2026-08-25
 
 ### Added
