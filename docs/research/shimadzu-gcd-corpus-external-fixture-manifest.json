@@ -1,0 +1,37 @@
+{
+    "schema_version": 1,
+    "fixture_id": "cambridge-apollo-108306-gcd-corpus",
+    "url": "https://www.repository.cam.ac.uk/bitstreams/b9e625e2-b7c2-47c7-864d-29d9b4242298/download",
+    "allowed_hosts": [
+        "www.repository.cam.ac.uk",
+        "api.repository.cam.ac.uk"
+    ],
+    "artifact_filename": "open_data.zip",
+    "sha256": "94d0267d47261ba612aa344d7253f26282973b65e9734a8697fb85ea8c728160",
+    "size_bytes": 37512839,
+    "archive_type": "file",
+    "selected_files": [],
+    "tree_sha256": null,
+    "source_page_url": "https://www.repository.cam.ac.uk/handle/1810/367880",
+    "license_name": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "license_id": "CC-BY-4.0-CAM-108306-OPEN-DATA",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "license_acknowledged": true,
+    "redistribution": "permitted",
+    "attribution": "Research data supporting Multi-Variable Multi-Metric Optimization of Self-Assembled Photocatalytic CO2 Reduction Performance using Machine Learning Algorithms, University of Cambridge Apollo repository, https://doi.org/10.17863/CAM.108306. Used unchanged for transient format research.",
+    "privacy_review": "contains_personal_data",
+    "validated_with": [
+        {
+            "reader": "olefile",
+            "version": "0.47",
+            "result": "accepted"
+        },
+        {
+            "reader": "paired_ascii",
+            "version": "5.71.5.86",
+            "result": "accepted"
+        }
+    ],
+    "grade": "ACCEPT_CONTROLLED_CI",
+    "ci_eligible": false
+}

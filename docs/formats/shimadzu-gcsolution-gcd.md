@@ -33,13 +33,30 @@ ordifile convert FS19_214.gcd --include-signals --output Ordifile_Result.xlsx
 The output is a `SeriesKind.SCIENTIFIC_SIGNAL` series with retention time in minutes
 and response in `uV`. Ordifile does not interpolate, truncate, or detect peaks.
 
+## Stored vendor peak table
+
+The compound document also keeps the vendor's own processed peak rows in a single
+`LSS Data Processing/PT-*` stream: a 20-byte `VER1` header followed by fixed 792-byte
+records holding retention, start and end time as whole milliseconds and Area and Height
+as binary64. Ordifile reads those rows as **source-explicit** `area` and `height`; it does
+not integrate the signal and does not recalculate a vendor result. The stored values keep
+every digit that LabSolutions' own text export rounds away, so a `.gcd` file alone yields a
+complete peak table at higher precision than its paired export.
+
+Area and Height units stay unresolved, matching the paired result-ASCII adapter. Negative
+stored peaks are preserved as stored. A document without that stream keeps its signal and
+reports `stored_peak_table_status: absent`. A stream outside the bounded layout - unobserved
+processing revision, non-zero reserved header bytes, partial record framing, a row that does
+not contain its own retention time, rows out of source retention order, or a non-finite value
+- fails closed for the peak table alone while the chromatogram remains available.
+
 ## Detection and safety
 
 The `.gcd` extension is supporting evidence only. Detection also checks the Microsoft
 Compound File signature/profile, exact LabSolutions 5.82 producer evidence, required
 stream inventory, one unambiguous `Ch1`/`SFID1` mapping, signal header, point-count and
 stream-length equations, 40 ms rate, 20 ms delay, `uV`/`VF1`, and identity conversion
-and gain factors.
+and gain factors. More than one stored peak-table stream is a structured failure.
 
 Files with another producer version, detector, unit, factor, multiple populated
 channels, ambiguous links, malformed XML, non-finite values, unsupported CFB profile,
