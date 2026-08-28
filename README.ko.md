@@ -278,6 +278,7 @@ if plan.is_executable:
 | 형식 경계 | Metadata | Peaks | 출력 | 상태 | 실제 fixture |
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | 필드별 | 없음 | 모든 구조적 decoded record | Experimental | 외부 BSEE 파일 1개 |
+| Agilent ChemStation `.CH` internal version 179, exact GC-FID profile | 필드별 | 없음 | 저장된 run 경계에서 구성한 retention time (min) + 저장된 scale·unit lexeme 기반 response, peak·area 없음 | Experimental | 짝이 되는 vendor report export가 있는 CC BY 4.0 코퍼스 1개 |
 | Agilent ChemStation Result XML, exact `C.01.10 [201]` 단일 `FID1/A` Percent/Area profile | 과학 데이터 allowlist | ResultsGroup peak | RT (min) + area (pA\*s) + height (pA), raw signal 없음 | Experimental | 외부 CeCILL-2.1 fixture 1개 |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 저장된 vendor peak 행 | retention time (min) + signal (uV) + 저장 peak table의 source-explicit RT/start/end (min), area, height (unit 미확정) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |

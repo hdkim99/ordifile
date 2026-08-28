@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from importlib import metadata
 from typing import Any, cast
 
+from ordifile.adapters.agilent_chemstation_ch_v179 import AgilentChemStationChV179Adapter
 from ordifile.adapters.agilent_chemstation_ch_v181 import AgilentChemStationChV181Adapter
 from ordifile.adapters.agilent_chemstation_result_xml import (
     AgilentChemStationResultXmlAdapter,
@@ -195,6 +196,7 @@ def load_external_adapters(
 def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     """Create the built-in registry and optionally load installed entry points."""
     registry = AdapterRegistry()
+    registry.register(AgilentChemStationChV179Adapter())
     registry.register(AgilentChemStationChV181Adapter())
     registry.register(AgilentChemStationResultXmlAdapter())
     registry.register(GenericCsvAdapter())

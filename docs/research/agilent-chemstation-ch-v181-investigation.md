@@ -302,13 +302,13 @@ ChemStation installations, and it positively demonstrates that the report filena
 belong to any shared key. The container shape does not say which of the four exports is
 the peak table either; that assertion has to come from the researcher.
 
-Second, and decisively for sequencing: the signal these directories contain is internal
-version `179`, which the exact v181 adapter rejects. Directory intake exists to join peaks
-to their signal in one workbook source, and there is no readable signal to join. Until a
-`.ch` generation in this corpus is decodable, `.D` intake would add a container model, a
-reuse-key store and a per-directory question to the interface while producing exactly what
-mapping the export alone already produces.
+Second, and decisively for sequencing at the time: the signal these directories contain is
+internal version `179`, which the exact v181 adapter rejected, so directory intake would have
+joined peaks to a signal that could not be read.
 
-Directory intake is therefore deferred. The evidenced next step for Agilent is signal
-support for the `179` generation, which is an ordinary single-file adapter question and
-changes no interface.
+That half is now closed. The `179` generation has its own reader, so a `.D` directory yields a
+scientific signal from its `.ch` and a peak table from its export, as two workbook sources. What
+directory intake would add is joining those into one source, and its cost is unchanged: a
+container model, a reuse key that cannot be the positional labels of a headerless table or a
+site-specific filename, and a per-directory question in the interface. Directory intake stays
+deferred until that join is worth those three, not because there is nothing to join.

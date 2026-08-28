@@ -298,7 +298,7 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 8" in output
+    assert "Experimental adapters: 9" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 

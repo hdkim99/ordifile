@@ -289,6 +289,7 @@ if plan.is_executable:
 | Format boundary | Metadata | Peaks | Output | Status | Real fixture |
 |---|---:|---:|---|---|---:|
 | Agilent ChemStation `.CH` internal version 181, exact GC-FID profile | Field-specific | No | All structural decoded records | Experimental | One external BSEE file |
+| Agilent ChemStation `.CH` internal version 179, exact GC-FID profile | Field-specific | No | Retention time (min) from the stored run boundaries + response using the stored scale and unit lexeme; no peaks or area | Experimental | One owner-approved CC BY 4.0 corpus with paired vendor report exports |
 | Agilent ChemStation Result XML, exact `C.01.10 [201]` single `FID1/A` Percent/Area profile | Scientific allowlist | ResultsGroup peaks | RT (min) + area (pA\*s) + height (pA); no raw signal | Experimental | One external CeCILL-2.1 fixture |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | Stored vendor peak rows | Retention time (min) + signal (uV) + source-explicit RT/start/end (min), area and height from the stored peak table (units unresolved) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
