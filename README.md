@@ -293,7 +293,7 @@ if plan.is_executable:
 | Agilent ChemStation Result XML, exact `C.01.10 [201]` single `FID1/A` Percent/Area profile | Scientific allowlist | ResultsGroup peaks | RT (min) + area (pA\*s) + height (pA); no raw signal | Experimental | One external CeCILL-2.1 fixture |
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | Stored vendor peak rows | Retention time (min) + signal (uV) + source-explicit RT/start/end (min), area and height from the stored peak table (units unresolved) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
-| Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
+| Shimadzu GCMSsolution `.QGD`, `4.00` profile | Field-specific | Yes, stored, **not validated against a vendor export** | Retention time (min) + raw TIC (unit unknown); stored peak rows with compound names; MS1 not exported | Experimental | One external Dryad CC0 file + five CC BY 4.0 Zenodo files |
 | YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus four owner archives holding 347 official rows across validated 9.0/9.1 profiles; 305 rows compared, 304 exact at the export's own precision |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
@@ -338,12 +338,17 @@ detectors, channels, identified-compound tables, multiple peak sections and arbi
 LabSolutions text exports are unsupported. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-result-ascii.md).
 
-The separate QGD adapter is limited to one exact GCMSsolution `4.00` compound-file
-profile. It preserves all 16,800 TIC integers and the verified millisecond-derived
-retention-time axis. The physical TIC unit is unknown. MS1 blocks are checked for
-bounded scan structure and exact TIC-sum agreement, but spectra are not exported and
-encoded mass values are not called m/z. It does not claim other QGD versions,
-SIM/MRM, identifications, quantitation, or write support. See the
+The separate QGD adapter is limited to the GCMSsolution `4.00` compound-file profile
+with a uniform scan grid. It preserves every TIC integer and the verified
+millisecond-derived retention-time axis. The physical TIC unit is unknown. MS1 blocks
+are checked for bounded scan structure and exact TIC-sum agreement, but spectra are not
+exported and encoded mass values are not called m/z. It also reads the peak rows the
+document already stores, including compound names. **Those stored peak values have not
+been validated against a Shimadzu GCMSsolution export**: no raw-plus-export pair exists
+for any file carrying a populated table, so their meanings were established only against
+each file's own TIC, and every parse that yields peaks says so through the
+`SHIMADZU_QGD_STORED_PEAK_TABLE_UNVALIDATED` warning. It does not claim other QGD
+versions, SIM/MRM, quantitation, or write support. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-gcmssolution-qgd.md).
 
 YoungIn PRM files contain chromatographic stored data. The adapter validates a common

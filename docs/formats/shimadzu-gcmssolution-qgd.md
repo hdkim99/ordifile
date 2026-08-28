@@ -77,3 +77,38 @@ intensity validation plus a bounded mass-spectrum output model.
 
 Shimadzu, GCMSsolution, and related names are names or marks of their respective
 owner. Ordifile is independent and is not affiliated with or endorsed by Shimadzu.
+
+## Stored mass-chromatogram peak table
+
+The adapter also reads the peak rows the document stores in
+`GCMS Data Processing/MC Peak Table`, a headerless array of 208-byte records
+whose count is corroborated by `GCMS Data Processing/MC Peak Info`. It emits
+retention, start and end time (minutes), Area, Height, and the stored compound
+name. Ordifile does not integrate the signal here; every value is source-explicit.
+
+**These stored values are not validated against a Shimadzu GCMSsolution export.**
+No raw-plus-export pair is available for any file carrying a populated table, so
+the field meanings were established only against each file's own TIC. Retention
+time, the Area column identity, the Area scale, and Height were each corroborated
+that way, but column selection, rounding, displayed units, and the treatment of
+unidentified peaks remain unverified. Every parse that yields peaks raises
+`SHIMADZU_QGD_STORED_PEAK_TABLE_UNVALIDATED`, and the metadata key
+`stored_peak_value_validation` reports `internal_only_no_vendor_export`.
+
+Two f64 fields in each record whose meaning was not established are deliberately
+not read. Compound names are read only up to their NUL terminator, because the
+bytes after it are uninitialised writer memory that holds fragments of unrelated
+strings; a non-ASCII name is omitted rather than guessed at, since the document
+does not record its code page.
+
+Full evidence:
+[the investigation](https://github.com/hdkim99/ordifile/blob/main/docs/research/shimadzu-gcmssolution-qgd-mc-peak-table-investigation.md).
+
+## Accepted acquisition profiles
+
+The scan grid is read from the document rather than pinned. It is accepted when
+it is strictly increasing with one uniform interval; non-uniform grids fail
+closed. The `Spectrum Index` stream is accepted in both observed encodings, a
+bare u32 offset array and a `01 00`-tagged u64 offset array, which can never be
+confused because a u32 array is a multiple of four bytes while the tagged u64
+array is two modulo four.
