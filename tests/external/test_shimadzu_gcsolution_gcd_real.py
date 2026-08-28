@@ -14,7 +14,7 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 from ordifile.adapters.base import ParseOptions
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
 from ordifile.api import convert, inspect_file
-from ordifile.core.models import SeriesKind
+from ordifile.core.models import PeakRecord, SeriesKind
 
 EXPECTED_SIZE = 1_433_600
 EXPECTED_SHA256 = "d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180"
@@ -211,9 +211,9 @@ def test_exact_external_gcd_fixture_reference_and_workbook(tmp_path: Path) -> No
         workbook.close()
 
 
-def _stored_peak_digest(peaks: object) -> str:
+def _stored_peak_digest(peaks: Iterable[PeakRecord]) -> str:
     digest = hashlib.sha256()
-    for peak in peaks:  # type: ignore[attr-defined]
+    for peak in peaks:
         for value in (
             peak.retention_time,
             peak.start_time,
@@ -221,6 +221,7 @@ def _stored_peak_digest(peaks: object) -> str:
             peak.area,
             peak.height,
         ):
+            assert value is not None
             digest.update(struct.pack(">d", value))
     return digest.hexdigest()
 
@@ -240,7 +241,13 @@ def test_exact_external_gcd_carries_its_stored_vendor_peak_table(tmp_path: Path)
     assert all(peak.calculated_area is None for peak in bundle.peaks)
     assert all(peak.data_origin is None for peak in bundle.peaks)
     assert all(peak.area_unit is None and peak.height_unit is None for peak in bundle.peaks)
-    assert all(peak.start_time <= peak.retention_time <= peak.end_time for peak in bundle.peaks)
+    assert all(
+        peak.start_time is not None
+        and peak.retention_time is not None
+        and peak.end_time is not None
+        and peak.start_time <= peak.retention_time <= peak.end_time
+        for peak in bundle.peaks
+    )
     metadata = {entry.key: entry.value for entry in bundle.metadata}
     assert metadata["stored_peak_table_status"] == "matched"
     assert metadata["stored_peak_count"] == EXPECTED_STORED_PEAK_COUNT

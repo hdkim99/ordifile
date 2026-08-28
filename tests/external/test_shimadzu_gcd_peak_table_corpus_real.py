@@ -21,6 +21,7 @@ import pytest
 from ordifile.adapters._shimadzu_gcsolution_gcd_peak_table import (
     PEAK_TABLE_NAME_PATTERN,
     PEAK_TABLE_STORAGE,
+    ShimadzuGcdPeak,
     decode_peak_table,
 )
 
@@ -103,7 +104,7 @@ def _ascii_peak_rows(text: str) -> list[dict[str, float | None]]:
     return rows
 
 
-def _stored_rows(payload: bytes) -> list[object] | None:
+def _stored_rows(payload: bytes) -> list[ShimadzuGcdPeak] | None:
     with olefile.OleFileIO(io.BytesIO(payload)) as container:
         entries = [
             tuple(part for part in item)
@@ -181,14 +182,24 @@ def test_stored_peak_table_layout_holds_across_the_owner_approved_corpus() -> No
             row_count_agreement += 1
             for expected, actual in zip(official, stored, strict=True):
                 compared_rows += 1
-                assert abs(actual.retention_time - expected["rt"]) <= TIME_TOLERANCE_MINUTES
-                assert abs(actual.start_time - expected["start"]) <= TIME_TOLERANCE_MINUTES
-                assert abs(actual.end_time - expected["end"]) <= TIME_TOLERANCE_MINUTES
+                expected_rt = expected["rt"]
+                expected_start = expected["start"]
+                expected_end = expected["end"]
+                expected_area = expected["area"]
+                expected_height = expected["height"]
+                assert expected_rt is not None
+                assert expected_start is not None
+                assert expected_end is not None
+                assert expected_area is not None
+                assert expected_height is not None
+                assert abs(actual.retention_time - expected_rt) <= TIME_TOLERANCE_MINUTES
+                assert abs(actual.start_time - expected_start) <= TIME_TOLERANCE_MINUTES
+                assert abs(actual.end_time - expected_end) <= TIME_TOLERANCE_MINUTES
                 # The text export publishes these rounded; the stored value keeps every digit.
-                assert round(actual.area) == expected["area"]
-                assert round(actual.height) == expected["height"]
-                assert abs(actual.area - expected["area"]) < 0.5
-                assert abs(actual.height - expected["height"]) < 0.5
+                assert round(actual.area) == expected_area
+                assert round(actual.height) == expected_height
+                assert abs(actual.area - expected_area) < 0.5
+                assert abs(actual.height - expected_height) < 0.5
 
     assert stored_tables == EXPECTED_STORED_TABLES
     assert compared_pairs == EXPECTED_COMPARED_PAIRS
