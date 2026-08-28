@@ -26,7 +26,13 @@ than silently producing a corrupt table.
 Setting the header record to **0** declares that the source carries no header. The first record
 then stays data and column roles bind to one-based positional labels (`1`, `2`, ...) instead of
 header text. This is available for delimited text only; declaring it for a worksheet is refused,
-because no worksheet fixture establishes that behaviour. Delimiters remain fixed by the declared container: comma
+because no worksheet fixture establishes that behaviour.
+
+A headerless mapping is **never selected automatically by profile routing**. Routing compares
+decoded header labels at their positions, and synthetic positional labels carry no source
+evidence, so the key would degenerate to container plus column count and could apply one
+vendor's column roles to an unrelated table with the same shape. The researcher applies a
+headerless mapping by naming it for that conversion instead. Delimiters remain fixed by the declared container: comma
 for CSV, tab for TSV, and semicolon for semicolon-TXT. The selected worksheet title is used
 locally but is represented in conversion results and the Manifest only by the fixed
 `USER_SELECTED` marker.
@@ -122,7 +128,8 @@ Both documents are strict, non-executable UTF-8 JSON.
 
 Profile selection is exact structural routing, not scientific inference. For text it
 uses the approved encoding/header setting and compares the declared container and every
-decoded header label at its one-based position.
+decoded header label at its one-based position. A profile whose mapping declares no header
+record is excluded from selection entirely, because it has no source-derived labels to compare.
 CSV, TSV, and semicolon-TXT remain distinct. For XLSX a profile either names one exact
 local worksheet or requires one unambiguous visible worksheet, then compares the ordered
 headers. Filename, directory, vendor name, display label, file hash, row count, and all

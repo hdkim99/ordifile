@@ -14,7 +14,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   With no header the first record stays data and column roles bind to one-based positional
   labels instead of header text. Declaring a headerless worksheet is refused, because no
   worksheet fixture establishes that behaviour. Both remain explicit researcher choices; no
-  encoding, delimiter, header, or scientific role is detected.
+  encoding, delimiter, header, or scientific role is detected. A headerless mapping is never
+  selected automatically by reusable-profile routing: synthetic positional labels carry no
+  source evidence, so the routing key would degenerate to container plus column count and could
+  apply one vendor's column roles to an unrelated table of the same shape. The researcher names
+  a headerless mapping for the conversion instead.
 
 ### Fixed
 

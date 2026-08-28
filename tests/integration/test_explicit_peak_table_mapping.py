@@ -30,6 +30,8 @@ from ordifile.core.peak_mapping import (
     PeakTableFormat,
     PeakTableImportSettings,
     PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
     PeakTableTextEncoding,
 )
 
@@ -835,3 +837,33 @@ def test_headerless_declaration_is_refused_for_worksheets() -> None:
             source_format=PeakTableFormat.XLSX,
             import_settings=PeakTableImportSettings(PeakTableTextEncoding.UTF8, 0),
         )
+
+
+def test_headerless_profile_is_never_selected_automatically(tmp_path: Path) -> None:
+    """A headerless key is container plus column count, which cannot identify a source."""
+    settings = PeakTableImportSettings(PeakTableTextEncoding.UTF16, 0)
+    mapping = PeakTableMapping(
+        retention_time_column=ColumnSelector("2", 2),
+        area_column=ColumnSelector("5", 5),
+        retention_time_unit="min",
+        ignored_columns=tuple(ColumnSelector(str(index), index) for index in (1, 3, 4, 6, 7)),
+        source_format=PeakTableFormat.CSV,
+        import_settings=settings,
+    )
+    mapping_set = PeakTableMappingSet(
+        (PeakTableMappingProfile(mapping, display_label="Seven column report"),)
+    )
+    # An unrelated seven-column table would otherwise route to the same profile and take
+    # column 2 as retention time and column 5 as area.
+    unrelated = tmp_path / "unrelated.csv"
+    unrelated.write_text('1,999.0,"x",0.5,3.25,0.2,"y"\r\n', encoding="utf-16")
+
+    assert not mapping.import_settings.has_header
+    assert (
+        mapping_set.match(
+            PeakTableFormat.CSV,
+            ("1", "2", "3", "4", "5", "6", "7"),
+            import_settings=settings,
+        )
+        == ()
+    )

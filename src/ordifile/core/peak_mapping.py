@@ -777,7 +777,15 @@ class PeakTableMappingProfile:
         worksheet_title: str | None = None,
         single_visible_worksheet: bool = False,
     ) -> bool:
-        """Match exact local structure without reading any scientific row values."""
+        """Match exact local structure without reading any scientific row values.
+
+        A headerless declaration has no source-derived structure to compare: its header
+        labels are synthetic positions, so the key would degenerate to container plus
+        column count and could route an unrelated table. Such a profile is never selected
+        automatically; the researcher applies it by naming it for that conversion.
+        """
+        if not self.mapping.import_settings.has_header:
+            return False
         if source_format is not self.mapping.source_format:
             return False
         if import_settings != self.mapping.import_settings:
