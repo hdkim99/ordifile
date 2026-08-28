@@ -372,3 +372,39 @@ def test_an_unobserved_per_scan_number_fails_closed(tmp_path: Path) -> None:
     )
 
     assert error.code == "SHIMADZU_QGD_MS1_INVALID"
+
+
+def test_the_older_file_property_schema_is_accepted(tmp_path: Path) -> None:
+    bundle = ShimadzuGcmssolutionQgdAdapter().parse(
+        _alternate(tmp_path / "schema-2.qgd", file_schema="2.00"), ParseOptions()
+    )
+
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["file_property_schema"] == "2.00"
+
+
+def test_an_unobserved_file_property_schema_still_fails_closed(tmp_path: Path) -> None:
+    error = _parse_error(_alternate(tmp_path / "schema-3.qgd", file_schema="3.00"))
+
+    assert error.code == "SHIMADZU_QGD_PROFILE_UNSUPPORTED"
+
+
+def test_an_empty_scan_is_accepted_and_contributes_no_intensity(tmp_path: Path) -> None:
+    source = _alternate(
+        tmp_path / "empty-scan.qgd",
+        records_overrides={17: ()},
+        intensity_width_overrides={17: 4},
+    )
+
+    bundle = ShimadzuGcmssolutionQgdAdapter().parse(source, ParseOptions())
+
+    assert bundle.signals[0].y_values[17] == 0
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["ms1_points_per_scan_min"] == 0
+    assert metadata["ms1_intensity_widths_bytes"] == "2"
+
+
+def test_a_non_empty_scan_still_requires_an_observed_intensity_width(tmp_path: Path) -> None:
+    error = _parse_error(_alternate(tmp_path / "width.qgd", intensity_width_overrides={17: 4}))
+
+    assert error.code == "SHIMADZU_QGD_MS1_INVALID"

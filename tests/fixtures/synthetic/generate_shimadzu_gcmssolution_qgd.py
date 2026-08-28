@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import struct
 from collections.abc import Mapping
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from generate_cfb_v4 import SECTOR_BYTES, build_cfb_v4
 

@@ -29,6 +29,9 @@ CFB_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
 CFB_HEADER_BYTES = 4_096
 MAX_QGD_FILE_BYTES = 64 * 1024 * 1024
 MAX_DIRECTORY_ENTRIES = 512
+# Two compound-document generations carry the same QGD streams: CFB v4 with 4096-byte
+# sectors and the older CFB v3 with 512-byte sectors.
+SUPPORTED_CFB_VERSIONS = frozenset({(3, 9), (4, 12)})
 MAX_FILE_PROPERTY_BYTES = 64 * 1024
 MAX_MS_RAW_BYTES = 48 * 1024 * 1024
 MAX_MS1_POINTS_PER_SCAN = 4_096
@@ -53,7 +56,10 @@ REQUIRED_PATHS = frozenset(
     }
 )
 
-EXPECTED_FILE_SCHEMA = "4.00"
+# Two generations carry the same QGD streams: File Property 2.00 written by
+# GCMSsolution 2.x into CFB v3, and 4.00 written by 4.x into CFB v4.  Nothing is read
+# out of File Property beyond this token; every array is validated on its own terms.
+SUPPORTED_FILE_SCHEMAS = frozenset({"2.00", "4.00"})
 # Two acquisition grids have fixture evidence (16,800 scans at 200 ms and 9,100 scans
 # at 300 ms), so the grid is read from the document and checked for internal
 # consistency instead of being pinned to a single observed acquisition.
@@ -179,14 +185,13 @@ def _preflight_cfb(path: Path) -> int:
     mini_sector_shift = struct.unpack_from("<H", header, 32)[0]
     if (
         minor_version != 62
-        or major_version != 4
         or byte_order != b"\xfe\xff"
-        or sector_shift != 12
+        or (major_version, sector_shift) not in SUPPORTED_CFB_VERSIONS
         or mini_sector_shift != 6
     ):
         raise _fail(
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
-            "Only the validated little-endian CFB v4/4096 QGD profile is supported.",
+            "Only the validated little-endian CFB v3/512 and v4/4096 QGD profiles are supported.",
             minor_version=minor_version,
             major_version=major_version,
             sector_shift=sector_shift,
@@ -332,10 +337,11 @@ def _file_schema(data: bytes) -> str:
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
             "The File Property schema token is malformed.",
         ) from error
-    if schema != EXPECTED_FILE_SCHEMA:
+    if schema not in SUPPORTED_FILE_SCHEMAS:
         raise _fail(
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
-            "Only the validated File Property 4.00 QGD profile is supported.",
+            "Only the validated File Property 2.00 and 4.00 QGD profiles are supported.",
+            file_schema=schema,
         )
     return schema
 
@@ -473,8 +479,9 @@ def _validate_ms1(
                     or scan_number not in (0, scan_index + 1)
                     or reserved_a_tail != 0
                     or reserved_b != (0, 0)
-                    or width not in SUPPORTED_INTENSITY_WIDTHS
-                    or point_count < 1
+                    # An empty scan carries no points, so its width field is unused
+                    # and is not required to name an observed intensity width.
+                    or (point_count and width not in SUPPORTED_INTENSITY_WIDTHS)
                     or point_count > MAX_MS1_POINTS_PER_SCAN
                 ):
                     raise _fail(
@@ -500,7 +507,8 @@ def _validate_ms1(
                     )
                 points_min = min(points_min, point_count)
                 points_max = max(points_max, point_count)
-                widths.add(width)
+                if point_count:
+                    widths.add(width)
 
                 previous_mass = -1
                 intensity_sum = 0

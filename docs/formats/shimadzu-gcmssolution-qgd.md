@@ -112,3 +112,10 @@ closed. The `Spectrum Index` stream is accepted in both observed encodings, a
 bare u32 offset array and a `01 00`-tagged u64 offset array, which can never be
 confused because a u32 array is a multiple of four bytes while the tagged u64
 array is two modulo four.
+
+Two compound-document generations are accepted: CFB v3 with 512-byte sectors
+carrying `File Property` schema `2.00`, and CFB v4 with 4096-byte sectors
+carrying schema `4.00`. Nothing is read out of `File Property` beyond that token.
+Scans that carry zero data points are accepted, since their length is
+self-consistent and they contribute no intensity; a non-empty scan still has to
+name an observed intensity width.

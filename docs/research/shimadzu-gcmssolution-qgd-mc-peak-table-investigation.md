@@ -42,6 +42,43 @@ multiple of four bytes, while the tagged u64 array is two modulo four.
 The grid is now accepted when it is strictly increasing with one uniform
 interval; a non-uniform grid still fails closed.
 
+## A second GCMSsolution generation
+
+A later search for a raw-plus-export pair found no such pair, but did find a
+second corpus that corroborates the record layout across software generations:
+31 zebrafish metabolomics acquisitions published under CC BY 4.0 (Zenodo record
+8312045). They are written by GCMSsolution 2.72 and differ from the corpus above
+on three further structural points:
+
+| Structure | Corpus A-E | Zebrafish corpus |
+| --- | --- | --- |
+| Compound document | CFB v4, 4096-byte sectors | CFB v3, 512-byte sectors |
+| `File Property` schema | `4.00` | `2.00` |
+| Scan grid | 9,100 scans at 300 ms | 8,320 scans at 300 ms |
+
+Nothing is read out of `File Property` beyond the schema token, and every array
+is validated on its own terms, so both schemas are accepted.
+
+One further structure appears only here: some scans carry **zero data points**.
+Such a scan is 32 bytes of header with no payload, its length is self-consistent,
+its unused intensity-width field does not name an observed width, and its TIC
+value is zero. Empty scans are now accepted; a non-empty scan still has to name
+an observed width.
+
+The same 208-byte record layout decodes cleanly in this generation. Across six
+files checked in detail, the record count matched `MC Peak Info` exactly and the
+stored Area percentages summed to 100 in every file with a populated table. That
+is meaningful corroboration that the layout is not an artefact of one writer
+version, but it is **still not** validation against a vendor export.
+
+The dataset also ships a CSV, which is **not** a usable oracle: it holds peak
+areas normalised against a retention-index marker, and its metabolite names are
+short forms (`L-Valine`) rather than the stored derivatised names (`L-Valine,
+trimethylsilyl ester`), so only 1 of its 37 columns matches a stored name at all.
+
+One file in that corpus, a dichloromethane blank, stores an empty peak table: it
+was acquired but never integrated.
+
 ## Record layout
 
 `GCMS Data Processing/MC Peak Table` is a headerless array of 208-byte records.

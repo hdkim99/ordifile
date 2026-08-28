@@ -25,6 +25,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- The Shimadzu `.QGD` reader now accepts both observed compound-document generations: CFB v3
+  with 512-byte sectors carrying `File Property` schema `2.00`, alongside the CFB v4/4096
+  schema `4.00` documents it already read. Scans carrying zero data points are accepted, since
+  their length is self-consistent and they contribute no intensity; a non-empty scan still has
+  to name an observed intensity width. Evidence: 31 further CC BY 4.0 acquisitions written by
+  GCMSsolution 2.72 (Zenodo record 8312045), which decode with the same 208-byte peak-record
+  layout. That corroborates the layout across software generations but is still **not**
+  validation against a vendor export.
 - The Shimadzu `.QGD` reader no longer pins one acquisition. The scan grid is read from the
   document and accepted when it is strictly increasing with a uniform interval, and the
   `Spectrum Index` stream is accepted in both observed encodings: a bare u32 offset array and
