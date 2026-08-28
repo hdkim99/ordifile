@@ -50,6 +50,7 @@ _ENCODING_LABELS = {
     PeakTableTextEncoding.UTF8: "UTF-8 / UTF-8 with BOM",
     PeakTableTextEncoding.CP949: "Korean Windows (CP949)",
     PeakTableTextEncoding.WINDOWS_1252: "Western Windows (1252)",
+    PeakTableTextEncoding.UTF16: "UTF-16 with BOM",
 }
 
 _COLUMN_FIELDS = (
@@ -151,8 +152,11 @@ class PeakMappingDialog(QDialog):
             self.encoding_combo.addItem(label, encoding.value)
         self.header_row_spin = QSpinBox()
         self.header_row_spin.setAccessibleName("Header row")
-        self.header_row_spin.setRange(1, 100)
+        # 0 declares that the source carries no header record; column roles then bind to
+        # one-based positional labels instead of header text.
+        self.header_row_spin.setRange(0, 100)
         self.header_row_spin.setValue(1)
+        self.header_row_spin.setSpecialValueText("No header record")
         self.worksheet_combo = QComboBox()
         self.worksheet_combo.setAccessibleName("Mapped XLSX worksheet")
         self.worksheet_combo.addItem("Choose a worksheet", None)

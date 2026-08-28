@@ -12,6 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from itertools import chain
 from pathlib import Path
 from typing import Any, cast
 
@@ -431,15 +432,26 @@ def parse_mapped_peak_rows(
     include_mapping_semantic_sha256: bool = True,
     source_header_row: int = 1,
 ) -> DatasetBundle:
-    """Transform one clean table using only user-confirmed semantic selectors."""
+    """Transform one clean table using only user-confirmed semantic selectors.
+
+    When the researcher declared that the source carries no header record, the first
+    record stays data and column roles bind to one-based positional labels instead.
+    """
     iterator = iter(rows)
     try:
         raw_header = next(iterator)
     except StopIteration as error:
         raise ParseError("MISSING_HEADER", "The mapped table is empty.") from error
-    header = ["" if value is None else str(value) for value in raw_header]
-    while header and header[-1] == "":
-        header.pop()
+    if mapping.import_settings.has_header:
+        header = ["" if value is None else str(value) for value in raw_header]
+        while header and header[-1] == "":
+            header.pop()
+    else:
+        width = len(raw_header)
+        while width and (raw_header[width - 1] is None or str(raw_header[width - 1]) == ""):
+            width -= 1
+        header = [str(position) for position in range(1, width + 1)]
+        iterator = chain([raw_header], iterator)
     if not header:
         raise ParseError("MISSING_HEADER", "The mapped table has no header row.")
     mapped = mapping.semantic_headers(cast(list[object], header))

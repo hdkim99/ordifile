@@ -14,8 +14,25 @@ The initial contract reuses only Ordifile's existing audited generic containers:
 
 The desktop **Table Options** section lets the researcher explicitly choose the text encoding,
 one-based header record, and visible XLSX worksheet before mapping scientific columns. Text
-encodings are limited to UTF-8/UTF-8-BOM, Korean Windows (CP949), and Western Windows (1252).
-There is no encoding fallback chain. Delimiters remain fixed by the declared container: comma
+encodings are limited to UTF-8/UTF-8-BOM, Korean Windows (CP949), Western Windows (1252), and
+UTF-16 with a byte-order mark. There is no encoding fallback chain, and the UTF-16 choice never
+guesses an endianness: a source without a byte-order mark is refused.
+
+Because the single-unit encodings map every byte, a UTF-16 source read as one of them would
+decode into text carrying NUL characters instead of raising. A source that begins with a UTF-16
+byte-order mark is therefore refused for the other encodings with an actionable message rather
+than silently producing a corrupt table.
+
+Setting the header record to **0** declares that the source carries no header. The first record
+then stays data and column roles bind to one-based positional labels (`1`, `2`, ...) instead of
+header text. This is available for delimited text only; declaring it for a worksheet is refused,
+because no worksheet fixture establishes that behaviour.
+
+A headerless mapping is **never selected automatically by profile routing**. Routing compares
+decoded header labels at their positions, and synthetic positional labels carry no source
+evidence, so the key would degenerate to container plus column count and could apply one
+vendor's column roles to an unrelated table with the same shape. The researcher applies a
+headerless mapping by naming it for that conversion instead. Delimiters remain fixed by the declared container: comma
 for CSV, tab for TSV, and semicolon for semicolon-TXT. The selected worksheet title is used
 locally but is represented in conversion results and the Manifest only by the fixed
 `USER_SELECTED` marker.
@@ -111,7 +128,8 @@ Both documents are strict, non-executable UTF-8 JSON.
 
 Profile selection is exact structural routing, not scientific inference. For text it
 uses the approved encoding/header setting and compares the declared container and every
-decoded header label at its one-based position.
+decoded header label at its one-based position. A profile whose mapping declares no header
+record is excluded from selection entirely, because it has no source-derived labels to compare.
 CSV, TSV, and semicolon-TXT remain distinct. For XLSX a profile either names one exact
 local worksheet or requires one unambiguous visible worksheet, then compares the ordered
 headers. Filename, directory, vendor name, display label, file hash, row count, and all
