@@ -82,10 +82,20 @@ def test_import_settings_accept_documented_header_row_maximum() -> None:
     assert settings.header_row == 100
 
 
-@pytest.mark.parametrize("header_row", (0, 101, True))
+@pytest.mark.parametrize("header_row", (-1, 101, True))
 def test_import_settings_reject_invalid_header_row(header_row: object) -> None:
     with pytest.raises(OrdifileError, match="header_row"):
         PeakTableImportSettings.from_value({"text_encoding": "utf-8-sig", "header_row": header_row})
+
+
+def test_import_settings_accept_a_declared_headerless_source() -> None:
+    settings = PeakTableImportSettings.from_value({"text_encoding": "utf-16", "header_row": 0})
+
+    assert settings.text_encoding is PeakTableTextEncoding.UTF16
+    assert settings.header_row == 0
+    assert settings.has_header is False
+    assert settings.is_default is False
+    assert settings.to_dict() == {"text_encoding": "utf-16", "header_row": 0}
 
 
 def test_import_settings_reject_unknown_encoding_and_fields() -> None:

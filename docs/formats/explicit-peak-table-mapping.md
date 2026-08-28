@@ -14,8 +14,19 @@ The initial contract reuses only Ordifile's existing audited generic containers:
 
 The desktop **Table Options** section lets the researcher explicitly choose the text encoding,
 one-based header record, and visible XLSX worksheet before mapping scientific columns. Text
-encodings are limited to UTF-8/UTF-8-BOM, Korean Windows (CP949), and Western Windows (1252).
-There is no encoding fallback chain. Delimiters remain fixed by the declared container: comma
+encodings are limited to UTF-8/UTF-8-BOM, Korean Windows (CP949), Western Windows (1252), and
+UTF-16 with a byte-order mark. There is no encoding fallback chain, and the UTF-16 choice never
+guesses an endianness: a source without a byte-order mark is refused.
+
+Because the single-unit encodings map every byte, a UTF-16 source read as one of them would
+decode into text carrying NUL characters instead of raising. A source that begins with a UTF-16
+byte-order mark is therefore refused for the other encodings with an actionable message rather
+than silently producing a corrupt table.
+
+Setting the header record to **0** declares that the source carries no header. The first record
+then stays data and column roles bind to one-based positional labels (`1`, `2`, ...) instead of
+header text. This is available for delimited text only; declaring it for a worksheet is refused,
+because no worksheet fixture establishes that behaviour. Delimiters remain fixed by the declared container: comma
 for CSV, tab for TSV, and semicolon for semicolon-TXT. The selected worksheet title is used
 locally but is represented in conversion results and the Manifest only by the fixed
 `USER_SELECTED` marker.

@@ -7,6 +7,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Explicit peak-table mapping accepts **UTF-16 with a byte-order mark** as a Table Options text
+  encoding, and a header record of **0** to declare that a delimited source carries no header.
+  With no header the first record stays data and column roles bind to one-based positional
+  labels instead of header text. Declaring a headerless worksheet is refused, because no
+  worksheet fixture establishes that behaviour. Both remain explicit researcher choices; no
+  encoding, delimiter, header, or scientific role is detected.
+
+### Fixed
+
+- A UTF-16 source selected as UTF-8, CP949 or Western Windows (1252) now fails closed with
+  `PEAK_MAPPING_TEXT_ENCODING_MISMATCH`. The single-unit encodings map every byte, so such a
+  source previously decoded into text carrying NUL characters instead of raising.
+- The bounded delimited preview reassembles decoded text into whole lines. A multi-unit
+  encoding splits a line terminator across two byte-bounded reads, which previously made the
+  CSV reader see a newline inside an unquoted field.
+
 ### Changed
 
 - The optional YoungIn YL-Clarity PRM calculated Area now resolves peak groups from the lower
