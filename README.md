@@ -378,11 +378,16 @@ manually added timed event are omitted rather than guessed, because that vendor 
 not reproduced; that removes 42 rows. Of the remaining 305, RT matches 305/305 and Area matches
 304/305 at each export's own displayed precision. One archive also exists as a vendor Excel
 export publishing twelve significant digits: against it, its 241 rows match on RT, Start time
-and End time exactly; the maximum relative Area difference is `4.025e-13`. Calculated Height is not published.
+and End time exactly; the maximum relative Area difference is `4.025e-13`. Calculated Height is
+not published.
 This is descriptive controlled evidence, not a claim of vendor equivalence for every possible
-method. The workbook writes this calculation to `calculated_area`, leaves source-explicit
-`area` empty, and marks the origin and method. It is not a stored vendor Result table. Compatible unknown
-9.x files do not inherit this capability. Runtime sample IDs
+method. This PRM calculation follows the marker partitions stored in the PRM. Do not use it for
+a run whose peak start/end ranges or integration results were manually adjusted in YL-Clarity;
+export that run's Result Table as CSV and convert the export with Ordifile instead, so the
+explicit vendor RT/Area/Height values are preserved as Peaks. The workbook writes this
+calculation to `calculated_area`, leaves source-explicit
+`area` empty, and marks the origin and method. It is not a stored vendor Result table.
+Compatible unknown 9.x files do not inherit this capability. Runtime sample IDs
 are content-derived. This is not a claim that all
 YL-Clarity versions are supported. Recovery `.RAW`, Autochro, and write support remain
 unsupported. See the

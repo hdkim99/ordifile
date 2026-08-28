@@ -365,7 +365,11 @@ vendor source code·library·DLL·executable을 사용하지 않습니다. 검�
 그중 한 archive는 유효숫자 12자리를 그대로 쓰는 vendor Excel export로도 존재하며, 그
 241행에 대해 RT·Start time·End time은 완전히 같고 Area 최대 상대차는 `4.025e-13`입니다. 계산된
 Height는 제품 필드로 내보내지 않습니다. 이는 controlled evidence에 대한 기술적 결과이며
-모든 method에 대한 vendor 동등성 주장이 아닙니다. Workbook은 이 계산값을
+모든 method에 대한 vendor 동등성 주장이 아닙니다. 이 PRM 계산은 PRM에 저장된 marker
+partition을 기준으로 합니다. YL-Clarity에서 peak 시작·끝 범위나 integration 결과를 수동으로
+조정한 run에는 이 계산을 사용하지 마세요. 그런 경우 YL-Clarity의 Result Table을 CSV로
+export한 뒤 Ordifile에서 변환하면 명시적인 vendor RT/Area/Height가 Peaks로 보존됩니다.
+Workbook은 이 계산값을
 `calculated_area`에 쓰고 source-explicit `area`는 비워 두며, 각 행의 계산 출처와 방법을
 표시합니다. 저장된 vendor Result table이라고 주장하지 않습니다.
 Compatible unknown 9.x에는 이 기능을 상속하지 않습니다. 이는 모든

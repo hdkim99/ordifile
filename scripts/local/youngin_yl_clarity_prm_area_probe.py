@@ -634,6 +634,9 @@ def _probe(paths: tuple[Path, ...]) -> dict[str, object]:
                                     (candidate_window,),
                                     d_step=matching_channel.d_step_candidate,
                                     min_ticks=matching_channel.min_ticks_candidate,
+                                    # This diagnostic supplies one already-bounded window, so
+                                    # group-split threshold walking is not reachable.
+                                    threshold=0.0,
                                 )[0]
                                 candidate_float = candidate_peak.area
                                 candidate = Decimal(str(candidate_float))

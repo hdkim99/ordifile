@@ -142,6 +142,11 @@ calculated value is written to `calculated_area`, source-explicit `area` remains
 `height` remains empty. See the
 [derived-Area investigation](../research/youngin-yl-clarity-prm-derived-area-investigation.md).
 
+This calculation follows the marker partitions stored in the PRM. If a researcher manually
+adjusted peak start/end ranges or integration results in YL-Clarity, the PRM-derived calculation
+must not be treated as that reviewed Result. Export the YL-Clarity Result Table as CSV and convert
+that export with Ordifile to preserve the explicit vendor RT/Area/Height rows instead.
+
 The separate exact Result CSV adapter remains the path for explicit vendor RT/Area/Height rows.
 
 ## Privacy and interoperability

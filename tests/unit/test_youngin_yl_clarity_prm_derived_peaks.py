@@ -5,6 +5,7 @@ import pytest
 from ordifile.adapters._youngin_yl_clarity_prm_derived_peaks import (
     _RESOLUTION_VISIT_BUDGET_MAXIMUM,
     _RESOLUTION_VISIT_BUDGET_PER_SAMPLE,
+    DerivedPrmPeak,
     _descend_to_group_end,
     _resolution_visit_budget,
     derive_marker_peaks,
@@ -15,14 +16,20 @@ from ordifile.adapters._youngin_yl_clarity_prm_markers import PrmPeakWindow
 DT_SECONDS = 0.1
 
 
-def _derive(values, windows, **kwargs):
+def _derive(
+    values: tuple[float, ...],
+    windows: tuple[PrmPeakWindow, ...],
+    *,
+    threshold: float = 0.1,
+    excluded_window_offsets: frozenset[int] = frozenset(),
+) -> tuple[DerivedPrmPeak, ...]:
     return derive_marker_peaks(
         values,
         windows,
         d_step=1,
         min_ticks=600.0,
-        threshold=kwargs.pop("threshold", 0.1),
-        **kwargs,
+        threshold=threshold,
+        excluded_window_offsets=excluded_window_offsets,
     )
 
 
@@ -140,7 +147,9 @@ def test_retention_index_outside_its_partition_fails_closed() -> None:
         _derive(values, windows)
 
 
-def _dense_baseline_separated_cluster(count: int):
+def _dense_baseline_separated_cluster(
+    count: int,
+) -> tuple[tuple[float, ...], tuple[PrmPeakWindow, ...]]:
     """One stored cluster in which every neighbouring apex pair is baseline separated."""
     values: list[float] = []
     for index in range(count):
