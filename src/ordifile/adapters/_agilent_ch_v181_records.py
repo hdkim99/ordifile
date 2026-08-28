@@ -150,25 +150,31 @@ def _utf16le_pascal(data: bytes, offset: int, *, required: bool = False) -> str:
     return value
 
 
-def parse_v181_header(data: bytes, file_size: int) -> V181Header:
-    """Validate the exact supported header family and return structural facts."""
+def parse_v181_header(
+    data: bytes, file_size: int, *, expected_version: int = EXPECTED_VERSION
+) -> V181Header:
+    """Validate the exact supported header family and return structural facts.
+
+    The header family is shared with internal version 179, which differs only in how its
+    record payload is stored, so the accepted version is a parameter.
+    """
     if len(data) < HEADER_BYTES:
         raise ChV181StructureError(
             "AGILENT_CH_HEADER_TRUNCATED",
-            f"Version 181 requires at least {HEADER_BYTES} header bytes.",
+            f"The header family requires at least {HEADER_BYTES} header bytes.",
             expected=HEADER_BYTES,
             actual=len(data),
         )
     ascii_version = _ascii_pascal(data, 0, required=True)
-    if ascii_version != str(EXPECTED_VERSION):
+    if ascii_version != str(expected_version):
         raise ChV181StructureError(
             "AGILENT_CH_VERSION_UNSUPPORTED",
             "The internal version text does not exactly match the supported profile.",
             offset=0,
             actual=ascii_version,
-            expected=str(EXPECTED_VERSION),
+            expected=str(expected_version),
         )
-    text_version = EXPECTED_VERSION
+    text_version = expected_version
     numeric_version = _u32(data, 248)
     if text_version != numeric_version:
         raise ChV181StructureError(
@@ -177,18 +183,18 @@ def parse_v181_header(data: bytes, file_size: int) -> V181Header:
             text_version=text_version,
             numeric_version=numeric_version,
         )
-    if numeric_version != EXPECTED_VERSION:
+    if numeric_version != expected_version:
         raise ChV181StructureError(
             "AGILENT_CH_VERSION_UNSUPPORTED",
-            "Only internal ChemStation .CH version 181 is supported by this adapter.",
+            "The internal version is not the one this reader accepts.",
             actual=numeric_version,
-            expected=EXPECTED_VERSION,
+            expected=expected_version,
         )
     family_marker = _utf16le_pascal(data, 347, required=True)
     if family_marker != "GC DATA FILE":
         raise ChV181StructureError(
             "AGILENT_CH_HEADER_INVALID",
-            "The required version 181 GC data marker is absent.",
+            "The required GC data marker is absent.",
             offset=347,
         )
     data_page = _u32(data, 264)

@@ -64,6 +64,7 @@ GENERIC_TSV_NAME = "generic.tsv"
 GENERIC_SEMICOLON_NAME = "generic.txt"
 GENERIC_XLSX_NAME = "generic.xlsx"
 AGILENT_RAW_NAME = "FID1A.CH"
+AGILENT_V179_RAW_NAME = "FID3A.CH"
 AGILENT_RESULT_NAME = "agilent-result.xml"
 SHIMADZU_GCD_NAME = "shimadzu.gcd"
 SHIMADZU_QGD_NAME = "shimadzu.qgd"
@@ -85,6 +86,12 @@ GENERATED_INPUTS = (
         "generate_agilent_ch_v181.py",
         "synthetic_v181_bytes",
         "agilent_chemstation_ch_v181",
+    ),
+    (
+        AGILENT_V179_RAW_NAME,
+        "generate_agilent_ch_v179.py",
+        "synthetic_v179_bytes",
+        "agilent_chemstation_ch_v179",
     ),
     (
         AGILENT_RESULT_NAME,

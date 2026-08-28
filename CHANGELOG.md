@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- An Experimental reader for Agilent ChemStation `.CH` **internal version 179**. That
+  generation shares the v181 header family and stores an uncompressed little-endian binary64
+  payload, so it yields a scientific signal rather than structural records: retention time is
+  constructed from the run boundaries stored at offsets 282 and 286 and the point count, and
+  the response uses the scale stored at 4732 with the unit lexeme at 4172. Only an observed
+  unit lexeme is promoted to a physical unit; any other preserves the numeric response without
+  one. The axis is validated against paired vendor report exports - the step is exactly
+  20.000 ms, the stored maximum matches the decoded maximum, and official retention times land
+  on decoded maxima. The scale agrees with those exports to within 0.5% but is not proven
+  exact, which the metadata records; no peak, area or height is derived. Version 181 files are
+  unaffected and continue to expose structural decoded records only.
+
 ### Changed
 
 - The optional YoungIn YL-Clarity PRM calculated Area now resolves peak groups from the lower

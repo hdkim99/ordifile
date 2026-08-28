@@ -65,6 +65,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert ENTRY_POINT_GROUP == "ordifile.adapters"
     descriptors = create_registry(include_external=False).descriptors()
     assert {item.adapter_id for item in descriptors} == {
+        "agilent_chemstation_ch_v179",
         "agilent_chemstation_ch_v181",
         "agilent_chemstation_result_xml",
         "generic_csv",

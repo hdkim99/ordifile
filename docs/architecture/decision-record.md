@@ -507,6 +507,20 @@ CLI / optional desktop GUI
 - GUI before the shared core and CLI were stable: rejected for the v0.1 vertical
   slice. The later optional desktop layer now reuses that verified public workflow.
 
+60. Agilent ChemStation `.CH` internal version 179 gets its own Experimental adapter rather
+    than an extension of the v181 one. The two share a header family, so the header parser is
+    parameterised by expected version instead of duplicated, but the payloads differ: v181
+    stores compressed records and v179 an uncompressed little-endian binary64 array. Because
+    v179 also carries usable run boundaries, a response scale and a unit lexeme, it emits a
+    scientific signal with a retention axis in minutes, while v181 continues to emit structural
+    decoded records only. The retention-time construction is validated against paired vendor
+    report exports. The response scale is supported by the same evidence to within 0.5% but is
+    not proven exact, and the corpus is one laboratory with one instrument and one method, so
+    the metadata records `response_scale_status: stored_supported_not_proven` and no peak, area
+    or height is derived. Only a unit lexeme observed in that corpus is promoted to a physical
+    unit. See
+    [`agilent-chemstation-ch-v179-investigation.md`](../research/agilent-chemstation-ch-v179-investigation.md).
+
 ## Known risks
 
 - XLSX is a ZIP/XML container; archive bombs and corrupt XML need bounded preflight.
