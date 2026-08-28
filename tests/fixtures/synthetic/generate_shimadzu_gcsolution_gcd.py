@@ -56,6 +56,8 @@ def synthetic_gcd_streams(
     system_root_version: str = "1.0",
     instrument_model: str = "GC-2014",
     extra_ch2_values: tuple[float, ...] | None = None,
+    peak_table: bytes | None = None,
+    peak_table_name: str = "PT-GC.1.1.DET.1.DetCh",
     path_replacements: Mapping[tuple[str, ...], tuple[str, ...]] | None = None,
 ) -> dict[tuple[str, ...], bytes]:
     """Return invented streams for the exact validated structural profile."""
@@ -140,9 +142,34 @@ def synthetic_gcd_streams(
             0,
         ) + struct.pack(f"<{len(extra_ch2_values)}d", *extra_ch2_values)
         streams[("LSS Raw Data", "Chromatogram Ch2")] = ch2
+    if peak_table is not None:
+        streams[("LSS Data Processing", peak_table_name)] = peak_table
     for old, new in (path_replacements or {}).items():
         streams[new] = streams.pop(old)
     return streams
+
+
+def synthetic_peak_table(
+    rows: tuple[tuple[int, int, int, float, float], ...],
+    *,
+    revision: int = 0x53,
+    header_tail: bytes = bytes(15),
+    record_bytes: int = 792,
+) -> bytes:
+    """Return an invented stored peak table: (retention, start, end, area, height).
+
+    Times are whole milliseconds, matching the observed stored integer time fields.
+    """
+    payload = b"VER1" + bytes((revision,)) + header_tail
+    for retention_ms, start_ms, end_ms, area, height in rows:
+        record = bytearray(record_bytes)
+        struct.pack_into("<i", record, 4, retention_ms)
+        struct.pack_into("<d", record, 8, area)
+        struct.pack_into("<d", record, 24, height)
+        struct.pack_into("<i", record, 56, start_ms)
+        struct.pack_into("<i", record, 60, end_ms)
+        payload += bytes(record)
+    return payload
 
 
 def synthetic_gcd_bytes(**kwargs: object) -> bytes:

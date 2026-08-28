@@ -9,6 +9,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- The exact validated Shimadzu LabSolutions 5.82 `.GCD` profile now emits the peak rows the
+  document already stores: retention, start and end time, Area and Height, read from the
+  single bounded `LSS Data Processing/PT-*` stream. These are source-explicit `area` and
+  `height` values, not an Ordifile calculation - Ordifile does not integrate the signal here.
+  The stored values keep every digit the vendor's own text export rounds away, so a `.gcd`
+  file alone now yields a complete peak table at higher precision than its paired export.
+  Area and Height units stay unresolved, matching the paired result-ASCII adapter, and stored
+  negative peaks are preserved. Evidence: one same-run `.GCD`/result-ASCII pair (83 rows,
+  every field exact) plus an owner-approved CC BY 4.0 corpus of 318 further documents across
+  LabSolutions 5.71 SP2 and 5.86 (1,548 rows, every field exact), which shows the record
+  layout is not specific to the 5.82 profile the adapter accepts. A document without that
+  stream, or with a stream outside the bounded layout, keeps its scientific chromatogram and
+  reports the peak table as absent or invalid.
+
+- Explicit peak-table mapping accepts **UTF-16 with a byte-order mark** as a Table Options text
+  encoding, and a header record of **0** to declare that a delimited source carries no header.
+  With no header the first record stays data and column roles bind to one-based positional
+  labels instead of header text. Declaring a headerless worksheet is refused, because no
+  worksheet fixture establishes that behaviour. Both remain explicit researcher choices; no
+  encoding, delimiter, header, or scientific role is detected. A headerless mapping is never
+  selected automatically by reusable-profile routing: synthetic positional labels carry no
+  source evidence, so the routing key would degenerate to container plus column count and could
+  apply one vendor's column roles to an unrelated table of the same shape. The researcher names
+  a headerless mapping for the conversion instead.
+
 - An Experimental reader for Agilent ChemStation `.CH` **internal version 179**. That
   generation shares the v181 header family and stores an uncompressed little-endian binary64
   payload, so it yields a scientific signal rather than structural records: retention time is
@@ -20,6 +45,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   on decoded maxima. The scale agrees with those exports to within 0.5% but is not proven
   exact, which the metadata records; no peak, area or height is derived. Version 181 files are
   unaffected and continue to expose structural decoded records only.
+
+### Fixed
+
+- A UTF-16 source selected as UTF-8, CP949 or Western Windows (1252) now fails closed with
+  `PEAK_MAPPING_TEXT_ENCODING_MISMATCH`. The single-unit encodings map every byte, so such a
+  source previously decoded into text carrying NUL characters instead of raising.
+- The bounded delimited preview reassembles decoded text into whole lines. A multi-unit
+  encoding splits a line terminator across two byte-bounded reads, which previously made the
+  CSV reader see a newline inside an unquoted field.
 
 ### Changed
 

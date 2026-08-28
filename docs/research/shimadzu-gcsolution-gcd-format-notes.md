@@ -50,3 +50,44 @@ The real file remains external. Tests may use only these derived digests:
 
 All packing rules concatenate values without a header, delimiter, or count. These
 digests validate the entire sequence, not just endpoints.
+
+
+## Stored peak table
+
+`LSS Data Processing/PT-*` holds the vendor's own processed peak rows. A duplicate copy is
+kept under `LSS Data Processing Original/`; the two are byte-identical unless the document has
+been reprocessed and saved.
+
+```text
+offset  0   4 bytes   magic "VER1"
+offset  4   1 byte    processing revision; 0x02, 0x04, 0x05, 0x06, 0x07 and 0x53 observed
+offset  5  15 bytes   reserved, zero in every observed stream
+offset 20   N * 792   fixed-size peak records
+```
+
+Within one 792-byte record, five fields are established against paired vendor text exports:
+
+| Record offset | Type | Field |
+|---:|---|---|
+| +4 | int32 | retention time, milliseconds |
+| +8 | binary64 | Area |
+| +24 | binary64 | Height |
+| +56 | int32 | peak start time, milliseconds |
+| +60 | int32 | peak end time, milliseconds |
+
+The remaining bytes of each record are not decoded. The record count is derived as
+`(stream length - 20) / 792`; a remainder is a structural failure.
+
+The stored Area and Height carry full binary64 precision. LabSolutions' result-ASCII export
+publishes them rounded to whole units, and across every compared row the stored value rounds
+to exactly the exported value with a maximum absolute difference below 0.5. The stored table
+is therefore the higher-precision source, not a derived view of the export.
+
+Evidence: one same-run `.GCD`/result-ASCII pair (83 rows) and an owner-approved CC BY 4.0
+corpus of 320 further stored tables, of which 318 have a paired text export carrying a peak
+table (1,548 rows). Every retention, start, end, Area and Height value agreed. One corpus pair
+disagreed on row count only; its `PT` and `PT Original` streams are identical, so the stored
+table and the separately re-exported text describe different processing states of the same
+acquisition rather than a decoding difference. The corpus spans LabSolutions 5.71 SP2 and
+5.86, which shows the record layout is not specific to the 5.82 profile the adapter accepts.
+Stored negative Area and Height occur and are preserved.

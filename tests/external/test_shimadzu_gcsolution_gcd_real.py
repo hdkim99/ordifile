@@ -11,12 +11,17 @@ from typing import cast
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
+from ordifile.adapters.base import ParseOptions
+from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
 from ordifile.api import convert, inspect_file
-from ordifile.core.models import SeriesKind
+from ordifile.core.models import PeakRecord, SeriesKind
 
 EXPECTED_SIZE = 1_433_600
 EXPECTED_SHA256 = "d670806265f994507ac99fc676f17098bf9b9d1c362c98df1cb31154ac7a5180"
 EXPECTED_POINT_COUNT = 66_255
+EXPECTED_STORED_PEAK_COUNT = 83
+EXPECTED_STORED_PEAK_REVISION = "0x53"
+EXPECTED_STORED_PEAK_SHA256 = "8bd74db110c652ee60c24375927a262a19ce17dfa5532efb0b416c3644cfe39e"
 EXPECTED_SIGNAL_SHA256 = "b836371e5f8171788b2f3ebd0a3a75d07bfeb7ee8eed081992a9016192987b9a"
 EXPECTED_TIME_SHA256 = "18c335833a87d10e59e997623f82ddc0e8b73f00031522d5b2339ab3f3b119e2"
 EXPECTED_PAIRS_SHA256 = "a1395b48d5f802b6772bf0351ee694bf63a89af10a822feea30baf4f28023f45"
@@ -158,7 +163,7 @@ def test_exact_external_gcd_fixture_reference_and_workbook(tmp_path: Path) -> No
     assert _pair_digest(signal.x_values, signal.y_values) == EXPECTED_PAIRS_SHA256
     assert _rounded_i64_digest(signal.y_values) == EXPECTED_ASCII_ROUNDED_SIGNAL_SHA256
     assert _ascii_rounded_time_digest(signal.x_values) == EXPECTED_ASCII_ROUNDED_TIME_SHA256
-    assert bundle.peaks == ()
+    assert len(bundle.peaks) == EXPECTED_STORED_PEAK_COUNT
     assert bundle.samples[0].acquired_at == datetime(2019, 7, 18, 23, 45, 56, 388_464, tzinfo=UTC)
     assert bundle.samples[0].acquired_at_reliable is True
     metadata = {entry.key: entry.value for entry in bundle.metadata}
@@ -204,3 +209,48 @@ def test_exact_external_gcd_fixture_reference_and_workbook(tmp_path: Path) -> No
         _assert_excel_numeric_series(workbook_y, signal.y_values)
     finally:
         workbook.close()
+
+
+def _stored_peak_digest(peaks: Iterable[PeakRecord]) -> str:
+    digest = hashlib.sha256()
+    for peak in peaks:
+        for value in (
+            peak.retention_time,
+            peak.start_time,
+            peak.end_time,
+            peak.area,
+            peak.height,
+        ):
+            assert value is not None
+            digest.update(struct.pack(">d", value))
+    return digest.hexdigest()
+
+
+def test_exact_external_gcd_carries_its_stored_vendor_peak_table(tmp_path: Path) -> None:
+    supplied_source = _fixture()
+    assert hashlib.sha256(supplied_source.read_bytes()).hexdigest() == EXPECTED_SHA256
+    source = tmp_path / "external.gcd"
+    source.write_bytes(supplied_source.read_bytes())
+
+    bundle = ShimadzuGcsolutionGcdAdapter().parse(source, ParseOptions())
+
+    assert len(bundle.peaks) == EXPECTED_STORED_PEAK_COUNT
+    assert _stored_peak_digest(bundle.peaks) == EXPECTED_STORED_PEAK_SHA256
+    assert all(peak.status == "parsed" for peak in bundle.peaks)
+    # These are the vendor's own stored numbers, not an Ordifile calculation.
+    assert all(peak.calculated_area is None for peak in bundle.peaks)
+    assert all(peak.data_origin is None for peak in bundle.peaks)
+    assert all(peak.area_unit is None and peak.height_unit is None for peak in bundle.peaks)
+    assert all(
+        peak.start_time is not None
+        and peak.retention_time is not None
+        and peak.end_time is not None
+        and peak.start_time <= peak.retention_time <= peak.end_time
+        for peak in bundle.peaks
+    )
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["stored_peak_table_status"] == "matched"
+    assert metadata["stored_peak_count"] == EXPECTED_STORED_PEAK_COUNT
+    assert metadata["stored_peak_table_revision"] == EXPECTED_STORED_PEAK_REVISION
+    assert metadata["area_unit_status"] == "unresolved"
+    assert "SHIMADZU_GCD_STORED_PEAK_TABLE" in {issue.code for issue in bundle.warnings}

@@ -30,6 +30,8 @@ from ordifile.core.peak_mapping import (
     PeakTableFormat,
     PeakTableImportSettings,
     PeakTableMapping,
+    PeakTableMappingProfile,
+    PeakTableMappingSet,
     PeakTableTextEncoding,
 )
 
@@ -782,3 +784,86 @@ def test_four_exact_profiles_and_one_mapped_table_share_one_workbook(tmp_path: P
         "leco_chromatof_gcxgc_result_txt",
         "generic_csv",
     }
+
+
+def test_utf16_headerless_source_is_previewed_and_converted(tmp_path: Path) -> None:
+    """A UTF-16 report table without a header record keeps every data row."""
+    source = tmp_path / "report.csv"
+    source.write_text('1,2.5,"BB",6.15\r\n2,3.5,"BV",310.5\r\n', encoding="utf-16")
+    settings = PeakTableImportSettings(PeakTableTextEncoding.UTF16, 0)
+
+    preview = preview_peak_table(source, PeakTableFormat.CSV, import_settings=settings)
+
+    # Positional labels stand in for the absent header and no data record is consumed.
+    assert preview.headers == ("1", "2", "3", "4")
+    assert preview.rows[0] == ("1", "2.5", "BB", "6.15")
+
+    mapping = PeakTableMapping(
+        retention_time_column=ColumnSelector("2", 2),
+        area_column=ColumnSelector("4", 4),
+        retention_time_unit="min",
+        ignored_columns=(ColumnSelector("1", 1), ColumnSelector("3", 3)),
+        source_format=PeakTableFormat.CSV,
+        import_settings=settings,
+    )
+    bundle = GenericCsvAdapter().parse(source, ParseOptions(peak_table_mapping=mapping))
+
+    assert len(bundle.peaks) == 2
+    assert [peak.retention_time for peak in bundle.peaks] == [2.5, 3.5]
+    assert [peak.area for peak in bundle.peaks] == [6.15, 310.5]
+
+
+def test_utf16_source_read_as_windows_1252_fails_closed(tmp_path: Path) -> None:
+    """The single-unit encodings map every byte, so the mismatch must be refused."""
+    source = tmp_path / "report.csv"
+    source.write_text("peak,rt\r\n1,2.5\r\n", encoding="utf-16")
+
+    with pytest.raises(ParseError) as caught:
+        preview_peak_table(
+            source,
+            PeakTableFormat.CSV,
+            import_settings=PeakTableImportSettings(PeakTableTextEncoding.WINDOWS_1252, 1),
+        )
+
+    assert caught.value.code == "PEAK_MAPPING_TEXT_ENCODING_MISMATCH"
+
+
+def test_headerless_declaration_is_refused_for_worksheets() -> None:
+    with pytest.raises(OrdifileError, match="delimited text"):
+        PeakTableMapping(
+            retention_time_column=ColumnSelector("1", 1),
+            area_column=ColumnSelector("2", 2),
+            retention_time_unit="min",
+            source_format=PeakTableFormat.XLSX,
+            import_settings=PeakTableImportSettings(PeakTableTextEncoding.UTF8, 0),
+        )
+
+
+def test_headerless_profile_is_never_selected_automatically(tmp_path: Path) -> None:
+    """A headerless key is container plus column count, which cannot identify a source."""
+    settings = PeakTableImportSettings(PeakTableTextEncoding.UTF16, 0)
+    mapping = PeakTableMapping(
+        retention_time_column=ColumnSelector("2", 2),
+        area_column=ColumnSelector("5", 5),
+        retention_time_unit="min",
+        ignored_columns=tuple(ColumnSelector(str(index), index) for index in (1, 3, 4, 6, 7)),
+        source_format=PeakTableFormat.CSV,
+        import_settings=settings,
+    )
+    mapping_set = PeakTableMappingSet(
+        (PeakTableMappingProfile(mapping, display_label="Seven column report"),)
+    )
+    # An unrelated seven-column table would otherwise route to the same profile and take
+    # column 2 as retention time and column 5 as area.
+    unrelated = tmp_path / "unrelated.csv"
+    unrelated.write_text('1,999.0,"x",0.5,3.25,0.2,"y"\r\n', encoding="utf-16")
+
+    assert not mapping.import_settings.has_header
+    assert (
+        mapping_set.match(
+            PeakTableFormat.CSV,
+            ("1", "2", "3", "4", "5", "6", "7"),
+            import_settings=settings,
+        )
+        == ()
+    )

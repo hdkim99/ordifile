@@ -8,6 +8,7 @@ from __future__ import annotations
 import codecs
 import csv
 from collections.abc import Iterator
+from itertools import chain
 from pathlib import Path
 from typing import ClassVar
 
@@ -33,11 +34,36 @@ from ordifile.core.peak_mapping import (
     PeakTableFormat,
     PeakTableImportSettings,
     PeakTablePreview,
+    PeakTableTextEncoding,
     peak_preview_display,
 )
 
 PROBE_BYTES = 64 * 1024
 MAX_DELIMITED_BYTES = 512 * 1024 * 1024
+
+
+UTF16_BYTE_ORDER_MARKS = (b"\xff\xfe", b"\xfe\xff")
+
+
+def _reject_contradicting_byte_order_mark(path: Path, encoding: PeakTableTextEncoding) -> None:
+    """Fail closed when a UTF-16 byte-order mark contradicts the selected encoding.
+
+    `windows-1252` maps every byte, so a UTF-16 source decodes into mojibake carrying NUL
+    characters instead of raising. That silent corruption is rejected here.
+    """
+    if encoding is PeakTableTextEncoding.UTF16:
+        return
+    try:
+        with path.open("rb") as stream:
+            prefix = stream.read(2)
+    except OSError:
+        return
+    if prefix in UTF16_BYTE_ORDER_MARKS:
+        raise ParseError(
+            "PEAK_MAPPING_TEXT_ENCODING_MISMATCH",
+            "The source begins with a UTF-16 byte-order mark; select the UTF-16 text "
+            "encoding in Table Options instead.",
+        )
 
 
 def preview_delimited_peak_table(
@@ -70,6 +96,7 @@ def preview_delimited_peak_table(
             "TEXT_FILE_TOO_LARGE",
             f"Delimited input exceeds the {MAX_DELIMITED_BYTES}-byte safety limit.",
         )
+    _reject_contradicting_byte_order_mark(path, import_settings.text_encoding)
     try:
         with path.open("rb") as stream:
             decoder = codecs.getincrementaldecoder(import_settings.text_encoding.codec_name)(
@@ -78,11 +105,17 @@ def preview_delimited_peak_table(
             bytes_read = 0
 
             def bounded_lines() -> Iterator[str]:
+                # Byte-bounded reading keeps the existing safety limits, but a multi-unit
+                # encoding splits a line terminator across two raw reads, so decoded text is
+                # reassembled into whole lines before the CSV reader sees it.
                 nonlocal bytes_read
+                pending = ""
                 while True:
                     raw_line = stream.readline(MAX_PEAK_PREVIEW_LINE_BYTES + 1)
                     if not raw_line:
-                        decoder.decode(b"", final=True)
+                        pending += decoder.decode(b"", final=True)
+                        if pending:
+                            yield pending
                         return
                     bytes_read += len(raw_line)
                     if (
@@ -93,15 +126,31 @@ def preview_delimited_peak_table(
                             "PEAK_MAPPING_PREVIEW_SIZE_LIMIT",
                             "The bounded preview prefix exceeds its byte or line limit.",
                         )
-                    yield decoder.decode(raw_line, final=False)
+                    pending += decoder.decode(raw_line, final=False)
+                    complete = pending.splitlines(keepends=True)
+                    if complete and not complete[-1].endswith(("\n", "\r")):
+                        pending = complete.pop()
+                    else:
+                        pending = ""
+                    yield from complete
 
             reader = csv.reader(bounded_lines(), delimiter=delimiter, strict=True)
             header: list[str] | None = None
-            for _row_number in range(1, import_settings.header_row + 1):
-                header = next(reader)
-            assert header is not None
-            while header and header[-1] == "":
-                header.pop()
+            leading_data_row: list[str] | None = None
+            if import_settings.has_header:
+                for _row_number in range(1, import_settings.header_row + 1):
+                    header = next(reader)
+                assert header is not None
+                while header and header[-1] == "":
+                    header.pop()
+            else:
+                # The researcher declared no header record, so the first record stays data
+                # and the preview labels columns by their one-based position.
+                leading_data_row = next(reader)
+                width = len(leading_data_row)
+                while width and leading_data_row[width - 1] == "":
+                    width -= 1
+                header = [str(position) for position in range(1, width + 1)]
             if not header:
                 raise ParseError("MISSING_HEADER", "The mapped table has no header row.")
             if len(header) > MAX_PEAK_PREVIEW_COLUMNS:
@@ -126,7 +175,10 @@ def preview_delimited_peak_table(
                 )
             rows: list[tuple[str, ...]] = []
             if row_limit:
-                for raw in reader:
+                source_rows = (
+                    reader if leading_data_row is None else chain([leading_data_row], reader)
+                )
+                for raw in source_rows:
                     if all(value == "" for value in raw):
                         continue
                     if len(raw) > len(header) and any(value != "" for value in raw[len(header) :]):
@@ -238,6 +290,8 @@ class DelimitedAdapter:
                 if mapping is not None
                 else "utf-8-sig"
             )
+            if mapping is not None:
+                _reject_contradicting_byte_order_mark(path, mapping.import_settings.text_encoding)
             with path.open("r", encoding=encoding, errors="strict", newline="") as stream:
                 if mapping is not None:
                     expected = {

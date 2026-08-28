@@ -41,6 +41,7 @@ MAX_PEAK_PREVIEW_TOTAL_CHARACTERS = 1_000_000
 MAX_PEAK_PREVIEW_LINE_BYTES = 256 * 1024
 MAX_PEAK_PREVIEW_READ_BYTES = 2 * 1024 * 1024
 MAX_PEAK_TABLE_HEADER_ROW = 100
+_TEXT_ENCODING_MESSAGE = "text_encoding must be utf-8-sig, cp949, windows-1252, or utf-16."
 MAPPED_XLSX_SHEET_MARKER = "USER_SELECTED"
 
 _COLUMN_FIELDS = (
@@ -86,6 +87,9 @@ class PeakTableTextEncoding(StrEnum):
     UTF8 = "utf-8-sig"
     CP949 = "cp949"
     WINDOWS_1252 = "windows-1252"
+    # The Python `utf-16` codec requires a byte-order mark and refuses to guess an
+    # endianness, so this stays an explicit user choice rather than charset detection.
+    UTF16 = "utf-16"
 
     @property
     def codec_name(self) -> str:
@@ -102,15 +106,21 @@ class PeakTableImportSettings:
 
     def __post_init__(self) -> None:
         if type(self.text_encoding) is not PeakTableTextEncoding:
-            raise _mapping_error("text_encoding must be utf-8-sig, cp949, or windows-1252.")
+            raise _mapping_error(_TEXT_ENCODING_MESSAGE)
         if (
             type(self.header_row) is not int
-            or self.header_row < 1
+            or self.header_row < 0
             or self.header_row > MAX_PEAK_TABLE_HEADER_ROW
         ):
             raise _mapping_error(
-                f"header_row must be an integer from 1 through {MAX_PEAK_TABLE_HEADER_ROW}."
+                f"header_row must be an integer from 0 through {MAX_PEAK_TABLE_HEADER_ROW}, "
+                "where 0 declares that the table has no header record."
             )
+
+    @property
+    def has_header(self) -> bool:
+        """Return whether the researcher declared that a header record exists."""
+        return self.header_row >= 1
 
     @property
     def is_default(self) -> bool:
@@ -141,9 +151,7 @@ class PeakTableImportSettings:
         try:
             encoding = PeakTableTextEncoding(raw_encoding)
         except ValueError as error:
-            raise _mapping_error(
-                "text_encoding must be utf-8-sig, cp949, or windows-1252."
-            ) from error
+            raise _mapping_error(_TEXT_ENCODING_MESSAGE) from error
         if type(raw_header_row) is not int:
             raise _mapping_error("header_row must be an integer.")
         return cls(encoding, raw_header_row)
@@ -373,6 +381,10 @@ class PeakTableMapping:
             and self.import_settings.text_encoding is not PeakTableTextEncoding.UTF8
         ):
             raise _mapping_error("text_encoding is available only for text peak tables.")
+        if self.source_format is PeakTableFormat.XLSX and not self.import_settings.has_header:
+            # A headerless worksheet has no fixture and no regression coverage, so the
+            # declaration is refused instead of silently reading row 1 as data.
+            raise _mapping_error("header_row 0 is available only for delimited text peak tables.")
         for name in _COLUMN_FIELDS[2:]:
             value = getattr(self, name)
             if value is not None and type(value) is not ColumnSelector:
@@ -765,7 +777,15 @@ class PeakTableMappingProfile:
         worksheet_title: str | None = None,
         single_visible_worksheet: bool = False,
     ) -> bool:
-        """Match exact local structure without reading any scientific row values."""
+        """Match exact local structure without reading any scientific row values.
+
+        A headerless declaration has no source-derived structure to compare: its header
+        labels are synthetic positions, so the key would degenerate to container plus
+        column count and could route an unrelated table. Such a profile is never selected
+        automatically; the researcher applies it by naming it for that conversion.
+        """
+        if not self.mapping.import_settings.has_header:
+            return False
         if source_format is not self.mapping.source_format:
             return False
         if import_settings != self.mapping.import_settings:
