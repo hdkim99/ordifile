@@ -123,9 +123,9 @@ def test_exact_profile_emits_transparent_ordifile_derived_area_when_markers_exis
     assert peak.height is None
     assert peak.status == "ordifile_derived_experimental"
     assert peak.data_origin == "ordifile_marker_derived"
-    assert peak.derivation_method_id == "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
+    assert peak.derivation_method_id == "youngin-prm-marker-group-baseline-v4"
     assert peak.derivation_evidence_profile is not None
-    assert "boundary_rule=adjacent_contact_straight_baseline" in (peak.derivation_evidence_profile)
+    assert "boundary_rule=marker_group_straight_baseline" in (peak.derivation_evidence_profile)
     metadata = {entry.key: entry.value for entry in bundle.metadata}
     assert metadata["peak_table_status"] == "ordifile_marker_derived_experimental"
     assert metadata["derived_peak_count"] == 1
@@ -135,7 +135,7 @@ def test_exact_profile_emits_transparent_ordifile_derived_area_when_markers_exis
     }
 
 
-def test_stored_timetable_exclusion_removes_only_marker_candidates_inside_interval(
+def test_manually_added_processing_events_preserve_signals_without_area(
     tmp_path: Path,
 ) -> None:
     data = synthetic_prm_bytes(
@@ -158,16 +158,49 @@ def test_stored_timetable_exclusion_removes_only_marker_candidates_inside_interv
         ParseOptions(experimental_derived_area=True),
     )
 
-    assert len(bundle.peaks) == 1
-    assert bundle.peaks[0].retention_time == pytest.approx(5 / 600)
-    assert bundle.peaks[0].peak_number == 1
+    # A manually added timed processing event changes how the vendor terminates and rejects
+    # peaks.  That behaviour is not reproduced, so the calculation fails closed per channel.
+    assert bundle.peaks == ()
+    assert bundle.signals
     metadata = {entry.key: entry.value for entry in bundle.metadata}
     assert metadata["structural_channel_001_marker_candidate_count"] == 2
     assert metadata["structural_channel_001_processing_time_table_excluded_candidate_count"] == 1
     assert metadata["structural_channel_001_processing_time_table_status"] == "matched"
+    assert (
+        metadata["structural_channel_001_integration_marker_status"]
+        == "time_table_manual_event_unsupported"
+    )
+    assert "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE" in {issue.code for issue in bundle.warnings}
 
 
-def test_exclusion_does_not_reclassify_a_shared_cluster_as_single_peak(
+def test_partial_channel_failure_warning_names_the_affected_channels(
+    tmp_path: Path,
+) -> None:
+    data = synthetic_prm_bytes(
+        channels=((0.0, 2.0, 0.0), (0.0, 2.0, 0.0)),
+        marker_records=(
+            ((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),
+            ((MARKER_START, 0), (MARKER_APEX, 1), (MARKER_END, 2)),
+        ),
+        time_table_events=(((11, 0.0, 0.003, 0.0, 32),), ()),
+    )
+
+    bundle = YoungInYlClarityPrmRawAdapter().parse(
+        _write(tmp_path / "partial-manual-event.prm", data),
+        ParseOptions(experimental_derived_area=True),
+    )
+
+    assert {peak.detector for peak in bundle.peaks} == {"TCD"}
+    message = next(
+        issue.message
+        for issue in bundle.warnings
+        if issue.code == "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE"
+    )
+    assert message.startswith("1 of 2 channels")
+    assert "remaining channels are unaffected" in message
+
+
+def test_manual_event_gate_applies_to_shared_marker_clusters(
     tmp_path: Path,
 ) -> None:
     data = synthetic_prm_bytes(
@@ -189,12 +222,10 @@ def test_exclusion_does_not_reclassify_a_shared_cluster_as_single_peak(
         ParseOptions(experimental_derived_area=True),
     )
 
-    assert len(bundle.peaks) == 1
-    peak = bundle.peaks[0]
-    assert peak.start_time == pytest.approx(5 / 600)
-    assert peak.end_time == pytest.approx(11 / 600)
-    assert peak.derivation_evidence_profile is not None
-    assert "boundary_rule=cluster_envelope_partition" in peak.derivation_evidence_profile
+    assert bundle.peaks == ()
+    metadata = {entry.key: entry.value for entry in bundle.metadata}
+    assert metadata["structural_channel_001_marker_candidate_count"] == 2
+    assert metadata["structural_channel_001_processing_time_table_excluded_candidate_count"] == 1
 
 
 def test_unknown_bound_timetable_opcode_preserves_signals_without_area(tmp_path: Path) -> None:

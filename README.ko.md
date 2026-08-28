@@ -282,7 +282,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / 단일 `SFID1` profile | 필드별 | 없음 | retention time (min) + signal (uV) | Experimental | 외부 CC0 선언 파일 1개 + 같은 run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / 단일 `SFID1` `Ch1` profile | 과학 데이터 allowlist | Peak Table 행 | RT/start/end (min) + area + height (unit 미확정), raw signal 없음 | Experimental | 외부 controlled-CI fixture 1개 + 같은 run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | 필드별 | 없음 | retention time (min) + raw TIC (unit 미확정), MS1 미출력 | Experimental | 외부 Dryad CC0 파일 1개 |
-| YoungIn YL-Clarity `.PRM`, 검증된 scientific family | scientific fingerprint | exact 9.0/9.1 marker profile에서 선택형 Ordifile 계산값 | retention time(min) + direct stored response; experimental `calculated_area`는 source `area`와 분리; Height 미지원; compatible 9.x는 response unit 미확정 가능 | Experimental | 사용자 PRM 30개 + 검증된 9.0/9.1 same-run PRM/curve/Result pair 27개 |
+| YoungIn YL-Clarity `.PRM`, 검증된 scientific family | scientific fingerprint | exact 9.0/9.1 marker profile에서 선택형 Ordifile 계산값 | retention time(min) + direct stored response; experimental `calculated_area`는 source `area`와 분리; Height 미지원; compatible 9.x는 response unit 미확정 가능 | Experimental | 사용자 PRM 30개 + 검증된 9.0/9.1 owner archive 4개(공식 347행, 비교 305행, export 표시 정밀도 일치 304행) |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | 과학 데이터 allowlist | source peak 행 | RT (min) + area (mV.s) + height (mV), raw signal 없음 | Experimental | 사용자가 생성한 local-only export 2개 |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | 과학 데이터 allowlist | source peak 행 | RT1/RT2 (s) + area/height (AU), raw signal 없음 | Experimental | 외부 Dryad CC0 non-human 파일 1개 |
 
@@ -348,20 +348,31 @@ downgrade하고, framing·payload·size·history·channel 구조가 손상되면
 Runtime에는 YL-Clarity, vendor DLL, temporary CSV가 필요하지 않습니다. GUI에는 항상
 보이는 전용 체크박스가 있으며 기본은 꺼져 있습니다. CLI에서는
 `--experimental-derived-area`를 명시적으로 사용합니다. Exact 9.0/9.1에서 bounded marker와
-current processing-table fingerprint까지 맞으면 controlled corpus에서 관측한 bounded 저장 제외 규칙을
-적용합니다. 9.0 Legacy의 원래 단일-peak marker cluster에만 Ordifile contact-bounded
-straight-baseline 추정식을 사용하고, shared cluster와 9.1은 기존 cluster lower-envelope
-계산을 보존합니다. Paired run 27개에서 안전하게 생성한 340행의 count/order/RT가 export
-precision에서 일치하며, calculated Area는 소수 2자리 반올림 112/340, 수치상 소수 4자리
-반올림 2/340입니다. 새 비고정 형식 oracle 25행 중 안전하게 생성한 18행의 공식 Area는
-소수 3자리이고, 이전 고정 형식 oracle은 소수 4자리입니다. 아직 구현하지 않은
-processing-table shape의 7행은 추측하지 않고
-생략합니다. 따라서 공식 Area 동등성의 2자리 gate는 통과하지 못했습니다. 이는 controlled
-evidence에 대한 기술적 결과이며 independent holdout, 공식 boundary 복원 또는 일반화
-근거가 아닙니다. Workbook은 이 추정치를
+current processing-table fingerprint까지 맞으면, 저장된 신호의 lower convex hull로 peak
+group을 나누고 group마다 자기 baseline contact 사이의 직선 baseline을 사용하며, 한 group
+안에서 붙어 있는 peak은 인접 stored apex 사이의 저장 response 최소값에서 분리합니다. RT는
+저장된 partition 안의 저장 response 최대값이고, Area는 일반적인 사다리꼴 공식이 아니라
+controlled corpus에서 도출한 left-edge 응답 · midpoint baseline 합입니다. 이 기능은 검증된
+controlled evidence가 뒷받침하는 범위에서 공식 표시 Area를 최대한 가깝게 재현하도록
+독립적으로 개발하고 검증한 Ordifile 계산입니다. Clarity/YL-Clarity의 독점 integration
+algorithm을 구현·복제했거나 그 내부 동작을 알고 있다고 주장하지 않으며, 구현과 runtime은
+vendor source code·library·DLL·executable을 사용하지 않습니다. 검증된 producer version
+2종, detector 2종, composite export 형식 2종을 포함하는 owner archive 4개에는 공식 347행이
+있습니다.
+사용자가 처리 method에 직접 추가한 timed event가 있는 channel은 해당 vendor 동작을
+재현하지 않으므로 추측하지 않고 생략하며, 그로 인해 42행이 비교 대상에서 빠집니다. 남은
+305행에서 RT는 305/305, Area는 각 export 자체 표시 자릿수 기준 304/305가 일치합니다.
+그중 한 archive는 유효숫자 12자리를 그대로 쓰는 vendor Excel export로도 존재하며, 그
+241행에 대해 RT·Start time·End time은 완전히 같고 Area 최대 상대차는 `4.025e-13`입니다. 계산된
+Height는 제품 필드로 내보내지 않습니다. 이는 controlled evidence에 대한 기술적 결과이며
+모든 method에 대한 vendor 동등성 주장이 아닙니다. 이 PRM 계산은 PRM에 저장된 marker
+partition을 기준으로 합니다. YL-Clarity에서 peak 시작·끝 범위나 integration 결과를 수동으로
+조정한 run에는 이 계산을 사용하지 마세요. 그런 경우 YL-Clarity의 Result Table을 CSV로
+export한 뒤 Ordifile에서 변환하면 명시적인 vendor RT/Area/Height가 Peaks로 보존됩니다.
+Workbook은 이 계산값을
 `calculated_area`에 쓰고 source-explicit `area`는 비워 두며, 각 행의 계산 출처와 방법을
-표시합니다. 저장된 vendor Result 또는 vendor-equivalent Area라고 주장하지 않습니다.
-Height는 계속 미지원이고 compatible unknown 9.x에는 이 기능을 상속하지 않습니다. 이는 모든
+표시합니다. 저장된 vendor Result table이라고 주장하지 않습니다.
+Compatible unknown 9.x에는 이 기능을 상속하지 않습니다. 이는 모든
 YL-Clarity version 지원 주장이 아닙니다. Recovery `.RAW`, Autochro, 쓰기 기능은 계속
 지원하지 않습니다. [정확한 기능·안전 경계](https://github.com/hdkim99/ordifile/blob/main/docs/formats/youngin-yl-clarity-prm-raw.md)를 확인해 주세요.
 

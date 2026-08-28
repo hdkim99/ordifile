@@ -17,8 +17,7 @@ from ordifile.adapters._youngin_yl_clarity_prm_binary import (
     read_prm,
 )
 from ordifile.adapters._youngin_yl_clarity_prm_derived_peaks import (
-    DERIVATION_METHOD_ID_V2,
-    DERIVATION_METHOD_ID_V3,
+    DERIVATION_METHOD_ID_V4,
     DERIVATION_ORIGIN,
     derive_marker_peaks,
 )
@@ -72,6 +71,22 @@ _VALIDATED_INTEGRATION_TYPES = {
 }
 _DEFAULT_TIME_TABLE_VALUES = (0.1, 0.1, 1.0, 0.0, 0.0, 0.0)
 _TIME_TABLE_EXCLUSION_OPCODE = 11
+_TIME_TABLE_THRESHOLD_OPCODE = 51
+_TIME_TABLE_MANUAL_EVENT_OPCODES = frozenset({11, 12, 32})
+_DERIVED_AREA_UNAVAILABLE_STATUSES = frozenset(
+    {
+        "integration_type_unsupported",
+        "time_table_unavailable",
+        "time_table_integration_type_unsupported",
+        "time_table_fingerprint_unsupported",
+        "time_table_opcode_unsupported",
+        "time_table_interval_invalid",
+        "time_table_optional_event_unsupported",
+        "time_table_manual_event_unsupported",
+        "marker_sequence_invalid",
+        "calculation_invalid",
+    }
+)
 _OBSERVED_OPTIONAL_EVENT_SEQUENCES = frozenset(
     {
         (),
@@ -139,14 +154,6 @@ def _evaluate_capability(decoded: YoungInPrmData) -> _PrmCapability:
         ),
         evidence[0] if evidence is not None else None,
         evidence[1] if evidence is not None else None,
-    )
-
-
-def _derived_area_method_id(producer_version: str) -> str:
-    return (
-        DERIVATION_METHOD_ID_V3
-        if producer_version == "YL-Clarity 9.0.1.19"
-        else DERIVATION_METHOD_ID_V2
     )
 
 
@@ -236,35 +243,45 @@ def _time_table_fingerprint_status(table: PrmTimeTable, *, last_time: float) -> 
     return "matched"
 
 
-def _exclude_stored_timetable_candidates(
+def _stored_response_threshold(table: PrmTimeTable) -> float:
+    """Return the stored Threshold value the validated processing fingerprint carries."""
+    for event in table.events:
+        if event.opcode == _TIME_TABLE_THRESHOLD_OPCODE:
+            return float(event.value)
+    return _DEFAULT_TIME_TABLE_VALUES[1]
+
+
+def _excluded_timetable_offsets(
     values: tuple[float, ...],
     windows: tuple[PrmPeakWindow, ...],
     table: PrmTimeTable,
     *,
     d_step: int,
     min_ticks: float,
-) -> tuple[tuple[PrmPeakWindow, ...], int]:
+) -> frozenset[int]:
+    """Return the source offsets of marker candidates a stored event interval removes.
+
+    The offsets are reported instead of a filtered window list so that the calculated
+    boundaries and baselines keep using the complete stored marker geometry.
+    """
     intervals = tuple(
         (event.a_time, event.b_time)
         for event in table.events
         if event.opcode == _TIME_TABLE_EXCLUSION_OPCODE
     )
     if not intervals:
-        return windows, 0
-    selected: list[PrmPeakWindow] = []
-    excluded = 0
+        return frozenset()
     dt_minutes = d_step / min_ticks
-    for window in windows:
+    excluded: set[int] = set()
+    for offset, window in enumerate(windows):
         apex_index = max(
             range(window.start_index, window.end_index + 1),
             key=values.__getitem__,
         )
         apex_time = apex_index * dt_minutes
         if any(start <= apex_time <= end for start, end in intervals):
-            excluded += 1
-        else:
-            selected.append(window)
-    return tuple(selected), excluded
+            excluded.add(offset)
+    return frozenset(excluded)
 
 
 def _build_derived_peaks(
@@ -324,13 +341,6 @@ def _build_derived_peaks(
             channel_statuses[channel_index] = "marker_sequence_invalid"
             continue
         candidate_counts[channel_index] = len(window_result.windows)
-        cluster_counts: dict[tuple[int, int], int] = {}
-        for window in window_result.windows:
-            cluster = (window.cluster_start_index, window.cluster_end_index)
-            cluster_counts[cluster] = cluster_counts.get(cluster, 0) + 1
-        original_single_peak_clusters = frozenset(
-            cluster for cluster, count in cluster_counts.items() if count == 1
-        )
         dt_minutes = channel.d_step_candidate / channel.min_ticks_candidate
         table_status = _time_table_fingerprint_status(
             time_table,
@@ -340,25 +350,28 @@ def _build_derived_peaks(
         if table_status != "matched":
             channel_statuses[channel_index] = table_status
             continue
-        selected_windows, excluded_count = _exclude_stored_timetable_candidates(
+        excluded_offsets = _excluded_timetable_offsets(
             channel.values,
             window_result.windows,
             time_table,
             d_step=channel.d_step_candidate,
             min_ticks=channel.min_ticks_candidate,
         )
-        excluded_counts[channel_index] = excluded_count
+        excluded_counts[channel_index] = len(excluded_offsets)
+        if any(event.opcode in _TIME_TABLE_MANUAL_EVENT_OPCODES for event in time_table.events):
+            # Manually added timed processing events change how the vendor terminates and
+            # rejects peaks.  That behaviour is not reproduced, so the calculation fails
+            # closed for this channel while its scientific Signals stay available.
+            channel_statuses[channel_index] = "time_table_manual_event_unsupported"
+            continue
         try:
-            refine_single_peak_clusters = decoded.producer_version == "YL-Clarity 9.0.1.19"
             derived = derive_marker_peaks(
                 channel.values,
-                selected_windows,
+                window_result.windows,
                 d_step=channel.d_step_candidate,
                 min_ticks=channel.min_ticks_candidate,
-                refine_single_peak_clusters=refine_single_peak_clusters,
-                original_single_peak_clusters=(
-                    original_single_peak_clusters if refine_single_peak_clusters else None
-                ),
+                threshold=_stored_response_threshold(time_table),
+                excluded_window_offsets=excluded_offsets,
             )
         except ValueError:
             channel_statuses[channel_index] = "calculation_invalid"
@@ -367,7 +380,7 @@ def _build_derived_peaks(
             "ordifile_derived_experimental" if derived else "no_peak_markers"
         )
         area_unit = None if response_unit is None else f"{response_unit}.s"
-        derivation_method_id = _derived_area_method_id(decoded.producer_version)
+        derivation_method_id = DERIVATION_METHOD_ID_V4
         evidence_profile_prefix = (
             f"{decoded.producer_version}; integration_type=0x{marker_decode.integration_type:02x}; "
             f"time_table_slot={time_table.slot_number}; "
@@ -664,7 +677,7 @@ class YoungInYlClarityPrmRawAdapter:
             ("derived_peak_count", len(peaks), None),
             (
                 "derived_area_method_id",
-                _derived_area_method_id(decoded.producer_version) if peaks else None,
+                DERIVATION_METHOD_ID_V4 if peaks else None,
                 None,
             ),
             (
@@ -800,26 +813,29 @@ class YoungInYlClarityPrmRawAdapter:
                         sample_id,
                     )
                 )
+            affected_channels = tuple(
+                index
+                for index, status in enumerate(derived_build.channel_statuses, start=1)
+                if status in _DERIVED_AREA_UNAVAILABLE_STATUSES
+            )
             derived_area_unavailable = options.experimental_derived_area and (
-                marker_decode.status == "invalid"
-                or not peaks
-                or any(
-                    status
-                    in {
-                        "integration_type_unsupported",
-                        "time_table_unavailable",
-                        "time_table_integration_type_unsupported",
-                        "time_table_fingerprint_unsupported",
-                        "time_table_opcode_unsupported",
-                        "time_table_interval_invalid",
-                        "time_table_optional_event_unsupported",
-                        "marker_sequence_invalid",
-                        "calculation_invalid",
-                    }
-                    for status in derived_build.channel_statuses
-                )
+                marker_decode.status == "invalid" or not peaks or bool(affected_channels)
             )
             if derived_area_unavailable:
+                channel_count = len(derived_build.channel_statuses)
+                if peaks and 0 < len(affected_channels) < channel_count:
+                    # Other channels did produce calculated Peaks; say so instead of
+                    # implying the whole source was left without them.
+                    default_message = (
+                        f"{len(affected_channels)} of {channel_count} channels are outside the "
+                        "validated derived-Area capability; those channels kept their scientific "
+                        "signals without Peaks, and the remaining channels are unaffected."
+                    )
+                else:
+                    default_message = (
+                        "Stored PRM markers are outside the validated derived-Area "
+                        "capability; scientific signals were preserved without Peaks."
+                    )
                 warnings.append(
                     Issue(
                         marker_decode.issue_code
@@ -827,8 +843,7 @@ class YoungInYlClarityPrmRawAdapter:
                         or "YOUNGIN_PRM_DERIVED_AREA_UNAVAILABLE",
                         marker_decode.issue_message
                         or current_method.issue_message
-                        or "Stored PRM markers are outside the validated derived-Area "
-                        "capability; scientific signals were preserved without Peaks.",
+                        or default_message,
                         Severity.WARNING,
                         sample_id,
                     )

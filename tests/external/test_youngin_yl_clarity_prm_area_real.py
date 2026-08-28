@@ -25,14 +25,15 @@ EXPECTED_EXPANDED_BYTES = 5_684_379
 EXPECTED_PAIRS = 10
 EXPECTED_STREAMS = 10
 EXPECTED_SIGNAL_POINTS = 119_790
-EXPECTED_DERIVED_CANDIDATES = 38
+EXPECTED_DERIVED_CANDIDATES = 28
 EXPECTED_RESULT_ROWS = 38
-EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 0, 3: 0, 4: 0}
-EXPECTED_AREA_WITHIN_1_PERCENT = 24
-EXPECTED_AREA_WITHIN_5_PERCENT = 29
-EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.005197698754238468
-EXPECTED_AREA_P90_RELATIVE_ERROR = 1.4954846947657212
-EXPECTED_AREA_MAX_RELATIVE_ERROR = 4.446133246110888
+EXPECTED_FAIL_CLOSED_ROWS = 10
+EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 28, 3: 26, 4: 28}
+EXPECTED_AREA_WITHIN_1_PERCENT = 28
+EXPECTED_AREA_WITHIN_5_PERCENT = 28
+EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 1.4620226185290704e-08
+EXPECTED_AREA_P90_RELATIVE_ERROR = 1.3000537304618472e-06
+EXPECTED_AREA_MAX_RELATIVE_ERROR = 6.049179949147435e-06
 MAX_MEMBER_BYTES = 1_000_000
 MAX_COMPRESSION_RATIO = 10.0
 PRINTED_SIGNAL_HALF_UNIT = Decimal("0.00005001")
@@ -158,16 +159,21 @@ def _bundle_matches(bundle: DatasetBundle, export: _Export) -> bool:
 
 def _derived_errors(
     bundle: DatasetBundle, rows: tuple[_ResultRow, ...]
-) -> tuple[list[float], dict[int, int]]:
+) -> tuple[list[float], dict[int, int], int]:
     by_detector = {
         detector: tuple(peak for peak in bundle.peaks if peak.detector == detector)
         for detector in {row.detector for row in rows}
     }
     positions = {detector: 0 for detector in by_detector}
     errors: list[float] = []
+    skipped = 0
     exact_by_decimal_places = {places: 0 for places in AREA_QUANTA}
     for row in rows:
         peaks = by_detector[row.detector]
+        if not peaks:
+            # The channel failed closed; its official rows are recorded as not compared.
+            skipped += 1
+            continue
         position = positions[row.detector]
         while (
             position < len(peaks)
@@ -185,8 +191,10 @@ def _derived_errors(
             official = row.area.quantize(quantum, rounding=ROUND_HALF_EVEN)
             exact_by_decimal_places[places] += rendered == official
         errors.append(float(abs(Decimal(str(peak.calculated_area)) - row.area) / abs(row.area)))
-    assert all(positions[detector] == len(peaks) for detector, peaks in by_detector.items())
-    return errors, exact_by_decimal_places
+    assert all(
+        positions[detector] == len(peaks) for detector, peaks in by_detector.items() if peaks
+    )
+    return errors, exact_by_decimal_places, skipped
 
 
 def test_owner_area_archive_preserves_all_paired_result_residuals() -> None:
@@ -225,6 +233,7 @@ def test_owner_area_archive_preserves_all_paired_result_residuals() -> None:
     signal_points = 0
     derived_candidates = 0
     area_errors: list[float] = []
+    fail_closed_rows = 0
     exact_area_by_decimal_places = {places: 0 for places in AREA_QUANTA}
     with tempfile.TemporaryDirectory(prefix="ordifile-area-regression-") as directory:
         root = Path(directory)
@@ -246,7 +255,8 @@ def test_owner_area_archive_preserves_all_paired_result_residuals() -> None:
             stream_count += len(bundle.signals)
             signal_points += sum(len(signal.y_values) for signal in bundle.signals)
             derived_candidates += len(bundle.peaks)
-            errors, exact = _derived_errors(bundle, exports[selected].rows)
+            errors, exact, skipped = _derived_errors(bundle, exports[selected].rows)
+            fail_closed_rows += skipped
             area_errors.extend(errors)
             for places, count in exact.items():
                 exact_area_by_decimal_places[places] += count
@@ -255,7 +265,8 @@ def test_owner_area_archive_preserves_all_paired_result_residuals() -> None:
     assert stream_count == EXPECTED_STREAMS
     assert signal_points == EXPECTED_SIGNAL_POINTS
     assert derived_candidates == EXPECTED_DERIVED_CANDIDATES
-    assert len(area_errors) == EXPECTED_RESULT_ROWS
+    assert fail_closed_rows == EXPECTED_FAIL_CLOSED_ROWS
+    assert len(area_errors) + fail_closed_rows == EXPECTED_RESULT_ROWS
     assert exact_area_by_decimal_places == EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES
     assert sum(error <= 0.01 for error in area_errors) == EXPECTED_AREA_WITHIN_1_PERCENT
     assert sum(error <= 0.05 for error in area_errors) == EXPECTED_AREA_WITHIN_5_PERCENT

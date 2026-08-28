@@ -1,11 +1,12 @@
 # YoungIn YL-Clarity PRM marker-derived Area investigation
 
-- Status: Experimental product capability; not vendor-Result equivalence
+- Status: Reproduces the displayed vendor Area for 304 of the 305 rows it emits across the
+  controlled corpus, and for 304 of that corpus's 347 official rows; still labelled an Ordifile
+  calculation, not a stored Result
 - Runtime input: PRM only
 - Runtime dependency on Result CSV, YL-Clarity, Clarity, vendor DLL or executable: none
-- Enabled producer boundary for the independent calculation: exact `9.0.1.19` and
-  `9.1.0.76` only; official Area comparison coverage is listed below
-- Compatible unknown 9.x: direct signal may remain available, derived Area is unavailable
+- Enabled producer boundary: exact `9.0.1.19` and `9.1.0.76` only
+- Compatible unknown 9.x: direct signal may remain available, calculated Area is unavailable
 - Product default: disabled; the GUI exposes a dedicated visible checkbox, while CLI/API
   callers require `--experimental-derived-area` or `experimental_derived_area=True`
 
@@ -15,8 +16,10 @@ The researcher workflow is `PRM -> Ordifile -> Signals + Peaks/Area -> Excel`. C
 Result CSV files are development oracles used to measure the calculation; they are not a
 runtime input and are not silently paired with PRM files.
 
-PRM does not expose the official Result rows as a repeatable stored RT/Area/Height table.
-It does expose source-ordered integration markers. Their observed state machine is:
+PRM does not expose the official Result rows as a stored RT/Area/Height table. Every
+uncompressed key and every gzip member of the controlled corpus was searched for the
+displayed Area, Height and boundary values; none is stored. The file does expose
+source-ordered integration markers. Their observed state machine is:
 
 ```text
 start (0x20) -> apex marker (0x50)
@@ -32,109 +35,132 @@ this optional capability while valid Signals remain available.
 ## Calculation
 
 Ordifile first validates the current-history 32-slot processing-table framing and binds the
-detector table by source channel order. An observed opcode-11 interval excludes a marker
-candidate when its raw apex lies in that interval. Across the earlier controlled corpus this
-one fixed rule explained 17/17 candidates absent from the displayed official Result and
-excluded 0 official rows. The later non-fixed-format intake also contains processing-event
-shapes that add or terminate official Result peaks without a one-to-one stored marker window.
-Those shapes are not reconstructed: calculated Area fails closed for the affected channel while
-scientific Signals remain available.
+detector table by source channel order. For each stored marker cluster it then resolves peak
+groups, one straight baseline per group, and an Area:
 
-The observed optional-event fingerprint is also bounded: exact observed source-order opcode
-sequences, blank text, one-space group text, canonical GUID framing, zero optional values and
-acquisition-bounded time ordering are required. An unobserved payload or sequence disables
-calculated Area for that channel while preserving scientific Signals.
+1. **Retention time** is the stored-response maximum inside the stored marker partition. The
+   stored apex marker itself drives the geometry; the stored-response maximum is what the row
+   reports. Everything below reads the response series the PRM stores, which is what this work
+   establishes; no claim is made about the instrument's pre-processing chromatogram.
+2. **Peak groups.** The lower convex hull of the stored signal over the marker cluster gives
+   the points where the baseline touches the response. The group is first narrowed to the
+   contacts adjacent to its outer apexes. Any remaining contact that separates two stored
+   apexes splits the cluster into two independent groups, and the rule is then applied to
+   each of them until no further contact separates two apexes.
+3. **Group boundary at a split.** The left group ends by walking back from the stored valley
+   through response excursions no larger than the stored `Threshold` value, taking the lowest
+   sample reached. The right group begins at the stored valley itself, before its own hull
+   narrowing is applied.
+4. **Fused peaks inside a group** are separated at the stored-response minimum between
+   neighbouring
+   stored apexes, which is a vertical drop line, not a baseline break.
+5. **Baseline** is the straight line between the two contacts of the group.
+6. **Area** is `sum over k in [start, end) of (response[k] - baseline(k + 0.5)) * dt_seconds`,
+   with `dt_seconds = 60 * DStep / MinTicks`. This is not the general trapezoidal rule: the
+   response is taken at the left edge of each interval and the baseline at its centre. The two
+   forms are not algebraically identical, and only this one reproduces the compared rows, so it
+   is named a controlled-corpus-derived left-edge/midpoint summation rather than a trapezoid.
 
-For each remaining marker cluster, Ordifile constructs the lower convex envelope of the stored
-binary32 signal. The retention time is the raw maximum inside the stored partition. Exact
-9.0.1.19 Legacy clusters that originally contain one marker peak use the adjacent envelope
-contacts around that maximum as an Ordifile boundary and a straight base-to-base baseline.
-Multi-peak 9.0 clusters and exact 9.1 retain the shared lower-envelope partition calculation.
-Area is the deterministic trapezoidal sum above the selected baseline using
-`dt_seconds = 60 * DStep / MinTicks`.
+A retention index that the narrowed partition does not contain is a structured failure, not a
+clamped value: the affected channel fails closed.
 
 Ordifile does not search outside stored partitions, move boundaries to match a Result row,
-identify compounds, or run an automatic whole-curve peak detector. Exact 9.0.1.19 rows use
-`youngin-prm-marker-timetable-hybrid-contact-envelope-v3`; exact 9.1 rows retain
-`youngin-prm-marker-timetable-lower-envelope-v2`. Per-row evidence records which boundary rule
-was used.
+identify compounds, or run an automatic whole-curve peak detector.
 
 ## Owner-controlled oracle comparison
 
-The local-only probe compared 27 content-confirmed PRM/composite-export pairs. No private
-filename, path, row value or measured array is recorded publicly.
+Four independent owner archives were compared, covering both validated producer versions,
+both detectors and both composite-export layouts. Archives are referred to by alias; no
+private filename, path, row value or measured array is recorded publicly.
 
-| Evidence | Result |
-|---|---:|
-| Official Result rows | 347 |
-| FID rows | 243 |
-| TCD rows | 104 |
-| 9.0 FID rows | 243 |
-| 9.0 TCD rows | 83 |
-| 9.1 FID rows | 0 — official Peak/Area not tested |
-| 9.1 TCD rows | 21 |
-| Emitted calculated rows | 340 |
-| Rows omitted because the processing-event shape is not implemented | 7 |
-| Official rows aligned by derived RT at the three-decimal export precision | 340/340 |
-| Area equal after rounding both values to two decimal places | 112/340 |
-| Area equal after rounding both values to three decimal places | 29/340 |
-| Area equal after rounding both values to four decimal places | 2/340 |
-| Area within 1% | 264/340 |
-| Area within 5% | 288/340 |
-| Median relative Area error | 0.00122% |
-| 90th-percentile relative Area error | 0.11303% |
-| Maximum relative Area error | 4.44614% |
+| Archive | Producer | Official rows | Compared | Area exact at the export's own precision | Not compared |
+|---|---|---:|---:|---:|---:|
+| A — composite export | 9.0.1.19 mV | 263 | 241 | 241 | 22 |
+| B — fixed-format export | 9.0.1.19 mV | 38 | 28 | 28 | 10 |
+| C — fixed-format export | 9.1.0.76 pA/mV | 21 | 21 | 21 | 0 |
+| D — non-fixed-format export | 9.0.1.19 mV | 25 | 15 | 14 | 10 |
+| **Total** | | **347** | **305** | **304** | **42** |
 
-The non-fixed-format exports add official Start Time and End Time for 25 rows. When those
-official displayed boundaries are used only as a development diagnostic, a straight
-base-to-base trapezoid matches 16/25 rows at two decimals, 7/25 at three decimals and 0/25 at
-four decimals; 24/25 are within 1%. This shows that boundary recovery is the dominant remaining
-problem, while residual baseline/integration details still prevent official equivalence. The
-official boundaries are not a PRM runtime input. These non-fixed-format exports present official
-Area at three decimals; their four-decimal column above is a numerical comparison, not source
-display precision. Earlier fixed-format oracles present Area at four decimals.
+The 42 rows that are not compared are exactly the rows of channels that fail closed; see the
+next section. They are not failures of the calculation, but they are also not evidence for it,
+so both denominators are reported: **304/305 of the rows the calculation emits, and 304/347 of
+the official rows in the corpus.**
 
-The bounded calculation now improves the two-decimal result from 61/340 with the previous
-lower-envelope-only rule to 112/340, but it still does not pass the requested all-row gate.
-All rules were selected and evaluated on this same paired corpus; there is no untouched holdout.
-The 340/340 emitted-row RT observation must not be generalized beyond this evidence.
+Retention time matches the displayed value for every compared row. Archive A also exists as a
+vendor Excel export that publishes twelve significant digits instead of a rounded column. Against
+that full-precision oracle the 241 compared rows agree as follows:
 
-### Decimal-place validation ladder
+| Quantity | Result |
+|---|---|
+| Retention time | 241/241 identical |
+| Start time and End time | 241/241 identical |
+| Area, maximum relative difference | `4.025e-13` (`4.025e-11 %`) |
+| Area, median relative difference | `6.4e-14` |
 
-Area equivalence is evaluated from the least demanding requested presentation first. Candidate
-and official values are independently rounded with decimal round-half-even; no percentage
-tolerance is substituted for equality at the requested decimal place.
+Against the rounded four-decimal columns of the same archive the maximum relative difference is
+`6.9e-5` (`0.0069 %`). That residual is consistent with the oracle's own display rounding rather
+than with a difference in the calculation: the same runs agree to twelve significant digits when
+the oracle publishes them.
 
-| Reproducible calculation | 2 decimals | 3 decimals | 4 decimals | Interpretation |
-|---|---:|---:|---:|---|
-| Current bounded hybrid calculation | 112/340 | 29/340 | 2/340 | Product estimate; not official-equivalent |
-| Previous lower-envelope-only calculation on the same safely emitted rows | 61/340 | 16/340 | 0/340 | Development baseline |
-| Official displayed boundaries plus straight baseline, new 25-row diagnostic | 16/25 | 7/25 | 0/25 | Oracle-only diagnostic; boundaries are not a runtime input |
+The single mismatch is one group end in one channel of archive D, where the vendor stops the
+descending tail one noise excursion earlier than the stored `Threshold` rule does. Its relative
+Area difference is `0.0073` (`0.73 %`). Archive D publishes Area at three decimals, so it has no
+full-precision oracle.
 
-The two-decimal gate is therefore `NO_GO`: no tested, reproducible calculation reproduces all
-340 emitted rows, and 9.1 FID still has no official Result Area rows in the controlled corpus. This is
-same-corpus descriptive evidence, not an untouched independent holdout. Three- or four-decimal
-product claims are not evaluated as a promotion target until the two-decimal gate passes. The
-next decisive evidence is a bounded PRM interpretation that reproduces official processing-event
-peak creation/termination and baseline state across independent pairs.
+This replaces the previous lower-envelope calculation, which reproduced 112/340 rows at two
+decimal places on the same evidence.
+
+The rules were selected on archives A and D. Archives B and C were not consulted while the rules
+were being chosen and were measured only afterwards, so they are the closest available
+independent check; they are not a formally reserved holdout.
+
+## Channels that fail closed
+
+Peak detection and termination change when a researcher adds timed processing events to the
+method by hand. The controlled corpus contains three such stored opcodes, `11`, `12` and `32`.
+
+Their meanings below are **not** taken from a published opcode specification. No such
+specification was consulted. They are the only reading consistent with what the owner observed
+while making the interventions themselves, compared against the resulting exports:
+
+| Opcode | Observed correlation | Confidence |
+|---|---|---|
+| `11` | Every stored marker candidate whose stored-response apex falls inside the interval is absent from the official Result. | Consistent across every occurrence in the corpus. |
+| `12` | No reading is consistent with the corpus. One occurrence spans nearly the whole run without suppressing any official peak. | **Unresolved.** |
+| `32` | The first time equals an official peak's retention time and the second behaves like an offset from it toward that peak's end. | Directionally consistent; the exact snapping is not reproduced. |
+
+Because a channel can carry any of the three, and because `12` is unresolved, none of them is
+acted on. Ordifile **omits calculated Peaks/Area for any channel whose processing table carries
+one of those events**, records the channel status `time_table_manual_event_unsupported`, and
+preserves the scientific Signals. Had they been acted on with the readings above, measured
+agreement on those channels would have been 16/39 rows. The 42 rows those channels contribute
+are the difference between the 305 compared rows and the corpus's 347 official rows.
+
+The same fail-closed behaviour applies when markers, their sequence, the processing-table
+fingerprint, its channel binding, the integration-type gate or time metadata are unavailable,
+and when the calculation itself produces a partition that does not contain its own retention
+index, an Area that is not strictly positive, or a group resolution that exceeds its bounded
+sample budget.
 
 ## Product boundary
 
 GUI, CLI and API callers opt in. Every emitted row is labelled `ordifile_marker_derived` and
-`ordifile_derived_experimental` in the
-canonical/workbook provenance. Its estimate is stored in `calculated_area`; canonical
-source-explicit `area` stays empty. It must not be called a stored YL-Clarity Result, official
-Area, or vendor-equivalent Result. Height remains unavailable. Calculated-area units are
-derived from the validated response unit and seconds:
+`ordifile_derived_experimental` in the canonical/workbook provenance. Its value is stored in
+`calculated_area`; canonical source-explicit `area` stays empty. Height is calculated internally
+so that it can be checked against owner exports, but it is **not** published as a product field:
+`PeakRecord.height` stays empty for these rows, and no export profile carries a calculated
+Height. Publishing it would need its own field, export-profile change and regression coverage.
+
+The calculated Area must not be called a stored YL-Clarity Result or a vendor Result table: it
+is an independent calculation that reproduces the displayed value on the evidence above. Rows use
+`youngin-prm-marker-group-baseline-v4`. Calculated-area units are derived from the validated
+response unit and seconds:
 
 - exact 9.0 FID/TCD: `mV.s`;
 - exact 9.1 FID: `pA.s`;
 - exact 9.1 TCD: `mV.s`.
 
-If markers, their sequence, the current processing-table fingerprint, its channel binding, the
-integration-type gate or time metadata are unavailable, the
-adapter preserves valid scientific Signals and omits derived Peaks/Area for the affected
-capability. The standalone exact Result CSV adapter remains the path for explicit vendor
+The standalone exact Result CSV adapter remains the path for explicit vendor
 RT/Area/Height rows.
 
 ## Primary documentation
@@ -144,5 +170,5 @@ RT/Area/Height rows.
   distinguishes calculated Result fields from the raw curve.
 - [DataApex Integration](https://www.dataapex.com/documentation/Content/Help/030-chromatogram/030.050-method/030.050-integration.htm)
   documents that algorithm/settings and the Integration Table determine peak and baseline
-  behavior. Ordifile therefore does not label its independent lower-envelope method as the
-  vendor algorithm.
+  behavior. Ordifile therefore does not label its independent calculation as the vendor
+  algorithm, and does not claim its summation is the trapezoidal definition quoted above.

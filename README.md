@@ -293,7 +293,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | No | Retention time (min) + signal (uV) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, exact `4.00` TIC profile | Field-specific | No | Retention time (min) + raw TIC (unit unknown); MS1 not exported | Experimental | One external Dryad CC0 file |
-| YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus 27 same-run PRM/curve/Result pairs across validated 9.0/9.1 profiles |
+| YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus four owner archives holding 347 official rows across validated 9.0/9.1 profiles; 305 rows compared, 304 exact at the export's own precision |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
 
@@ -362,21 +362,32 @@ or physical-response claim. Invalid framing, payloads, sizes, history, or channe
 still fail closed. No YL-Clarity installation, vendor DLL, or temporary CSV is required at
 runtime. The GUI shows a dedicated unchecked option; CLI users request it with
 `--experimental-derived-area`. Exact validated 9.0/9.1 files with the bounded marker and
-current processing-table fingerprint apply one bounded stored exclusion rule observed across the
-controlled corpus. The 9.0 Legacy profile uses an Ordifile contact-bounded straight-baseline
-estimate only for original single-peak marker clusters; shared clusters and 9.1 preserve the
-cluster lower-envelope calculation. Across 27 paired runs, 340 safely emitted rows align with
-official RT/order at export precision. Area matches 112/340 rows after two-decimal rounding and
-2/340 after numerical rounding to four decimals. The 18 safely emitted rows from the new
-25-row non-fixed oracle expose official Area at three decimals, while the earlier fixed-format
-oracles expose four. Seven
-additional rows governed by an
-unimplemented processing-table shape are omitted rather than guessed. The two-decimal
-official-equivalence gate therefore remains closed. This is descriptive controlled evidence,
-not an independent holdout or a claim that Ordifile reconstructs official boundaries. The
-workbook writes this estimate to `calculated_area`, leaves source-explicit `area` empty, and
-marks the origin and method. It is not a stored or vendor-equivalent Result, and Height remains
-unavailable. Compatible unknown 9.x files do not inherit this capability. Runtime sample IDs
+current processing-table fingerprint resolve peak groups from the lower convex hull of the
+stored signal, give each group one straight baseline between its own baseline contacts, and
+separate fused peaks at the stored-response minimum between neighbouring stored apexes. RT is
+the stored-response maximum inside the stored partition; Area is a deterministic
+controlled-corpus-derived left-edge/midpoint summation of the baseline-corrected response, not
+the general trapezoidal rule. This independently developed Ordifile calculation is designed and
+validated to reproduce the displayed Result Area as closely as the controlled evidence supports.
+It does not implement, replicate, or claim knowledge of the proprietary Clarity/YL-Clarity
+integration algorithm, and neither the implementation nor runtime uses vendor source code,
+libraries, DLLs, or executables.
+Four owner archives covering both validated producer versions, both detectors and both
+composite-export layouts hold 347 official rows. Channels whose processing table carries a
+manually added timed event are omitted rather than guessed, because that vendor behaviour is
+not reproduced; that removes 42 rows. Of the remaining 305, RT matches 305/305 and Area matches
+304/305 at each export's own displayed precision. One archive also exists as a vendor Excel
+export publishing twelve significant digits: against it, its 241 rows match on RT, Start time
+and End time exactly; the maximum relative Area difference is `4.025e-13`. Calculated Height is
+not published.
+This is descriptive controlled evidence, not a claim of vendor equivalence for every possible
+method. This PRM calculation follows the marker partitions stored in the PRM. Do not use it for
+a run whose peak start/end ranges or integration results were manually adjusted in YL-Clarity;
+export that run's Result Table as CSV and convert the export with Ordifile instead, so the
+explicit vendor RT/Area/Height values are preserved as Peaks. The workbook writes this
+calculation to `calculated_area`, leaves source-explicit
+`area` empty, and marks the origin and method. It is not a stored vendor Result table.
+Compatible unknown 9.x files do not inherit this capability. Runtime sample IDs
 are content-derived. This is not a claim that all
 YL-Clarity versions are supported. Recovery `.RAW`, Autochro, and write support remain
 unsupported. See the

@@ -27,14 +27,15 @@ EXPECTED_PAIRS = 2
 EXPECTED_STREAMS = 4
 EXPECTED_SIGNAL_POINTS = 52_700
 EXPECTED_RESULT_ROWS = 25
+EXPECTED_FAIL_CLOSED_ROWS = 3
 EXPECTED_BOUNDARY_ROWS = 25
-EXPECTED_DERIVED_ROWS = 18
-EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 9, 3: 5, 4: 0}
-EXPECTED_AREA_WITHIN_1_PERCENT = 13
-EXPECTED_AREA_WITHIN_5_PERCENT = 13
-EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.0011490070117224072
-EXPECTED_AREA_P90_RELATIVE_ERROR = 0.13691660391767188
-EXPECTED_AREA_MAX_RELATIVE_ERROR = 0.3126668575000758
+EXPECTED_DERIVED_ROWS = 15
+EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES = {2: 14, 3: 14, 4: 2}
+EXPECTED_AREA_WITHIN_1_PERCENT = 15
+EXPECTED_AREA_WITHIN_5_PERCENT = 15
+EXPECTED_AREA_MEDIAN_RELATIVE_ERROR = 0.00015785075518064048
+EXPECTED_AREA_P90_RELATIVE_ERROR = 0.00039442428087258066
+EXPECTED_AREA_MAX_RELATIVE_ERROR = 0.007334344476812811
 EXPECTED_OFFICIAL_BOUNDARY_EXACT_BY_DECIMAL_PLACES = {2: 16, 3: 7, 4: 0}
 MAX_MEMBER_BYTES = 800_000
 MAX_COMPRESSION_RATIO = 6.0
@@ -240,16 +241,21 @@ def _quantized_matches(candidate: float, official: Decimal) -> dict[int, bool]:
 
 def _derived_errors(
     bundle: DatasetBundle, rows: tuple[_ResultRow, ...]
-) -> tuple[list[float], dict[int, int]]:
+) -> tuple[list[float], dict[int, int], int]:
     by_detector = {
         detector: tuple(peak for peak in bundle.peaks if peak.detector == detector)
         for detector in {row.detector for row in rows}
     }
     positions = {detector: 0 for detector in by_detector}
     errors: list[float] = []
+    skipped = 0
     exact = {places: 0 for places in AREA_QUANTA}
     for row in rows:
         peaks = by_detector[row.detector]
+        if not peaks:
+            # The channel failed closed; its official rows are recorded as not compared.
+            skipped += 1
+            continue
         position = positions[row.detector]
         while (
             position < len(peaks)
@@ -261,14 +267,14 @@ def _derived_errors(
         positions[row.detector] = position + 1
         assert peak.area is None
         assert peak.calculated_area is not None
-        assert peak.derivation_method_id == (
-            "youngin-prm-marker-timetable-hybrid-contact-envelope-v3"
-        )
+        assert peak.derivation_method_id == ("youngin-prm-marker-group-baseline-v4")
         for places, matched in _quantized_matches(peak.calculated_area, row.area).items():
             exact[places] += matched
         errors.append(float(abs(Decimal(str(peak.calculated_area)) - row.area) / abs(row.area)))
-    assert all(positions[detector] == len(peaks) for detector, peaks in by_detector.items())
-    return errors, exact
+    assert all(
+        positions[detector] == len(peaks) for detector, peaks in by_detector.items() if peaks
+    )
+    return errors, exact, skipped
 
 
 def _display_index(signal: SignalSeries, displayed_time: Decimal) -> int:
@@ -358,6 +364,7 @@ def test_nonfixed_owner_archive_fixes_expanded_scientific_and_area_evidence() ->
     boundary_rows = 0
     derived_rows = 0
     area_errors: list[float] = []
+    fail_closed_rows = 0
     exact = {places: 0 for places in AREA_QUANTA}
     official_boundary_exact = {places: 0 for places in AREA_QUANTA}
     fail_closed_history_count = 0
@@ -388,7 +395,8 @@ def test_nonfixed_owner_archive_fixes_expanded_scientific_and_area_evidence() ->
             derived_rows += len(bundle.peaks)
 
             if bundle.peaks:
-                errors, derived_exact = _derived_errors(bundle, export.rows)
+                errors, derived_exact, skipped = _derived_errors(bundle, export.rows)
+                fail_closed_rows += skipped
                 area_errors.extend(errors)
                 for places, count in derived_exact.items():
                     exact[places] += count
@@ -417,6 +425,7 @@ def test_nonfixed_owner_archive_fixes_expanded_scientific_and_area_evidence() ->
     assert result_rows == EXPECTED_RESULT_ROWS
     assert boundary_rows == EXPECTED_BOUNDARY_ROWS
     assert derived_rows == EXPECTED_DERIVED_ROWS
+    assert fail_closed_rows == EXPECTED_FAIL_CLOSED_ROWS
     assert len(area_errors) == EXPECTED_DERIVED_ROWS
     assert exact == EXPECTED_AREA_EXACT_BY_DECIMAL_PLACES
     assert sum(error <= 0.01 for error in area_errors) == EXPECTED_AREA_WITHIN_1_PERCENT
