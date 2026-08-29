@@ -63,6 +63,67 @@ def paths_alias(first: Path, second: Path) -> bool:
         return False
 
 
+# An Agilent ChemStation ``.D`` run directory keeps acquisition and method bookkeeping
+# beside its data.  Those members are never scientific inputs, so reporting each of them
+# as an undetected format turns one clean run into a wall of failures.  They are recorded
+# as skipped container members instead.  The suppressed set is closed and named: a data
+# file sitting at the top of the directory, the signal or an export, is never suppressed.
+CHEMSTATION_DIRECTORY_SUFFIX = ".d"
+CHEMSTATION_REQUIRED_FILES = ("RUN.LOG", "SAMPLE.MAC")
+CHEMSTATION_REQUIRED_DIRECTORIES = ("ACQ.M", "DA.M")
+CHEMSTATION_CONTAINER_MEMBERS = frozenset(name.casefold() for name in CHEMSTATION_REQUIRED_FILES)
+CHEMSTATION_METHOD_DIRECTORIES = frozenset(
+    name.casefold() for name in CHEMSTATION_REQUIRED_DIRECTORIES
+)
+
+
+def _is_chemstation_directory(path: Path, cache: dict[Path, bool]) -> bool:
+    """Return whether a directory carries the evidenced ChemStation run skeleton."""
+    cached = cache.get(path)
+    if cached is not None:
+        return cached
+    verdict = False
+    if path.name.casefold().endswith(CHEMSTATION_DIRECTORY_SUFFIX):
+        # The skeleton is compared case-insensitively against one listing rather than by
+        # exact-name stat calls, which would only appear to work on a case-insensitive
+        # filesystem.  Symlinked members do not count towards the skeleton.
+        try:
+            files: set[str] = set()
+            directories: set[str] = set()
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_file(follow_symlinks=False):
+                        files.add(entry.name.casefold())
+                    elif entry.is_dir(follow_symlinks=False):
+                        directories.add(entry.name.casefold())
+            verdict = all(name.casefold() in files for name in CHEMSTATION_REQUIRED_FILES) and all(
+                name.casefold() in directories for name in CHEMSTATION_REQUIRED_DIRECTORIES
+            )
+        except OSError:
+            verdict = False
+    cache[path] = verdict
+    return verdict
+
+
+def _chemstation_container_member(member: Path, root: Path, cache: dict[Path, bool]) -> bool:
+    """Return whether a discovered member is ChemStation bookkeeping inside a run directory."""
+    for parent in member.parents:
+        if not _is_chemstation_directory(parent, cache):
+            if parent == root:
+                break
+            continue
+        try:
+            inner = member.relative_to(parent).parts
+        except ValueError:  # pragma: no cover - parents() always yields ancestors
+            return False
+        if len(inner) == 1:
+            return inner[0].casefold() in CHEMSTATION_CONTAINER_MEMBERS
+        return inner[0].casefold() in CHEMSTATION_METHOD_DIRECTORIES
+    return False
+
+
 def _reliable_file_id(path: Path) -> tuple[int, int] | None:
     stat = path.stat(follow_symlinks=False)
     if stat.st_ino == 0:
@@ -177,6 +238,7 @@ def discover_files(
             for extension in extensions
         }
     candidates: list[tuple[Path, str, Issue | None]] = []
+    chemstation_cache: dict[Path, bool] = {}
 
     def add_candidate(candidate: tuple[Path, str, Issue | None]) -> None:
         candidates.append(candidate)
@@ -275,6 +337,22 @@ def discover_files(
                         )
                     )
                 elif member.is_file() and (allowed is None or member.suffix.casefold() in allowed):
+                    if _chemstation_container_member(member, path, chemstation_cache):
+                        add_candidate(
+                            (
+                                member,
+                                relative,
+                                Issue(
+                                    "AGILENT_D_CONTAINER_MEMBER",
+                                    "An Agilent ChemStation .D run directory keeps this "
+                                    "acquisition or method bookkeeping file beside its data; "
+                                    "it was skipped and retained in the audit log.",
+                                    Severity.WARNING,
+                                    relative,
+                                ),
+                            )
+                        )
+                        continue
                     add_candidate((member, relative, None))
         else:
             add_candidate(

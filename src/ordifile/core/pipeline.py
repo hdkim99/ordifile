@@ -576,7 +576,8 @@ def run_pipeline(
         )
         source = _apply_source_identity(discovered.source, initial_policy)
         artifact_excluded = any(
-            issue.code == "ORDIFILE_ARTIFACT_EXCLUDED" for issue in discovered.issues
+            issue.code in {"ORDIFILE_ARTIFACT_EXCLUDED", "AGILENT_D_CONTAINER_MEMBER"}
+            for issue in discovered.issues
         )
         if artifact_excluded:
             # Core-owned output artifacts are already classified before adapter

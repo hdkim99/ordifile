@@ -312,3 +312,23 @@ directory intake would add is joining those into one source, and its cost is unc
 container model, a reuse key that cannot be the positional labels of a headerless table or a
 site-specific filename, and a per-directory question in the interface. Directory intake stays
 deferred until that join is worth those three, not because there is nothing to join.
+
+### What was done instead: container-member recognition
+
+Measuring the current behaviour changed which of those three costs was worth paying
+first. Ordifile already accepts a folder and walks it, so handing it a `.D` already
+reads the signal. What it also did was report every bookkeeping file in the run as an
+undetected format: a clean single-sample run came back as one success and five
+failures, its members named by hash rather than by path.
+
+That is a reporting problem, and it needs none of the three costs above. The evidenced
+skeleton is now used only to recognise the container, and the run's own bookkeeping,
+`RUN.LOG`, `SAMPLE.MAC`, and anything under `ACQ.M/` and `DA.M/`, is recorded as a
+skipped container member under `AGILENT_D_CONTAINER_MEMBER` instead of a failure. The
+suppressed set is closed and named, so a data file at the top of the directory, the
+signal or an export, is never suppressed, and a directory merely named `.D` without the
+skeleton suppresses nothing.
+
+An export the researcher has not mapped still fails, which is correct: it is a real data
+file Ordifile cannot read without an explicit peak-table mapping, and saying so is not
+noise. The join itself remains deferred on its original grounds.

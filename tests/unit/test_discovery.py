@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from ordifile.core import discovery
-from ordifile.core.discovery import discover_files, natural_key
+from ordifile.core.discovery import DiscoveryRecord, discover_files, natural_key
 
 
 def test_natural_key_orders_numeric_runs() -> None:
@@ -196,3 +196,102 @@ def test_resolve_failure_is_structured_after_hashing(
     assert record.issues[0].code == "INPUT_RESOLVE_FAILED"
     assert record.source.sha256 is not None
     assert "private resolve detail" not in record.issues[0].message
+
+
+def _chemstation_run(root: Path, name: str = "SAMPLE01.D") -> Path:
+    run = root / name
+    (run / "ACQ.M").mkdir(parents=True)
+    (run / "DA.M").mkdir()
+    (run / "FID3A.CH").write_bytes(b"\x00" * 32)
+    (run / "OGE00.CSV").write_text("1,2.345,10500.5\n", encoding="utf-8")
+    (run / "RUN.LOG").write_text("run", encoding="utf-8")
+    (run / "SAMPLE.MAC").write_text("macro", encoding="utf-8")
+    (run / "ACQ.M" / "method.txt").write_text("m", encoding="utf-8")
+    (run / "DA.M" / "analysis.txt").write_text("a", encoding="utf-8")
+    return run
+
+
+def _codes_by_name(records: tuple[DiscoveryRecord, ...]) -> dict[str, tuple[str, ...]]:
+    return {
+        record.source.relative_path: tuple(issue.code for issue in record.issues)
+        for record in records
+    }
+
+
+def test_chemstation_run_bookkeeping_is_skipped_not_failed(tmp_path: Path) -> None:
+    run = _chemstation_run(tmp_path)
+
+    codes = _codes_by_name(discover_files([run], recursive=True))
+
+    assert codes["RUN.LOG"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["SAMPLE.MAC"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["ACQ.M/method.txt"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["DA.M/analysis.txt"] == ("AGILENT_D_CONTAINER_MEMBER",)
+
+
+def test_chemstation_data_members_are_never_suppressed(tmp_path: Path) -> None:
+    run = _chemstation_run(tmp_path)
+
+    codes = _codes_by_name(discover_files([run], recursive=True))
+
+    assert codes["FID3A.CH"] == ()
+    assert codes["OGE00.CSV"] == ()
+
+
+def test_a_directory_named_d_without_the_skeleton_suppresses_nothing(tmp_path: Path) -> None:
+    run = tmp_path / "NOTREAL.D"
+    run.mkdir()
+    (run / "RUN.LOG").write_text("run", encoding="utf-8")
+    (run / "SAMPLE.MAC").write_text("macro", encoding="utf-8")
+
+    codes = _codes_by_name(discover_files([run], recursive=True))
+
+    assert codes["RUN.LOG"] == ()
+    assert codes["SAMPLE.MAC"] == ()
+
+
+def test_bookkeeping_names_outside_a_run_directory_are_untouched(tmp_path: Path) -> None:
+    plain = tmp_path / "plain"
+    (plain / "ACQ.M").mkdir(parents=True)
+    (plain / "DA.M").mkdir()
+    (plain / "RUN.LOG").write_text("run", encoding="utf-8")
+    (plain / "SAMPLE.MAC").write_text("macro", encoding="utf-8")
+
+    codes = _codes_by_name(discover_files([plain], recursive=True))
+
+    assert codes["RUN.LOG"] == ()
+    assert codes["SAMPLE.MAC"] == ()
+
+
+def test_run_directories_nested_under_a_batch_folder_are_recognised(tmp_path: Path) -> None:
+    batch = tmp_path / "batch"
+    _chemstation_run(batch, "A01.D")
+    _chemstation_run(batch, "A02.D")
+
+    codes = _codes_by_name(discover_files([batch], recursive=True))
+
+    assert codes["A01.D/RUN.LOG"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["A02.D/ACQ.M/method.txt"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["A01.D/FID3A.CH"] == ()
+
+
+def test_the_run_skeleton_is_matched_case_insensitively(tmp_path: Path) -> None:
+    run = tmp_path / "sample02.d"
+    (run / "acq.m").mkdir(parents=True)
+    (run / "da.m").mkdir()
+    (run / "run.log").write_text("run", encoding="utf-8")
+    (run / "sample.mac").write_text("macro", encoding="utf-8")
+
+    codes = _codes_by_name(discover_files([run], recursive=True))
+
+    assert codes["run.log"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["sample.mac"] == ("AGILENT_D_CONTAINER_MEMBER",)
+
+
+def test_non_recursive_discovery_also_skips_top_level_bookkeeping(tmp_path: Path) -> None:
+    run = _chemstation_run(tmp_path)
+
+    codes = _codes_by_name(discover_files([run], recursive=False))
+
+    assert codes["RUN.LOG"] == ("AGILENT_D_CONTAINER_MEMBER",)
+    assert codes["FID3A.CH"] == ()
