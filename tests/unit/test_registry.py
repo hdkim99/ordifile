@@ -65,6 +65,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert ENTRY_POINT_GROUP == "ordifile.adapters"
     descriptors = create_registry(include_external=False).descriptors()
     assert {item.adapter_id for item in descriptors} == {
+        "andi_chromatography_cdf",
         "agilent_chemstation_ch_v179",
         "agilent_chemstation_ch_v181",
         "agilent_chemstation_result_xml",
@@ -82,6 +83,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     }
     assert all(item.tested_fixture for item in descriptors)
     statuses = {item.adapter_id: item.support_status for item in descriptors}
+    assert statuses["andi_chromatography_cdf"] is SupportStatus.EXPERIMENTAL
     assert statuses["agilent_chemstation_ch_v181"] is SupportStatus.EXPERIMENTAL
     assert statuses["agilent_chemstation_result_xml"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
