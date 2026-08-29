@@ -75,6 +75,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
         "leco_chromatof_gcxgc_result_txt",
         "shimadzu_gcsolution_gcd",
         "shimadzu_gcmssolution_qgd",
+        "shimadzu_labsolutions_lcd",
         "shimadzu_labsolutions_result_ascii",
         "youngin_yl_clarity_prm_raw",
         "youngin_yl_clarity_result_csv",
@@ -85,6 +86,7 @@ def test_builtin_descriptors_have_explicit_evidence_status_and_stable_ids() -> N
     assert statuses["agilent_chemstation_result_xml"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcsolution_gcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_gcmssolution_qgd"] is SupportStatus.EXPERIMENTAL
+    assert statuses["shimadzu_labsolutions_lcd"] is SupportStatus.EXPERIMENTAL
     assert statuses["shimadzu_labsolutions_result_ascii"] is SupportStatus.EXPERIMENTAL
     assert statuses["leco_chromatof_gcxgc_result_txt"] is SupportStatus.EXPERIMENTAL
     assert statuses["youngin_yl_clarity_prm_raw"] is SupportStatus.EXPERIMENTAL

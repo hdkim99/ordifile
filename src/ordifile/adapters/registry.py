@@ -32,6 +32,7 @@ from ordifile.adapters.leco_chromatof_472_gcgc_result_txt import (
 )
 from ordifile.adapters.shimadzu_gcmssolution_qgd import ShimadzuGcmssolutionQgdAdapter
 from ordifile.adapters.shimadzu_gcsolution_gcd import ShimadzuGcsolutionGcdAdapter
+from ordifile.adapters.shimadzu_labsolutions_lcd import ShimadzuLabsolutionsLcdAdapter
 from ordifile.adapters.shimadzu_labsolutions_result_ascii import (
     ShimadzuLabsolutionsResultAsciiAdapter,
 )
@@ -206,6 +207,7 @@ def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     registry.register(LecoChromatof472GcgcResultTxtAdapter())
     registry.register(ShimadzuGcsolutionGcdAdapter())
     registry.register(ShimadzuGcmssolutionQgdAdapter())
+    registry.register(ShimadzuLabsolutionsLcdAdapter())
     registry.register(ShimadzuLabsolutionsResultAsciiAdapter())
     registry.register(YoungInYlClarityPrmRawAdapter())
     registry.register(YoungInYlClarityResultCsvAdapter())

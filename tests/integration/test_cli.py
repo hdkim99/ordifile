@@ -287,6 +287,7 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "shimadzu_gcsolution_gcd" in output
     assert "shimadzu_labsolutions_result_ascii" in output
     assert "shimadzu_gcmssolution_qgd" in output
+    assert "shimadzu_labsolutions_lcd" in output
     assert "youngin_yl_clarity_prm_raw" in output
     assert "RT min" in output
     assert "9.0 mV" in output
@@ -298,7 +299,7 @@ def test_formats_distinguishes_verified_generic_and_experimental_capabilities(
     assert "Experimental" in output
     assert "Decoded records" in output
     assert "Scientific signals" in output
-    assert "Experimental adapters: 9" in output
+    assert "Experimental adapters: 10" in output
     assert "Fixture declarations: 0" in output
     assert "Experimental adapters expose only their explicitly documented capabilities" in output
 

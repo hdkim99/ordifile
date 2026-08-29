@@ -68,6 +68,7 @@ AGILENT_V179_RAW_NAME = "FID3A.CH"
 AGILENT_RESULT_NAME = "agilent-result.xml"
 SHIMADZU_GCD_NAME = "shimadzu.gcd"
 SHIMADZU_QGD_NAME = "shimadzu.qgd"
+SHIMADZU_LCD_NAME = "shimadzu.lcd"
 SHIMADZU_RESULT_NAME = "shimadzu-result.txt"
 LECO_GCXGC_RESULT_NAME = "leco-gcxgc-result.txt"
 YOUNGIN_RAW_NAME = "youngin.prm"
@@ -110,6 +111,12 @@ GENERATED_INPUTS = (
         "generate_shimadzu_gcmssolution_qgd.py",
         "synthetic_qgd_bytes",
         "shimadzu_gcmssolution_qgd",
+    ),
+    (
+        SHIMADZU_LCD_NAME,
+        "generate_shimadzu_labsolutions_lcd.py",
+        "synthetic_lcd_bytes",
+        "shimadzu_labsolutions_lcd",
     ),
     (
         SHIMADZU_RESULT_NAME,
