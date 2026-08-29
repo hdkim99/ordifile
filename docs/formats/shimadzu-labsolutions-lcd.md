@@ -2,17 +2,32 @@
 
 ## What this adapter reads
 
-`.LCD` compound documents carry **two unrelated internal architectures**. This
-adapter supports only the **TTFL** one, whose acquisition data lives under
-`TTFL Raw Data`. Documents whose raw data lives under `TLM Raw Data` are refused
-with `SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED` rather than guessed at; they have a
-different stream set and are separate work.
+`.LCD` compound documents carry **several unrelated internal architectures**, named
+after the storage the acquisition data lives in. Two are supported:
+
+| Architecture | Storage | Shape |
+| --- | --- | --- |
+| **TTFL** | `TTFL Raw Data` | fixed 32-slot channel array with a per-channel chain index |
+| **TLM** | `TLM Raw Data` | a single total-ion trace beside its own retention axis |
+
+Others are refused by name with `SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED`; `QTFL
+RawData`, written by QTOF instruments, is the one observed so far. A document
+carrying both supported identities is refused as
+`SHIMADZU_LCD_ARCHITECTURE_AMBIGUOUS`, because nothing says which storage would
+hold the acquisition.
 
 It emits one uninterpolated scientific signal per populated acquisition channel,
 with retention time in minutes. It does not read peaks, does not export MS
 spectra, and does not integrate anything.
 
-## Channels
+## `File Property` comes in two forms
+
+Older documents store a fixed ASCII schema token at offset 4 (`3.00` observed).
+Newer ones store XML whose first `szVersion` element is an `@StoX@` prefix followed
+by the version's own bytes in hexadecimal (`5.01` observed). Both are decoded; a
+malformed or unreadable one fails closed.
+
+## Channels (TTFL)
 
 Channels occupy a **fixed 32-slot array**, `TIC Data 0` through `TIC Data 31`;
 unused slots exist as zero-byte streams. Each populated slot becomes its own
@@ -33,7 +48,11 @@ validated (`<=` the first) but not exported, because its meaning is not
 established. The stored intensity has **no recorded physical unit**, so the
 series carries none.
 
-## How a channel gets its retention times
+The TLM architecture has no slot array and no chain index. It stores one total-ion
+trace as plain `u64` values, one per entry of its own retention axis, and the two
+lengths must agree exactly or the file fails closed.
+
+## How a TTFL channel gets its retention times
 
 `Data Index` is an array of 16-byte records, `[u64 offset into MS Raw Data]`,
 `[i32 scan index]`, `[i32 previous record in this channel's chain]`, where `-1`

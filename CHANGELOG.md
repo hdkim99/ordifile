@@ -9,6 +9,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Shimadzu `.LCD` support now covers the **TLM** raw-data architecture alongside TTFL.
+  TLM documents store a single total-ion trace beside their own retention axis, with no
+  slot array and no chain index; the trace and the axis must agree in length exactly or
+  the file fails closed. `File Property` is also read in both observed forms: the fixed
+  ASCII token older documents store, and the XML `szVersion` element newer ones store as
+  an `@StoX@` prefix followed by hexadecimal bytes. Unsupported architectures are now
+  refused **by name** rather than generically; `QTFL RawData`, written by QTOF
+  instruments, is the one observed so far. A document carrying both the TTFL and TLM
+  identities is refused as ambiguous instead of one being picked arbitrarily.
+
 - Ordifile now reads ANDI/AIA chromatography `.CDF` files, its first **open-standard**
   format rather than a reverse-engineered vendor container. These are netCDF-3 files
   carrying the ASTM E1947 data elements, and every major vendor exports them, so one

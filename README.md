@@ -294,7 +294,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | Stored vendor peak rows | Retention time (min) + signal (uV) + source-explicit RT/start/end (min), area and height from the stored peak table (units unresolved) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, schema `2.00` and `4.00` | Field-specific | Yes, stored, **not validated against a vendor export** | Retention time (min) + raw TIC (unit unknown); stored peak rows with compound names; MS1 not exported | Experimental | One external Dryad CC0 file + 36 CC BY 4.0 Zenodo files across two generations |
-| Shimadzu LabSolutions `.LCD`, TTFL architecture | Field-specific | No | Retention time (min) + one raw intensity series per populated channel (unit unknown); TLM architecture refused | Experimental | Three CC BY 4.0 Figshare files |
+| Shimadzu LabSolutions `.LCD`, TTFL and TLM | Field-specific | No | Retention time (min) + one raw intensity series per populated channel (unit unknown); other architectures refused by name | Experimental | Four public files across two architectures |
 | ANDI/AIA chromatography `.CDF` (ASTM E1947) | Yes, from the file | Yes, stored, standard-defined | Retention time (min) + detector response in the file's own declared unit; stored peak rows | Experimental | Ten public files across six vendors |
 | YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus four owner archives holding 347 official rows across validated 9.0/9.1 profiles; 305 rows compared, 304 exact at the export's own precision |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
@@ -350,11 +350,12 @@ peak-height column some writers emit as a "not reported" sentinel. Vendor extens
 variables in the same file are not interpreted. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/andi-chromatography-cdf.md).
 
-The LCD adapter is Ordifile's first liquid-chromatography format. It is limited to the
-TTFL raw-data architecture; `.LCD` carries a second, unrelated architecture under `TLM
-Raw Data`, and those documents are refused rather than guessed at. Channels occupy a
-fixed 32-slot array in the document, and each populated slot becomes its own channel
-named after the vendor stream it came from. A channel's retention window comes from the
+The LCD adapter is Ordifile's first liquid-chromatography format. `.LCD` carries several
+unrelated internal architectures, and two are supported: TTFL, a fixed 32-slot channel
+array with a per-channel chain index, and TLM, a single total-ion trace beside its own
+retention axis. Others are refused by name, `QTFL RawData` being the one observed so far,
+and a document carrying both supported identities is refused as ambiguous. For TTFL each
+populated slot becomes its own channel named after the vendor stream it came from. A channel's retention window comes from the
 linked chain the file stores for it, so sparsely sampled channels keep their stored zero
 intensities and are never interpolated. The physical intensity unit is unknown. It does
 not claim peaks, spectra, identities, quantitation, or write support. See the

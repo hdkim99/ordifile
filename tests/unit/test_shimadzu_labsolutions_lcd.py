@@ -110,10 +110,17 @@ def test_a_uniform_grid_is_reported_as_uniform(tmp_path: Path) -> None:
     assert metadata["retention_time_interval_max"] == 400
 
 
-def test_the_tlm_architecture_is_refused_with_its_own_code(tmp_path: Path) -> None:
-    error = _error(_write(tmp_path / "tlm.lcd", second_channel_scans=(), use_tlm_storage=True))
+def test_a_document_carrying_both_identities_is_refused_as_ambiguous(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "both.lcd",
+        second_channel_scans=(),
+        extra_streams={
+            ("TLM Raw Data", "Retention Time"): b"\x00" * 4_096,
+            ("TLM Raw Data", "TIC Data"): b"\x00" * 8_192,
+        },
+    )
 
-    assert error.code == "SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED"
+    assert _error(source).code == "SHIMADZU_LCD_ARCHITECTURE_AMBIGUOUS"
 
 
 def test_a_channel_window_that_disagrees_with_its_chain_fails_closed(tmp_path: Path) -> None:
@@ -213,3 +220,54 @@ def test_index_records_are_sixteen_bytes(tmp_path: Path) -> None:
     from ordifile.adapters._shimadzu_labsolutions_lcd_binary import INDEX_RECORD_BYTES
 
     assert INDEX_RECORD_BYTES == struct.calcsize("<Qii")
+
+
+def test_the_tlm_architecture_reads_its_single_total_ion_trace(tmp_path: Path) -> None:
+    bundle = _parse(_write(tmp_path / "tlm.lcd", tlm_architecture=True))
+
+    metadata = _meta(bundle)
+    assert metadata["raw_data_architecture"] == "TLM"
+    assert metadata["channel_count"] == 1
+    assert [series.channel for series in bundle.signals] == ["TIC"]
+    assert len(bundle.signals[0].x_values) == 1_024
+    assert "data_index_record_count" not in metadata
+    assert "ms_raw_stream_bytes" not in metadata
+
+
+def test_a_tlm_trace_that_disagrees_with_its_axis_fails_closed(tmp_path: Path) -> None:
+    error = _error(
+        _write(tmp_path / "tlmshort.lcd", tlm_architecture=True, tlm_tic_bytes=b"\x00" * 8_000)
+    )
+
+    assert error.code == "SHIMADZU_LCD_CHANNEL_INVALID"
+
+
+def test_the_xml_file_property_version_is_decoded(tmp_path: Path) -> None:
+    bundle = _parse(
+        _write(
+            tmp_path / "xmlprop.lcd",
+            tlm_architecture=True,
+            xml_file_property=True,
+            file_schema="5.01",
+        )
+    )
+
+    assert _meta(bundle)["file_property_schema"] == "5.01"
+
+
+def test_an_unsupported_raw_architecture_is_named_in_the_refusal(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "qtof.lcd",
+        second_channel_scans=(),
+        extra_streams={("QTFL RawData", "Centroid Data"): b"\x00" * 4_096},
+    )
+    data = source.read_bytes()
+    # Remove the TTFL identity so only the unsupported architecture remains.
+    source.write_bytes(data.replace(b"T\x00T\x00F\x00L\x00", b"Z\x00Z\x00Z\x00Z\x00"))
+
+    error = _error(source)
+
+    assert error.code in {
+        "SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED",
+        "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
+    }
