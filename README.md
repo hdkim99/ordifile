@@ -294,6 +294,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions 5.82 `.GCD`, GC-2014 / single `SFID1` profile | Field-specific | Stored vendor peak rows | Retention time (min) + signal (uV) + source-explicit RT/start/end (min), area and height from the stored peak table (units unresolved) | Experimental | One external CC0-declared file + paired same-run ASCII reference |
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, schema `2.00` and `4.00` | Field-specific | Yes, stored, **not validated against a vendor export** | Retention time (min) + raw TIC (unit unknown); stored peak rows with compound names; MS1 not exported | Experimental | One external Dryad CC0 file + 36 CC BY 4.0 Zenodo files across two generations |
+| Shimadzu LabSolutions `.LCD`, TTFL architecture | Field-specific | No | Retention time (min) + one raw intensity series per populated channel (unit unknown); TLM architecture refused | Experimental | Three CC BY 4.0 Figshare files |
 | YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus four owner archives holding 347 official rows across validated 9.0/9.1 profiles; 305 rows compared, 304 exact at the export's own precision |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
@@ -337,6 +338,16 @@ and its public source is a SHA-256 alias. Other software versions, instruments,
 detectors, channels, identified-compound tables, multiple peak sections and arbitrary
 LabSolutions text exports are unsupported. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-result-ascii.md).
+
+The LCD adapter is Ordifile's first liquid-chromatography format. It is limited to the
+TTFL raw-data architecture; `.LCD` carries a second, unrelated architecture under `TLM
+Raw Data`, and those documents are refused rather than guessed at. Channels occupy a
+fixed 32-slot array in the document, and each populated slot becomes its own channel
+named after the vendor stream it came from. A channel's retention window comes from the
+linked chain the file stores for it, so sparsely sampled channels keep their stored zero
+intensities and are never interpolated. The physical intensity unit is unknown. It does
+not claim peaks, spectra, identities, quantitation, or write support. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-lcd.md).
 
 The separate QGD adapter reads the GCMSsolution compound-file profiles with a uniform
 scan grid: `File Property` schema `2.00` in CFB v3 documents and `4.00` in CFB v4. It preserves every TIC integer and the verified

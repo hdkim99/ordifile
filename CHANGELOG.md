@@ -9,6 +9,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Ordifile now reads Shimadzu LabSolutions-compatible `.LCD` files, its first liquid
+  chromatography format. Support is limited to the **TTFL** raw-data architecture and emits
+  one uninterpolated signal per populated acquisition channel, with retention time in
+  minutes. `.LCD` carries two unrelated internal architectures; documents using the other
+  one, `TLM Raw Data`, are refused with `SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED` rather than
+  guessed at. Channels occupy a fixed 32-slot array (`TIC Data 0` .. `TIC Data 31`), and each
+  populated slot becomes its own channel named after the vendor stream, so the channel
+  concept comes from the document rather than being invented. A channel's retention window is
+  taken from the linked chain that `Data Index` stores for it, and a channel whose declared
+  scan count disagrees with its chain's scan span fails closed. Sparse channels keep their
+  stored zero intensities and are never interpolated. The stored intensity has no recorded
+  physical unit, so the series carries none, and a per-record field whose meaning is not
+  established is deliberately not read. No peaks, spectra, or identities are claimed.
+  Evidence: three CC BY 4.0 acquisitions (Figshare article 5783205). See
+  [the capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-lcd.md).
+
 - Shimadzu GCMSsolution `.QGD` files now emit the peak rows the document already stores in
   `GCMS Data Processing/MC Peak Table`: retention, start and end time, Area, Height, and the
   stored compound name. These are source-explicit values, not an Ordifile calculation.
