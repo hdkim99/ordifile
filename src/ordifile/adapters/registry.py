@@ -16,6 +16,7 @@ from ordifile.adapters.agilent_chemstation_ch_v181 import AgilentChemStationChV1
 from ordifile.adapters.agilent_chemstation_result_xml import (
     AgilentChemStationResultXmlAdapter,
 )
+from ordifile.adapters.andi_chromatography_cdf import AndiChromatographyCdfAdapter
 from ordifile.adapters.base import (
     ADAPTER_API_VERSION,
     AdapterDescriptor,
@@ -197,6 +198,7 @@ def load_external_adapters(
 def create_registry(*, include_external: bool = True) -> AdapterRegistry:
     """Create the built-in registry and optionally load installed entry points."""
     registry = AdapterRegistry()
+    registry.register(AndiChromatographyCdfAdapter())
     registry.register(AgilentChemStationChV179Adapter())
     registry.register(AgilentChemStationChV181Adapter())
     registry.register(AgilentChemStationResultXmlAdapter())

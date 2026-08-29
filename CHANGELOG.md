@@ -9,6 +9,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Ordifile now reads ANDI/AIA chromatography `.CDF` files, its first **open-standard**
+  format rather than a reverse-engineered vendor container. These are netCDF-3 files
+  carrying the ASTM E1947 data elements, and every major vendor exports them, so one
+  adapter covers many instruments: the fixture corpus spans Varian, Shimadzu (two
+  different writers), Dionex, Hewlett-Packard, PE Nelson Turbochrom, and a Model 1020.
+  Two things follow that are unusual for this project. **Units come from the file**, so
+  the detector response is not "unit unknown" the way it is in the vendor binaries, and
+  **the peak table is standard-defined**, so reading `peak_retention_time`, `peak_area`,
+  `peak_height`, `peak_start_time`, `peak_end_time`, and `peak_name` is not an inference.
+  Ordifile still does not integrate the chromatogram. The netCDF-3 container is parsed
+  directly, with no new dependency and every declared extent bounds-checked. The time
+  axis is rebuilt from the stored delay and sampling interval, but only after the
+  ordinate variable's own uniform-sampling flag is checked; a non-uniform or absent
+  declaration fails closed. Retention-unit spellings vary across writers and only
+  observed ones are accepted, with an unrecognised spelling failing closed rather than
+  being assumed to be seconds. A peak-height column of all `-1` is treated as the "not
+  reported" sentinel it is and dropped rather than exported. See
+  [the capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/andi-chromatography-cdf.md).
+
 - Ordifile now reads Shimadzu LabSolutions-compatible `.LCD` files, its first liquid
   chromatography format. Support is limited to the **TTFL** raw-data architecture and emits
   one uninterpolated signal per populated acquisition channel, with retention time in

@@ -64,6 +64,7 @@ GENERIC_TSV_NAME = "generic.tsv"
 GENERIC_SEMICOLON_NAME = "generic.txt"
 GENERIC_XLSX_NAME = "generic.xlsx"
 AGILENT_RAW_NAME = "FID1A.CH"
+ANDI_CDF_NAME = "andi-chromatography.cdf"
 AGILENT_V179_RAW_NAME = "FID3A.CH"
 AGILENT_RESULT_NAME = "agilent-result.xml"
 SHIMADZU_GCD_NAME = "shimadzu.gcd"
@@ -82,6 +83,12 @@ MAPPING_SET_NAME = "peak-mapping-set.json"
 RECIPE_NAME = "conversion-recipe.json"
 CP949_PROBE_TEXT = "합성 보고서"
 GENERATED_INPUTS = (
+    (
+        ANDI_CDF_NAME,
+        "generate_andi_chromatography_cdf.py",
+        "synthetic_cdf_bytes",
+        "andi_chromatography_cdf",
+    ),
     (
         AGILENT_RAW_NAME,
         "generate_agilent_ch_v181.py",

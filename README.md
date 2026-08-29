@@ -295,6 +295,7 @@ if plan.is_executable:
 | Shimadzu LabSolutions result ASCII, exact 5.82 GC-2014 / single `SFID1` `Ch1` profile | Scientific allowlist | Peak Table rows | RT/start/end (min) + area + height (units unresolved); no raw signal | Experimental | One external controlled-CI fixture + paired same-run GCD |
 | Shimadzu GCMSsolution `.QGD`, schema `2.00` and `4.00` | Field-specific | Yes, stored, **not validated against a vendor export** | Retention time (min) + raw TIC (unit unknown); stored peak rows with compound names; MS1 not exported | Experimental | One external Dryad CC0 file + 36 CC BY 4.0 Zenodo files across two generations |
 | Shimadzu LabSolutions `.LCD`, TTFL architecture | Field-specific | No | Retention time (min) + one raw intensity series per populated channel (unit unknown); TLM architecture refused | Experimental | Three CC BY 4.0 Figshare files |
+| ANDI/AIA chromatography `.CDF` (ASTM E1947) | Yes, from the file | Yes, stored, standard-defined | Retention time (min) + detector response in the file's own declared unit; stored peak rows | Experimental | Ten public files across six vendors |
 | YoungIn YL-Clarity `.PRM`, validated scientific family | Scientific fingerprint | Selectable Ordifile-calculated value for exact 9.0/9.1 marker profiles | Retention time (min) + direct stored response; experimental `calculated_area` is separate from source `area`; Height unavailable; compatible 9.x response unit may be unresolved | Experimental | 30 owner PRMs plus four owner archives holding 347 official rows across validated 9.0/9.1 profiles; 305 rows compared, 304 exact at the export's own precision |
 | YoungIn YL-Clarity Result Table, exact owner-validated CP949/tab `.csv` profile | Scientific allowlist | Source peak rows | RT (min) + area (mV.s) + height (mV); no raw signal | Experimental | Two owner-generated local-only exports |
 | LECO ChromaTOF 4.72.0.0 GCxGC Result text, exact observed profile | Scientific allowlist | Source peak rows | RT1/RT2 (s) + area/height (AU); no raw signal | Experimental | One external Dryad CC0 non-human file |
@@ -338,6 +339,16 @@ and its public source is a SHA-256 alias. Other software versions, instruments,
 detectors, channels, identified-compound tables, multiple peak sections and arbitrary
 LabSolutions text exports are unsupported. See the
 [exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/shimadzu-labsolutions-result-ascii.md).
+
+The ANDI `.CDF` adapter is the only one here that reads an open standard rather than a
+reverse-engineered vendor container, so it is also the only one whose units and peak-table
+semantics come from a published specification instead of from inference. It parses the
+netCDF-3 container directly, with no new dependency. It rebuilds the time axis from the
+stored delay and sampling interval only after checking the file's own uniform-sampling
+flag, accepts only retention-unit spellings it has seen, and drops the all-negative
+peak-height column some writers emit as a "not reported" sentinel. Vendor extension
+variables in the same file are not interpreted. See the
+[exact capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/andi-chromatography-cdf.md).
 
 The LCD adapter is Ordifile's first liquid-chromatography format. It is limited to the
 TTFL raw-data architecture; `.LCD` carries a second, unrelated architecture under `TLM
