@@ -84,9 +84,22 @@ def _is_chemstation_directory(path: Path, cache: dict[Path, bool]) -> bool:
         return cached
     verdict = False
     if path.name.casefold().endswith(CHEMSTATION_DIRECTORY_SUFFIX):
+        # The skeleton is compared case-insensitively against one listing rather than by
+        # exact-name stat calls, which would only appear to work on a case-insensitive
+        # filesystem.  Symlinked members do not count towards the skeleton.
         try:
-            verdict = all((path / name).is_file() for name in CHEMSTATION_REQUIRED_FILES) and all(
-                (path / name).is_dir() for name in CHEMSTATION_REQUIRED_DIRECTORIES
+            files: set[str] = set()
+            directories: set[str] = set()
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_file(follow_symlinks=False):
+                        files.add(entry.name.casefold())
+                    elif entry.is_dir(follow_symlinks=False):
+                        directories.add(entry.name.casefold())
+            verdict = all(name.casefold() in files for name in CHEMSTATION_REQUIRED_FILES) and all(
+                name.casefold() in directories for name in CHEMSTATION_REQUIRED_DIRECTORIES
             )
         except OSError:
             verdict = False
