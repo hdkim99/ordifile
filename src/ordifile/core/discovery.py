@@ -77,7 +77,7 @@ CHEMSTATION_METHOD_DIRECTORIES = frozenset(
 )
 
 
-def _is_chemstation_directory(path: Path, cache: dict[Path, bool]) -> bool:
+def is_chemstation_run_directory(path: Path, cache: dict[Path, bool]) -> bool:
     """Return whether a directory carries the evidenced ChemStation run skeleton."""
     cached = cache.get(path)
     if cached is not None:
@@ -110,7 +110,7 @@ def _is_chemstation_directory(path: Path, cache: dict[Path, bool]) -> bool:
 def _chemstation_container_member(member: Path, root: Path, cache: dict[Path, bool]) -> bool:
     """Return whether a discovered member is ChemStation bookkeeping inside a run directory."""
     for parent in member.parents:
-        if not _is_chemstation_directory(parent, cache):
+        if not is_chemstation_run_directory(parent, cache):
             if parent == root:
                 break
             continue

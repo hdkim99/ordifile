@@ -331,4 +331,26 @@ skeleton suppresses nothing.
 
 An export the researcher has not mapped still fails, which is correct: it is a real data
 file Ordifile cannot read without an explicit peak-table mapping, and saying so is not
-noise. The join itself remains deferred on its original grounds.
+noise.
+
+### The join, and why it needed no interface change either
+
+Measuring the joined case changed that estimate too. Without a join, one physical run
+reaches the workbook as two disconnected rows: the signal's sample carries zero peaks,
+and the peak table's sample carries no signal under a hashed identity.
+
+The two mechanisms a join needs already existed. `--peak-mapping` applies one mapping to
+a whole conversion, so reading a run's export needs no new question; and
+`merge_acquired_result`, written for the vendor-exporter acquisition flow, already
+attaches one bundle's peaks to another's sample and source.
+
+What was missing was only the selection rule, and the three obstacles recorded above
+determine it. The container does not say which export is the peak table, its filename is
+site-specific, and a headerless mapping is never routed automatically. So the
+researcher's own mapping decides: a run is joined when exactly one file in it carries a
+signal and exactly one was read by that mapping. Two of either, or none, is reported as
+`AGILENT_D_JOIN_AMBIGUOUS` and left as separate sources rather than guessed at. Files
+outside a recognised run directory are never joined, whatever they look like.
+
+The peak table keeps its place in the audit trail as a skipped member under
+`AGILENT_D_PEAK_TABLE_MERGED`, so every discovered input still appears.
