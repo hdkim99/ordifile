@@ -7,6 +7,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- An Agilent ChemStation `.D` run directory is now recognised as a container. Its
+  acquisition and method bookkeeping - `RUN.LOG`, `SAMPLE.MAC`, and anything under `ACQ.M/`
+  and `DA.M/` - is recorded as a skipped container member under
+  `AGILENT_D_CONTAINER_MEMBER` and keeps its relative path in the audit log, instead of
+  being reported as an undetected format. Handing Ordifile a `.D` folder previously turned
+  one clean single-sample run into one success and five failures with hash-named members.
+  The suppressed set is closed and named: a data file at the top of the directory, the
+  signal or an export, is never suppressed, and a directory merely named `.D` without the
+  evidenced skeleton (`RUN.LOG`, `SAMPLE.MAC`, `ACQ.M/`, `DA.M/`) suppresses nothing. An
+  export the researcher has not mapped still fails, which is correct. Joining a run's
+  signal and peak table into a single workbook source remains out of scope.
+
 ### Added
 
 - Shimadzu `.LCD` support now covers the **TLM** raw-data architecture alongside TTFL.
