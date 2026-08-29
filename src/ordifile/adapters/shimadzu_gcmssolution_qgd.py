@@ -14,6 +14,7 @@ from ordifile.adapters._shimadzu_gcmssolution_qgd_binary import (
     has_qgd_stream_identity,
     read_qgd,
 )
+from ordifile.adapters._shimadzu_gcmssolution_qgd_peak_table import decode_mc_peak_table
 from ordifile.adapters.base import (
     AdapterDescriptor,
     DetectionResult,
@@ -26,6 +27,7 @@ from ordifile.core.models import (
     InstrumentMetadata,
     Issue,
     MetadataEntry,
+    PeakRecord,
     SampleRecord,
     SeriesKind,
     Severity,
@@ -34,6 +36,7 @@ from ordifile.core.models import (
 )
 
 _NAMESPACE = "adapter:shimadzu_gcmssolution_qgd"
+_COMPOUND_SOURCE = "source_file:shimadzu_gcmssolution_qgd.mc_peak_table.name"
 
 
 def _parse_error(error: ShimadzuQgdStructureError) -> ParseError:
@@ -41,7 +44,7 @@ def _parse_error(error: ShimadzuQgdStructureError) -> ParseError:
 
 
 class ShimadzuGcmssolutionQgdAdapter:
-    """Read TIC from the exact evidence-backed QGD 4.00 Stage A profile."""
+    """Read TIC and the stored peak table from the evidence-backed QGD 4.00 profile."""
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "shimadzu_gcmssolution_qgd"
@@ -49,10 +52,10 @@ class ShimadzuGcmssolutionQgdAdapter:
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
-        "Shimadzu GCMSsolution-compatible .QGD 4.00 TIC profile (Experimental)",
+        "Shimadzu GCMSsolution-compatible .QGD 4.00 TIC and stored peak table (Experimental)",
         (".qgd",),
         True,
-        False,
+        True,
         True,
         True,
         SupportStatus.EXPERIMENTAL,
@@ -118,6 +121,9 @@ class ShimadzuGcmssolutionQgdAdapter:
             ) from error
 
         profile = decoded.profile
+        peak_table = decode_mc_peak_table(
+            decoded.mc_peak_table_payload, decoded.mc_peak_info_payload
+        )
         sample_id = path.stem
         source = SourceFile(path, path.name, path.name, size, None, None, 0)
         sample = SampleRecord(
@@ -143,9 +149,31 @@ class ShimadzuGcmssolutionQgdAdapter:
             y_unit=None,
             series_kind=SeriesKind.SCIENTIFIC_SIGNAL,
         )
+        peaks = tuple(
+            PeakRecord(
+                sample_id,
+                path.name,
+                channel=profile.channel,
+                detector=profile.detector,
+                peak_number=number,
+                retention_time=peak.retention_time,
+                retention_time_unit="min",
+                area=peak.area,
+                height=peak.height,
+                compound=peak.compound,
+                compound_source=_COMPOUND_SOURCE if peak.compound is not None else None,
+                status="parsed",
+                observation_order=number,
+                start_time=peak.start_time,
+                end_time=peak.end_time,
+                area_unit=None,
+                height_unit=None,
+            )
+            for number, peak in enumerate(peak_table.peaks, start=1)
+        )
         values: list[tuple[str, object, str | None]] = [
             ("support_status", "experimental", None),
-            ("profile", "QGD File Property 4.00 exact TIC profile", None),
+            ("profile", "QGD File Property 4.00 TIC profile", None),
             ("file_property_schema", profile.file_schema, None),
             ("file_property_stream_bytes", decoded.file_property_stream_bytes, "bytes"),
             ("file_property_stream_sha256", decoded.file_property_stream_sha256, None),
@@ -171,6 +199,7 @@ class ShimadzuGcmssolutionQgdAdapter:
                 decoded.retention_time_tic_pairs_be_f64_u64_sha256,
                 None,
             ),
+            ("spectrum_index_offset_width", profile.spectrum_index_offset_width, "bytes"),
             ("spectrum_index_stream_sha256", decoded.spectrum_index_stream_sha256, None),
             (
                 "spectrum_index_canonical_be_u32_sha256",
@@ -178,9 +207,16 @@ class ShimadzuGcmssolutionQgdAdapter:
                 None,
             ),
             ("tic_signal_unit_status", "unknown", None),
+            ("stored_peak_table_status", peak_table.status, None),
+            ("stored_peak_count", len(peak_table.peaks), None),
+            ("stored_peak_area_percent_consistent", peak_table.area_percent_consistent, None),
+            ("stored_peak_value_validation", "internal_only_no_vendor_export", None),
+            ("stored_peak_undecodable_name_count", peak_table.undecodable_name_count, None),
             ("ms1_export_status", "unsupported", None),
             ("timestamp_status", "unsupported_timezone_unresolved", None),
         ]
+        if peak_table.declared_count is not None:
+            values.append(("stored_peak_declared_count", peak_table.declared_count, None))
         if decoded.ms1_summary is not None:
             summary = decoded.ms1_summary
             values.extend(
@@ -207,11 +243,11 @@ class ShimadzuGcmssolutionQgdAdapter:
             MetadataEntry(sample_id, path.name, _NAMESPACE, key, value, unit)
             for key, value, unit in values
         )
-        warnings = (
+        warnings: tuple[Issue, ...] = (
             Issue(
                 "SHIMADZU_QGD_EXPERIMENTAL_PROFILE",
-                "TIC support is limited to the exact evidence-backed QGD 4.00 profile; "
-                "other QGD generations and acquisition profiles are unsupported.",
+                "TIC support is limited to the evidence-backed QGD File Property 4.00 "
+                "profile with a uniform scan grid; other QGD generations are unsupported.",
                 Severity.WARNING,
                 path.name,
             ),
@@ -223,10 +259,58 @@ class ShimadzuGcmssolutionQgdAdapter:
                 path.name,
             ),
         )
+        if peaks:
+            warnings += (
+                Issue(
+                    "SHIMADZU_QGD_STORED_PEAK_TABLE_UNVALIDATED",
+                    "Peaks are the stored vendor rows from GCMS Data Processing/MC Peak "
+                    "Table; Ordifile did not integrate the signal. The field meanings were "
+                    "established only against the same file's own TIC, because no Shimadzu "
+                    "GCMSsolution export of any fixture carrying a populated table is "
+                    "available. These values have not been compared against a vendor "
+                    "report and may not reproduce one.",
+                    Severity.WARNING,
+                    path.name,
+                ),
+            )
+            if peak_table.undecodable_name_count:
+                warnings += (
+                    Issue(
+                        "SHIMADZU_QGD_PEAK_NAME_UNDECODABLE",
+                        "One or more stored compound names are not ASCII and the document "
+                        "does not record their code page, so those names were omitted "
+                        "rather than guessed.",
+                        Severity.WARNING,
+                        path.name,
+                    ),
+                )
+            if not peak_table.area_percent_consistent:
+                warnings += (
+                    Issue(
+                        "SHIMADZU_QGD_PEAK_AREA_PERCENT_INCONSISTENT",
+                        "The stored Area percentages are not a normalisation of the stored "
+                        "Area column, so the Area field meaning is not corroborated for "
+                        "this file.",
+                        Severity.WARNING,
+                        path.name,
+                    ),
+                )
+        elif peak_table.status == "invalid":
+            warnings += (
+                Issue(
+                    peak_table.issue_code or "SHIMADZU_QGD_PEAK_TABLE_UNAVAILABLE",
+                    peak_table.issue_message
+                    or "The stored peak table is outside the validated bounded layout; "
+                    "the scientific TIC was preserved without Peaks.",
+                    Severity.WARNING,
+                    path.name,
+                ),
+            )
         return DatasetBundle(
             (source,),
             (sample,),
             signals=(signal,),
+            peaks=peaks,
             metadata=metadata,
             warnings=warnings,
         )

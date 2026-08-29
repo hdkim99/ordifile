@@ -18,10 +18,20 @@ from typing import Any, Protocol
 
 import olefile
 
+from ordifile.adapters._shimadzu_gcmssolution_qgd_peak_table import (
+    MAX_PEAK_INFO_BYTES as MAX_MC_PEAK_INFO_BYTES,
+)
+from ordifile.adapters._shimadzu_gcmssolution_qgd_peak_table import (
+    MAX_PEAK_TABLE_BYTES as MAX_MC_PEAK_TABLE_BYTES,
+)
+
 CFB_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
 CFB_HEADER_BYTES = 4_096
 MAX_QGD_FILE_BYTES = 64 * 1024 * 1024
 MAX_DIRECTORY_ENTRIES = 512
+# Two compound-document generations carry the same QGD streams: CFB v4 with 4096-byte
+# sectors and the older CFB v3 with 512-byte sectors.
+SUPPORTED_CFB_VERSIONS = frozenset({(3, 9), (4, 12)})
 MAX_FILE_PROPERTY_BYTES = 64 * 1024
 MAX_MS_RAW_BYTES = 48 * 1024 * 1024
 MAX_MS1_POINTS_PER_SCAN = 4_096
@@ -33,6 +43,8 @@ RETENTION_TIME_PATH = ("GCMS Raw Data", "Retention Time")
 TIC_DATA_PATH = ("GCMS Raw Data", "TIC Data")
 SPECTRUM_INDEX_PATH = ("GCMS Raw Data", "Spectrum Index")
 MS_RAW_DATA_PATH = ("GCMS Raw Data", "MS Raw Data")
+MC_PEAK_TABLE_PATH = ("GCMS Data Processing", "MC Peak Table")
+MC_PEAK_INFO_PATH = ("GCMS Data Processing", "MC Peak Info")
 REQUIRED_PATHS = frozenset(
     {
         FILE_PROPERTY_PATH,
@@ -44,14 +56,24 @@ REQUIRED_PATHS = frozenset(
     }
 )
 
-EXPECTED_FILE_SCHEMA = "4.00"
-EXPECTED_SCAN_COUNT = 16_800
-EXPECTED_RT_START_MS = 240_000
-EXPECTED_RT_END_MS = 3_599_800
-EXPECTED_RT_INTERVAL_MS = 200
+# Two generations carry the same QGD streams: File Property 2.00 written by
+# GCMSsolution 2.x into CFB v3, and 4.00 written by 4.x into CFB v4.  Nothing is read
+# out of File Property beyond this token; every array is validated on its own terms.
+SUPPORTED_FILE_SCHEMAS = frozenset({"2.00", "4.00"})
+# Two acquisition grids have fixture evidence (16,800 scans at 200 ms and 9,100 scans
+# at 300 ms), so the grid is read from the document and checked for internal
+# consistency instead of being pinned to a single observed acquisition.
+MIN_SCAN_COUNT = 2
+MAX_SCAN_COUNT = 200_000
 EXPECTED_SCAN_TARGET = 0x01D60000
 SUPPORTED_INTENSITY_WIDTHS = frozenset({2, 3})
 SCAN_HEADER_BYTES = 32
+# "Spectrum Index" appears in two observed encodings.  They can never be confused: a
+# bare u32 array is a multiple of 4 bytes while the tagged u64 array is 2 modulo 4.
+SPECTRUM_INDEX_U64_TAG = b"\x01\x00"
+SPECTRUM_INDEX_WIDTHS = frozenset({4, 8})
+# Offsets are canonicalised as big-endian u32, which both observed encodings fit.
+MAX_CANONICAL_OFFSET = 2**32
 
 
 class ShimadzuQgdStructureError(Exception):
@@ -73,6 +95,7 @@ class ShimadzuQgdProfile:
     rt_start_ms: int
     rt_end_ms: int
     rt_interval_ms: int
+    spectrum_index_offset_width: int = 4
     detector: str = "MS"
     channel: str = "TIC"
 
@@ -112,6 +135,8 @@ class ShimadzuQgdData:
     retention_time_tic_pairs_be_f64_u64_sha256: str
     spectrum_index_stream_sha256: str
     spectrum_index_canonical_be_u32_sha256: str
+    mc_peak_table_payload: bytes | None = None
+    mc_peak_info_payload: bytes | None = None
 
 
 def _fail(code: str, message: str, **details: Any) -> ShimadzuQgdStructureError:
@@ -160,14 +185,13 @@ def _preflight_cfb(path: Path) -> int:
     mini_sector_shift = struct.unpack_from("<H", header, 32)[0]
     if (
         minor_version != 62
-        or major_version != 4
         or byte_order != b"\xfe\xff"
-        or sector_shift != 12
+        or (major_version, sector_shift) not in SUPPORTED_CFB_VERSIONS
         or mini_sector_shift != 6
     ):
         raise _fail(
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
-            "Only the validated little-endian CFB v4/4096 QGD profile is supported.",
+            "Only the validated little-endian CFB v3/512 and v4/4096 QGD profiles are supported.",
             minor_version=minor_version,
             major_version=major_version,
             sector_shift=sector_shift,
@@ -279,6 +303,27 @@ def _read_stream(
     return data
 
 
+def _read_processing_stream(
+    container: olefile.OleFileIO[str],
+    path: tuple[str, ...],
+    *,
+    maximum_size: int,
+) -> bytes | None:
+    """Return a bounded processing payload, or ``None`` when the stream is absent.
+
+    One byte past the bound is returned deliberately so that an oversized stream is
+    reported by the peak-table decoder as a capability-local failure instead of
+    discarding the scientific signal the document also carries.
+    """
+    try:
+        if not container.exists("/".join(path)):
+            return None
+        with container.openstream(path) as stream:
+            return stream.read(maximum_size + 1)
+    except (OSError, ValueError, TypeError, IndexError):
+        return None
+
+
 def _file_schema(data: bytes) -> str:
     if len(data) < 152:
         raise _fail(
@@ -292,38 +337,66 @@ def _file_schema(data: bytes) -> str:
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
             "The File Property schema token is malformed.",
         ) from error
-    if schema != EXPECTED_FILE_SCHEMA:
+    if schema not in SUPPORTED_FILE_SCHEMAS:
         raise _fail(
             "SHIMADZU_QGD_PROFILE_UNSUPPORTED",
-            "Only the validated File Property 4.00 QGD profile is supported.",
+            "Only the validated File Property 2.00 and 4.00 QGD profiles are supported.",
+            file_schema=schema,
         )
     return schema
+
+
+def _decode_spectrum_index(index_data: bytes, scan_count: int) -> tuple[int, tuple[int, ...]]:
+    """Return the offset width and scan offsets for either observed index encoding."""
+    if len(index_data) == scan_count * 4:
+        return 4, tuple(value[0] for value in struct.iter_unpack("<I", index_data))
+    tag = len(SPECTRUM_INDEX_U64_TAG)
+    if len(index_data) == tag + scan_count * 8 and index_data.startswith(SPECTRUM_INDEX_U64_TAG):
+        return 8, tuple(value[0] for value in struct.iter_unpack("<Q", index_data[tag:]))
+    raise _fail(
+        "SHIMADZU_QGD_ARRAY_INVALID",
+        "The spectrum index is not one of the validated offset encodings.",
+        stream_bytes=len(index_data),
+        scan_count=scan_count,
+    )
 
 
 def _decode_arrays(
     retention_data: bytes,
     tic_data: bytes,
     index_data: bytes,
-) -> tuple[tuple[int, ...], tuple[float, ...], tuple[int, ...], tuple[int, ...]]:
-    retention_ms = tuple(value[0] for value in struct.iter_unpack("<I", retention_data))
-    tic_values = tuple(value[0] for value in struct.iter_unpack("<Q", tic_data))
-    offsets = tuple(value[0] for value in struct.iter_unpack("<I", index_data))
-    if not (len(retention_ms) == len(tic_values) == len(offsets) == EXPECTED_SCAN_COUNT):
+) -> tuple[tuple[int, ...], tuple[float, ...], tuple[int, ...], tuple[int, ...], int, int]:
+    if len(retention_data) % 4:
         raise _fail(
             "SHIMADZU_QGD_ARRAY_INVALID",
-            "The QGD RT, TIC, and spectrum-index counts are inconsistent.",
+            "The retention-time stream is not a whole number of 32-bit samples.",
+            stream_bytes=len(retention_data),
         )
-    if (
-        retention_ms[0] != EXPECTED_RT_START_MS
-        or retention_ms[-1] != EXPECTED_RT_END_MS
-        or any(
-            right - left != EXPECTED_RT_INTERVAL_MS
-            for left, right in zip(retention_ms, retention_ms[1:], strict=False)
+    scan_count = len(retention_data) // 4
+    if not MIN_SCAN_COUNT <= scan_count <= MAX_SCAN_COUNT:
+        raise _fail(
+            "SHIMADZU_QGD_ARRAY_INVALID",
+            "The QGD scan count is outside the bounded reader range.",
+            scan_count=scan_count,
+            minimum_scans=MIN_SCAN_COUNT,
+            maximum_scans=MAX_SCAN_COUNT,
         )
+    if len(tic_data) != scan_count * 8:
+        raise _fail(
+            "SHIMADZU_QGD_ARRAY_INVALID",
+            "The QGD RT and TIC sample counts are inconsistent.",
+        )
+    offset_width, offsets = _decode_spectrum_index(index_data, scan_count)
+    retention_ms = tuple(value[0] for value in struct.iter_unpack("<I", retention_data))
+    tic_values = tuple(value[0] for value in struct.iter_unpack("<Q", tic_data))
+    interval_ms = retention_ms[1] - retention_ms[0]
+    if interval_ms <= 0 or any(
+        right - left != interval_ms
+        for left, right in zip(retention_ms, retention_ms[1:], strict=False)
     ):
         raise _fail(
             "SHIMADZU_QGD_ARRAY_INVALID",
-            "The retention-time sequence is outside the exact validated profile.",
+            "The retention-time sequence is not a strictly increasing uniform grid.",
         )
     if offsets[0] != 0 or any(
         right <= left for left, right in zip(offsets, offsets[1:], strict=False)
@@ -332,8 +405,13 @@ def _decode_arrays(
             "SHIMADZU_QGD_ARRAY_INVALID",
             "The spectrum-index offsets are not a strict in-order partition.",
         )
+    if offsets[-1] >= MAX_CANONICAL_OFFSET:
+        raise _fail(
+            "SHIMADZU_QGD_ARRAY_INVALID",
+            "A spectrum-index offset is outside the canonical 32-bit export range.",
+        )
     retention_min = tuple(value / 60_000.0 for value in retention_ms)
-    return retention_ms, retention_min, tic_values, offsets
+    return retention_ms, retention_min, tic_values, offsets, interval_ms, offset_width
 
 
 def _read_scan(stream: _ReadableSeekable, offset: int, length: int) -> bytes:
@@ -391,17 +469,19 @@ def _validate_ms1(
                 data = _read_scan(stream, start, end - start)
                 stream_digest.update(data)
                 encoded_scan, encoded_rt, target = struct.unpack_from("<III", data, 0)
-                reserved_a = struct.unpack_from("<II", data, 12)
+                scan_number, reserved_a_tail = struct.unpack_from("<II", data, 12)
                 width, point_count = struct.unpack_from("<HH", data, 20)
                 reserved_b = struct.unpack_from("<II", data, 24)
                 if (
                     encoded_scan != scan_index
                     or encoded_rt != retention_ms[scan_index]
                     or target != EXPECTED_SCAN_TARGET
-                    or reserved_a != (0, 0)
+                    or scan_number not in (0, scan_index + 1)
+                    or reserved_a_tail != 0
                     or reserved_b != (0, 0)
-                    or width not in SUPPORTED_INTENSITY_WIDTHS
-                    or point_count < 1
+                    # An empty scan carries no points, so its width field is unused
+                    # and is not required to name an observed intensity width.
+                    or (point_count and width not in SUPPORTED_INTENSITY_WIDTHS)
                     or point_count > MAX_MS1_POINTS_PER_SCAN
                 ):
                     raise _fail(
@@ -427,7 +507,8 @@ def _validate_ms1(
                     )
                 points_min = min(points_min, point_count)
                 points_max = max(points_max, point_count)
-                widths.add(width)
+                if point_count:
+                    widths.add(width)
 
                 previous_mass = -1
                 intensity_sum = 0
@@ -542,8 +623,9 @@ def has_qgd_stream_identity(path: Path) -> bool:
 def read_qgd(path: Path, *, validate_ms1: bool = True) -> ShimadzuQgdData:
     """Read the exact QGD Stage A TIC profile and validate its MS1 structure."""
     _preflight_cfb(path)
-    array_size_u32 = EXPECTED_SCAN_COUNT * 4
-    array_size_u64 = EXPECTED_SCAN_COUNT * 8
+    max_retention_bytes = MAX_SCAN_COUNT * 4
+    max_tic_bytes = MAX_SCAN_COUNT * 8
+    max_index_bytes = len(SPECTRUM_INDEX_U64_TAG) + MAX_SCAN_COUNT * 8
     try:
         with path.open("rb") as input_stream:
             with olefile.OleFileIO(
@@ -560,24 +642,36 @@ def read_qgd(path: Path, *, validate_ms1: bool = True) -> ShimadzuQgdData:
                 retention_data = _read_stream(
                     container,
                     RETENTION_TIME_PATH,
-                    exact_size=array_size_u32,
-                    maximum_size=array_size_u32,
+                    maximum_size=max_retention_bytes,
                 )
                 tic_data = _read_stream(
                     container,
                     TIC_DATA_PATH,
-                    exact_size=array_size_u64,
-                    maximum_size=array_size_u64,
+                    maximum_size=max_tic_bytes,
                 )
                 index_data = _read_stream(
                     container,
                     SPECTRUM_INDEX_PATH,
-                    exact_size=array_size_u32,
-                    maximum_size=array_size_u32,
+                    maximum_size=max_index_bytes,
                 )
                 schema = _file_schema(file_property)
-                retention_ms, retention_min, tic_values, offsets = _decode_arrays(
-                    retention_data, tic_data, index_data
+                (
+                    retention_ms,
+                    retention_min,
+                    tic_values,
+                    offsets,
+                    interval_ms,
+                    offset_width,
+                ) = _decode_arrays(retention_data, tic_data, index_data)
+                mc_peak_table = _read_processing_stream(
+                    container,
+                    MC_PEAK_TABLE_PATH,
+                    maximum_size=MAX_MC_PEAK_TABLE_BYTES,
+                )
+                mc_peak_info = _read_processing_stream(
+                    container,
+                    MC_PEAK_INFO_PATH,
+                    maximum_size=MAX_MC_PEAK_INFO_BYTES,
                 )
                 summary = (
                     _validate_ms1(container, retention_ms, tic_values, offsets)
@@ -604,10 +698,11 @@ def read_qgd(path: Path, *, validate_ms1: bool = True) -> ShimadzuQgdData:
     index_be_u32 = b"".join(struct.pack(">I", value) for value in offsets)
     profile = ShimadzuQgdProfile(
         file_schema=schema,
-        scan_count=EXPECTED_SCAN_COUNT,
+        scan_count=len(retention_ms),
         rt_start_ms=retention_ms[0],
         rt_end_ms=retention_ms[-1],
-        rt_interval_ms=EXPECTED_RT_INTERVAL_MS,
+        rt_interval_ms=interval_ms,
+        spectrum_index_offset_width=offset_width,
     )
     return ShimadzuQgdData(
         profile=profile,
@@ -624,4 +719,6 @@ def read_qgd(path: Path, *, validate_ms1: bool = True) -> ShimadzuQgdData:
         retention_time_tic_pairs_be_f64_u64_sha256=hashlib.sha256(pairs_be_f64_u64).hexdigest(),
         spectrum_index_stream_sha256=hashlib.sha256(index_data).hexdigest(),
         spectrum_index_canonical_be_u32_sha256=hashlib.sha256(index_be_u32).hexdigest(),
+        mc_peak_table_payload=mc_peak_table,
+        mc_peak_info_payload=mc_peak_info,
     )

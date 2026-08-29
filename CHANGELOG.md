@@ -9,6 +9,38 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Shimadzu GCMSsolution `.QGD` files now emit the peak rows the document already stores in
+  `GCMS Data Processing/MC Peak Table`: retention, start and end time, Area, Height, and the
+  stored compound name. These are source-explicit values, not an Ordifile calculation.
+  **These values have not been validated against a Shimadzu GCMSsolution export**, because no
+  raw-plus-export pair is available for any file carrying a populated table. Their meanings
+  were established only against each file's own TIC, and every parse that yields peaks raises
+  `SHIMADZU_QGD_STORED_PEAK_TABLE_UNVALIDATED` while the `stored_peak_value_validation`
+  metadata key reports `internal_only_no_vendor_export`. Compound names are read only up to
+  their NUL terminator, because the bytes after it are uninitialised writer memory holding
+  fragments of unrelated strings. Two f64 fields whose meaning was not established are
+  deliberately not read. Evidence: five CC BY 4.0 University of Florida acquisitions, 295
+  stored rows. See
+  [the investigation](https://github.com/hdkim99/ordifile/blob/main/docs/research/shimadzu-gcmssolution-qgd-mc-peak-table-investigation.md).
+
+### Changed
+
+- The Shimadzu `.QGD` reader now accepts both observed compound-document generations: CFB v3
+  with 512-byte sectors carrying `File Property` schema `2.00`, alongside the CFB v4/4096
+  schema `4.00` documents it already read. Scans carrying zero data points are accepted, since
+  their length is self-consistent and they contribute no intensity; a non-empty scan still has
+  to name an observed intensity width. Evidence: 31 further CC BY 4.0 acquisitions written by
+  GCMSsolution 2.72 (Zenodo record 8312045), which decode with the same 208-byte peak-record
+  layout. That corroborates the layout across software generations but is still **not**
+  validation against a vendor export.
+- The Shimadzu `.QGD` reader no longer pins one acquisition. The scan grid is read from the
+  document and accepted when it is strictly increasing with a uniform interval, and the
+  `Spectrum Index` stream is accepted in both observed encodings: a bare u32 offset array and
+  a `01 00`-tagged u64 offset array. The two can never be confused, since a u32 array is a
+  multiple of four bytes while the tagged u64 array is two modulo four. A second acquisition
+  profile (9,100 scans at 300 ms, alongside the earlier 16,800 at 200 ms) now parses instead
+  of failing closed. Non-uniform grids still fail closed.
+
 - The exact validated Shimadzu LabSolutions 5.82 `.GCD` profile now emits the peak rows the
   document already stores: retention, start and end time, Area and Height, read from the
   single bounded `LSS Data Processing/PT-*` stream. These are source-explicit `area` and
