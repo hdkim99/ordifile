@@ -19,6 +19,7 @@ from ordifile.adapters.registry import AdapterRegistry
 from ordifile.core.detection import SOURCE_IDENTITY_PROBE_REASON
 from ordifile.core.discovery import discover_files, sha256_file
 from ordifile.core.errors import OrdifileError
+from ordifile.core.logical_source import join_chemstation_runs
 from ordifile.core.models import (
     BatchResult,
     ConversionOptions,
@@ -932,7 +933,7 @@ def run_pipeline(
             "CONVERSION_PLAN_STALE",
             "The adapter inventory changed during planned conversion; refresh the plan.",
         )
-    ordered, decision = sort_file_results(tuple(processed), requested_sort)
+    ordered, decision = sort_file_results(join_chemstation_runs(processed), requested_sort)
     return BatchResult(
         ordered,
         decision,

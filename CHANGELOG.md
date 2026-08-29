@@ -9,6 +9,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- An Agilent ChemStation `.D` run now reaches the workbook as **one** source instead of two.
+  Without this, one physical run produced two disconnected rows: the signal's sample carried
+  zero peaks, and the peak table's sample carried no signal under a hashed identity. The
+  researcher's own mapping decides which export is the run's peak table, because the container
+  does not say and the filename is site-specific: a run is joined when exactly one file in it
+  carries a signal and exactly one was read by the supplied `--peak-mapping`. Two of either, or
+  none, is reported as `AGILENT_D_JOIN_AMBIGUOUS` and left as separate sources rather than
+  guessed at, and files outside a recognised run directory are never joined. The peak table
+  keeps its place in the audit trail as a skipped member under `AGILENT_D_PEAK_TABLE_MERGED`.
+  This needed no new interface: `--peak-mapping` already applies to a whole conversion, and the
+  bundle merge already existed for the vendor-exporter acquisition flow.
 - An Agilent ChemStation `.D` run directory is now recognised as a container. Its
   acquisition and method bookkeeping - `RUN.LOG`, `SAMPLE.MAC`, and anything under `ACQ.M/`
   and `DA.M/` - is recorded as a skipped container member under
