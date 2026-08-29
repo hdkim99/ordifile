@@ -3,11 +3,13 @@
 
 """Bounded reader for the Shimadzu LabSolutions ``.LCD`` TTFL raw-data profile.
 
-``.LCD`` compound documents carry two unrelated internal architectures.  This reader
-supports only the **TTFL** family, whose acquisition channels live under
-``TTFL Raw Data``.  The other family, whose raw data lives under ``TLM Raw Data``,
-has a different stream set and a non-uniform retention grid; it is refused here
-rather than guessed at.
+``.LCD`` compound documents carry several unrelated internal architectures, named
+after the storage their acquisition data lives in.  Two are supported:
+
+* **TTFL** stores a fixed 32-slot channel array and a per-channel chain index.
+* **TLM** stores a single total-ion trace beside its own retention axis.
+
+Others, ``QTFL RawData`` among them, are refused by name rather than guessed at.
 
 Nothing in this module integrates a signal or recalculates a vendor result.
 """
@@ -15,6 +17,7 @@ Nothing in this module integrates a signal or recalculates a vendor result.
 from __future__ import annotations
 
 import hashlib
+import re
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +31,8 @@ MAX_LCD_FILE_BYTES = 512 * 1024 * 1024
 MAX_DIRECTORY_ENTRIES = 1_024
 MAX_FILE_PROPERTY_BYTES = 64 * 1024
 
-RAW_STORAGE = "TTFL Raw Data"
+TTFL_RAW_STORAGE = "TTFL Raw Data"
+RAW_STORAGE = TTFL_RAW_STORAGE
 FILE_PROPERTY_PATH = ("File Property",)
 RETENTION_TIME_PATH = (RAW_STORAGE, "Retention Time")
 DATA_INDEX_PATH = (RAW_STORAGE, "Data Index")
@@ -36,8 +40,13 @@ MS_RAW_DATA_PATH = (RAW_STORAGE, "MS Raw Data")
 REQUIRED_PATHS = frozenset(
     {FILE_PROPERTY_PATH, RETENTION_TIME_PATH, DATA_INDEX_PATH, MS_RAW_DATA_PATH}
 )
-# The competing architecture, refused with a specific code so the reason is legible.
 TLM_RAW_STORAGE = "TLM Raw Data"
+TLM_RETENTION_TIME_PATH = (TLM_RAW_STORAGE, "Retention Time")
+TLM_TIC_DATA_PATH = (TLM_RAW_STORAGE, "TIC Data")
+TLM_REQUIRED_PATHS = frozenset({FILE_PROPERTY_PATH, TLM_RETENTION_TIME_PATH, TLM_TIC_DATA_PATH})
+TLM_CHANNEL_NAME = "TIC"
+# Architectures seen but not supported are named in the refusal so the reason is legible.
+KNOWN_UNSUPPORTED_STORAGES = ("QTFL RawData",)
 
 # Channels occupy a fixed 32-slot array; unused slots exist as zero-byte streams.
 CHANNEL_SLOT_COUNT = 32
@@ -50,6 +59,13 @@ CHANNEL_RECORD_BYTES = 16
 INDEX_RECORD_BYTES = 16
 
 MILLISECONDS_PER_MINUTE = 60_000.0
+
+# ``File Property`` comes in two forms.  Older documents store a fixed ASCII token at
+# offset 4; newer ones store XML whose first ``szVersion`` element is an ``@StoX@``
+# prefix followed by the version's own bytes in hexadecimal.
+XML_PROPERTY_PREFIX = b"<?xml"
+_STOX_VERSION = re.compile(rb"<szVersion>@StoX@([0-9A-Fa-f]{2,32})</szVersion>")
+MAX_PROPERTY_SCAN_BYTES = 8_192
 
 
 class ShimadzuLcdStructureError(Exception):
@@ -81,8 +97,9 @@ class ShimadzuLcdChannel:
 
 @dataclass(frozen=True, slots=True)
 class ShimadzuLcdData:
-    """Verified TTFL channels plus the structural facts that back them."""
+    """Verified acquisition channels plus the structural facts that back them."""
 
+    architecture: str
     file_schema: str
     scan_count: int
     rt_start_ms: int
@@ -90,11 +107,11 @@ class ShimadzuLcdData:
     rt_interval_min_ms: int
     rt_interval_max_ms: int
     channels: tuple[ShimadzuLcdChannel, ...]
-    index_record_count: int
-    ms_raw_stream_bytes: int
+    index_record_count: int | None
+    ms_raw_stream_bytes: int | None
     file_property_stream_sha256: str
     retention_time_stream_sha256: str
-    data_index_stream_sha256: str
+    data_index_stream_sha256: str | None
 
 
 def _preflight_cfb(path: Path) -> int:
@@ -185,7 +202,8 @@ def _is_safe_entry_name(name: str) -> bool:
     return bool(body) and not any(ord(ch) < 32 or ord(ch) == 127 for ch in body)
 
 
-def _validate_inventory(container: olefile.OleFileIO[str]) -> None:
+def _validate_inventory(container: olefile.OleFileIO[str]) -> str:
+    """Validate the directory and return which supported architecture it uses."""
     listed = [tuple(item) for item in container.listdir(streams=True, storages=True)]
     if len(listed) > MAX_DIRECTORY_ENTRIES:
         raise _fail(
@@ -204,17 +222,34 @@ def _validate_inventory(container: olefile.OleFileIO[str]) -> None:
                 "SHIMADZU_LCD_HEADER_INVALID",
                 "The compound directory contains an unsafe name.",
             )
-    if any(item and item[0] == TLM_RAW_STORAGE for item in listed):
+    present = set(listed)
+    ttfl = REQUIRED_PATHS.issubset(present)
+    tlm = TLM_REQUIRED_PATHS.issubset(present)
+    if ttfl and tlm:
+        # Nothing says which storage is authoritative when both are complete, so the
+        # document is refused instead of one being picked arbitrarily.
+        raise _fail(
+            "SHIMADZU_LCD_ARCHITECTURE_AMBIGUOUS",
+            "The document carries both the TTFL and TLM raw-data identities, so which "
+            "one holds the acquisition cannot be determined.",
+        )
+    if ttfl:
+        return "TTFL"
+    if tlm:
+        return "TLM"
+    storages = {item[0] for item in listed if len(item) > 1}
+    unsupported = sorted(storages.intersection(KNOWN_UNSUPPORTED_STORAGES))
+    if unsupported:
         raise _fail(
             "SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED",
-            "This document uses the TLM raw-data architecture, which this reader does "
-            "not support; only the TTFL architecture is validated.",
+            "This document uses a raw-data architecture this reader does not support; "
+            "only TTFL and TLM are validated.",
+            architecture=unsupported[0],
         )
-    if not REQUIRED_PATHS.issubset(set(listed)):
-        raise _fail(
-            "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
-            "One or more case-exact TTFL profile paths are absent.",
-        )
+    raise _fail(
+        "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
+        "No supported case-exact LCD raw-data profile is present.",
+    )
 
 
 def _file_schema(data: bytes) -> str:
@@ -223,17 +258,34 @@ def _file_schema(data: bytes) -> str:
             "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
             "The File Property stream is shorter than its validated header.",
         )
-    try:
-        schema = data[4:9].split(b"\x00", 1)[0].decode("ascii", errors="strict")
-    except UnicodeDecodeError as error:
+    body = data[4:]
+    if body.startswith(XML_PROPERTY_PREFIX):
+        match = _STOX_VERSION.search(body[:MAX_PROPERTY_SCAN_BYTES])
+        if match is None:
+            raise _fail(
+                "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
+                "The XML File Property carries no readable version element.",
+            )
+        try:
+            schema = bytes.fromhex(match.group(1).decode("ascii")).decode("ascii", "strict")
+        except (ValueError, UnicodeDecodeError) as error:
+            raise _fail(
+                "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
+                "The XML File Property version element is malformed.",
+            ) from error
+    else:
+        try:
+            schema = body[:5].split(b"\x00", 1)[0].decode("ascii", errors="strict")
+        except UnicodeDecodeError as error:
+            raise _fail(
+                "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
+                "The File Property schema token is malformed.",
+            ) from error
+    schema = schema.strip()
+    if not schema or any(ord(character) < 32 for character in schema):
         raise _fail(
             "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
-            "The File Property schema token is malformed.",
-        ) from error
-    if not schema:
-        raise _fail(
-            "SHIMADZU_LCD_PROFILE_UNSUPPORTED",
-            "The File Property schema token is empty.",
+            "The File Property schema token is empty or unprintable.",
         )
     return schema
 
@@ -443,64 +495,98 @@ def has_lcd_stream_identity(path: Path) -> bool:
                 handle, raise_defects=olefile.DEFECT_INCORRECT, write_mode=False
             ) as container:
                 listed = {tuple(item) for item in container.listdir(streams=True, storages=True)}
-                return REQUIRED_PATHS.issubset(listed)
+                return REQUIRED_PATHS.issubset(listed) or TLM_REQUIRED_PATHS.issubset(listed)
     except (ShimadzuLcdStructureError, OSError, ValueError, TypeError, IndexError):
         return False
 
 
+def _read_tlm_channel(
+    container: olefile.OleFileIO[str], retention_ms: tuple[int, ...]
+) -> ShimadzuLcdChannel:
+    """Read the single total-ion trace a TLM document stores beside its retention axis."""
+    payload = _read_stream(container, TLM_TIC_DATA_PATH, maximum_size=MAX_SCAN_COUNT * 8)
+    if len(payload) != len(retention_ms) * 8:
+        raise _fail(
+            "SHIMADZU_LCD_CHANNEL_INVALID",
+            "The TLM total-ion trace and retention axis have different lengths.",
+            tic_bytes=len(payload),
+            scan_count=len(retention_ms),
+        )
+    intensities = tuple(value[0] for value in struct.iter_unpack("<Q", payload))
+    return ShimadzuLcdChannel(
+        slot=0,
+        first_scan_index=0,
+        retention_times_min=tuple(value / MILLISECONDS_PER_MINUTE for value in retention_ms),
+        intensities=intensities,
+        secondary_intensities=(),
+        stored_scan_count=len(intensities),
+        spectrum_count=len(intensities),
+    )
+
+
 def read_lcd(path: Path) -> ShimadzuLcdData:
-    """Read the validated TTFL multi-channel profile from an ``.LCD`` document."""
+    """Read a validated TTFL or TLM acquisition profile from an ``.LCD`` document."""
     _preflight_cfb(path)
+    index_data: bytes | None = None
+    ms_raw_bytes: int | None = None
     try:
         with path.open("rb") as handle:
             with olefile.OleFileIO(
                 handle, raise_defects=olefile.DEFECT_INCORRECT, write_mode=False
             ) as container:
-                _validate_inventory(container)
+                architecture = _validate_inventory(container)
                 file_property = _read_stream(
                     container, FILE_PROPERTY_PATH, maximum_size=MAX_FILE_PROPERTY_BYTES
                 )
                 schema = _file_schema(file_property)
+                retention_path = (
+                    RETENTION_TIME_PATH if architecture == "TTFL" else TLM_RETENTION_TIME_PATH
+                )
                 retention_data = _read_stream(
-                    container, RETENTION_TIME_PATH, maximum_size=MAX_SCAN_COUNT * 4
+                    container, retention_path, maximum_size=MAX_SCAN_COUNT * 4
                 )
                 retention_ms, interval_min, interval_max = _decode_retention(retention_data)
-                index_data = _read_stream(
-                    container,
-                    DATA_INDEX_PATH,
-                    maximum_size=MAX_SCAN_COUNT * INDEX_RECORD_BYTES,
-                )
-                ms_raw_bytes = container.get_size(MS_RAW_DATA_PATH)
-                chains = _decode_chains(index_data, len(retention_ms), ms_raw_bytes)
-                populated: list[tuple[int, bytes]] = []
-                for slot in range(CHANNEL_SLOT_COUNT):
-                    slot_path = (RAW_STORAGE, f"{CHANNEL_STREAM_PREFIX}{slot}")
-                    if not container.exists("/".join(slot_path)):
-                        continue
-                    if container.get_size(slot_path) == 0:
-                        continue
-                    populated.append(
-                        (
-                            slot,
-                            _read_stream(
-                                container,
-                                slot_path,
-                                maximum_size=CHANNEL_HEADER_BYTES
-                                + MAX_SCAN_COUNT * CHANNEL_RECORD_BYTES,
-                            ),
+                channels: tuple[ShimadzuLcdChannel, ...]
+                if architecture == "TLM":
+                    channels = (_read_tlm_channel(container, retention_ms),)
+                else:
+                    index_data = _read_stream(
+                        container,
+                        DATA_INDEX_PATH,
+                        maximum_size=MAX_SCAN_COUNT * INDEX_RECORD_BYTES,
+                    )
+                    ms_raw_bytes = container.get_size(MS_RAW_DATA_PATH)
+                    chains = _decode_chains(index_data, len(retention_ms), ms_raw_bytes)
+                    populated: list[tuple[int, bytes]] = []
+                    for slot in range(CHANNEL_SLOT_COUNT):
+                        slot_path = (RAW_STORAGE, f"{CHANNEL_STREAM_PREFIX}{slot}")
+                        if not container.exists("/".join(slot_path)):
+                            continue
+                        if container.get_size(slot_path) == 0:
+                            continue
+                        populated.append(
+                            (
+                                slot,
+                                _read_stream(
+                                    container,
+                                    slot_path,
+                                    maximum_size=CHANNEL_HEADER_BYTES
+                                    + MAX_SCAN_COUNT * CHANNEL_RECORD_BYTES,
+                                ),
+                            )
                         )
+                    if len(populated) != len(chains):
+                        raise _fail(
+                            "SHIMADZU_LCD_CHANNEL_INVALID",
+                            "The populated channel slots and the data-index chains disagree "
+                            "in number.",
+                            populated_slots=len(populated),
+                            chain_count=len(chains),
+                        )
+                    channels = tuple(
+                        _decode_channel(payload, slot, chain, retention_ms)
+                        for (slot, payload), chain in zip(populated, chains, strict=True)
                     )
-                if len(populated) != len(chains):
-                    raise _fail(
-                        "SHIMADZU_LCD_CHANNEL_INVALID",
-                        "The populated channel slots and the data-index chains disagree in number.",
-                        populated_slots=len(populated),
-                        chain_count=len(chains),
-                    )
-                channels = tuple(
-                    _decode_channel(payload, slot, chain, retention_ms)
-                    for (slot, payload), chain in zip(populated, chains, strict=True)
-                )
     except ShimadzuLcdStructureError:
         raise
     except (OSError, ValueError, TypeError, IndexError, struct.error) as error:
@@ -510,6 +596,7 @@ def read_lcd(path: Path) -> ShimadzuLcdData:
         ) from error
 
     return ShimadzuLcdData(
+        architecture=architecture,
         file_schema=schema,
         scan_count=len(retention_ms),
         rt_start_ms=retention_ms[0],
@@ -517,9 +604,11 @@ def read_lcd(path: Path) -> ShimadzuLcdData:
         rt_interval_min_ms=interval_min,
         rt_interval_max_ms=interval_max,
         channels=channels,
-        index_record_count=len(index_data) // INDEX_RECORD_BYTES,
+        index_record_count=(None if index_data is None else len(index_data) // INDEX_RECORD_BYTES),
         ms_raw_stream_bytes=ms_raw_bytes,
         file_property_stream_sha256=hashlib.sha256(file_property).hexdigest(),
         retention_time_stream_sha256=hashlib.sha256(retention_data).hexdigest(),
-        data_index_stream_sha256=hashlib.sha256(index_data).hexdigest(),
+        data_index_stream_sha256=(
+            None if index_data is None else hashlib.sha256(index_data).hexdigest()
+        ),
     )

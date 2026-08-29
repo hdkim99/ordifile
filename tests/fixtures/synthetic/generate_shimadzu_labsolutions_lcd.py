@@ -19,11 +19,18 @@ BASE_STEP_MS = 400
 LONG_STEP_MS = 900
 
 
-def _file_property(schema: str) -> bytes:
+def _file_property(schema: str, *, as_xml: bool = False) -> bytes:
     payload = bytearray(SECTOR_BYTES)
+    if as_xml:
+        payload[0:4] = b"\x1f\x00\x00\x04"
+        encoded = schema.encode("ascii").hex().upper().encode("ascii")
+        body = b'<?xml version="1.0"?>\r\n<FileProperty><szVersion>@StoX@' + encoded
+        body += b"</szVersion></FileProperty>"
+        payload[4 : 4 + len(body)] = body
+        return bytes(payload)
     struct.pack_into("<I", payload, 0, 11)
-    encoded = schema.encode("ascii") + b"\x00"
-    payload[4 : 4 + len(encoded)] = encoded
+    encoded_schema = schema.encode("ascii") + b"\x00"
+    payload[4 : 4 + len(encoded_schema)] = encoded_schema
     return bytes(payload)
 
 
@@ -38,6 +45,9 @@ def synthetic_lcd_streams(
     index_scan_overrides: Mapping[int, int] | None = None,
     secondary_exceeds_primary_at: int | None = None,
     use_tlm_storage: bool = False,
+    tlm_architecture: bool = False,
+    tlm_tic_bytes: bytes | None = None,
+    xml_file_property: bool = False,
     extra_streams: Mapping[tuple[str, ...], bytes] | None = None,
 ) -> dict[tuple[str, ...], bytes]:
     """Return deterministic invented streams for the validated TTFL profile."""
@@ -86,8 +96,21 @@ def synthetic_lcd_streams(
             blob += struct.pack("<QII", primary, secondary, 0)
         return bytes(blob)
 
+    if tlm_architecture:
+        tic = (
+            tlm_tic_bytes
+            if tlm_tic_bytes is not None
+            else b"".join(
+                struct.pack("<Q", 500 + (index * 13) % 900) for index in range(len(times))
+            )
+        )
+        return {
+            ("File Property",): _file_property(file_schema, as_xml=xml_file_property),
+            ("TLM Raw Data", "Retention Time"): struct.pack(f"<{len(times)}I", *times),
+            ("TLM Raw Data", "TIC Data"): tic,
+        }
     streams: dict[tuple[str, ...], bytes] = {
-        ("File Property",): _file_property(file_schema),
+        ("File Property",): _file_property(file_schema, as_xml=xml_file_property),
         ("TTFL Raw Data", "Retention Time"): struct.pack(f"<{len(times)}I", *times),
         ("TTFL Raw Data", "Data Index"): bytes(index_blob),
         ("TTFL Raw Data", "MS Raw Data"): bytes(max(offset, SECTOR_BYTES)),

@@ -1,7 +1,7 @@
 # Copyright 2026 hdkim99
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental Shimadzu LabSolutions-compatible ``.LCD`` TTFL multi-channel reader."""
+"""Experimental Shimadzu LabSolutions-compatible ``.LCD`` reader (TTFL and TLM)."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _parse_error(error: ShimadzuLcdStructureError) -> ParseError:
 
 
 class ShimadzuLabsolutionsLcdAdapter:
-    """Read the acquisition channels an ``.LCD`` document stores under ``TTFL Raw Data``."""
+    """Read the acquisition channels an ``.LCD`` document stores, TTFL or TLM."""
 
     api_version: ClassVar[str] = "1"
     adapter_id: ClassVar[str] = "shimadzu_labsolutions_lcd"
@@ -49,7 +49,7 @@ class ShimadzuLabsolutionsLcdAdapter:
     descriptor: ClassVar[AdapterDescriptor] = AdapterDescriptor(
         adapter_id,
         adapter_version,
-        "Shimadzu LabSolutions-compatible .LCD, TTFL multi-channel profile (Experimental)",
+        "Shimadzu LabSolutions-compatible .LCD, TTFL and TLM profiles (Experimental)",
         (".lcd",),
         True,
         False,
@@ -60,7 +60,7 @@ class ShimadzuLabsolutionsLcdAdapter:
     )
 
     def probe(self, path: Path) -> DetectionResult:
-        """Match the exact extension, the CFB profile, and the TTFL stream identity."""
+        """Match the exact extension, the CFB profile, and a supported stream identity."""
         if path.suffix.casefold() != ".lcd":
             return DetectionResult(False, 0.0, "the required .lcd extension is absent")
         try:
@@ -92,7 +92,7 @@ class ShimadzuLabsolutionsLcdAdapter:
             True,
             0.99,
             f"bounded CFB container, File Property {decoded.file_schema}, and "
-            f"{len(decoded.channels)} validated TTFL channel(s) over "
+            f"{len(decoded.channels)} validated {decoded.architecture} channel(s) over "
             f"{decoded.scan_count} scans matched",
         )
 
@@ -117,7 +117,10 @@ class ShimadzuLabsolutionsLcdAdapter:
 
         sample_id = path.stem
         source = SourceFile(path, path.name, path.name, size, None, None, 0)
-        channel_names = tuple(f"TIC Data {channel.slot}" for channel in decoded.channels)
+        channel_names = tuple(
+            f"TIC Data {channel.slot}" if decoded.architecture == "TTFL" else "TIC"
+            for channel in decoded.channels
+        )
         sample = SampleRecord(
             sample_id,
             source,
@@ -147,8 +150,8 @@ class ShimadzuLabsolutionsLcdAdapter:
 
         values: list[tuple[str, object, str | None]] = [
             ("support_status", "experimental", None),
-            ("profile", "LabSolutions LCD TTFL multi-channel profile", None),
-            ("raw_data_architecture", "TTFL", None),
+            ("profile", f"LabSolutions LCD {decoded.architecture} profile", None),
+            ("raw_data_architecture", decoded.architecture, None),
             ("file_property_schema", decoded.file_schema, None),
             ("file_property_stream_sha256", decoded.file_property_stream_sha256, None),
             ("scan_count", decoded.scan_count, None),
@@ -162,14 +165,17 @@ class ShimadzuLabsolutionsLcdAdapter:
                 None,
             ),
             ("retention_time_stream_sha256", decoded.retention_time_stream_sha256, None),
-            ("data_index_record_count", decoded.index_record_count, None),
-            ("data_index_stream_sha256", decoded.data_index_stream_sha256, None),
-            ("ms_raw_stream_bytes", decoded.ms_raw_stream_bytes, "bytes"),
             ("channel_count", len(decoded.channels), None),
             ("tic_signal_unit_status", "unknown", None),
             ("ms1_export_status", "unsupported", None),
             ("timestamp_status", "unsupported_timezone_unresolved", None),
         ]
+        if decoded.index_record_count is not None:
+            values.append(("data_index_record_count", decoded.index_record_count, None))
+        if decoded.data_index_stream_sha256 is not None:
+            values.append(("data_index_stream_sha256", decoded.data_index_stream_sha256, None))
+        if decoded.ms_raw_stream_bytes is not None:
+            values.append(("ms_raw_stream_bytes", decoded.ms_raw_stream_bytes, "bytes"))
         for channel in decoded.channels:
             prefix = f"channel_{channel.slot}"
             values.extend(
@@ -186,8 +192,8 @@ class ShimadzuLabsolutionsLcdAdapter:
         warnings: tuple[Issue, ...] = (
             Issue(
                 "SHIMADZU_LCD_EXPERIMENTAL_PROFILE",
-                "LCD support is limited to the evidence-backed TTFL multi-channel profile; "
-                "the TLM raw-data architecture and other LCD generations are unsupported.",
+                "LCD support is limited to the evidence-backed TTFL and TLM raw-data "
+                "architectures; others, QTFL among them, are refused by name.",
                 Severity.WARNING,
                 path.name,
             ),
