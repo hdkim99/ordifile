@@ -436,7 +436,7 @@ jobs:
             --tag-ref-json live-tag/ref.json \
             --tag-object-json live-tag/object.json
       - name: Publish the existing distributions to TestPyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: release-artifact/packages/
           repository-url: https://test.pypi.org/legacy/
@@ -633,7 +633,7 @@ jobs:
             --tag-ref-json live-tag/ref.json \
             --tag-object-json live-tag/object.json
       - name: Publish the existing distributions to PyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: release-artifact/packages/
           verbose: true
@@ -1179,7 +1179,7 @@ jobs:
               raise SystemExit("The live annotated tag no longer targets this workflow commit")
           PY
       - name: Publish to TestPyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: release-artifact/packages/
           repository-url: https://test.pypi.org/legacy/
@@ -1559,7 +1559,7 @@ jobs:
               raise SystemExit("The live annotated tag no longer targets this workflow commit")
           PY
       - name: Publish to PyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: release-artifact/packages/
           verbose: true
