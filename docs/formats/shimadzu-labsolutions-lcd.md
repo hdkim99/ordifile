@@ -1,4 +1,4 @@
-# Shimadzu LabSolutions-compatible `.LCD`, TTFL profile (Experimental)
+# Shimadzu LabSolutions-compatible `.LCD`, TTFL and TLM profiles (Experimental)
 
 ## What this adapter reads
 
@@ -16,8 +16,9 @@ carrying both supported identities is refused as
 `SHIMADZU_LCD_ARCHITECTURE_AMBIGUOUS`, because nothing says which storage would
 hold the acquisition.
 
-It emits one uninterpolated scientific signal per populated acquisition channel,
-with retention time in minutes. It does not read peaks, does not export MS
+It emits one uninterpolated scientific signal per populated TTFL acquisition channel,
+or one signal for a TLM total-ion trace, with retention time in minutes. It does
+not read peaks, does not export MS
 spectra, and does not integrate anything.
 
 ## `File Property` comes in two forms
@@ -81,5 +82,5 @@ file is, alongside the minimum and maximum observed step.
 
 ## Not claimed
 
-Peaks, compound identities, MS spectra, quantitation, the TLM architecture, the
-physical intensity unit, acquisition timestamps, and write support.
+Peaks, compound identities, MS spectra, quantitation, architectures other than
+TTFL and TLM, the physical intensity unit, acquisition timestamps, and write support.
