@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-16
+
+### Security
+
+- Update the pinned PyPA publishing action to v1.14.3 for GHSA-5xjx-3w67-w9x9.
+  Trusted publishing, index verification, and production review are unchanged.
+
+See the [v0.6.0 release notes](docs/releases/v0.6.0.md) for capability and validation limits.
+
 ### Changed
 
 - An Agilent ChemStation `.D` run now reaches the workbook as **one** source instead of two.
@@ -29,8 +38,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   The suppressed set is closed and named: a data file at the top of the directory, the
   signal or an export, is never suppressed, and a directory merely named `.D` without the
   evidenced skeleton (`RUN.LOG`, `SAMPLE.MAC`, `ACQ.M/`, `DA.M/`) suppresses nothing. An
-  export the researcher has not mapped still fails, which is correct. Joining a run's
-  signal and peak table into a single workbook source remains out of scope.
+  export the researcher has not mapped still fails, which is correct. A run's signal and peak table join only under the explicit mapping and uniqueness
+  constraints above.
 
 ### Added
 
@@ -64,11 +73,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   [the capability and safety boundary](https://github.com/hdkim99/ordifile/blob/main/docs/formats/andi-chromatography-cdf.md).
 
 - Ordifile now reads Shimadzu LabSolutions-compatible `.LCD` files, its first liquid
-  chromatography format. Support is limited to the **TTFL** raw-data architecture and emits
+  chromatography format. Support initially covered the **TTFL** raw-data architecture and emits
   one uninterpolated signal per populated acquisition channel, with retention time in
-  minutes. `.LCD` carries two unrelated internal architectures; documents using the other
-  one, `TLM Raw Data`, are refused with `SHIMADZU_LCD_ARCHITECTURE_UNSUPPORTED` rather than
-  guessed at. Channels occupy a fixed 32-slot array (`TIC Data 0` .. `TIC Data 31`), and each
+  minutes. The separate TLM architecture is supported as described above; other
+  layouts are not guessed at. Channels occupy a fixed 32-slot array (`TIC Data 0` .. `TIC Data 31`), and each
   populated slot becomes its own channel named after the vendor stream, so the channel
   concept comes from the document rather than being invented. A channel's retention window is
   taken from the linked chain that `Data Index` stores for it, and a channel whose declared
